@@ -1,45 +1,44 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, CheckCircle2, Phone } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+
+/* 
+ * Design Read: Premium medical hero section for patient trust, with a clean clinical-editorial language, 
+ * leaning toward Tailwind CSS + Instrument Serif + responsive split-screen layout + custom Motion transitions.
+ * 
+ * Dial Calibration:
+ * - DESIGN_VARIANCE: 7 (Asymmetric editorial layout)
+ * - MOTION_INTENSITY: 5 (Smooth, hardware-accelerated transitions)
+ * - VISUAL_DENSITY: 3 (Spacious layout, breathing room)
+ */
 
 const slides = [
   {
     id: 1,
-    titleTop: "LẦN ĐẦU TIÊN TẠI VIỆT NAM",
-    titleMainWhite: "BỆNH VIỆN MAI PHƯƠNG",
-    titleMainYellow: "TRUNG TÂM KHÁM CHỮA BỆNH CHUẨN QUỐC TẾ",
-    features: [
-      "Khám chữa bệnh chất lượng cao với chuyên gia đầu ngành",
-      "Hệ thống trang thiết bị y tế hiện đại thế hệ mới nhất"
-    ],
-    badge: "TƯ VẤN TRỰC TUYẾN",
-    cta: "ĐĂNG KÝ NGAY",
+    category: "LẦN ĐẦU TIÊN TẠI VIỆT NAM",
+    title: "Trung tâm Y tế",
+    titleItalic: "chuẩn Quốc tế",
+    description: "Quy tụ chuyên gia đầu ngành cùng trang thiết bị y khoa hiện đại thế hệ mới nhất, kiến tạo chuẩn mực khám chữa bệnh mới.",
+    cta: "Đặt lịch khám",
     image: "/images/hero_general.png"
   },
   {
     id: 2,
-    titleTop: "CHUYÊN KHOA UNG BƯỚU",
-    titleMainWhite: "TẦM SOÁT UNG THƯ SỚM",
-    titleMainYellow: "CÔNG NGHỆ CHẨN ĐOÁN HÌNH ẢNH CAO CẤP",
-    features: [
-      "Phát hiện sớm các rủi ro thầm lặng với công nghệ MRI/CT",
-      "Hội chẩn đa chuyên khoa mang lại phác đồ cá nhân hóa"
-    ],
-    badge: "ƯU ĐÃI 20%",
-    cta: "NHẬN TƯ VẤN GÓI KHÁM",
-    image: "/images/hero_screening.png"
+    category: "CHUYÊN KHOA TIM MẠCH",
+    title: "Chăm sóc và Can thiệp",
+    titleItalic: "ít xâm lấn",
+    description: "Quy tụ đội ngũ Giáo sư, Tiến sĩ hàng đầu cùng phòng mổ Hybrid đạt tiêu chuẩn vô khuẩn quốc tế cực kỳ nghiêm ngặt.",
+    cta: "Tìm hiểu chuyên khoa Tim mạch",
+    image: "/images/hero_cardio.png"
   },
   {
     id: 3,
-    titleTop: "CHUYÊN KHOA TIM MẠCH",
-    titleMainWhite: "TRUNG TÂM TIM MẠCH",
-    titleMainYellow: "CAN THIỆP ÍT XÂM LẤN & CHĂM SÓC TÍCH CỰC",
-    features: [
-      "Quy tụ đội ngũ Giáo sư, Tiến sĩ, Bác sĩ hàng đầu",
-      "Phòng mổ Hybrid đạt tiêu chuẩn vô khuẩn quốc tế"
-    ],
-    badge: "CẤP CỨU 24/7",
-    cta: "TÌM HIỂU THÊM",
-    image: "/images/hero_cardio.png"
+    category: "CHUYÊN KHOA UNG BƯỚU",
+    title: "Tầm soát ung thư",
+    titleItalic: "công nghệ cao",
+    description: "Phát hiện sớm các rủi ro sức khỏe âm thầm bằng công nghệ chẩn đoán hình ảnh CT/MRI thế hệ mới nhất.",
+    cta: "Nhận tư vấn tầm soát",
+    image: "/images/hero_screening.png"
   }
 ];
 
@@ -57,125 +56,131 @@ export const HeroSection = () => {
   useEffect(() => {
     const timer = setInterval(() => {
       nextSlide();
-    }, 4000);
+    }, 6000);
     return () => clearInterval(timer);
   }, [currentSlide]);
 
+  const slide = slides[currentSlide];
+
   return (
-    <section className="relative w-full h-[650px] md:h-[600px] overflow-hidden bg-[#0a1e42]">
+    <section className="relative w-full min-h-[80dvh] lg:min-h-[85dvh] overflow-hidden bg-[#FAF9F6] flex items-center py-16 lg:py-24 border-b border-slate-200/50">
 
-      {/* Slides Container */}
-      <div className="relative w-full h-full">
-        {slides.map((slide, index) => (
-          <div
-            key={slide.id}
-            className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out ${currentSlide === index ? "opacity-100 z-10" : "opacity-0 z-0"
-              }`}
-          >
-            {/* Background Image / Gradient */}
-            <div className="absolute inset-0 bg-gradient-to-br from-[#06142e] via-[#0d2a5c] to-[#0a1e42]">
-              {/* Optional: Add a faint grid or dot pattern here to match Tam Anh's techy background */}
-              <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-300 via-transparent to-transparent bg-[length:20px_20px]"></div>
-            </div>
+      {/* Background Graphic Element - Subtle radial glow */}
+      <div className="absolute top-0 right-0 w-[40vw] h-[40vw] bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.04)_0%,transparent_70%)] pointer-events-none z-0" />
 
-            {/* Main Content Area */}
-            <div className="absolute inset-0 flex flex-col md:flex-row items-center max-w-[1400px] mx-auto px-12 md:px-20 pt-8 pb-28 md:pb-24">
+      <div className="relative w-full max-w-7xl mx-auto px-6 lg:px-8 z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
 
-              {/* Left Side: Visual (Images/Doctors) */}
-              <div className="w-full md:w-5/12 h-full flex items-center justify-center relative">
-                {/* Techy glowing frame for the image */}
-                <div className="relative w-full max-w-md aspect-[4/3] rounded-xl overflow-hidden border-2 border-blue-400/50 shadow-[0_0_30px_rgba(59,130,246,0.3)]">
-                  <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-cyan-400 z-20"></div>
-                  <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-cyan-400 z-20"></div>
-                  <img
-                    src={slide.image}
-                    alt={slide.titleMainWhite}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              </div>
+          {/* Left Side: Content Box */}
+          <div className="lg:col-span-6 flex flex-col justify-center text-left max-w-xl lg:max-w-none">
 
-              {/* Right Side: Text & Marketing Copy */}
-              <div className="w-full md:w-7/12 flex flex-col items-center md:items-start text-center md:text-left mt-8 md:mt-0 pl-0 md:pl-12">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={slide.id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                className="flex flex-col items-start"
+              >
+                {/* Micro Category Tag */}
+                <span className="inline-block rounded-full bg-slate-200/50 border border-slate-300/30 px-3 py-1 text-[10px] uppercase tracking-[0.2em] font-bold text-slate-600 mb-6">
+                  {slide.category}
+                </span>
 
-                {/* Top Pill */}
-                <div className="bg-blue-900/60 border border-blue-400/30 text-cyan-300 px-6 py-1.5 rounded-full font-bold text-sm md:text-base uppercase tracking-widest mb-4 inline-block shadow-sm">
-                  {slide.titleTop}
-                </div>
-
-                {/* Main Titles */}
-                <h1 className="text-3xl md:text-5xl font-black text-white uppercase tracking-wide leading-tight mb-2 drop-shadow-md">
-                  {slide.titleMainWhite}
+                {/* Title */}
+                <h1 className="font-sans text-4xl md:text-5xl lg:text-6xl font-normal text-slate-900 tracking-tight leading-[1.2] lg:leading-[1.25] mb-6">
+                  {slide.title} <br />
+                  <span className="italic text-slate-600 font-light">
+                    {slide.titleItalic}
+                  </span>
                 </h1>
-                <h2 className="text-2xl md:text-4xl font-extrabold text-[#facc15] uppercase tracking-wide leading-tight mb-8 drop-shadow-md">
-                  {slide.titleMainYellow}
-                </h2>
 
-                {/* Features List */}
-                <div className="flex flex-col space-y-4 mb-8 w-full max-w-2xl">
-                  {slide.features.map((feature, idx) => (
-                    <div key={idx} className="flex items-center space-x-3 bg-blue-900/40 p-3 rounded-lg border border-blue-500/20 backdrop-blur-sm">
-                      <div className="bg-yellow-400 rounded-full p-0.5 shrink-0">
-                        <CheckCircle2 className="w-5 h-5 text-blue-900" />
-                      </div>
-                      <span className="text-white font-bold text-sm md:text-base">{feature}</span>
-                    </div>
-                  ))}
-                </div>
+                {/* Subtext */}
+                <p className="text-base text-slate-600 leading-relaxed font-sans max-w-[45ch] mb-8">
+                  {slide.description}
+                </p>
 
-                {/* Badge Highlight */}
-                <div className="flex items-center space-x-4">
-                  <div className="bg-red-600 text-white font-black text-xl md:text-2xl px-6 py-2 rounded-lg shadow-lg border border-red-500 uppercase tracking-widest animate-pulse">
-                    {slide.badge}
+                {/* CTA Button-in-Button (Nested Island style) */}
+                <button className="group relative rounded-full px-5 py-2.5 bg-slate-900 text-white font-medium text-sm flex items-center gap-4 hover:bg-slate-800 active:scale-[0.98] transition-all duration-300 shadow-sm shadow-black/5">
+                  <span>{slide.cta}</span>
+                  <span className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
+                    <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-0.5 transition-transform" />
+                  </span>
+                </button>
+              </motion.div>
+            </AnimatePresence>
+
+          </div>
+
+          {/* Right Side: Image with Doppelrand Bezel */}
+          <div className="lg:col-span-6 flex justify-center items-center w-full">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={slide.id}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                className="w-full max-w-lg lg:max-w-none"
+              >
+                {/* Double-Bezel Enclosure */}
+                <div className="bg-slate-100/60 p-2 rounded-[2.5rem] border border-slate-200/50 shadow-sm shadow-slate-200/30">
+                  <div className="inner-core bg-white rounded-[calc(2.5rem-0.5rem)] overflow-hidden aspect-[4/3] relative group shadow-[inset_0_1px_1px_rgba(255,255,255,0.8)]">
+                    <img
+                      src={slide.image}
+                      alt={slide.title}
+                      className="w-full h-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-102"
+                    />
+                    {/* Minimal aesthetic gradient overlay for depth */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/5 to-transparent pointer-events-none" />
                   </div>
                 </div>
-
-              </div>
-            </div>
+              </motion.div>
+            </AnimatePresence>
           </div>
-        ))}
-      </div>
 
-      {/* Persistent Bottom CTA Bar (Stays exact same across all slides) */}
-      <div className="absolute bottom-0 left-0 right-0 h-16 md:h-20 flex z-30 shadow-2xl border-t border-white/10">
-        {/* Left Red CTA Box */}
-        <div className="w-2/5 md:w-1/3 bg-gradient-to-r from-[#d91e1e] to-[#e62a2a] flex items-center justify-end pr-6 md:pr-12 cursor-pointer hover:from-[#b91818] hover:to-[#c01d1d] transition-colors relative group">
-          <span className="text-white font-black text-lg md:text-3xl uppercase tracking-wider drop-shadow-md mr-2">
-            Đăng ký ngay
-          </span>
-          <ChevronRight className="w-8 h-8 md:w-12 md:h-12 text-white/50 group-hover:text-white transition-colors" />
-
-          {/* Angle cut effect (simulated with border) */}
-          <div className="absolute top-0 -right-8 w-0 h-0 border-t-[64px] border-l-[32px] md:border-t-[80px] border-t-transparent border-l-[#e62a2a] group-hover:border-l-[#c01d1d] transition-colors z-20"></div>
         </div>
 
-        {/* Right Blue Info Box */}
-        <div className="w-3/5 md:w-2/3 bg-gradient-to-r from-[#0052a2] to-[#004080] flex items-center pl-12 md:pl-20 text-white shadow-inner">
-          <Phone className="w-6 h-6 md:w-8 md:h-8 mr-3 text-cyan-300" />
-          <div className="flex flex-col md:flex-row md:items-center text-sm md:text-2xl font-bold tracking-wide">
-            <span className="mr-0 md:mr-2">028 7102 6789 <span className="text-cyan-300 font-medium text-xs md:text-lg">(TP.HCM)</span></span>
-            <span className="hidden md:inline mx-2">-</span>
-            <span>024 7106 6858 <span className="text-cyan-300 font-medium text-xs md:text-lg">(Hà Nội)</span></span>
+        {/* Carousel Navigation & Indicators */}
+        <div className="flex items-center justify-between mt-12 pt-8 border-t border-slate-200/40">
+
+          {/* Slide Indicator Dots */}
+          <div className="flex gap-2">
+            {slides.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  setCurrentSlide(idx);
+                }}
+                className={`h-1.5 rounded-full transition-all duration-300 ${currentSlide === idx ? "w-6 bg-slate-900" : "w-1.5 bg-slate-300 hover:bg-slate-400"
+                  }`}
+                aria-label={`Go to slide ${idx + 1}`}
+              />
+            ))}
           </div>
+
+          {/* Minimalist Prev/Next Arrows */}
+          <div className="flex gap-3">
+            <button
+              onClick={prevSlide}
+              className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 transition-all active:scale-[0.95]"
+              aria-label="Previous slide"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={nextSlide}
+              className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 transition-all active:scale-[0.95]"
+              aria-label="Next slide"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+
         </div>
+
       </div>
-
-      {/* Carousel Navigation Arrows */}
-      <button
-        onClick={prevSlide}
-        className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 flex items-center justify-center text-white z-40 transition-colors backdrop-blur-sm hidden md:flex"
-      >
-        <ChevronLeft className="w-8 h-8" />
-      </button>
-      <button
-        onClick={nextSlide}
-        className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 flex items-center justify-center text-white z-40 transition-colors backdrop-blur-sm hidden md:flex"
-      >
-        <ChevronRight className="w-8 h-8" />
-      </button>
-
-
-
     </section>
   );
 };
