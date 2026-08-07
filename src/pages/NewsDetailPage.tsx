@@ -21,15 +21,15 @@ const newsDetails: Record<string, { title: string; date: string; category: strin
     content: (
       <>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Dù không đe dọa đến sức khỏe toàn thân nhưng viêm da quanh miệng có thể gây ảnh hưởng đáng kể đến thẩm mỹ và tâm lý của người bệnh. Việc nhận biết sớm các triệu chứng sẽ giúp quá trình điều trị diễn ra nhanh chóng và hiệu quả hơn.</p>
-        <h3 className="text-2xl font-normal font-serif text-slate-900 mt-8 mb-4">Viêm da quanh miệng là gì?</h3>
+        <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">Viêm da quanh miệng là gì?</h3>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Viêm da quanh miệng là một tình trạng viêm da phổ biến, biểu hiện bằng các nốt mẩn đỏ, mụn nước nhỏ liti xuất hiện xung quanh vùng miệng, đôi khi lan lên mũi hoặc vùng mắt. Bệnh thường gặp ở phụ nữ trẻ và trẻ em.</p>
-        <h3 className="text-2xl font-normal font-serif text-slate-900 mt-8 mb-4">Nguyên nhân gây bệnh</h3>
+        <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">Nguyên nhân gây bệnh</h3>
         <ul className="list-disc pl-6 mb-6 space-y-3 text-slate-600 font-sans">
           <li>Sử dụng mỹ phẩm, kem dưỡng da chứa thành phần gây kích ứng.</li>
           <li>Lạm dụng thuốc bôi ngoài da có chứa corticoid.</li>
           <li>Thay đổi nội tiết tố, dị ứng thời tiết hoặc thực phẩm.</li>
         </ul>
-        <h3 className="text-2xl font-normal font-serif text-slate-900 mt-8 mb-4">Cách xử lý và điều trị</h3>
+        <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">Cách xử lý và điều trị</h3>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Khi có dấu hiệu viêm da quanh miệng, người bệnh nên ngưng ngay các loại mỹ phẩm đang sử dụng. Không tự ý mua thuốc bôi tại nhà. Hãy đến các cơ sở y tế uy tín như Bệnh viện Đa khoa Mai Phương để được bác sĩ da liễu thăm khám và kê đơn thuốc phù hợp, thường là kháng sinh bôi ngoài da hoặc thuốc uống dị ứng.</p>
       </>
     )
@@ -43,7 +43,7 @@ const newsDetails: Record<string, { title: string; date: string; category: strin
       <>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Chị Hoa, 26 tuổi, nhập viện cấp cứu nhiều lần do hoảng hốt, tim đập nhanh, khó thở, nghĩ mình mắc bệnh tim, đột quỵ. Tuy nhiên, kết quả khám tim mạch hoàn toàn bình thường.</p>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Sau khi được chuyển sang khoa Tâm lý - Tâm thần tại Bệnh viện Đa khoa Mai Phương, bác sĩ chẩn đoán chị Hoa mắc chứng Rối loạn hoảng sợ (Panic disorder). Đây là một dạng rối loạn lo âu phổ biến trong xã hội hiện đại.</p>
-        <h3 className="text-2xl font-normal font-serif text-slate-900 mt-8 mb-4">Dấu hiệu nhận biết</h3>
+        <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">Dấu hiệu nhận biết</h3>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Cơn hoảng sợ thường xuất hiện đột ngột với các triệu chứng mãnh liệt như:</p>
         <ul className="list-disc pl-6 mb-6 space-y-3 text-slate-600 font-sans">
           <li>Tim đập thình thịch, đau tức ngực.</li>
@@ -75,7 +75,7 @@ const newsDetails: Record<string, { title: string; date: string; category: strin
     content: (
       <>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Bệnh viện Đa khoa Mai Phương tự hào là đơn vị tiên phong ứng dụng hệ thống Robot Da Vinci Xi Dual Console - công nghệ phẫu thuật robot hai buồng điều khiển tiên tiến nhất hiện nay.</p>
-        <h3 className="text-2xl font-normal font-serif text-slate-900 mt-8 mb-4">Ưu điểm vượt trội</h3>
+        <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">Ưu điểm vượt trội</h3>
         <ul className="list-disc pl-6 mb-6 space-y-3 text-slate-600 font-sans">
           <li><strong>Độ chính xác cao:</strong> Cánh tay robot linh hoạt xoay 540 độ, vươn tới những góc khuất hẹp nhất mà tay người khó tiếp cận.</li>
           <li><strong>Ít xâm lấn:</strong> Vết mổ siêu nhỏ, giảm đau đớn, hạn chế mất máu và nguy cơ nhiễm trùng.</li>
@@ -94,15 +94,15 @@ const newsDetails: Record<string, { title: string; date: string; category: strin
     content: (
       <>
         <p className="mb-6 text-lg text-slate-700 leading-relaxed font-sans">Nếu đang trong hành trình chờ đón con yêu, chị em đừng bỏ qua các dấu hiệu có thai sớm tuần đầu mà cơ thể đang khẽ nhắn gửi. Nhận biết sớm không chỉ giúp chị em chuẩn bị tâm lý mà còn có kế hoạch chăm sóc thai kỳ tốt nhất.</p>
-        <h3 className="text-2xl font-normal font-serif text-slate-900 mt-8 mb-4">1. Trễ kinh (Chậm kinh)</h3>
+        <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">1. Trễ kinh (Chậm kinh)</h3>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Đây là dấu hiệu mang thai sớm và đáng tin cậy nhất đối với những phụ nữ có chu kỳ kinh nguyệt đều đặn. Khi quá trình thụ thai thành công, cơ thể sẽ tiết ra hormone hCG để duy trì thai kỳ, làm buồng trứng ngừng rụng trứng, dẫn đến việc mất kinh.</p>
-        <h3 className="text-2xl font-normal font-serif text-slate-900 mt-8 mb-4">2. Máu báo thai</h3>
+        <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">2. Máu báo thai</h3>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Khoảng 10-14 ngày sau khi thụ thai, phôi thai sẽ bám vào niêm mạc tử cung để làm tổ, có thể gây ra hiện tượng chảy máu nhẹ (máu báo thai). Máu báo thường có màu hồng nhạt hoặc nâu, lượng rất ít và chỉ xuất hiện trong 1-2 ngày.</p>
-        <h3 className="text-2xl font-normal font-serif text-slate-900 mt-8 mb-4">3. Thay đổi ở vùng ngực</h3>
+        <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">3. Thay đổi ở vùng ngực</h3>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Sự gia tăng hormone khi mang thai khiến lượng máu đến bầu ngực tăng lên. Chị em sẽ cảm thấy ngực căng tức, nhạy cảm hơn bình thường, quầng vú có thể sẫm màu hơn.</p>
-        <h3 className="text-2xl font-normal font-serif text-slate-900 mt-8 mb-4">4. Đi tiểu thường xuyên</h3>
+        <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">4. Đi tiểu thường xuyên</h3>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Lưu lượng máu trong cơ thể tăng lên khiến thận phải làm việc nhiều hơn để lọc chất thải, dẫn đến việc bàng quang nhanh đầy và bạn phải đi tiểu nhiều hơn.</p>
-        <h3 className="text-2xl font-normal font-serif text-slate-900 mt-8 mb-4">Lưu ý từ bác sĩ</h3>
+        <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">Lưu ý từ bác sĩ</h3>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Các dấu hiệu trên có thể khác nhau ở mỗi người. Để khẳng định chắc chắn mình đã mang thai, bạn nên sử dụng que thử thai hoặc đến Bệnh viện Đa khoa Mai Phương để thực hiện xét nghiệm máu Beta hCG và siêu âm kiểm tra nhé.</p>
       </>
     )
@@ -125,7 +125,7 @@ const NewsDetailPage = () => {
         <Header />
         <main className="flex-grow flex items-center justify-center py-20">
           <div className="text-center max-w-md px-6">
-            <h2 className="text-2xl font-normal font-serif text-slate-900 mb-6">Không tìm thấy bài viết</h2>
+            <h2 className="text-2xl font-bold text-[#0d2a5c] uppercase mb-6">Không tìm thấy bài viết</h2>
             <Link to="/tin-tuc" className="group rounded-full px-5 py-2.5 bg-slate-900 text-white font-medium text-xs inline-flex items-center gap-3 hover:bg-slate-800 active:scale-[0.98] transition-all duration-300">
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Quay lại trang tin tức</span>
@@ -161,7 +161,7 @@ const NewsDetailPage = () => {
           </span>
 
           {/* Title */}
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-normal text-slate-900 tracking-tight leading-[1.1] font-serif italic mb-6">
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#0d2a5c] uppercase tracking-tight leading-snug mb-6">
             {newsItem.title}
           </h1>
 
@@ -183,13 +183,13 @@ const NewsDetailPage = () => {
               <img 
                 src={newsItem.image} 
                 alt={newsItem.title} 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover object-top"
               />
             </div>
           </div>
 
           {/* Article Body */}
-          <div className="prose prose-slate max-w-none prose-p:text-slate-600 prose-p:leading-relaxed prose-headings:font-serif prose-headings:font-normal prose-headings:text-slate-900">
+          <div className="prose prose-slate max-w-none prose-p:text-slate-600 prose-p:leading-relaxed prose-headings:font-bold prose-headings:text-[#0d2a5c]">
             {newsItem.content}
           </div>
 

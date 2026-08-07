@@ -1,44 +1,53 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowRight, ShieldCheck, Activity, Award, HeartPulse, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
-/* 
- * Design Read: Premium medical hero section for patient trust, with a clean clinical-editorial language, 
- * leaning toward Tailwind CSS + Instrument Serif + responsive split-screen layout + custom Motion transitions.
- * 
- * Dial Calibration:
- * - DESIGN_VARIANCE: 7 (Asymmetric editorial layout)
- * - MOTION_INTENSITY: 5 (Smooth, hardware-accelerated transitions)
- * - VISUAL_DENSITY: 3 (Spacious layout, breathing room)
- */
 
 const slides = [
   {
     id: 1,
-    category: "LẦN ĐẦU TIÊN TẠI VIỆT NAM",
-    title: "Trung tâm Y tế",
-    titleItalic: "chuẩn Quốc tế",
-    description: "Quy tụ chuyên gia đầu ngành cùng trang thiết bị y khoa hiện đại thế hệ mới nhất, kiến tạo chuẩn mực khám chữa bệnh mới.",
-    cta: "Đặt lịch khám",
-    image: "/images/hero_general.png"
+    topLabel: "BỆNH VIỆN ĐA KHOA",
+    title: "HỆ THỐNG Y TẾ CHUẨN QUỐC TẾ",
+    highlight: "CHẤT LƯỢNG TỐT NHẤT",
+    subtitle: "CÔNG BỐ CỦA SỞ Y TẾ THÀNH PHỐ",
+    badges: [
+      { text: "Chuyên gia Bác sĩ giỏi", icon: Award },
+      { text: "Thiết bị hiện đại", icon: Activity },
+      { text: "Hiệu quả điều trị cao", icon: ShieldCheck },
+      { text: "Chi phí hợp lý", icon: HeartPulse }
+    ],
+    cta: "ĐĂNG KÝ KHÁM BỆNH",
+    image: "/images/hero_general.png",
+    bgTheme: "from-[#002f87] via-[#0042b3] to-[#001a52]"
   },
   {
     id: 2,
-    category: "CHUYÊN KHOA TIM MẠCH",
-    title: "Chăm sóc và Can thiệp",
-    titleItalic: "ít xâm lấn",
-    description: "Quy tụ đội ngũ Giáo sư, Tiến sĩ hàng đầu cùng phòng mổ Hybrid đạt tiêu chuẩn vô khuẩn quốc tế cực kỳ nghiêm ngặt.",
-    cta: "Tìm hiểu chuyên khoa Tim mạch",
-    image: "/images/hero_cardio.png"
+    topLabel: "CHUYÊN KHOA TIM MẠCH",
+    title: "CHĂM SÓC & CAN THIỆP TIM MẠCH",
+    highlight: "ÍT XÂM LẤN - HỒI PHỤC NHANH",
+    subtitle: "PHÒNG MỔ HYBRID ĐẠT TIÊU CHUẨN QUỐC TẾ CỰC KỲ NGHIÊM NGẶT",
+    badges: [
+      { text: "Cá thể hóa 100%", icon: HeartPulse },
+      { text: "Chuẩn xác từng milimet", icon: Activity },
+      { text: "Tránh biến chứng", icon: ShieldCheck }
+    ],
+    cta: "TÌM HIỂU CHUYÊN KHOA",
+    image: "/images/hero_cardio.png",
+    bgTheme: "from-[#004aad] via-[#005cce] to-[#002366]"
   },
   {
     id: 3,
-    category: "CHUYÊN KHOA UNG BƯỚU",
-    title: "Tầm soát ung thư",
-    titleItalic: "công nghệ cao",
-    description: "Phát hiện sớm các rủi ro sức khỏe âm thầm bằng công nghệ chẩn đoán hình ảnh CT/MRI thế hệ mới nhất.",
-    cta: "Nhận tư vấn tầm soát",
-    image: "/images/hero_screening.png"
+    topLabel: "CÔNG NGHỆ MỚI NHẤT",
+    title: "TẦM SOÁT UNG THƯ CHUYÊN SÂU",
+    highlight: "CHÍNH XÁC - KỊP THỜI",
+    subtitle: "PHÁT HIỆN SỚM RỦI RO VỚI CÔNG NGHỆ CT/MRI THẾ HỆ MỚI",
+    badges: [
+      { text: "Siêu nhanh 10 giây", icon: Clock },
+      { text: "Đường mổ siêu nhỏ", icon: Activity },
+      { text: "Gần 100% an toàn", icon: ShieldCheck }
+    ],
+    cta: "TƯ VẤN NGAY VỚI CHUYÊN GIA",
+    image: "/images/hero_screening.png",
+    bgTheme: "from-[#003399] via-[#0047cc] to-[#001f5c]"
   }
 ];
 
@@ -63,124 +72,152 @@ export const HeroSection = () => {
   const slide = slides[currentSlide];
 
   return (
-    <section className="relative w-full min-h-[80dvh] lg:min-h-[85dvh] overflow-hidden bg-[#FAF9F6] flex items-center py-16 lg:py-24 border-b border-slate-200/50">
+    <section className="relative w-full min-h-[70vh] lg:min-h-[600px] overflow-hidden flex items-center bg-blue-900 group">
 
-      {/* Background Graphic Element - Subtle radial glow */}
-      <div className="absolute top-0 right-0 w-[40vw] h-[40vw] bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.04)_0%,transparent_70%)] pointer-events-none z-0" />
+      {/* Dynamic Background Gradient */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={slide.id + "bg"}
+          initial={{ opacity: 0.5 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0.5 }}
+          transition={{ duration: 1 }}
+          className={`absolute inset-0 bg-gradient-to-r ${slide.bgTheme} z-0`}
+        />
+      </AnimatePresence>
 
-      <div className="relative w-full max-w-7xl mx-auto px-6 lg:px-8 z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
+      {/* Abstract light rays/waves for "promotional" effect */}
+      <div className="absolute inset-0 z-0 opacity-20 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-50%] left-[-10%] w-[120%] h-[200%] bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.15)_0%,transparent_50%)] transform rotate-12" />
+        <div className="absolute bottom-[-50%] right-[-10%] w-[120%] h-[200%] bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.1)_0%,transparent_50%)] transform -rotate-12" />
+      </div>
 
-          {/* Left Side: Content Box */}
-          <div className="lg:col-span-6 flex flex-col justify-center text-left max-w-xl lg:max-w-none">
-
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={slide.id}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -16 }}
-                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                className="flex flex-col items-start"
+      <div className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 z-10 py-12 lg:py-0 h-full flex items-center">
+        
+        {/* Right Side: Image (Background layer on lg screens) */}
+        <div className="absolute inset-0 lg:left-auto lg:right-0 lg:w-[55%] h-full z-10 flex items-center justify-end opacity-40 lg:opacity-100 pointer-events-none">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={slide.id}
+              initial={{ opacity: 0, scale: 0.95, x: 30 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.95, x: -30 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+              className="w-full h-full relative flex items-center justify-end"
+            >
+              <div 
+                className="w-full h-[50%] lg:h-full relative lg:-mr-16 xl:-mr-32 flex justify-end items-center"
+                style={{
+                  maskImage: 'linear-gradient(to right, transparent 0%, black 25%, black 100%)',
+                  WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 25%, black 100%)'
+                }}
               >
-                {/* Micro Category Tag */}
-                <span className="inline-block rounded-full bg-slate-200/50 border border-slate-300/30 px-3 py-1 text-[10px] uppercase tracking-[0.2em] font-bold text-slate-600 mb-6">
-                  {slide.category}
-                </span>
-
-                {/* Title */}
-                <h1 className="font-sans text-4xl md:text-5xl lg:text-6xl font-normal text-slate-900 tracking-tight leading-[1.2] lg:leading-[1.25] mb-6">
-                  {slide.title} <br />
-                  <span className="italic text-slate-600 font-light">
-                    {slide.titleItalic}
-                  </span>
-                </h1>
-
-                {/* Subtext */}
-                <p className="text-base text-slate-600 leading-relaxed font-sans max-w-[45ch] mb-8">
-                  {slide.description}
-                </p>
-
-                {/* CTA Button-in-Button (Nested Island style) */}
-                <button className="group relative rounded-full px-5 py-2.5 bg-slate-900 text-white font-medium text-sm flex items-center gap-4 hover:bg-slate-800 active:scale-[0.98] transition-all duration-300 shadow-sm shadow-black/5">
-                  <span>{slide.cta}</span>
-                  <span className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
-                    <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-0.5 transition-transform" />
-                  </span>
-                </button>
-              </motion.div>
-            </AnimatePresence>
-
-          </div>
-
-          {/* Right Side: Image with Doppelrand Bezel */}
-          <div className="lg:col-span-6 flex justify-center items-center w-full">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={slide.id}
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                className="w-full max-w-lg lg:max-w-none"
-              >
-                {/* Double-Bezel Enclosure */}
-                <div className="bg-slate-100/60 p-2 rounded-[2.5rem] border border-slate-200/50 shadow-sm shadow-slate-200/30">
-                  <div className="inner-core bg-white rounded-[calc(2.5rem-0.5rem)] overflow-hidden aspect-[4/3] relative group shadow-[inset_0_1px_1px_rgba(255,255,255,0.8)]">
-                    <img
-                      src={slide.image}
-                      alt={slide.title}
-                      className="w-full h-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-102"
-                    />
-                    {/* Minimal aesthetic gradient overlay for depth */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/5 to-transparent pointer-events-none" />
-                  </div>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-
+                <img
+                  src={slide.image}
+                  alt={slide.title}
+                  className="w-full h-full object-cover object-right lg:object-center rounded-2xl lg:shadow-2xl"
+                />
+              </div>
+            </motion.div>
+          </AnimatePresence>
         </div>
 
-        {/* Carousel Navigation & Indicators */}
-        <div className="flex items-center justify-between mt-12 pt-8 border-t border-slate-200/40">
-
-          {/* Slide Indicator Dots */}
-          <div className="flex gap-2">
-            {slides.map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => {
-                  setCurrentSlide(idx);
-                }}
-                className={`h-1.5 rounded-full transition-all duration-300 ${currentSlide === idx ? "w-6 bg-slate-900" : "w-1.5 bg-slate-300 hover:bg-slate-400"
-                  }`}
-                aria-label={`Go to slide ${idx + 1}`}
-              />
-            ))}
-          </div>
-
-          {/* Minimalist Prev/Next Arrows */}
-          <div className="flex gap-3">
-            <button
-              onClick={prevSlide}
-              className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 transition-all active:scale-[0.95]"
-              aria-label="Previous slide"
+        {/* Left Side: Content */}
+        <div className="w-full lg:w-[80%] xl:w-[75%] flex flex-col justify-center text-left z-20 relative">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={slide.id}
+              initial={{ opacity: 0, x: -30 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 30 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+              className="flex flex-col items-start"
             >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button
-              onClick={nextSlide}
-              className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 transition-all active:scale-[0.95]"
-              aria-label="Next slide"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
+              {/* Top Label */}
+              <div className="mb-4">
+                <span className="inline-block bg-white text-blue-900 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-wider shadow-lg">
+                  {slide.topLabel}
+                </span>
+              </div>
 
+              {/* Main Title (White) - using whitespace-nowrap on lg to force 1 line if possible */}
+              <h2 className="text-3xl md:text-4xl lg:text-[2.75rem] xl:text-5xl font-extrabold text-white uppercase tracking-tight leading-tight mb-2 drop-shadow-md lg:whitespace-nowrap">
+                {slide.title}
+              </h2>
+
+              {/* Highlight Title (Yellow/Gold) - using whitespace-nowrap on lg */}
+              <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] xl:text-6xl font-extrabold text-yellow-400 uppercase tracking-tighter leading-tight drop-shadow-lg mb-6 lg:whitespace-nowrap">
+                {slide.highlight}
+              </h1>
+
+              {/* Subtitle */}
+              <div className="flex items-center gap-4 mb-8">
+                <div className="h-[2px] w-8 lg:w-12 bg-yellow-400 hidden sm:block"></div>
+                <p className="text-base md:text-lg lg:text-xl text-white font-medium uppercase tracking-wide drop-shadow-md lg:whitespace-nowrap">
+                  {slide.subtitle}
+                </p>
+                <div className="h-[2px] w-8 lg:w-12 bg-yellow-400 hidden sm:block"></div>
+              </div>
+
+              {/* Badges Grid */}
+              <div className="flex flex-wrap gap-3 mb-10">
+                {slide.badges.map((badge, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex items-center gap-2 bg-gradient-to-b from-yellow-300 to-yellow-500 text-[#002f87] px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg shadow-lg border border-yellow-200"
+                  >
+                    <badge.icon className="w-4 h-4 lg:w-5 lg:h-5" />
+                    <span className="font-bold text-xs lg:text-sm uppercase tracking-tight">{badge.text}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA Button */}
+              <button className="group relative overflow-hidden rounded-full bg-gradient-to-r from-red-600 to-red-500 px-6 py-3 lg:px-8 lg:py-4 text-white font-bold text-base lg:text-lg uppercase tracking-wider shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:shadow-[0_0_30px_rgba(220,38,38,0.6)] transition-all duration-300 transform hover:scale-105 active:scale-95 flex items-center gap-3">
+                <span className="relative z-10">{slide.cta}</span>
+                <ArrowRight className="w-5 h-5 lg:w-6 lg:h-6 relative z-10 group-hover:translate-x-1 transition-transform" />
+                {/* Button shine effect */}
+                <div className="absolute inset-0 h-full w-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-700 ease-in-out" />
+              </button>
+              
+            </motion.div>
+          </AnimatePresence>
         </div>
 
       </div>
+
+      {/* Edge Navigation Arrows */}
+      <button
+        onClick={prevSlide}
+        className="absolute left-2 lg:left-6 top-1/2 -translate-y-1/2 w-12 h-12 bg-black/20 hover:bg-black/50 text-white/70 hover:text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-all z-30 opacity-0 group-hover:opacity-100"
+        aria-label="Previous slide"
+      >
+        <ChevronLeft className="w-8 h-8" />
+      </button>
+      
+      <button
+        onClick={nextSlide}
+        className="absolute right-2 lg:right-6 top-1/2 -translate-y-1/2 w-12 h-12 bg-black/20 hover:bg-black/50 text-white/70 hover:text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-all z-30 opacity-0 group-hover:opacity-100"
+        aria-label="Next slide"
+      >
+        <ChevronRight className="w-8 h-8" />
+      </button>
+
+      {/* Slide Indicator Dots (Bottom center) */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-30">
+        {slides.map((_, idx) => (
+          <button
+            key={idx}
+            onClick={() => setCurrentSlide(idx)}
+            className={`h-2 rounded-full transition-all duration-300 shadow-sm ${
+              currentSlide === idx ? "w-8 bg-yellow-400" : "w-2 bg-white/50 hover:bg-white/80"
+            }`}
+            aria-label={`Go to slide ${idx + 1}`}
+          />
+        ))}
+      </div>
+
     </section>
   );
 };
+

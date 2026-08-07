@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Header } from '../components/layout/Header';
 import { Footer } from '../components/layout/Footer';
@@ -63,6 +64,10 @@ const articles = [
 ];
 
 export const NewsPage = () => {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const featuredArticle = articles[0];
   const listArticles = articles.slice(1);
 
@@ -75,7 +80,7 @@ export const NewsPage = () => {
         {/* Page Header */}
         <div className="max-w-3xl mb-16 md:mb-20">
           <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3 block">BẢN TIN Y KHOA</span>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-normal text-slate-900 tracking-tight leading-[1.05] font-serif italic">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-[#0d2a5c] uppercase tracking-tight leading-[1.05]">
             Tin tức & Sự kiện
           </h1>
           <div className="h-px bg-slate-200/60 mt-8 w-full" />
@@ -91,7 +96,7 @@ export const NewsPage = () => {
               <img 
                 src={featuredArticle.image} 
                 alt={featuredArticle.title} 
-                className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-700 ease-out"
+                className="w-full h-full object-cover object-top group-hover:scale-[1.01] transition-transform duration-700 ease-out"
               />
             </div>
             <div className="lg:col-span-5 flex flex-col items-start pr-4">
@@ -99,7 +104,7 @@ export const NewsPage = () => {
                 {featuredArticle.category.label}
               </span>
               
-              <h2 className="text-2xl md:text-3xl font-normal text-slate-900 tracking-tight leading-snug mb-4 group-hover:text-slate-800 transition-colors">
+              <h2 className="text-2xl md:text-3xl font-bold text-[#0b3c8f] tracking-tight leading-snug mb-4 group-hover:text-blue-700 transition-colors">
                 {featuredArticle.title}
               </h2>
               
@@ -133,13 +138,13 @@ export const NewsPage = () => {
                   <img 
                     src={article.image} 
                     alt={article.title} 
-                    className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-700 ease-out"
+                    className="w-full h-full object-cover object-top group-hover:scale-[1.02] transition-transform duration-700 ease-out"
                   />
                 </div>
                 <span className={`inline-block rounded-full px-2 py-0.5 text-[8px] uppercase tracking-wider font-bold mb-3 ${article.category.bg} ${article.category.text}`}>
                   {article.category.label}
                 </span>
-                <h3 className="text-lg font-normal text-slate-900 tracking-tight leading-snug mb-3 group-hover:text-slate-800 transition-colors line-clamp-2">
+                <h3 className="text-lg font-bold text-[#0b3c8f] tracking-tight leading-snug mb-3 group-hover:text-blue-700 transition-colors line-clamp-2">
                   {article.title}
                 </h3>
                 <p className="text-slate-500 text-xs leading-relaxed mb-6 line-clamp-3">

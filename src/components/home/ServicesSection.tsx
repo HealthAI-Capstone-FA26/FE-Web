@@ -14,34 +14,34 @@ export const ServicesSection = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           
-          <div className="overflow-hidden group">
+          <div className="overflow-hidden group rounded-xl shadow-sm border border-slate-200">
             <img 
-              src="/images/service_lobby.png" 
-              alt="Lobby" 
+              src="/images/hospital_lobby_vn.png" 
+              alt="Sảnh chờ cao cấp" 
               className="w-full aspect-[4/3] object-cover group-hover:scale-105 transition-transform duration-500"
             />
           </div>
 
-          <div className="overflow-hidden group">
+          <div className="overflow-hidden group rounded-xl shadow-sm border border-slate-200">
             <img 
-              src="/images/service_room.png" 
-              alt="Patient Room" 
+              src="/images/hospital_room_vn.png" 
+              alt="Phòng bệnh nhân nội trú" 
               className="w-full aspect-[4/3] object-cover group-hover:scale-105 transition-transform duration-500"
             />
           </div>
 
-          <div className="overflow-hidden group">
+          <div className="overflow-hidden group rounded-xl shadow-sm border border-slate-200">
             <img 
-              src="/images/service_customer.png" 
-              alt="Customer Service" 
+              src="/images/hospital_customer_vn.png" 
+              alt="Chăm sóc khách hàng" 
               className="w-full aspect-[4/3] object-cover group-hover:scale-105 transition-transform duration-500"
             />
           </div>
 
-          <div className="overflow-hidden group">
+          <div className="overflow-hidden group rounded-xl shadow-sm border border-slate-200">
             <img 
-              src="/images/service_reception.png" 
-              alt="Reception" 
+              src="/images/hospital_reception_vn.png" 
+              alt="Quầy tiếp đón" 
               className="w-full aspect-[4/3] object-cover group-hover:scale-105 transition-transform duration-500"
             />
           </div>

@@ -49,16 +49,25 @@ export const NewsSection = () => {
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         
         {/* Section Header */}
-        <div className="flex flex-col items-center text-center mb-16">
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3">ẤN PHẨM TRUYỀN THÔNG</span>
-          <h2 className="text-3xl md:text-4xl font-normal text-slate-900 tracking-tight font-serif italic">
-            Tin tức nổi bật
-          </h2>
-          <div className="w-12 h-px bg-slate-300 mt-6" />
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-3 block">ẤN PHẨM TRUYỀN THÔNG</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-[#0d2a5c] uppercase tracking-tight">
+              Tin tức nổi bật
+            </h2>
+          </div>
+          
+          <Link 
+            to="/tin-tuc" 
+            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 hover:text-blue-600 transition-colors group/link"
+          >
+            Xem tất cả bản tin
+            <ArrowRight className="w-4 h-4 group-hover/link:translate-x-1 transition-transform" />
+          </Link>
         </div>
 
         {/* Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {homeNews.map((item) => (
             <Link 
               to={`/tin-tuc/${item.id}`} 
@@ -66,20 +75,20 @@ export const NewsSection = () => {
               className="group flex flex-col border border-slate-200/50 bg-white rounded-xl p-5 hover:border-slate-300 transition-all duration-300 shadow-sm shadow-slate-200/10 cursor-pointer h-full justify-between"
             >
               <div>
-                <div className="aspect-[16/10] rounded-lg overflow-hidden bg-slate-50 border border-slate-100 mb-5">
+                <div className="aspect-[4/3] rounded-lg overflow-hidden bg-slate-50 border border-slate-100 mb-5">
                   <img 
                     src={item.image} 
                     alt={item.title} 
-                    className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-700 ease-out"
+                    className="w-full h-full object-cover object-top group-hover:scale-[1.02] transition-transform duration-700 ease-out"
                   />
                 </div>
                 <span className={`inline-block rounded-full px-2 py-0.5 text-[8px] uppercase tracking-wider font-bold mb-3 ${item.category.bg} ${item.category.text}`}>
                   {item.category.label}
                 </span>
-                <h3 className="text-lg font-normal text-slate-900 tracking-tight leading-snug mb-3 group-hover:text-slate-800 transition-colors line-clamp-2">
+                <h3 className="text-lg font-bold text-[#0b3c8f] tracking-tight leading-snug mb-3 group-hover:text-blue-700 transition-colors line-clamp-2">
                   {item.title}
                 </h3>
-                <p className="text-slate-500 text-xs leading-relaxed mb-6 line-clamp-2">
+                <p className="text-slate-500 text-xs leading-relaxed mb-6 line-clamp-3">
                   {item.desc}
                 </p>
               </div>
