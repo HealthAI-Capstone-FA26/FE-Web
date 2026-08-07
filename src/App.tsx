@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import { PlaceholderPage } from './pages/PlaceholderPage';
+import { NewsPage } from './pages/NewsPage';
 import NewsDetailPage from './pages/NewsDetailPage';
 
 function App() {
@@ -14,7 +15,7 @@ function App() {
         <Route path="/dich-vu" element={<PlaceholderPage title="Dịch vụ đặc biệt" />} />
         <Route path="/tien-nghi" element={<PlaceholderPage title="Tiện nghi" />} />
         <Route path="/giai-thuong" element={<PlaceholderPage title="Giải thưởng" />} />
-        <Route path="/tin-tuc" element={<PlaceholderPage title="Tin tức" />} />
+        <Route path="/tin-tuc" element={<NewsPage />} />
         <Route path="/tin-tuc/:id" element={<NewsDetailPage />} />
         <Route path="/lien-he" element={<PlaceholderPage title="Liên hệ" />} />
       </Routes>

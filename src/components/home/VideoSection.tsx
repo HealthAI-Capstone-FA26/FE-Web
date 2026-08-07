@@ -1,4 +1,4 @@
-import { Play, Volume2, Settings, Maximize, Clock, Share } from 'lucide-react';
+import { Play } from 'lucide-react';
 
 const videoList = [
   {

@@ -1,4 +1,4 @@
-import { Activity, MapPin, User, Headphones, Calendar, Search, Menu } from 'lucide-react';
+import { MapPin, User, Headphones, Calendar, Search, Menu } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const Header = () => {
@@ -16,7 +16,7 @@ export const Header = () => {
               </div>
               <div className="flex flex-col">
                 <span className="font-extrabold text-lg md:text-xl text-[#0b3c8f] leading-tight uppercase tracking-wide group-hover:text-blue-600 transition-colors">
-                  Bệnh viện Đa khoa Mai Phương
+                  Bệnh viện Đa khoa 4AM
                 </span>
                 <span className="text-[11px] text-slate-500 font-medium tracking-wider">Hệ thống Y tế uy tín</span>
               </div>
