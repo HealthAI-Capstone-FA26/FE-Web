@@ -1,4 +1,5 @@
 import { PhoneCall, Calendar, FileText, Stethoscope, Microscope, HeartPulse, Play } from 'lucide-react';
+import { BookingForm } from './BookingForm';
 
 const features = [
   { icon: PhoneCall, label: "CẤP CỨU 24/7" },
@@ -16,15 +17,9 @@ export const SystemOverviewSection = () => {
 
         <div className="flex flex-col lg:flex-row gap-12 items-center">
 
-          {/* Left: Hospital Image */}
+          {/* Left: Booking Form (Replaced static lobby image) */}
           <div className="w-full lg:w-1/2">
-            <div className="relative w-full aspect-[4/3] rounded-2xl shadow-md border border-slate-200 overflow-hidden bg-slate-100">
-              <img
-                src="/images/hospital_lobby_vn.png"
-                alt="Hình ảnh bệnh viện Đa Khoa"
-                className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"
-              />
-            </div>
+            <BookingForm />
           </div>
 
           {/* Right: Content & Grid */}

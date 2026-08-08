@@ -11,8 +11,8 @@ export const Header = () => {
 
             {/* Left: Logo + Name */}
             <Link to="/" className="flex items-center space-x-3 group">
-              <div className="bg-[#0b3c8f] text-white w-10 h-10 rounded-full flex items-center justify-center shadow-sm border border-blue-900 group-hover:bg-blue-700 transition-colors select-none">
-                <span className="font-black text-lg leading-none tracking-tighter text-center translate-y-[-1px]">mp</span>
+              <div className="w-20 h-20 flex items-center justify-center select-none overflow-hidden rounded-full border border-slate-200/60 bg-white p-1 shadow-sm group-hover:border-[#0b3c8f] transition-all">
+                <img src="/images/logo.png" alt="Logo" className="w-full h-full object-contain" />
               </div>
               <div className="flex flex-col">
                 <span className="font-extrabold text-lg md:text-xl text-[#0b3c8f] leading-tight uppercase tracking-wide group-hover:text-blue-600 transition-colors">

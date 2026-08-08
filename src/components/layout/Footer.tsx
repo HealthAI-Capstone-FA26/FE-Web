@@ -14,19 +14,19 @@ export const Footer = () => {
     <footer className="bg-[#FAF9F6] text-slate-600 py-20 lg:py-24 border-t border-slate-200/50">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 mb-16">
-          
+
           {/* Logo & Description */}
           <div className="lg:col-span-6 flex flex-col items-start">
             <Link to="/" className="flex items-center space-x-3 mb-6 group">
-              <div className="bg-slate-900 text-white w-9 h-9 rounded-full flex items-center justify-center border border-slate-800 select-none group-hover:bg-slate-800 transition-colors">
-                <span className="font-sans font-black text-sm tracking-tighter translate-y-[-0.5px]">4am</span>
+              <div className="w-20 h-20 flex items-center justify-center select-none overflow-hidden rounded-full border border-slate-200/60 bg-white p-1 shadow-sm group-hover:border-slate-800 transition-all">
+                <img src="/images/logo.png" alt="Logo" className="w-full h-full object-contain" />
               </div>
               <span className="font-sans font-bold text-lg text-slate-900 tracking-wide uppercase">
                 Bệnh viện Đa khoa 4AM
               </span>
             </Link>
             <p className="text-sm text-slate-500 leading-relaxed max-w-md font-sans">
-              Nền tảng quản lý khám chữa bệnh tích hợp AI dựa trên chuẩn FHIR R4. 
+              Nền tảng quản lý khám chữa bệnh tích hợp AI dựa trên chuẩn FHIR R4.
               Đồ án tốt nghiệp ứng dụng công nghệ hiện đại vào quy trình y tế thực tế tại Hệ thống Y tế 4AM.
             </p>
           </div>
@@ -85,10 +85,10 @@ export const Footer = () => {
         {/* Bottom Bar */}
         <div className="border-t border-slate-200/50 pt-8 flex flex-col md:flex-row justify-between items-center text-[10px] font-mono tracking-wider uppercase text-slate-400">
           <p className="mb-4 md:mb-0">&copy; 2026 Bệnh viện Đa khoa 4AM. All rights reserved.</p>
-          <a 
-            href="https://github.com" 
-            target="_blank" 
-            rel="noreferrer" 
+          <a
+            href="https://github.com"
+            target="_blank"
+            rel="noreferrer"
             className="hover:text-slate-800 transition-colors flex items-center gap-1 group"
           >
             <span>GitHub Repository</span>
