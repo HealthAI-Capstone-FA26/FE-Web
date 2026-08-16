@@ -124,11 +124,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   switchRole(r.role);
                   setIsRoleDropdownOpen(false);
                 }}
-                className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border whitespace-nowrap shrink-0 ${
-                  isActive
-                    ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
-                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
-                }`}
+                className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border whitespace-nowrap shrink-0 ${isActive
+                  ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
+                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                  }`}
               >
                 {r.label}
               </button>
@@ -214,9 +213,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                           switchRole(r.role);
                           setIsRoleDropdownOpen(false);
                         }}
-                        className={`w-full px-4 py-1.5 text-left text-xs flex items-center justify-between hover:bg-slate-100 cursor-pointer ${
-                          r.role === currentRole ? 'font-bold text-blue-700 bg-blue-50/50' : 'text-slate-700'
-                        }`}
+                        className={`w-full px-4 py-1.5 text-left text-xs flex items-center justify-between hover:bg-slate-100 cursor-pointer ${r.role === currentRole ? 'font-bold text-blue-700 bg-blue-50/50' : 'text-slate-700'
+                          }`}
                       >
                         <span className="whitespace-nowrap">{r.label}</span>
                         {r.role === currentRole && <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>}
@@ -229,7 +227,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                       onClick={() => {
                         logout();
                         setIsRoleDropdownOpen(false);
-                        navigate('/dashboard');
+                        navigate('/');
                       }}
                       className="w-full px-4 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center space-x-2 cursor-pointer border-none bg-transparent"
                     >
@@ -248,9 +246,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       <div className="flex-1 flex w-full relative">
         {/* Sidebar Sticky & Flush Left */}
         <aside
-          className={`fixed lg:sticky top-[78px] left-0 z-20 w-72 h-[calc(100vh-78px)] bg-white border-r border-slate-200/90 transform transition-transform duration-200 ease-in-out shrink-0 overflow-y-auto ${
-            isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-          }`}
+          className={`fixed lg:sticky top-[78px] left-0 z-20 w-72 h-[calc(100vh-78px)] bg-white border-r border-slate-200/90 transform transition-transform duration-200 ease-in-out shrink-0 overflow-y-auto ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+            }`}
         >
           <div className="flex flex-col justify-between h-full p-4 space-y-4">
             <div className="space-y-5">
@@ -286,11 +283,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                         <button
                           key={item.id}
                           onClick={() => handleTabClick(item.id)}
-                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition-all cursor-pointer border text-left ${
-                            isItemActive
-                              ? 'bg-blue-600 text-white border-blue-600 font-black shadow-sm'
-                              : 'bg-transparent border-transparent text-slate-700 hover:bg-slate-100 hover:text-blue-900 font-bold'
-                          }`}
+                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition-all cursor-pointer border text-left ${isItemActive
+                            ? 'bg-blue-600 text-white border-blue-600 font-black shadow-sm'
+                            : 'bg-transparent border-transparent text-slate-700 hover:bg-slate-100 hover:text-blue-900 font-bold'
+                            }`}
                         >
                           <div className="flex items-center space-x-2.5 min-w-0">
                             <Icon className={`w-4 h-4 shrink-0 ${isItemActive ? 'text-white' : 'text-slate-500'}`} />
@@ -298,9 +294,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                           </div>
                           {item.badge && (
                             <span
-                              className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ml-1 ${
-                                isItemActive ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
-                              }`}
+                              className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ml-1 ${isItemActive ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
+                                }`}
                             >
                               {item.badge}
                             </span>
