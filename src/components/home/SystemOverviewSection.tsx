@@ -1,4 +1,4 @@
-import { PhoneCall, Calendar, FileText, Stethoscope, Microscope, HeartPulse, Play } from 'lucide-react';
+import { PhoneCall, Calendar, FileText, Stethoscope, Microscope, HeartPulse } from 'lucide-react';
 import { BookingForm } from './BookingForm';
 
 const features = [
