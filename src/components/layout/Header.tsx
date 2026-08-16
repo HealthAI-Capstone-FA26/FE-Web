@@ -1,7 +1,19 @@
-import { MapPin, User, Headphones, Calendar, Search, Menu } from 'lucide-react';
+import { useState } from 'react';
+import { MapPin, User, Headphones, Calendar, Search, Menu, LogIn } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { LoginModal } from '../auth/LoginModal';
 
 export const Header = () => {
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [loggedInUser, setLoggedInUser] = useState<string | null>(() => {
+    return localStorage.getItem('4am_user_name');
+  });
+
+  const handleLoginSuccess = (name: string) => {
+    setLoggedInUser(name);
+    localStorage.setItem('4am_user_name', name);
+  };
+
   return (
     <header className="w-full shadow-sm sticky top-0 z-50 bg-white flex flex-col">
       {/* Top Bar (Tier 1) */}
@@ -47,6 +59,34 @@ export const Header = () => {
                   <Headphones className="w-3.5 h-3.5" />
                   <span>Hỏi đáp</span>
                 </Link>
+                {loggedInUser ? (
+                  <div className="flex items-center space-x-2 ml-2">
+                    <div className="w-6.5 h-6.5 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0b3c8f] shrink-0 font-bold text-xs uppercase shadow-sm">
+                      {loggedInUser.charAt(0)}
+                    </div>
+                    <span className="text-[11px] text-slate-700 font-bold uppercase tracking-wider">
+                      {loggedInUser}
+                    </span>
+                    <button 
+                      onClick={() => {
+                        setLoggedInUser(null);
+                        localStorage.removeItem('4am_user_name');
+                      }}
+                      className="text-[9px] text-slate-400 hover:text-red-500 font-bold uppercase tracking-wider ml-1 cursor-pointer bg-transparent border-none outline-none"
+                      title="Đăng xuất"
+                    >
+                      [Đăng xuất]
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => setIsLoginOpen(true)}
+                    className="flex items-center space-x-1.5 text-xs text-[#0b3c8f] hover:text-white border border-[#0b3c8f] hover:bg-[#0b3c8f] transition-all font-bold uppercase tracking-wider px-4 py-1.5 rounded-full shadow-sm ml-2 cursor-pointer bg-transparent"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>Đăng nhập</span>
+                  </button>
+                )}
                 <Link to="/dat-lich" className="flex items-center space-x-1.5 text-xs text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition-all font-bold uppercase tracking-wider px-4 py-1.5 rounded-full shadow-sm ml-2 border border-orange-600/20">
                   <Calendar className="w-3.5 h-3.5" />
                   <span>Đặt lịch khám</span>
@@ -92,6 +132,13 @@ export const Header = () => {
           </div>
         </div>
       </div>
+
+      {/* Render Login Modal Inline Overlay */}
+      <LoginModal 
+        isOpen={isLoginOpen} 
+        onClose={() => setIsLoginOpen(false)} 
+        onLoginSuccess={handleLoginSuccess}
+      />
     </header>
   );
 };

@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Header } from '../components/layout/Header';
 import { Footer } from '../components/layout/Footer';
-import { Search, ArrowUpRight, Award, Shield, UserCheck, Stethoscope, Activity, Heart } from 'lucide-react';
+import { Search, ArrowUpRight,UserCheck, Stethoscope, Activity } from 'lucide-react';
 
 /* 
  * DESIGN READ:
@@ -331,7 +331,7 @@ export const SpecialtyPage = () => {
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6"
             >
-              {filteredSpecialties.map((item, index) => {
+              {filteredSpecialties.map((item) => {
                 const isLarge = item.size === 'large';
                 return (
                   <div
