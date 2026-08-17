@@ -6,7 +6,7 @@ import { X, Eye, EyeOff, ShieldAlert, Check } from 'lucide-react';
  * DESIGN READ:
  * Component Kind: Modal overlay (inline login & register)
  * Vibe: Premium modal popup supporting seamless transition between Login and Register modes.
- *       Includes a real in-memory registered user store allowing testing of registration & login.
+ *       Includes a real in-memory registered user store supporting Bệnh nhân role.
  */
 
 interface LoginModalProps {
@@ -19,7 +19,7 @@ interface LoginModalProps {
 export const LoginModal = ({ isOpen, onClose, onLoginSuccess, isStandalone = false }: LoginModalProps) => {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   
-  // In-memory user store initialized with default mock account
+  // In-memory user store initialized with Patient role
   const [registeredUsers, setRegisteredUsers] = useState<Array<{phone: string, pass: string, name: string}>>([
     { phone: '0987654321', pass: '123456', name: 'Nguyễn Văn A' }
   ]);
