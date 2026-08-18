@@ -6,6 +6,7 @@ export const ReceptionWalkinBookingView: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [idCard, setIdCard] = useState('');
+  const [healthInsurance, setHealthInsurance] = useState('');
   const [specialty, setSpecialty] = useState('Khoa Nội Tổng Hợp');
   const [doctor] = useState('BS. CKII. Nguyễn Quang Huy');
   const [isSuccess, setIsSuccess] = useState(false);
@@ -59,6 +60,7 @@ export const ReceptionWalkinBookingView: React.FC = () => {
                 setFullName('');
                 setPhone('');
                 setIdCard('');
+                setHealthInsurance('');
               }}
               className="px-6 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer border-none"
             >
@@ -74,6 +76,7 @@ export const ReceptionWalkinBookingView: React.FC = () => {
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            {/* Họ và tên */}
             <div className="space-y-1.5">
               <label className="block font-bold text-slate-700">Họ và tên bệnh nhân (*)</label>
               <input
@@ -86,6 +89,7 @@ export const ReceptionWalkinBookingView: React.FC = () => {
               />
             </div>
 
+            {/* Số điện thoại */}
             <div className="space-y-1.5">
               <label className="block font-bold text-slate-700">Số điện thoại (*)</label>
               <input
@@ -98,6 +102,7 @@ export const ReceptionWalkinBookingView: React.FC = () => {
               />
             </div>
 
+            {/* Số CCCD / CMND */}
             <div className="space-y-1.5">
               <label className="block font-bold text-slate-700">Số CCCD / CMND</label>
               <input
@@ -109,7 +114,20 @@ export const ReceptionWalkinBookingView: React.FC = () => {
               />
             </div>
 
+            {/* Mã thẻ BHYT */}
             <div className="space-y-1.5">
+              <label className="block font-bold text-slate-700">Mã số thẻ Bảo hiểm Y tế (BHYT)</label>
+              <input
+                type="text"
+                placeholder="Nhập mã thẻ BHYT (Tùy chọn)"
+                value={healthInsurance}
+                onChange={(e) => setHealthInsurance(e.target.value)}
+                className="w-full p-3 rounded-xl border border-slate-200 font-semibold outline-none focus:border-blue-600"
+              />
+            </div>
+
+            {/* Chuyên khoa khám */}
+            <div className="space-y-1.5 md:col-span-2">
               <label className="block font-bold text-slate-700">Chuyên khoa khám (*)</label>
               <select
                 value={specialty}

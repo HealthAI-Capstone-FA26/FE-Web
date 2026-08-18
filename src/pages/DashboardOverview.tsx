@@ -7,6 +7,7 @@ import { ROLE_NAV_CONFIG } from '../types/dashboard';
 import { ReceptionCheckinView } from '../modules/reception/ReceptionCheckinView';
 import { ReceptionWalkinBookingView } from '../modules/reception/ReceptionWalkinBookingView';
 import { ReceptionBillingView } from '../modules/reception/ReceptionBillingView';
+import { ReceptionPatientsView } from '../modules/reception/ReceptionPatientsView';
 
 import { NurseQueueView } from '../modules/nurse/NurseQueueView';
 
@@ -39,6 +40,8 @@ export const DashboardOverview: React.FC = () => {
       case 'rec_checkin':
       case 'rec_queue':
         return <ReceptionCheckinView />;
+      case 'rec_patients':
+        return <ReceptionPatientsView />;
       case 'rec_booking':
         return <ReceptionWalkinBookingView />;
       case 'rec_billing':

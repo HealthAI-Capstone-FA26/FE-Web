@@ -19,7 +19,8 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
       groupName: 'Tiếp nhận & Check-in',
       items: [
         { id: 'rec_checkin', label: 'Tiếp nhận & Check-in BHYT (Mod 3)', iconName: 'UserCheck', badge: '08 Chờ' },
-        { id: 'rec_booking', label: 'Đăng ký khám tại quầy (Mod 2)', iconName: 'Users' },
+        { id: 'rec_patients', label: 'Quản lý Hồ sơ Bệnh nhân', iconName: 'Users' },
+        { id: 'rec_booking', label: 'Đăng ký khám tại quầy (Mod 2)', iconName: 'UserPlus' },
         { id: 'rec_queue', label: 'Quản lý Hàng chờ Phòng khám', iconName: 'Activity' }
       ]
     },

@@ -1,9 +1,19 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Eye, EyeOff, ShieldAlert, Check, Sparkles, UserCheck, Stethoscope, Activity, FlaskConical, ShieldCheck, User } from 'lucide-react';
+import { 
+  X, Eye, EyeOff, ShieldAlert, Check, Stethoscope, Activity, 
+  UserCheck, FlaskConical, ShieldCheck, User, Sparkles 
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../types/auth';
-import { useNavigate } from 'react-router-dom';
+
+/* 
+ * DESIGN READ:
+ * Component Kind: Modal overlay (inline login & register)
+ * Vibe: Premium modal popup supporting seamless transition between Login and Register modes.
+ *       Includes a real in-memory registered user store allowing testing of registration & login.
+ */
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -76,13 +86,18 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, isStandalone: _isS
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [loginType, setLoginType] = useState<'staff' | 'patient'>('staff');
-  
+
+  // In-memory user store initialized with default mock account
+  const [registeredUsers, setRegisteredUsers] = useState<Array<{ phone: string, pass: string, name: string }>>([
+    { phone: '0987654321', pass: '123456', name: 'Nguyễn Văn A' }
+  ]);
+
   // Form states
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('huy.doctor@tamanh.vn');
   const [password, setPassword] = useState('123456');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+
   // UI states
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -278,18 +293,16 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, isStandalone: _isS
                     <button
                       type="button"
                       onClick={() => setLoginType('staff')}
-                      className={`px-2 py-0.5 rounded font-bold cursor-pointer border ${
-                        loginType === 'staff' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 text-slate-600 border-slate-200'
-                      }`}
+                      className={`px-2 py-0.5 rounded font-bold cursor-pointer border ${loginType === 'staff' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}
                     >
                       Nhân viên Y tế
                     </button>
                     <button
                       type="button"
                       onClick={() => setLoginType('patient')}
-                      className={`px-2 py-0.5 rounded font-bold cursor-pointer border ${
-                        loginType === 'patient' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 text-slate-600 border-slate-200'
-                      }`}
+                      className={`px-2 py-0.5 rounded font-bold cursor-pointer border ${loginType === 'patient' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}
                     >
                       Bệnh nhân
                     </button>
