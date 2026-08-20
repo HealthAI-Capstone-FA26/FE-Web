@@ -40,21 +40,18 @@ export const DoctorPrescriptionView: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-            Mô-đun 9: Kê đơn thuốc điện tử & Ký số
-          </span>
-          <Badge variant="normal" size="sm">
-            Danh mục Thuốc Quốc gia
-          </Badge>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Kê Đơn Thuốc & Ký Số
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Lập đơn thuốc điện tử, kiểm tra cảnh báo an toàn tương tác thuốc và xuất bản ký số.
+          </p>
         </div>
-        <h2 className="text-xl font-black text-slate-900 tracking-tight">
-          Lập Đơn Thuốc Điện Tử & Ký Số Xác Thực Pháp Lý Bác Sĩ
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Tự động kiểm tra an toàn thuốc (tương tác thuốc, chống chỉ định dị ứng), ký số pháp lý và xuất hồ sơ y tế PDF.
-        </p>
+        <Badge variant="normal" size="sm">
+          Mô-đun 9
+        </Badge>
       </div>
 
       {/* Drug Safety Alert Banner */}

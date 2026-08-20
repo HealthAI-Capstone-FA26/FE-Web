@@ -87,11 +87,6 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, isStandalone: _isS
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [loginType, setLoginType] = useState<'staff' | 'patient'>('staff');
 
-  // In-memory user store initialized with default mock account
-  const [registeredUsers, setRegisteredUsers] = useState<Array<{ phone: string, pass: string, name: string }>>([
-    { phone: '0987654321', pass: '123456', name: 'Nguyễn Văn A' }
-  ]);
-
   // Form states
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('huy.doctor@tamanh.vn');

@@ -5,21 +5,18 @@ import { Badge } from '../../components/common/Badge';
 export const PatientPortalAppointmentsView: React.FC = () => {
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-            Trang cá nhân Bệnh nhân (Patient Portal)
-          </span>
-          <Badge variant="normal" size="sm">
-            Mã bệnh nhân: P-90234
-          </Badge>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Lịch Hẹn & QR Check-in
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Quản lý lịch khám online và xuất trình mã QR check-in tại quầy lễ tân.
+          </p>
         </div>
-        <h2 className="text-xl font-black text-slate-900 tracking-tight">
-          Lịch Đặt Khám Online & Mã QR Check-in Tự Động
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Quản lý lịch hẹn đặt trước, xuất trình mã QR check-in tại quầy lễ tân bệnh viện và xác nhận cam kết E-Signature.
-        </p>
+        <Badge variant="normal" size="sm">
+          Mã BN: P-90234
+        </Badge>
       </div>
 
       <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">

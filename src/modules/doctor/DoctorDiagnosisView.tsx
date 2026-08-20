@@ -11,21 +11,18 @@ export const DoctorDiagnosisView: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-            Mô-đun 8: Chẩn đoán Hậu xét nghiệm & Tư vấn
-          </span>
-          <Badge variant="ai" size="sm">
-            Chuẩn mã quốc tế ICD-10
-          </Badge>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Chẩn Đoán ICD-10 & Tư Vấn
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Tổng hợp tiến trình bệnh án, xác nhận mã chẩn đoán ICD-10 và đưa ra tư vấn điều trị.
+          </p>
         </div>
-        <h2 className="text-xl font-black text-slate-900 tracking-tight">
-          Giao Diện Chẩn Đoán Chính Thức Theo Chuẩn ICD-10 & Phê Duyệt Gợi Ý AI
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Bác sĩ tổng hợp tiến trình bệnh án Timeline, quyết định Chấp nhận / Phủ quyết đề xuất chẩn đoán từ AI và tư vấn điều trị.
-        </p>
+        <Badge variant="ai" size="sm">
+          Chuẩn ICD-10
+        </Badge>
       </div>
 
       {/* EMR Timeline View */}

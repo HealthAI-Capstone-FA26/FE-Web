@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Users, CheckCircle2, UserPlus, Search, Download, Eye, 
-  MoreVertical, X, ShieldAlert, Heart, FileText, Check,
-  Calendar, Stethoscope, Activity, Clock
+  MoreVertical, X, ShieldAlert, Heart, FileText,
+  Calendar, Stethoscope, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -498,16 +498,11 @@ export const ReceptionPatientsView: React.FC = () => {
       {/* 1. Header Card */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-              Mô-đun 12: Quản lý Hồ sơ Bệnh nhân (Patients)
-            </span>
-          </div>
-          <h2 className="text-xl font-black text-slate-900 tracking-tight">
-            Danh Sách Hồ Sơ & Tra Cứu Thông Tin Bệnh Nhân
+          <h2 className="text-xl font-bold text-slate-900">
+            Quản Lý Hồ Sơ Bệnh Nhân
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Tìm kiếm, tra cứu hồ sơ nhanh chóng, quản lý thông tin hành chính của bệnh nhân.
+            Tìm kiếm, tra cứu hồ sơ bệnh án và quản lý thông tin hành chính.
           </p>
         </div>
 

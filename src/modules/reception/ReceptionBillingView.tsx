@@ -113,21 +113,18 @@ export const ReceptionBillingView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-            Mô-đun 6: Thanh toán chi phí
-          </span>
-          <Badge variant="ai" size="sm">
-            Tự động tính phí cận lâm sàng
-          </Badge>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Thu Phí & Mã VietQR
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Tính toán chi phí dịch vụ, tạo mã QR thanh toán nhanh và xuất hóa đơn PDF tự động.
+          </p>
         </div>
-        <h2 className="text-xl font-black text-slate-900 tracking-tight">
-          Quầy Thu Ngân & Mã QR Thanh Toán Hóa Đơn PDF
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Tính toán chi tiết chi phí xét nghiệm thành phần, thu phí bằng mã VietQR / MoMo / Tiền mặt và xuất hóa đơn PDF tự động.
-        </p>
+        <Badge variant="ai" size="sm">
+          Mô-đun 6
+        </Badge>
       </div>
 
       <DataTable columns={columns} data={bills} searchPlaceholder="Tìm hóa đơn theo tên bệnh nhân, mã HD..." />

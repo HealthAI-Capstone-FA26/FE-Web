@@ -97,21 +97,18 @@ export const LabOrdersView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-            Mô-đun 7: Xét nghiệm tại phòng Lab
-          </span>
-          <Badge variant="normal" size="sm">
-            Ràng buộc thanh toán bắt buộc
-          </Badge>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Xét Nghiệm Phòng Lab
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Tiếp nhận chỉ định xét nghiệm, cập nhật kết quả và liên thông với hồ sơ EMR.
+          </p>
         </div>
-        <h2 className="text-xl font-black text-slate-900 tracking-tight">
-          Bàn Làm Việc Kỹ Thuật Viên Phòng Lab & Tiếp Nhận Chỉ Định
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Tiếp nhận chỉ định, xác thực trạng thái thanh toán từ Mô-đun 6 và cập nhật kết quả số liệu kỹ thuật vào Hồ sơ Bệnh án EMR.
-        </p>
+        <Badge variant="normal" size="sm">
+          Mô-đun 7
+        </Badge>
       </div>
 
       <DataTable columns={columns} data={orders} searchPlaceholder="Tìm theo tên bệnh nhân, mã chỉ định..." />

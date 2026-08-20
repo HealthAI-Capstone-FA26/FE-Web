@@ -187,21 +187,18 @@ export const NurseQueueView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-            Mô-đun 4: Kiểm tra sinh hiệu & Cảnh báo bất thường
-          </span>
-          <Badge variant="warning" size="sm">
-            Tự động tính BMI & Phát hiện bất thường
-          </Badge>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Trạm Điều Dưỡng — Đo & Ghi Nhận Sinh Hiệu
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Nhập các chỉ số sinh hiệu (huyết áp, nhịp tim, SpO2, BMI) và nhận cảnh báo tự động khi vượt ngưỡng.
+          </p>
         </div>
-        <h2 className="text-xl font-black text-slate-900 tracking-tight">
-          Trạm Điều Dưỡng — Đo & Ghi Nhận Chỉ Số Sinh Hiệu Bệnh Nhân
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Nhập mạch, huyết áp, nhiệt độ, nhịp thở, SpO2, thể trạng (chiều cao, cân nặng). Hệ thống tự động cảnh báo nếu vượt ngưỡng.
-        </p>
+        <Badge variant="warning" size="sm">
+          Mô-đun 4
+        </Badge>
       </div>
 
       <DataTable columns={columns} data={patients} searchPlaceholder="Tìm bệnh nhân theo tên, mã số..." />
