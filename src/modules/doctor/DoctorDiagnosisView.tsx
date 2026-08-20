@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, CheckCircle2, XCircle, Sparkles, Clock, FileText, 
-  Activity, ShieldAlert, Heart, Clipboard, BookOpen, AlertCircle, ArrowRight, User
+  Clipboard, BookOpen, AlertCircle, ArrowRight, User
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { BorderBeam } from '../../components/ui/border-beam';

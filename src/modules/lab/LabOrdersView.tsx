@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
-  FlaskConical, CheckCircle2, AlertTriangle, Sparkles, Upload, 
+  FlaskConical, CheckCircle2, Sparkles, Upload, 
   X, Lock, ShieldAlert, Check, FileText, Bell, Loader2 
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
@@ -255,23 +255,18 @@ export const LabOrdersView: React.FC = () => {
     <div className="space-y-6 max-w-7xl mx-auto text-slate-800 animate-in fade-in duration-200">
       
       {/* Module Title Banner */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-              Mô-đun 7: Xét nghiệm tại phòng Lab (LabStaff Portal)
-            </span>
-            <Badge variant="ai" size="sm">
-              AI-Scan & RiskAlert Integrated
-            </Badge>
-          </div>
-          <h2 className="text-xl font-black text-slate-900 tracking-tight">
-            Bàn làm việc Kỹ thuật viên Phòng Lab & Cập nhật kết quả EMR
+          <h2 className="text-xl font-bold text-slate-900">
+            Xét Nghiệm Phòng Lab & Kết Quả EMR
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Tiếp nhận chỉ định, tự động xác thực trạng thái thanh toán cận lâm sàng (Mô-đun 6), đính kèm file chụp, rà quét AI phát hiện bất thường và cảnh báo chỉ số vượt ngưỡng.
+            Tiếp nhận chỉ định, tự động xác thực thanh toán, đính kèm file chụp, quét AI & cảnh báo chỉ số nguy hiểm.
           </p>
         </div>
+        <Badge variant="ai" size="sm">
+          AI Scan & RiskAlert
+        </Badge>
       </div>
 
       {/* Completion Notification Banner */}

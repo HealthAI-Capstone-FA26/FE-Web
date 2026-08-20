@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Pill, CheckCircle2, AlertTriangle, FileCheck, Printer, 
-  Download, Calendar, User, Search, Plus, Trash2, ShieldAlert, 
+  Download, Calendar, Search, Plus, Trash2, ShieldAlert, 
   Award, Check
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
@@ -522,34 +522,19 @@ export const DoctorPrescriptionView: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      
-      {/* Header card banner */}
-      <BorderBeam size="md" colorVariant="colorful">
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 border border-indigo-500/30 shadow-xl shadow-indigo-950/40 p-6 rounded-3xl text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-cyan-300 bg-cyan-500/20 px-2.5 py-0.5 rounded-full border border-cyan-400/30">
-                Mô-đun 9: Kê đơn thuốc điện tử & Ký số
-              </span>
-              <Badge variant="ai" size="sm">
-                Safety Check Active
-              </Badge>
-            </div>
-            <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
-              <Pill className="w-5 h-5 text-cyan-400" />
-              <span>Hệ Thống Lập Đơn Thuốc Quốc Gia & CA Digital Signature</span>
-            </h2>
-            <p className="text-xs text-slate-300">
-              Tự động kiểm tra chéo tương tác gốc thuốc, kiểm soát tiền sử dị ứng và xác thực ký số chứng thư pháp lý của Bác sĩ.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 bg-slate-950/50 border border-indigo-900 rounded-2xl px-4 py-2.5 text-xs font-bold text-slate-200">
-            <User className="w-4 h-4 text-cyan-400" />
-            <span>Bác sĩ kê đơn: <strong className="text-white">BS. CKII. Nguyễn Quang Huy</strong></span>
-          </div>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Kê Đơn Thuốc & Ký Số Điện Tử
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Lập đơn thuốc điện tử, tự động kiểm tra tương tác thuốc, cảnh báo dị ứng và ký số pháp lý.
+          </p>
         </div>
-      </BorderBeam>
+        <Badge variant="ai" size="sm">
+          CA Digital Signature
+        </Badge>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         

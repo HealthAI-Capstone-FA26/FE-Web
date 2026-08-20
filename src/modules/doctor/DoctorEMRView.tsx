@@ -2,26 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Sparkles, CheckCircle2, AlertTriangle, FileText, User,
   Activity, Heart, Thermometer, ShieldAlert, CheckSquare, Square,
-  Clock, CreditCard, FlaskConical, Play
+  Clock, Play
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { BorderBeam } from '../../components/ui/border-beam';
-
-/* 
- * DESIGN READ:
- * Component Kind: Doctor Consultation & EMR view module (Mô-đun 5)
- * Audience: Doctors conducting clinical exams.
- * Vibe: Premium medical AI clinical assistant, displaying detailed EMR,
- *       interactive X-ray simulator with red-highlighted abnormal region overlays,
- *       and dynamic suggested lab orders matching the doctor's written diagnosis.
- *       AI02 is locked until payment and lab completion are simulated.
- */
-
-interface VisitHistoryItem {
-  date: string;
-  diagnose: string;
-  doctor: string;
-}
 
 interface PatientEMR {
   id: string;
@@ -258,27 +242,19 @@ export const DoctorEMRView: React.FC = () => {
     <div className="space-y-6 max-w-7xl mx-auto text-slate-800 animate-in fade-in duration-200">
 
       {/* Module Title Banner */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-              Mô-đun 5: Khám sơ bộ, EMR & Tích hợp AI (Doctor EMR)
-            </span>
-            <Badge variant="ai" size="sm">
-              AI01 & AI02 Ready
-            </Badge>
-          </div>
-          <h2 className="text-xl font-black text-slate-900 tracking-tight">
-            Khám bệnh, Chẩn đoán sơ bộ & Chỉ định xét nghiệm
+          <h2 className="text-xl font-bold text-slate-900">
+            Hồ Sơ EMR & Phân Tích AI
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Xem hồ sơ bệnh án EMR, tóm tắt AI có tham chiếu nguồn dữ liệu, chẩn đoán đề xuất từ X-quang nhấp nháy khoanh vùng bất thường, và chỉ định xét nghiệm gợi ý.
+            Xem hồ sơ bệnh án EMR, tóm tắt AI tự động (AI01) và khoanh vùng bất thường (AI02).
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-2 text-xs font-extrabold text-indigo-950">
-          <User className="w-4 h-4 text-indigo-600" />
-          <span>Bệnh nhân đang khám: {currentPatient.name} ({currentPatient.id})</span>
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-1.5 text-xs font-bold text-blue-900">
+          <User className="w-4 h-4 text-blue-700" />
+          <span>Bệnh nhân: {currentPatient?.name || 'Khưu Trọng Quân'} ({currentPatient?.id || 'P-90234'})</span>
         </div>
       </div>
 
