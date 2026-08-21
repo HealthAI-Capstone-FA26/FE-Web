@@ -11,30 +11,16 @@ import { NewsPage } from './pages/NewsPage';
 import NewsDetailPage from './pages/NewsDetailPage';
 import { CustomerPage } from './pages/CustomerPage';
 
-// Internal Role Views
-import { ReceptionCheckinView } from './modules/reception/ReceptionCheckinView';
-import { ReceptionPatientsView } from './modules/reception/ReceptionPatientsView';
-import { ReceptionWalkinBookingView } from './modules/reception/ReceptionWalkinBookingView';
-import { ReceptionBillingView } from './modules/reception/ReceptionBillingView';
-import { ReceptionPatientProfileFormView } from './modules/reception/ReceptionPatientProfileFormView';
-import { ReceptionSymptomIntakeView } from './modules/reception/ReceptionSymptomIntakeView';
-
-import { NurseQueueView } from './modules/nurse/NurseQueueView';
-
-import { DoctorEMRView } from './modules/doctor/DoctorEMRView';
-import { DoctorDiagnosisView } from './modules/doctor/DoctorDiagnosisView';
-import { DoctorPrescriptionView } from './modules/doctor/DoctorPrescriptionView';
-
-import { LabOrdersView } from './modules/lab/LabOrdersView';
-
-import { AdminRealtimeMonitorView } from './modules/admin/AdminRealtimeMonitorView';
-
-import { PatientPortalAppointmentsView } from './modules/patient/PatientPortalAppointmentsView';
-import { PatientProfileFormView } from './modules/patient/PatientProfileFormView';
-import { PatientConsentView } from './modules/patient/PatientConsentView';
-import { PatientSymptomIntakeView } from './modules/patient/PatientSymptomIntakeView';
-import { PatientInsuranceView } from './modules/patient/PatientInsuranceView';
-import { PatientImportRecordView } from './modules/patient/PatientImportRecordView';
+// Consolidated Workspaces
+import { DoctorWorkspaceView } from './modules/doctor/DoctorWorkspaceView';
+import { ReceptionIntakeWorkspaceView } from './modules/reception/ReceptionIntakeWorkspaceView';
+import { ReceptionBillingWorkspaceView } from './modules/reception/ReceptionBillingWorkspaceView';
+import { NurseWorkspaceView } from './modules/nurse/NurseWorkspaceView';
+import { LabWorkspaceView } from './modules/lab/LabWorkspaceView';
+import { AdminRealtimeWorkspaceView } from './modules/admin/AdminRealtimeWorkspaceView';
+import { AdminSecurityWorkspaceView } from './modules/admin/AdminSecurityWorkspaceView';
+import { PatientIntakeWorkspaceView } from './modules/patient/PatientIntakeWorkspaceView';
+import { PatientRecordsWorkspaceView } from './modules/patient/PatientRecordsWorkspaceView';
 
 const DashboardRedirect = () => {
   const { currentRole } = useAuth();
@@ -60,51 +46,53 @@ function App() {
           <Route path="/tin-tuc/:id" element={<NewsDetailPage />} />
           <Route path="/lien-he" element={<PlaceholderPage title="Liên hệ" />} />
 
-          {/* Clinical Staff & Patient Portal Routes (Nested under DashboardOverview Layout) */}
+          {/* Consolidated Internal Workspaces (Nested under DashboardOverview Layout) */}
           <Route element={<DashboardOverview />}>
-            {/* BENH NHAN (PATIENT) - Module 2 Intake */}
-            <Route path="/benh-nhan/ho-so" element={<PatientProfileFormView />} />
-            <Route path="/benh-nhan/dong-y" element={<PatientConsentView />} />
-            <Route path="/benh-nhan/trieu-chung" element={<PatientSymptomIntakeView />} />
-            <Route path="/benh-nhan/bao-hiem" element={<PatientInsuranceView />} />
-            <Route path="/benh-nhan/nhap-ho-so" element={<PatientImportRecordView />} />
-            <Route path="/benh-nhan/lich-hen" element={<PatientPortalAppointmentsView />} />
-            <Route path="/benh-nhan/ho-so-don-thuoc" element={<PatientPortalAppointmentsView />} />
+            {/* BỆNH NHÂN WORKSPACES */}
+            <Route path="/benh-nhan/ho-so" element={<PatientIntakeWorkspaceView />} />
+            <Route path="/benh-nhan/dong-y" element={<PatientIntakeWorkspaceView />} />
+            <Route path="/benh-nhan/trieu-chung" element={<PatientIntakeWorkspaceView />} />
+            <Route path="/benh-nhan/bao-hiem" element={<PatientIntakeWorkspaceView />} />
+            <Route path="/benh-nhan/nhap-ho-so" element={<PatientIntakeWorkspaceView />} />
+            
+            <Route path="/benh-nhan/lich-hen" element={<PatientRecordsWorkspaceView />} />
+            <Route path="/benh-nhan/ho-so-don-thuoc" element={<PatientRecordsWorkspaceView />} />
 
-            {/* TIEP NHAN (RECEPTION) - Module 2 Intake */}
-            <Route path="/tiep-nhan/danh-sach-cho" element={<ReceptionCheckinView />} />
-            <Route path="/tiep-nhan/benh-nhan" element={<ReceptionPatientsView />} />
-            <Route path="/tiep-nhan/ho-so-benh-nhan" element={<ReceptionPatientProfileFormView />} />
-            <Route path="/tiep-nhan/dang-ky-tai-quay" element={<ReceptionWalkinBookingView />} />
-            <Route path="/tiep-nhan/trieu-chung-benh-nhan" element={<ReceptionSymptomIntakeView />} />
-            <Route path="/tiep-nhan/hang-cho-phong-kham" element={<ReceptionCheckinView />} />
-            <Route path="/tiep-nhan/thu-phi" element={<ReceptionBillingView />} />
-            <Route path="/tiep-nhan/ho-don" element={<ReceptionBillingView />} />
+            {/* TIẾP NHẬN WORKSPACES */}
+            <Route path="/tiep-nhan/danh-sach-cho" element={<ReceptionIntakeWorkspaceView />} />
+            <Route path="/tiep-nhan/benh-nhan" element={<ReceptionIntakeWorkspaceView />} />
+            <Route path="/tiep-nhan/ho-so-benh-nhan" element={<ReceptionIntakeWorkspaceView />} />
+            <Route path="/tiep-nhan/dang-ky-tai-quay" element={<ReceptionIntakeWorkspaceView />} />
+            <Route path="/tiep-nhan/trieu-chung-benh-nhan" element={<ReceptionIntakeWorkspaceView />} />
+            <Route path="/tiep-nhan/hang-cho-phong-kham" element={<ReceptionIntakeWorkspaceView />} />
+            
+            <Route path="/tiep-nhan/thu-phi" element={<ReceptionBillingWorkspaceView />} />
+            <Route path="/tiep-nhan/ho-don" element={<ReceptionBillingWorkspaceView />} />
 
-            {/* DIEU DUONG (NURSE) */}
-            <Route path="/dieu-duong/hang-cho-sinh-hieu" element={<NurseQueueView />} />
-            <Route path="/dieu-duong/nhap-sinh-hieu" element={<NurseQueueView />} />
-            <Route path="/dieu-duong/canh-bao" element={<NurseQueueView />} />
+            {/* ĐIỀU DƯỠNG WORKSPACE */}
+            <Route path="/dieu-duong/hang-cho-sinh-hieu" element={<NurseWorkspaceView />} />
+            <Route path="/dieu-duong/nhap-sinh-hieu" element={<NurseWorkspaceView />} />
+            <Route path="/dieu-duong/canh-bao" element={<NurseWorkspaceView />} />
 
-            {/* BAC SI (DOCTOR) */}
-            <Route path="/bac-si/danh-sach-kham" element={<DoctorEMRView />} />
-            <Route path="/bac-si/hang-cho-kham" element={<DoctorEMRView />} />
-            <Route path="/bac-si/kham-benh" element={<DoctorDiagnosisView />} />
-            <Route path="/bac-si/ke-don" element={<DoctorPrescriptionView />} />
+            {/* BÁC SĨ WORKSPACE */}
+            <Route path="/bac-si/danh-sach-kham" element={<DoctorWorkspaceView />} />
+            <Route path="/bac-si/hang-cho-kham" element={<DoctorWorkspaceView />} />
+            <Route path="/bac-si/kham-benh" element={<DoctorWorkspaceView />} />
+            <Route path="/bac-si/ke-don" element={<DoctorWorkspaceView />} />
 
-            {/* XET NGHIEM (LAB) */}
-            <Route path="/xet-nghiem/hang-cho-xet-nghiem" element={<LabOrdersView />} />
-            <Route path="/xet-nghiem/upload-dicom" element={<LabOrdersView />} />
-            <Route path="/xet-nghiem/canh-bao" element={<LabOrdersView />} />
+            {/* XÉT NGHIỆM WORKSPACE */}
+            <Route path="/xet-nghiem/hang-cho-xet-nghiem" element={<LabWorkspaceView />} />
+            <Route path="/xet-nghiem/upload-dicom" element={<LabWorkspaceView />} />
+            <Route path="/xet-nghiem/canh-bao" element={<LabWorkspaceView />} />
 
-            {/* QUAN TRI (ADMIN) */}
-            <Route path="/quan-tri/tong-quan" element={<AdminRealtimeMonitorView />} />
-            <Route path="/quan-tri/bao-cao" element={<AdminRealtimeMonitorView />} />
-            <Route path="/quan-tri/nhat-ky-he-thong" element={<AdminRealtimeMonitorView />} />
-            <Route path="/quan-tri/fhir-log" element={<AdminRealtimeMonitorView />} />
+            {/* QUẢN TRỊ WORKSPACES */}
+            <Route path="/quan-tri/tong-quan" element={<AdminRealtimeWorkspaceView />} />
+            <Route path="/quan-tri/bao-cao" element={<AdminRealtimeWorkspaceView />} />
+            <Route path="/quan-tri/nhat-ky-he-thong" element={<AdminSecurityWorkspaceView />} />
+            <Route path="/quan-tri/fhir-log" element={<AdminSecurityWorkspaceView />} />
           </Route>
 
-          {/* Legacy / Catch-all Dashboard Redirects */}
+          {/* Catch-all Dashboard Redirects */}
           <Route path="/dashboard" element={<DashboardRedirect />} />
           <Route path="/dashboard/*" element={<DashboardRedirect />} />
         </Routes>
