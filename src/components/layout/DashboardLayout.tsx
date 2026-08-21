@@ -77,50 +77,51 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
   return (
     <div className="min-h-screen bg-slate-100/80 flex flex-col font-sans antialiased">
-      {/* Dev Demo Quick Role Switcher Bar */}
-      <div className="bg-slate-950 text-slate-200 px-4 py-2 text-xs flex flex-wrap items-center justify-between border-b border-slate-800 gap-2 sticky top-0 z-40">
-        <div className="flex items-center space-x-2 shrink-0">
-          <span className="flex h-2 w-2 relative">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <span className="font-extrabold text-blue-400 uppercase tracking-wide whitespace-nowrap">
-            [Demo Role Switcher]
-          </span>
-          <span className="hidden md:inline text-slate-400 whitespace-nowrap">
-            Chuyển vai trò quản lý nhiệm vụ nội bộ:
-          </span>
-        </div>
+      {/* Dev Demo Quick Role Switcher Bar (Staff Only) */}
+      {currentRole !== 'PATIENT' && (
+        <div className="bg-slate-950 text-slate-200 px-4 py-2 text-xs flex flex-wrap items-center justify-between border-b border-slate-800 gap-2 sticky top-0 z-40">
+          <div className="flex items-center space-x-2 shrink-0">
+            <span className="flex h-2 w-2 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span className="font-extrabold text-blue-400 uppercase tracking-wide whitespace-nowrap">
+              [Demo Role Switcher]
+            </span>
+            <span className="hidden md:inline text-slate-400 whitespace-nowrap">
+              Chuyển vai trò quản lý nhiệm vụ nội bộ:
+            </span>
+          </div>
 
-        {/* Role buttons */}
-        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full">
-          {allRoles.map((r) => {
-            const isActive = r.role === currentRole;
-            return (
-              <button
-                key={r.role}
-                onClick={() => handleRoleSwitch(r.role)}
-                className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border whitespace-nowrap shrink-0 ${isActive
-                  ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
-                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
-                  }`}
-              >
-                {r.label}
-              </button>
-            );
-          })}
+          {/* Role buttons */}
+          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full">
+            {allRoles.filter((r) => r.role !== 'PATIENT').map((r) => {
+              const isActive = r.role === currentRole;
+              return (
+                <button
+                  key={r.role}
+                  onClick={() => handleRoleSwitch(r.role)}
+                  className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border whitespace-nowrap shrink-0 ${isActive
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
+                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                    }`}
+                >
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Header / Topbar */}
-      <header className="bg-white border-b border-slate-200 sticky top-[33px] z-30 shadow-xs">
+      <header className={`bg-white border-b border-slate-200 sticky ${currentRole !== 'PATIENT' ? 'top-[33px]' : 'top-0'} z-30 shadow-xs`}>
         <div className="px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             {/* Sidebar Toggle Button (Desktop & Mobile) */}
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              title={isSidebarOpen ? "Thu gọn thanh điều hướng" : "Mở rộng thanh điều hướng"}
-              className="text-slate-600 hover:text-blue-900 hover:bg-slate-100 p-1.5 rounded-xl border border-slate-200 cursor-pointer transition-colors flex items-center justify-center"
+              className="p-2 text-slate-600 hover:text-blue-900 hover:bg-slate-100 rounded-xl transition-all border border-slate-200/80 cursor-pointer bg-white"
             >
               {isSidebarOpen ? <PanelLeftClose className="w-5 h-5 text-slate-700" /> : <PanelLeft className="w-5 h-5 text-blue-700" />}
             </button>
@@ -131,7 +132,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               </div>
               <div className="flex flex-col">
                 <span className="font-black text-sm text-blue-950 uppercase tracking-tight whitespace-nowrap">
-                  HỆ THỐNG QUẢN LÝ NỘI BỘ (EMR & AI)
+                  {currentRole === 'PATIENT' ? 'CỔNG THÔNG TIN BỆNH NHÂN (PATIENT PORTAL)' : 'HỆ THỐNG QUẢN LÝ NỘI BỘ (EMR & AI)'}
                 </span>
                 <span className="text-[10px] text-slate-500 font-semibold whitespace-nowrap">
                   Bệnh viện Đa khoa 4AM • Chuẩn HL7 FHIR R4
@@ -144,7 +145,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
           <div className="flex items-center space-x-3">
             <span className="hidden md:inline-flex items-center gap-1.5 text-xs text-slate-600 bg-slate-100 font-bold px-3 py-1.5 rounded-lg border border-slate-200/80 whitespace-nowrap">
               <ShieldCheck className="w-3.5 h-3.5 text-blue-700" />
-              <span>Phân Hệ Nội Bộ Bệnh Viện</span>
+              <span>{currentRole === 'PATIENT' ? 'Cổng Bệnh Nhân 4AM' : 'Phân Hệ Nội Bộ Bệnh Viện'}</span>
             </span>
 
             <div className="w-px h-4 bg-slate-200 hidden md:block"></div>
@@ -162,7 +163,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                 className="flex items-center space-x-2.5 p-1.5 pl-2.5 rounded-xl hover:bg-slate-100 transition-all border border-slate-200/80 cursor-pointer bg-white"
               >
                 <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-900 font-extrabold text-xs flex items-center justify-center border border-blue-200">
-                  {user?.name.charAt(0)}
+                  {user?.name?.charAt(0) || 'U'}
                 </div>
                 <div className="text-left hidden sm:block">
                   <div className="text-xs font-extrabold text-slate-800 leading-tight whitespace-nowrap">{user?.name}</div>
@@ -177,25 +178,29 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                   <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/60">
                     <p className="text-xs font-extrabold text-slate-800">{user?.name}</p>
                     <p className="text-[11px] text-slate-500">{user?.email}</p>
-                    <p className="text-[10px] text-blue-700 font-bold mt-0.5">{user?.department}</p>
+                    {user?.department && (
+                      <p className="text-[10px] text-blue-700 font-bold mt-0.5">{user.department}</p>
+                    )}
                   </div>
 
-                  <div className="py-1">
-                    <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                      Đổi vai trò nội bộ
+                  {currentRole !== 'PATIENT' && (
+                    <div className="py-1">
+                      <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                        Đổi vai trò nội bộ
+                      </div>
+                      {allRoles.filter((r) => r.role !== 'PATIENT').map((r) => (
+                        <button
+                          key={r.role}
+                          onClick={() => handleRoleSwitch(r.role)}
+                          className={`w-full px-4 py-1.5 text-left text-xs flex items-center justify-between hover:bg-slate-100 cursor-pointer ${r.role === currentRole ? 'font-bold text-blue-700 bg-blue-50/50' : 'text-slate-700'
+                            }`}
+                        >
+                          <span className="whitespace-nowrap">{r.label}</span>
+                          {r.role === currentRole && <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>}
+                        </button>
+                      ))}
                     </div>
-                    {allRoles.map((r) => (
-                      <button
-                        key={r.role}
-                        onClick={() => handleRoleSwitch(r.role)}
-                        className={`w-full px-4 py-1.5 text-left text-xs flex items-center justify-between hover:bg-slate-100 cursor-pointer ${r.role === currentRole ? 'font-bold text-blue-700 bg-blue-50/50' : 'text-slate-700'
-                          }`}
-                      >
-                        <span className="whitespace-nowrap">{r.label}</span>
-                        {r.role === currentRole && <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>}
-                      </button>
-                    ))}
-                  </div>
+                  )}
 
                   <div className="border-t border-slate-100 pt-1 mt-1">
                     <button

@@ -104,4 +104,12 @@ export const authService = {
       body: JSON.stringify({ resetToken, newPassword }),
     });
   },
+
+  // Đổi mật khẩu (khi đã đăng nhập)
+  async changePassword(oldPassword: string, newPassword: string): Promise<{ message: string }> {
+    return apiFetch<{ message: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ oldPassword, newPassword }),
+    });
+  },
 };
