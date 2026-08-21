@@ -64,6 +64,7 @@ interface AuthContextType {
   isLoggedIn: boolean;
   switchRole: (role: UserRole) => void;
   login: (email: string, role: UserRole) => void;
+  loginWithTokens: (accessToken: string, refreshToken: string, backendUser: { userId: string; email: string; fullName: string; actorRole: string; avatarUrl?: string; phoneNumber?: string }) => void;
   logout: () => void;
   allRoles: { role: UserRole; label: string; desc: string }[];
 }
@@ -73,7 +74,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
     const saved = localStorage.getItem('4am_active_role');
-    return (saved as UserRole) || 'DOCTOR';
+    return (saved as UserRole) || 'PATIENT';
   });
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -82,6 +83,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [user, setUser] = useState<UserProfile | null>(() => {
+    const savedUser = localStorage.getItem('4am_user_data');
+    if (savedUser) {
+      try {
+        return JSON.parse(savedUser);
+      } catch {
+        // Fallback
+      }
+    }
     const savedLoggedIn = localStorage.getItem('4am_is_logged_in');
     if (savedLoggedIn === 'true') {
       return MOCK_USERS[currentRole];
@@ -91,26 +100,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (isLoggedIn) {
-      const currentUser = MOCK_USERS[currentRole];
-      setUser(currentUser);
       localStorage.setItem('4am_active_role', currentRole);
       localStorage.setItem('4am_is_logged_in', 'true');
-      localStorage.setItem('4am_user_name', currentUser.name);
     } else {
       setUser(null);
       localStorage.removeItem('4am_is_logged_in');
       localStorage.removeItem('4am_user_name');
+      localStorage.removeItem('4am_user_data');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
     }
   }, [currentRole, isLoggedIn]);
 
   const switchRole = (role: UserRole) => {
     setCurrentRole(role);
     setIsLoggedIn(true);
+    const mockUser = MOCK_USERS[role];
+    setUser(mockUser);
+    localStorage.setItem('4am_user_data', JSON.stringify(mockUser));
   };
 
   const login = (_email: string, role: UserRole) => {
-    setCurrentRole(role);
+    switchRole(role);
+  };
+
+  const loginWithTokens = (
+    accessToken: string,
+    refreshToken: string,
+    backendUser: { userId: string; email: string; fullName: string; actorRole: string; avatarUrl?: string; phoneNumber?: string }
+  ) => {
+    localStorage.setItem('access_token', accessToken);
+    localStorage.setItem('refresh_token', refreshToken);
+
+    const mappedRole: UserRole =
+      (backendUser.actorRole?.toUpperCase() as UserRole) in MOCK_USERS
+        ? (backendUser.actorRole.toUpperCase() as UserRole)
+        : 'PATIENT';
+
+    const userProfile: UserProfile = {
+      id: backendUser.userId,
+      name: backendUser.fullName || backendUser.email,
+      email: backendUser.email,
+      role: mappedRole,
+      roleTitle: mappedRole === 'PATIENT' ? 'Bệnh nhân' : 'Nhân viên Y tế',
+      phone: backendUser.phoneNumber,
+      avatar: backendUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
+    };
+
+    setCurrentRole(mappedRole);
+    setUser(userProfile);
     setIsLoggedIn(true);
+    localStorage.setItem('4am_user_data', JSON.stringify(userProfile));
+    localStorage.setItem('4am_user_name', userProfile.name);
   };
 
   const logout = () => {
@@ -118,6 +159,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     localStorage.removeItem('4am_is_logged_in');
     localStorage.removeItem('4am_user_name');
+    localStorage.removeItem('4am_user_data');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
   };
 
   const allRoles: { role: UserRole; label: string; desc: string }[] = [
@@ -130,7 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ];
 
   return (
-    <AuthContext.Provider value={{ user, currentRole, isLoggedIn, switchRole, login, logout, allRoles }}>
+    <AuthContext.Provider value={{ user, currentRole, isLoggedIn, switchRole, login, loginWithTokens, logout, allRoles }}>
       {children}
     </AuthContext.Provider>
   );

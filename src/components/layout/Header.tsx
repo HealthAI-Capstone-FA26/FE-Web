@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { MapPin, User, Headphones, Calendar, Search, Menu, LogIn } from 'lucide-react';
+import { MapPin, User, Headphones, Calendar, Search, Menu, LogIn, LayoutDashboard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { LoginModal } from '../auth/LoginModal';
 import { useAuth } from '../../context/AuthContext';
+import { ROLE_DEFAULT_PATHS } from '../../types/dashboard';
 
 export const Header = () => {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const { user, isLoggedIn, logout } = useAuth();
+  const { user, currentRole, isLoggedIn, logout } = useAuth();
 
   return (
     <header className="w-full shadow-xs sticky top-0 z-50 bg-white flex flex-col">
@@ -56,12 +57,24 @@ export const Header = () => {
 
                 {isLoggedIn && user ? (
                   <div className="flex items-center space-x-2 ml-2">
-                    <div className="w-7 h-7 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-[#0b3c8f] shrink-0 font-extrabold text-xs uppercase shadow-xs">
-                      {user.name.charAt(0)}
-                    </div>
-                    <span className="text-[11px] text-slate-700 font-extrabold uppercase tracking-wider">
-                      {user.name}
-                    </span>
+                    <Link
+                      to={ROLE_DEFAULT_PATHS[currentRole] || '/benh-nhan/ho-so'}
+                      className="flex items-center space-x-2 p-1 px-2 rounded-xl hover:bg-slate-200/60 transition-all border border-slate-200 bg-white"
+                      title="Đi tới trang quản lý tài khoản / bàn làm việc"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-[#0b3c8f] shrink-0 font-extrabold text-xs uppercase shadow-xs">
+                        {user.name.charAt(0)}
+                      </div>
+                      <div className="flex flex-col text-left">
+                        <span className="text-[11px] text-slate-800 font-extrabold uppercase tracking-wider leading-tight">
+                          {user.name}
+                        </span>
+                        <span className="text-[9px] text-blue-600 font-bold flex items-center gap-0.5">
+                          <LayoutDashboard className="w-2.5 h-2.5" />
+                          {currentRole === 'PATIENT' ? 'Cổng Bệnh Nhân →' : 'Trang Nội Bộ →'}
+                        </span>
+                      </div>
+                    </Link>
                     <button 
                       onClick={() => logout()}
                       className="text-[10px] text-slate-400 hover:text-rose-600 font-bold uppercase tracking-wider ml-1 cursor-pointer bg-transparent border-none outline-none"

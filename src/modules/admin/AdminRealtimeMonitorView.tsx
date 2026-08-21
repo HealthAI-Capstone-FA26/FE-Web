@@ -5,21 +5,18 @@ import { Badge } from '../../components/common/Badge';
 export const AdminRealtimeMonitorView: React.FC = () => {
   return (
     <div className="space-y-6">
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-            Mô-đun 10: Quản lý vận hành Real-time 7 bước
-          </span>
-          <Badge variant="ai" size="sm">
-            Live Stream Process Monitor
-          </Badge>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Giám Sát Real-time 7 Bước
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Theo dõi thời gian thực tiến trình bệnh nhân, thời gian chờ trung bình và vận hành hệ thống.
+          </p>
         </div>
-        <h2 className="text-xl font-black text-slate-900 tracking-tight">
-          Admin Dashboard — Giám Sát Tiến Trình Khám Chữa Bệnh Real-time
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Theo dõi thời gian thực tiến trình 7 bước của bệnh nhân trong viện, phân tích thời gian chờ trung bình và hiệu suất xử lý phòng Lab.
-        </p>
+        <Badge variant="ai" size="sm">
+          Realtime
+        </Badge>
       </div>
 
       {/* Realtime 7-Step Workflow Monitor Cards */}

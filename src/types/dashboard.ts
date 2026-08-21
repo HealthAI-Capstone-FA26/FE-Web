@@ -4,6 +4,7 @@ export interface TabNavItem {
   id: string;
   label: string;
   iconName: string;
+  path: string;
   badge?: string;
   moduleTag?: string;
 }
@@ -13,93 +14,67 @@ export interface NavGroup {
   items: TabNavItem[];
 }
 
+export const ROLE_DEFAULT_PATHS: Record<UserRole, string> = {
+  PATIENT: '/benh-nhan/lich-hen',
+  RECEPTION: '/tiep-nhan/danh-sach-cho',
+  NURSE: '/dieu-duong/hang-cho-sinh-hieu',
+  DOCTOR: '/bac-si/danh-sach-kham',
+  LAB: '/xet-nghiem/hang-cho-xet-nghiem',
+  ADMIN: '/quan-tri/tong-quan'
+};
+
 export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
   RECEPTION: [
     {
-      groupName: 'Tiếp nhận & Check-in',
+      groupName: 'Nghiệp vụ Tiếp nhận',
       items: [
-        { id: 'rec_checkin', label: 'Tiếp nhận & Check-in BHYT (Mod 3)', iconName: 'UserCheck', badge: '08 Chờ' },
-        { id: 'rec_patients', label: 'Quản lý Hồ sơ Bệnh nhân', iconName: 'Users' },
-        { id: 'rec_booking', label: 'Đăng ký khám tại quầy (Mod 2)', iconName: 'UserPlus' },
-        { id: 'rec_queue', label: 'Quản lý Hàng chờ Phòng khám', iconName: 'Activity' }
-      ]
-    },
-    {
-      groupName: 'Thu phí & Hóa đơn',
-      items: [
-        { id: 'rec_billing', label: 'Thu phí & Mã VietQR (Mod 6)', iconName: 'CreditCard', badge: '05 Chờ đóng' },
-        { id: 'rec_invoice', label: 'Xuất Hóa đơn PDF', iconName: 'FileText' }
+        { id: 'rec_workspace_checkin', label: 'Tiếp nhận & Đăng ký quầy', path: '/tiep-nhan/danh-sach-cho', iconName: 'UserCheck', badge: '08 Chờ' },
+        { id: 'rec_workspace_patients', label: 'Khai báo & Tra cứu Hồ sơ', path: '/tiep-nhan/benh-nhan', iconName: 'Users' },
+        { id: 'rec_workspace_billing', label: 'Quản lý Thu phí & Hóa đơn', path: '/tiep-nhan/thu-phi', iconName: 'CreditCard', badge: '05 Chờ' }
       ]
     }
   ],
   NURSE: [
     {
-      groupName: 'Kiểm tra Sinh hiệu',
+      groupName: 'Không gian Nghiệp vụ',
       items: [
-        { id: 'nurse_vitals_queue', label: 'Hàng chờ đo sinh hiệu (Mod 4)', iconName: 'Users', badge: '12 Ca' },
-        { id: 'nurse_vitals_input', label: 'Form nhập chỉ số sinh hiệu & BMI', iconName: 'Activity', badge: 'Realtime' }
-      ]
-    },
-    {
-      groupName: 'Cảnh báo & An toàn',
-      items: [
-        { id: 'nurse_alerts', label: 'Cảnh báo sinh hiệu bất thường', iconName: 'AlertTriangle', badge: '03 Gấp' }
+        { id: 'nurse_workspace_vitals', label: 'Quản lý Sinh hiệu & Cảnh báo', path: '/dieu-duong/hang-cho-sinh-hieu', iconName: 'Activity', badge: '12 Ca' }
       ]
     }
   ],
   DOCTOR: [
     {
-      groupName: 'Thăm khám & Khám sơ bộ',
+      groupName: 'Không gian Thăm khám',
       items: [
-        { id: 'doc_emr_ai', label: 'Hồ sơ EMR & AI Tóm tắt (Mod 5)', iconName: 'Stethoscope', badge: 'AI01 & AI02' },
-        { id: 'doc_queue', label: 'Hàng chờ bệnh nhân vào khám', iconName: 'Users', badge: '15 Ca' }
-      ]
-    },
-    {
-      groupName: 'Chẩn đoán & Kê đơn',
-      items: [
-        { id: 'doc_icd10', label: 'Timeline & Chuẩn mã ICD-10 (Mod 8)', iconName: 'FileText' },
-        { id: 'doc_prescription', label: 'Kê đơn thuốc & Ký số (Mod 9)', iconName: 'Pill' }
+        { id: 'doc_workspace_clinical', label: 'Bàn làm việc Bác sĩ (Clinical)', path: '/bac-si/danh-sach-kham', iconName: 'Stethoscope', badge: 'AI Integrated' }
       ]
     }
   ],
   LAB: [
     {
-      groupName: 'Xét nghiệm Phòng Lab',
+      groupName: 'Không gian Chẩn đoán',
       items: [
-        { id: 'lab_orders', label: 'Ca chỉ định xét nghiệm (Mod 7)', iconName: 'FlaskConical', badge: '09 Chỉ định' },
-        { id: 'lab_upload', label: 'Upload ảnh DICOM/X-quang & AI', iconName: 'FileText' }
-      ]
-    },
-    {
-      groupName: 'An toàn & Cảnh báo',
-      items: [
-        { id: 'lab_alerts', label: 'Cảnh báo chỉ số nguy hiểm', iconName: 'AlertCircle', badge: '02 Cảnh báo' }
+        { id: 'lab_workspace_diagnostic', label: 'Xét nghiệm & Chẩn đoán AI', path: '/xet-nghiem/hang-cho-xet-nghiem', iconName: 'FlaskConical', badge: '09 Ca' }
       ]
     }
   ],
   ADMIN: [
     {
-      groupName: 'Giám sát Realtime',
+      groupName: 'Không gian Quản trị',
       items: [
-        { id: 'admin_monitor', label: 'Dashboard 7 bước Realtime (Mod 10)', iconName: 'LayoutDashboard', badge: 'Realtime' },
-        { id: 'admin_reports', label: 'Báo cáo thời gian chờ & Tải', iconName: 'Activity' }
-      ]
-    },
-    {
-      groupName: 'Bảo mật & Chuẩn FHIR',
-      items: [
-        { id: 'admin_audit', label: 'Truy vết Nhật ký Audit Log', iconName: 'ShieldCheck' },
-        { id: 'admin_fhir', label: 'Rà soát dữ liệu lỗi FHIR (Mod 11)', iconName: 'Sparkles' }
+        { id: 'admin_workspace_realtime', label: 'Giám sát Realtime & Báo cáo', path: '/quan-tri/tong-quan', iconName: 'LayoutDashboard', badge: 'Live' },
+        { id: 'admin_workspace_security', label: 'Bảo mật Audit & Chuẩn FHIR', path: '/quan-tri/nhat-ky-he-thong', iconName: 'ShieldCheck' }
       ]
     }
   ],
   PATIENT: [
     {
-      groupName: 'Hồ sơ Bệnh nhân',
+      groupName: 'Cổng Bệnh nhân',
       items: [
-        { id: 'pat_appointments', label: 'Lịch hẹn & Khai báo y tế (Mod 2 & 3)', iconName: 'Users' },
-        { id: 'pat_records', label: 'Đơn thuốc & Tải PDF HSBA (Mod 9)', iconName: 'Pill' }
+        { id: 'pat_workspace_profile', label: 'Tài khoản & Profile', path: '/benh-nhan/ho-so', iconName: 'UserCheck' },
+        { id: 'pat_workspace_medical', label: 'Hồ sơ Y tế & Tiền sử', path: '/benh-nhan/ho-so-y-te', iconName: 'FileText', badge: 'HL7 FHIR' },
+        { id: 'pat_workspace_submission', label: 'Khai báo & Nộp dữ liệu', path: '/benh-nhan/trieu-chung', iconName: 'Activity' },
+        { id: 'pat_workspace_records', label: 'Lịch hẹn & Bệnh án PDF', path: '/benh-nhan/lich-hen', iconName: 'Calendar' }
       ]
     }
   ]

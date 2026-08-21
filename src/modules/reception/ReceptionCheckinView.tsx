@@ -101,7 +101,7 @@ export const ReceptionCheckinView: React.FC = () => {
       header: 'Hình thức Đặt',
       cell: (row) => (
         <Badge variant={row.bookingType === 'Online' ? 'info' : 'neutral'} size="sm">
-          {row.bookingType === 'Online' ? 'Đặt Online (Mod 2)' : 'Trực tiếp tại quầy'}
+          {row.bookingType === 'Online' ? 'Đặt Online' : 'Trực tiếp tại quầy'}
         </Badge>
       )
     },
@@ -127,11 +127,10 @@ export const ReceptionCheckinView: React.FC = () => {
             setIsVerifyModalOpen(true);
           }}
           disabled={row.status === 'Dispatched'}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 whitespace-nowrap ${
-            row.status === 'Dispatched'
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 whitespace-nowrap ${row.status === 'Dispatched'
               ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600 shadow-xs'
-          }`}
+            }`}
         >
           {row.status === 'Dispatched' ? (
             <>
@@ -152,21 +151,13 @@ export const ReceptionCheckinView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Module Title Banner */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-              Mô-đun 3: Tiếp nhận & Thu thập thông tin
-            </span>
-            <Badge variant="ai" size="sm">
-              Định danh CCCD & BHYT
-            </Badge>
-          </div>
-          <h2 className="text-xl font-black text-slate-900 tracking-tight">
-            Quầy Tiếp Nhận & Xác Minh Bệnh Nhân Check-in
+          <h2 className="text-xl font-bold text-slate-900">
+            Tiếp Nhận & Check-in BHYT
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Nhân viên lễ tân xác minh giấy tờ định danh, kiểm tra Chữ ký điện tử (E-Signature) và xếp hàng chờ phòng khám bác sĩ.
+            Xác minh CCCD/BHYT, kiểm tra chữ ký điện tử (E-Signature) và xếp hàng chờ bác sĩ.
           </p>
         </div>
 

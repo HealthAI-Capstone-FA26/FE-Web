@@ -22,21 +22,18 @@ export const ReceptionWalkinBookingView: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-            Mô-đun 2: Đăng ký tại quầy (At-hospital)
-          </span>
-          <Badge variant="info" size="sm">
-            Cấp số thứ tự tự động
-          </Badge>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Đăng Ký Khám Tại Quầy
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Tiếp nhận bệnh nhân vãng lai, chọn chuyên khoa, bác sĩ và in số thứ tự tự động.
+          </p>
         </div>
-        <h2 className="text-xl font-black text-slate-900 tracking-tight">
-          Form Đăng Ký Khám Trực Tiếp Cho Bệnh Nhân Vãng Lai
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Tiếp nhận bệnh nhân đến trực tiếp tại bệnh viện, chọn chuyên khoa, bác sĩ và in số thứ tự chờ vào phòng khám.
-        </p>
+        <Badge variant="info" size="sm">
+          Mô-đun 2
+        </Badge>
       </div>
 
       {isSuccess ? (
