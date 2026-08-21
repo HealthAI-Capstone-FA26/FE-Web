@@ -14,12 +14,15 @@ import { CustomerPage } from './pages/CustomerPage';
 // Consolidated Workspaces
 import { DoctorWorkspaceView } from './modules/doctor/DoctorWorkspaceView';
 import { ReceptionIntakeWorkspaceView } from './modules/reception/ReceptionIntakeWorkspaceView';
+import { ReceptionPatientManageWorkspaceView } from './modules/reception/ReceptionPatientManageWorkspaceView';
 import { ReceptionBillingWorkspaceView } from './modules/reception/ReceptionBillingWorkspaceView';
 import { NurseWorkspaceView } from './modules/nurse/NurseWorkspaceView';
 import { LabWorkspaceView } from './modules/lab/LabWorkspaceView';
 import { AdminRealtimeWorkspaceView } from './modules/admin/AdminRealtimeWorkspaceView';
 import { AdminSecurityWorkspaceView } from './modules/admin/AdminSecurityWorkspaceView';
 import { PatientIntakeWorkspaceView } from './modules/patient/PatientIntakeWorkspaceView';
+import { PatientMedicalWorkspaceView } from './modules/patient/PatientMedicalWorkspaceView';
+import { PatientIntakeSubmissionWorkspaceView } from './modules/patient/PatientIntakeSubmissionWorkspaceView';
 import { PatientRecordsWorkspaceView } from './modules/patient/PatientRecordsWorkspaceView';
 
 const DashboardRedirect = () => {
@@ -50,20 +53,22 @@ function App() {
           <Route element={<DashboardOverview />}>
             {/* BỆNH NHÂN WORKSPACES */}
             <Route path="/benh-nhan/ho-so" element={<PatientIntakeWorkspaceView />} />
-            <Route path="/benh-nhan/dong-y" element={<PatientIntakeWorkspaceView />} />
-            <Route path="/benh-nhan/trieu-chung" element={<PatientIntakeWorkspaceView />} />
-            <Route path="/benh-nhan/bao-hiem" element={<PatientIntakeWorkspaceView />} />
-            <Route path="/benh-nhan/nhap-ho-so" element={<PatientIntakeWorkspaceView />} />
+            <Route path="/benh-nhan/ho-so-y-te" element={<PatientMedicalWorkspaceView />} />
+            <Route path="/benh-nhan/dong-y" element={<PatientMedicalWorkspaceView />} />
+            <Route path="/benh-nhan/trieu-chung" element={<PatientIntakeSubmissionWorkspaceView />} />
+            <Route path="/benh-nhan/bao-hiem" element={<PatientMedicalWorkspaceView />} />
+            <Route path="/benh-nhan/nhap-ho-so" element={<PatientIntakeSubmissionWorkspaceView />} />
             
             <Route path="/benh-nhan/lich-hen" element={<PatientRecordsWorkspaceView />} />
             <Route path="/benh-nhan/ho-so-don-thuoc" element={<PatientRecordsWorkspaceView />} />
 
             {/* TIẾP NHẬN WORKSPACES */}
             <Route path="/tiep-nhan/danh-sach-cho" element={<ReceptionIntakeWorkspaceView />} />
-            <Route path="/tiep-nhan/benh-nhan" element={<ReceptionIntakeWorkspaceView />} />
-            <Route path="/tiep-nhan/ho-so-benh-nhan" element={<ReceptionIntakeWorkspaceView />} />
             <Route path="/tiep-nhan/dang-ky-tai-quay" element={<ReceptionIntakeWorkspaceView />} />
-            <Route path="/tiep-nhan/trieu-chung-benh-nhan" element={<ReceptionIntakeWorkspaceView />} />
+            <Route path="/tiep-nhan/ho-so-benh-nhan" element={<ReceptionIntakeWorkspaceView />} />
+
+            <Route path="/tiep-nhan/benh-nhan" element={<ReceptionPatientManageWorkspaceView />} />
+            <Route path="/tiep-nhan/trieu-chung-benh-nhan" element={<ReceptionPatientManageWorkspaceView />} />
             <Route path="/tiep-nhan/hang-cho-phong-kham" element={<ReceptionIntakeWorkspaceView />} />
             
             <Route path="/tiep-nhan/thu-phi" element={<ReceptionBillingWorkspaceView />} />

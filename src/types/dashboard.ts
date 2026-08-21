@@ -26,9 +26,10 @@ export const ROLE_DEFAULT_PATHS: Record<UserRole, string> = {
 export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
   RECEPTION: [
     {
-      groupName: 'Không gian Nghiệp vụ',
+      groupName: 'Nghiệp vụ Tiếp nhận',
       items: [
-        { id: 'rec_workspace_intake', label: 'Tiếp nhận & Intake Bệnh nhân', path: '/tiep-nhan/danh-sach-cho', iconName: 'UserCheck', badge: '08 Chờ' },
+        { id: 'rec_workspace_checkin', label: 'Tiếp nhận & Đăng ký quầy', path: '/tiep-nhan/danh-sach-cho', iconName: 'UserCheck', badge: '08 Chờ' },
+        { id: 'rec_workspace_patients', label: 'Khai báo & Tra cứu Hồ sơ', path: '/tiep-nhan/benh-nhan', iconName: 'Users' },
         { id: 'rec_workspace_billing', label: 'Quản lý Thu phí & Hóa đơn', path: '/tiep-nhan/thu-phi', iconName: 'CreditCard', badge: '05 Chờ' }
       ]
     }
@@ -70,8 +71,10 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
     {
       groupName: 'Cổng Bệnh nhân',
       items: [
-        { id: 'pat_workspace_intake', label: 'Hồ sơ & Khai báo Y tế', path: '/benh-nhan/ho-so', iconName: 'UserCheck', badge: 'Intake' },
-        { id: 'pat_workspace_records', label: 'Lịch hẹn & Bệnh án PDF', path: '/benh-nhan/lich-hen', iconName: 'FileText' }
+        { id: 'pat_workspace_profile', label: 'Tài khoản & Profile', path: '/benh-nhan/ho-so', iconName: 'UserCheck' },
+        { id: 'pat_workspace_medical', label: 'Hồ sơ Y tế & Tiền sử', path: '/benh-nhan/ho-so-y-te', iconName: 'FileText', badge: 'HL7 FHIR' },
+        { id: 'pat_workspace_submission', label: 'Khai báo & Nộp dữ liệu', path: '/benh-nhan/trieu-chung', iconName: 'Activity' },
+        { id: 'pat_workspace_records', label: 'Lịch hẹn & Bệnh án PDF', path: '/benh-nhan/lich-hen', iconName: 'Calendar' }
       ]
     }
   ]
