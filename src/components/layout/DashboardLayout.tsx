@@ -162,9 +162,17 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                 onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
                 className="flex items-center space-x-2.5 p-1.5 pl-2.5 rounded-xl hover:bg-slate-100 transition-all border border-slate-200/80 cursor-pointer bg-white"
               >
-                <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-900 font-extrabold text-xs flex items-center justify-center border border-blue-200">
-                  {user?.name?.charAt(0) || 'U'}
-                </div>
+                {user?.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user?.name || 'User'}
+                    className="w-7 h-7 rounded-full object-cover border border-blue-200 shrink-0"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-900 font-extrabold text-xs flex items-center justify-center border border-blue-200 shrink-0">
+                    {user?.name?.charAt(0) || 'U'}
+                  </div>
+                )}
                 <div className="text-left hidden sm:block">
                   <div className="text-xs font-extrabold text-slate-800 leading-tight whitespace-nowrap">{user?.name}</div>
                   <div className="text-[10px] text-blue-700 font-bold uppercase whitespace-nowrap">{user?.roleTitle}</div>

@@ -27,7 +27,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const navigate = useNavigate();
 
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot-password'>('login');
-  const [loginType, setLoginType] = useState<'staff' | 'patient'>('staff');
 
   // Step flow state: 'form' -> 'otp' -> 'reset-password'
   const [step, setStep] = useState<'form' | 'otp' | 'reset-password'>('form');
@@ -38,6 +37,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   // Form states
   const [fullName, setFullName] = useState('');
   const [emailOrPhone, setEmailOrPhone] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -53,6 +54,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const resetFormState = () => {
     setFullName('');
     setEmailOrPhone('');
+    setPhoneNumber('');
+    setAvatarUrl('');
     setPassword('');
     setConfirmPassword('');
     setOtpCode('');
@@ -98,6 +101,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           email: emailOrPhone.trim(),
           password: password,
           fullName: fullName.trim(),
+          phoneNumber: phoneNumber.trim() || undefined,
+          avatarUrl: avatarUrl.trim() || undefined,
         });
         setInfoMessage(res.message || 'Đã gửi lại mã OTP mới tới email của bạn.');
       } else if (otpFlow === 'login') {
@@ -140,9 +145,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           password: password,
         });
         setIsSubmitting(false);
-        setOtpFlow('login');
-        setStep('otp');
-        setInfoMessage(res.message || 'Mật khẩu đúng. Vui lòng nhập mã OTP đã gửi tới email.');
+        setIsSuccess(true);
+        setInfoMessage(res.message || 'Đăng nhập thành công!');
+
+        loginWithTokens(res.accessToken, res.refreshToken, res.user);
+
+        setTimeout(() => {
+          setIsSuccess(false);
+          if (onLoginSuccess) {
+            onLoginSuccess(res.user.fullName || res.user.email);
+          }
+          onClose();
+          navigate('/dashboard');
+        }, 1000);
       } catch (err: any) {
         setIsSubmitting(false);
         setError(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email & mật khẩu.');
@@ -163,6 +178,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           email: emailOrPhone.trim(),
           password: password,
           fullName: fullName.trim(),
+          phoneNumber: phoneNumber.trim() || undefined,
+          avatarUrl: avatarUrl.trim() || undefined,
         });
         setIsSubmitting(false);
         setOtpFlow('register');
@@ -365,6 +382,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 setFullName={setFullName}
                 email={emailOrPhone}
                 setEmail={setEmailOrPhone}
+                phoneNumber={phoneNumber}
+                setPhoneNumber={setPhoneNumber}
+                avatarUrl={avatarUrl}
+                setAvatarUrl={setAvatarUrl}
                 password={password}
                 setPassword={setPassword}
                 confirmPassword={confirmPassword}
@@ -395,8 +416,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 setPassword={setPassword}
                 showPassword={showPassword}
                 setShowPassword={setShowPassword}
-                loginType={loginType}
-                setLoginType={setLoginType}
                 error={error}
                 isSubmitting={isSubmitting}
                 onSubmit={handleSubmit}

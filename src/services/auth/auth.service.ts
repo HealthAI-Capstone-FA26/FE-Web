@@ -5,6 +5,7 @@ export interface RegisterDto {
   password: string;
   fullName: string;
   phoneNumber?: string;
+  avatarUrl?: string;
 }
 
 export interface VerifyOtpDto {
@@ -50,9 +51,9 @@ export const authService = {
     });
   },
 
-  // Bước 1 đăng nhập: Nhập Email/Password -> Nhận thông báo đã gửi OTP
-  async login(data: LoginDto): Promise<{ message: string; email: string }> {
-    return apiFetch<{ message: string; email: string }>('/auth/login', {
+  // Đăng nhập: Nhập Email/Password -> Nhận cặp JWT Token + Thông tin User trực tiếp
+  async login(data: LoginDto): Promise<LoginSuccessResponse> {
+    return apiFetch<LoginSuccessResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
     });

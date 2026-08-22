@@ -6,6 +6,10 @@ interface RegisterFormProps {
   setFullName: (val: string) => void;
   email: string;
   setEmail: (val: string) => void;
+  phoneNumber: string;
+  setPhoneNumber: (val: string) => void;
+  avatarUrl: string;
+  setAvatarUrl: (val: string) => void;
   password: string;
   setPassword: (val: string) => void;
   confirmPassword: string;
@@ -25,6 +29,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
   setFullName,
   email,
   setEmail,
+  phoneNumber,
+  setPhoneNumber,
+  avatarUrl,
+  setAvatarUrl,
   password,
   setPassword,
   confirmPassword,
@@ -47,7 +55,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
       </div>
 
       <div className="space-y-1.5">
-        <label className="block text-xs font-bold text-slate-700">Họ và tên</label>
+        <label className="block text-xs font-bold text-slate-700">Họ và tên *</label>
         <input
           type="text"
           placeholder="Nhập họ và tên bệnh nhân"
@@ -58,12 +66,34 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
       </div>
 
       <div className="space-y-1.5">
-        <label className="block text-xs font-bold text-slate-700">Email của bạn</label>
+        <label className="block text-xs font-bold text-slate-700">Email của bạn *</label>
         <input
           type="email"
           placeholder="vd: patient@gmail.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border text-xs outline-none border-slate-200 focus:border-[#0b3c8f]"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="block text-xs font-bold text-slate-700">Số điện thoại</label>
+        <input
+          type="text"
+          placeholder="vd: 0901234567"
+          value={phoneNumber}
+          onChange={(e) => setPhoneNumber(e.target.value)}
+          className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border text-xs outline-none border-slate-200 focus:border-[#0b3c8f]"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="block text-xs font-bold text-slate-700">Đường dẫn ảnh đại diện (avatarUrl)</label>
+        <input
+          type="text"
+          placeholder="vd: https://minio.domain.com/app-uploads/avatars/user.jpg"
+          value={avatarUrl}
+          onChange={(e) => setAvatarUrl(e.target.value)}
           className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border text-xs outline-none border-slate-200 focus:border-[#0b3c8f]"
         />
       </div>
