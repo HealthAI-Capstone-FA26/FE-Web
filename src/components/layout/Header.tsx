@@ -62,9 +62,17 @@ export const Header = () => {
                       className="flex items-center space-x-2 p-1 px-2 rounded-xl hover:bg-slate-200/60 transition-all border border-slate-200 bg-white"
                       title="Đi tới trang quản lý tài khoản / bàn làm việc"
                     >
-                      <div className="w-7 h-7 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-[#0b3c8f] shrink-0 font-extrabold text-xs uppercase shadow-xs">
-                        {user.name.charAt(0)}
-                      </div>
+                      {user.avatar ? (
+                        <img
+                          src={user.avatar}
+                          alt={user.name}
+                          className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-[#0b3c8f] shrink-0 font-extrabold text-xs uppercase shadow-xs">
+                          {user.name.charAt(0)}
+                        </div>
+                      )}
                       <div className="flex flex-col text-left">
                         <span className="text-[11px] text-slate-800 font-extrabold uppercase tracking-wider leading-tight">
                           {user.name}

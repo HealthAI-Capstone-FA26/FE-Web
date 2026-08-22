@@ -59,8 +59,6 @@ interface LoginFormProps {
   setPassword: (val: string) => void;
   showPassword: boolean;
   setShowPassword: (val: boolean) => void;
-  loginType: 'staff' | 'patient';
-  setLoginType: (val: 'staff' | 'patient') => void;
   error: string;
   isSubmitting: boolean;
   onSubmit: (e: React.FormEvent) => void;
@@ -76,8 +74,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   setPassword,
   showPassword,
   setShowPassword,
-  loginType,
-  setLoginType,
   error,
   isSubmitting,
   onSubmit,
@@ -125,41 +121,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
       {/* Form */}
       <form onSubmit={onSubmit} className="space-y-4">
-        <div className="flex items-center justify-between text-xs border-b border-slate-100 pb-2">
-          <span className="font-bold text-slate-700">Hoặc nhập thông tin tài khoản:</span>
-          <div className="flex gap-2 text-[11px]">
-            <button
-              type="button"
-              onClick={() => setLoginType('staff')}
-              className={`px-2 py-0.5 rounded font-bold cursor-pointer border ${
-                loginType === 'staff'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-slate-100 text-slate-600 border-slate-200'
-              }`}
-            >
-              Nhân viên Y tế
-            </button>
-            <button
-              type="button"
-              onClick={() => setLoginType('patient')}
-              className={`px-2 py-0.5 rounded font-bold cursor-pointer border ${
-                loginType === 'patient'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-slate-100 text-slate-600 border-slate-200'
-              }`}
-            >
-              Bệnh nhân
-            </button>
-          </div>
-        </div>
-
         <div className="space-y-1.5">
           <label className="block text-xs font-bold text-slate-700">
-            {loginType === 'staff' ? 'Email nhân viên' : 'Email của bạn'}
+            Email của bạn
           </label>
           <input
             type="email"
-            placeholder={loginType === 'staff' ? 'vd: doctor@tamanh.vn' : 'vd: patient@gmail.com'}
+            placeholder="vd: patient@gmail.com hoặc staff@tamanh.vn"
             value={emailOrPhone}
             onChange={(e) => setEmailOrPhone(e.target.value)}
             className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border text-xs outline-none border-slate-200 focus:border-[#0b3c8f]"
@@ -210,7 +178,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           {isSubmitting ? (
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
           ) : (
-            <span>Đăng nhập (Gửi mã OTP)</span>
+            <span>Đăng nhập</span>
           )}
         </button>
 
