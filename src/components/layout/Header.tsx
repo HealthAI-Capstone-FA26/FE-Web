@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { MapPin, User, Headphones, Calendar, Search, Menu, LogIn, LayoutDashboard } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { MapPin, User, Headphones, Calendar, Search, Menu, LogIn, LayoutDashboard, Lock } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { LoginModal } from '../auth/LoginModal';
+import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_DEFAULT_PATHS } from '../../types/dashboard';
 
 export const Header = () => {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const { user, currentRole, isLoggedIn, logout } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <header className="w-full shadow-xs sticky top-0 z-50 bg-white flex flex-col">
@@ -62,15 +65,15 @@ export const Header = () => {
                       className="flex items-center space-x-2 p-1 px-2 rounded-xl hover:bg-slate-200/60 transition-all border border-slate-200 bg-white"
                       title="Đi tới trang quản lý tài khoản / bàn làm việc"
                     >
-                      {user.avatar ? (
+                      {user.avatar && !user.avatar.includes('unsplash.com') ? (
                         <img
                           src={user.avatar}
                           alt={user.name}
                           className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
                         />
                       ) : (
-                        <div className="w-7 h-7 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-[#0b3c8f] shrink-0 font-extrabold text-xs uppercase shadow-xs">
-                          {user.name.charAt(0)}
+                        <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0 shadow-xs">
+                          <User className="w-4 h-4 text-slate-400" />
                         </div>
                       )}
                       <div className="flex flex-col text-left">
@@ -83,8 +86,18 @@ export const Header = () => {
                         </span>
                       </div>
                     </Link>
+                    <button
+                      onClick={() => setIsChangePasswordOpen(true)}
+                      className="text-[10px] text-slate-400 hover:text-blue-700 font-bold uppercase tracking-wider ml-1 cursor-pointer bg-transparent border-none outline-none"
+                      title="Đổi mật khẩu"
+                    >
+                      [Đổi mật khẩu]
+                    </button>
                     <button 
-                      onClick={() => logout()}
+                      onClick={() => {
+                        logout();
+                        navigate('/', { replace: true });
+                      }}
                       className="text-[10px] text-slate-400 hover:text-rose-600 font-bold uppercase tracking-wider ml-1 cursor-pointer bg-transparent border-none outline-none"
                       title="Đăng xuất"
                     >
