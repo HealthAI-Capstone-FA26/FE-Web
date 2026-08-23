@@ -55,7 +55,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
 
     setIsSubmitting(true);
     try {
-      await authService.changePassword(currentPassword, newPassword);
+      await authService.changePassword(currentPassword, newPassword, confirmPassword);
       setIsSubmitting(false);
       setIsSuccess(true);
       setTimeout(() => {

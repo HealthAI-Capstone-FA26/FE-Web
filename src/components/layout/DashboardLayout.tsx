@@ -5,6 +5,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import type { UserRole } from '../../types/auth';
 import {
   LayoutDashboard,
+  User,
   Users,
   UserCheck,
   Activity,
@@ -21,8 +22,10 @@ import {
   AlertTriangle,
   AlertCircle,
   PanelLeft,
-  PanelLeftClose
+  PanelLeftClose,
+  Lock
 } from 'lucide-react';
+import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 
 interface DashboardLayoutProps {
   children?: React.ReactNode;
@@ -32,6 +35,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const { user, currentRole, switchRole, logout, allRoles } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const navigate = useNavigate();
 
   const navGroups = ROLE_NAV_CONFIG[currentRole] || ROLE_NAV_CONFIG.DOCTOR;
@@ -162,15 +166,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                 onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
                 className="flex items-center space-x-2.5 p-1.5 pl-2.5 rounded-xl hover:bg-slate-100 transition-all border border-slate-200/80 cursor-pointer bg-white"
               >
-                {user?.avatar ? (
+                {user?.avatar && !user.avatar.includes('unsplash.com') ? (
                   <img
                     src={user.avatar}
                     alt={user?.name || 'User'}
                     className="w-7 h-7 rounded-full object-cover border border-blue-200 shrink-0"
                   />
                 ) : (
-                  <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-900 font-extrabold text-xs flex items-center justify-center border border-blue-200 shrink-0">
-                    {user?.name?.charAt(0) || 'U'}
+                  <div className="w-7 h-7 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center border border-slate-200 shrink-0">
+                    <User className="w-4 h-4 text-slate-400" />
                   </div>
                 )}
                 <div className="text-left hidden sm:block">
@@ -213,9 +217,19 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                   <div className="border-t border-slate-100 pt-1 mt-1">
                     <button
                       onClick={() => {
+                        setIsRoleDropdownOpen(false);
+                        setIsChangePasswordOpen(true);
+                      }}
+                      className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 flex items-center space-x-2 cursor-pointer border-none bg-transparent"
+                    >
+                      <Lock className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Đổi mật khẩu</span>
+                    </button>
+                    <button
+                      onClick={() => {
                         logout();
                         setIsRoleDropdownOpen(false);
-                        navigate('/');
+                        navigate('/', { replace: true });
                       }}
                       className="w-full px-4 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center space-x-2 cursor-pointer border-none bg-transparent"
                     >
@@ -225,6 +239,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                   </div>
                 </div>
               )}
+
+              <ChangePasswordModal
+                isOpen={isChangePasswordOpen}
+                onClose={() => setIsChangePasswordOpen(false)}
+              />
             </div>
           </div>
         </div>

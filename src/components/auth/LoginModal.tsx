@@ -145,19 +145,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           password: password,
         });
         setIsSubmitting(false);
-        setIsSuccess(true);
-        setInfoMessage(res.message || 'Đăng nhập thành công!');
-
-        loginWithTokens(res.accessToken, res.refreshToken, res.user);
-
-        setTimeout(() => {
-          setIsSuccess(false);
-          if (onLoginSuccess) {
-            onLoginSuccess(res.user.fullName || res.user.email);
-          }
-          onClose();
-          navigate('/dashboard');
-        }, 1000);
+        setOtpFlow('login');
+        setStep('otp');
+        setInfoMessage(res.message || 'Mã OTP xác thực đã được gửi tới email của bạn.');
       } catch (err: any) {
         setIsSubmitting(false);
         setError(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email & mật khẩu.');
@@ -283,7 +273,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      await authService.resetPassword(resetToken, password);
+      await authService.resetPassword(resetToken, password, confirmPassword);
       setIsSubmitting(false);
       setIsSuccess(true);
       setInfoMessage('Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay.');
