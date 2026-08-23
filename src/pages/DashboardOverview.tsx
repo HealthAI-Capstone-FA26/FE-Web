@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, Navigate } from 'react-router-dom';
 import type { UserRole } from '../types/auth';
 
 const PREFIX_ROLE_MAP: Record<string, UserRole> = {
@@ -14,7 +14,7 @@ const PREFIX_ROLE_MAP: Record<string, UserRole> = {
 };
 
 export const DashboardOverview: React.FC = () => {
-  const { currentRole, switchRole } = useAuth();
+  const { isLoggedIn, currentRole, switchRole } = useAuth();
   const location = useLocation();
 
   // Automatically sync active role in AuthContext based on current URL path
@@ -29,6 +29,10 @@ export const DashboardOverview: React.FC = () => {
       }
     }
   }, [location.pathname]);
+
+  if (!isLoggedIn) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <DashboardLayout>

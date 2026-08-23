@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { UserProfile, UserRole } from '../types/auth';
+import { authService } from '../services/auth/auth.service';
 
 const MOCK_USERS: Record<UserRole, UserProfile> = {
   PATIENT: {
@@ -9,7 +10,7 @@ const MOCK_USERS: Record<UserRole, UserProfile> = {
     role: 'PATIENT',
     roleTitle: 'Bệnh nhân',
     phone: '0902 357 872',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'
+    avatar: ''
   },
   RECEPTION: {
     id: 'ST-101',
@@ -66,6 +67,7 @@ interface AuthContextType {
   login: (email: string, role: UserRole) => void;
   loginWithTokens: (accessToken: string, refreshToken: string, backendUser: { userId: string; email: string; fullName: string; actorRole: string; avatarUrl?: string; phoneNumber?: string }) => void;
   logout: () => void;
+  updateUserProfile: (partial: { name?: string; phone?: string; avatar?: string }) => void;
   allRoles: { role: UserRole; label: string; desc: string }[];
 }
 
@@ -144,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       role: mappedRole,
       roleTitle: mappedRole === 'PATIENT' ? 'Bệnh nhân' : 'Nhân viên Y tế',
       phone: backendUser.phoneNumber,
-      avatar: backendUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
+      avatar: backendUser.avatarUrl || '',
     };
 
     setCurrentRole(mappedRole);
@@ -155,6 +157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    authService.logout().catch(() => {});
     setIsLoggedIn(false);
     setUser(null);
     localStorage.removeItem('4am_is_logged_in');
@@ -162,6 +165,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('4am_user_data');
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+  };
+
+  const updateUserProfile = (partial: { name?: string; phone?: string; avatar?: string }) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const updated = {
+        ...prev,
+        ...(partial.name !== undefined && { name: partial.name }),
+        ...(partial.phone !== undefined && { phone: partial.phone }),
+        ...(partial.avatar !== undefined && { avatar: partial.avatar }),
+      };
+      localStorage.setItem('4am_user_data', JSON.stringify(updated));
+      if (partial.name) {
+        localStorage.setItem('4am_user_name', partial.name);
+      }
+      return updated;
+    });
   };
 
   const allRoles: { role: UserRole; label: string; desc: string }[] = [
@@ -174,7 +194,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ];
 
   return (
-    <AuthContext.Provider value={{ user, currentRole, isLoggedIn, switchRole, login, loginWithTokens, logout, allRoles }}>
+    <AuthContext.Provider value={{ user, currentRole, isLoggedIn, switchRole, login, loginWithTokens, logout, updateUserProfile, allRoles }}>
       {children}
     </AuthContext.Provider>
   );

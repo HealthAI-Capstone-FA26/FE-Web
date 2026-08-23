@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { User, Mail, Phone, ShieldCheck, AlertTriangle, UserPlus, Calendar, CheckCircle2, ArrowRight } from 'lucide-react';
+import { User, Mail, Phone, ShieldCheck, AlertTriangle, UserPlus, Calendar, CheckCircle2, ArrowRight, Edit, Save, X, Upload } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { userService } from '../../services/user/user.service';
 import { Badge } from '../../components/common/Badge';
 
 interface AccountInfoViewProps {
@@ -12,10 +13,64 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = ({
   onNavigateToProfile,
   onNavigateToBooking
 }) => {
-  const { user } = useAuth();
-  
+  const { user, updateUserProfile } = useAuth();
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [fullName, setFullName] = useState(user?.name || '');
+  const [phoneNumber, setPhoneNumber] = useState(user?.phone || '');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const initialAvatar = user?.avatar && !user.avatar.includes('unsplash.com') ? user.avatar : null;
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(initialAvatar);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
   // State simulating whether this account has an attached patient medical record
   const [hasRegisteredPatientRecord, setHasRegisteredPatientRecord] = useState(false);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setAvatarFile(file);
+      setAvatarPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    if (!fullName.trim()) {
+      setErrorMessage('Vui lòng nhập Họ và tên');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await userService.updateMyProfile({
+        fullName: fullName.trim(),
+        phoneNumber: phoneNumber.trim() || undefined,
+        avatarFile: avatarFile || undefined,
+      });
+
+      // Update AuthContext state
+      updateUserProfile({
+        name: res.fullName || fullName.trim(),
+        phone: res.phoneNumber || phoneNumber.trim(),
+        avatar: res.avatarUrl || avatarPreview || undefined,
+      });
+
+      setIsSubmitting(false);
+      setIsEditing(false);
+      setSuccessMessage('Cập nhật thông tin profile thành công!');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMessage(err.message || 'Cập nhật profile thất bại. Vui lòng thử lại.');
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -35,11 +90,42 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = ({
         </Badge>
       </div>
 
+      {successMessage && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-emerald-800 text-xs font-bold">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-800 text-xs font-bold">
+          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
       {/* Account Overview Card */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs space-y-6">
         <div className="flex flex-col sm:flex-row items-center gap-5 pb-6 border-b border-slate-100">
-          <div className="w-20 h-20 rounded-full bg-blue-100 border-2 border-blue-300 flex items-center justify-center text-blue-900 font-black text-2xl uppercase shadow-md shrink-0">
-            {user?.name.charAt(0) || 'U'}
+          <div className="relative">
+            {avatarPreview ? (
+              <img
+                src={avatarPreview}
+                alt={user?.name}
+                className="w-20 h-20 rounded-full object-cover border-2 border-slate-200 shadow-xs"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center text-slate-400 shadow-xs shrink-0">
+                <User className="w-10 h-10 text-slate-400" />
+              </div>
+            )}
+
+            {isEditing && (
+              <label className="absolute bottom-0 right-0 p-1.5 bg-blue-600 text-white rounded-full cursor-pointer hover:bg-blue-700 transition-colors shadow-xs">
+                <Upload className="w-3.5 h-3.5" />
+                <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+              </label>
+            )}
           </div>
 
           <div className="space-y-1 text-center sm:text-left flex-1">
@@ -51,9 +137,86 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium">{user?.email}</p>
-            <p className="text-xs text-slate-600 font-bold">Số điện thoại: {user?.phone || '0902 357 872'}</p>
+            <p className="text-xs text-slate-600 font-bold">Số điện thoại: {user?.phone || 'Chưa cập nhật'}</p>
+          </div>
+
+          <div>
+            {!isEditing ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setFullName(user?.name || '');
+                  setPhoneNumber(user?.phone || '');
+                  setIsEditing(true);
+                }}
+                className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Edit className="w-3.5 h-3.5" />
+                <span>Chỉnh sửa Profile</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Hủy</span>
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Edit Form or Read-only Display */}
+        {isEditing ? (
+          <form onSubmit={handleSaveProfile} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+            <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">
+              Cập Nhật Thông Tin Cá Nhân
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Họ và tên *</label>
+                <input
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border text-xs outline-none border-slate-200 focus:border-[#0b3c8f]"
+                  placeholder="Nhập họ và tên đầy đủ"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Số điện thoại liên hệ</label>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border text-xs outline-none border-slate-200 focus:border-[#0b3c8f]"
+                  placeholder="Nhập số điện thoại"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-2 shadow-sm border-none cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <>
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Lưu Cập Nhật Profile</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        ) : null}
 
         {/* Status Box: Registered Patient Medical Record vs New Online Account */}
         {!hasRegisteredPatientRecord ? (
@@ -128,7 +291,7 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = ({
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Số điện thoại xác thực</div>
             <div className="text-xs font-extrabold text-slate-800 flex items-center gap-2">
               <Phone className="w-3.5 h-3.5 text-slate-500" />
-              <span>{user?.phone || '0902 357 872'}</span>
+              <span>{user?.phone || 'Chưa cập nhật'}</span>
             </div>
           </div>
         </div>

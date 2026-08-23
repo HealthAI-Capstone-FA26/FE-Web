@@ -51,9 +51,9 @@ export const authService = {
     });
   },
 
-  // Đăng nhập: Nhập Email/Password -> Nhận cặp JWT Token + Thông tin User trực tiếp
-  async login(data: LoginDto): Promise<LoginSuccessResponse> {
-    return apiFetch<LoginSuccessResponse>('/auth/login', {
+  // Đăng nhập bước 1: Nhập Email/Password -> Gửi OTP qua mail
+  async login(data: LoginDto): Promise<{ message: string; email: string }> {
+    return apiFetch<{ message: string; email: string }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -99,18 +99,28 @@ export const authService = {
   },
 
   // Quên mật khẩu - Bước 3: Đặt mật khẩu mới
-  async resetPassword(resetToken: string, newPassword: string): Promise<{ message: string }> {
+  async resetPassword(resetToken: string, newPassword: string, confirmNewPassword?: string): Promise<{ message: string }> {
+    const confirm = confirmNewPassword && confirmNewPassword.trim() ? confirmNewPassword : newPassword;
     return apiFetch<{ message: string }>('/auth/forgot-password/reset-password', {
       method: 'POST',
-      body: JSON.stringify({ resetToken, newPassword }),
+      body: JSON.stringify({
+        resetToken,
+        newPassword,
+        confirmNewPassword: confirm,
+      }),
     });
   },
 
   // Đổi mật khẩu (khi đã đăng nhập)
-  async changePassword(oldPassword: string, newPassword: string): Promise<{ message: string }> {
+  async changePassword(oldPassword: string, newPassword: string, confirmNewPassword?: string): Promise<{ message: string }> {
+    const confirm = confirmNewPassword && confirmNewPassword.trim() ? confirmNewPassword : newPassword;
     return apiFetch<{ message: string }>('/auth/change-password', {
       method: 'POST',
-      body: JSON.stringify({ oldPassword, newPassword }),
+      body: JSON.stringify({
+        oldPassword,
+        newPassword,
+        confirmNewPassword: confirm,
+      }),
     });
   },
 };

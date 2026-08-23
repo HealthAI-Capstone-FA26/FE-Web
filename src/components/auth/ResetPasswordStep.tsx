@@ -1,5 +1,5 @@
-import React from 'react';
-import { ArrowLeft, ShieldAlert } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, ShieldAlert, Eye, EyeOff } from 'lucide-react';
 
 interface ResetPasswordStepProps {
   password: string;
@@ -22,6 +22,9 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
   onSubmit,
   onBack,
 }) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="flex items-center gap-2 mb-1">
@@ -39,24 +42,42 @@ export const ResetPasswordStep: React.FC<ResetPasswordStepProps> = ({
 
       <div className="space-y-1.5">
         <label className="block text-xs font-bold text-slate-700">Mật khẩu mới (Tối thiểu 8 ký tự)</label>
-        <input
-          type="password"
-          placeholder="Nhập mật khẩu mới"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border text-xs outline-none border-slate-200 focus:border-[#0b3c8f]"
-        />
+        <div className="relative">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            placeholder="Nhập mật khẩu mới"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full bg-white text-slate-800 font-semibold py-2 pl-3.5 pr-10 rounded-xl border text-xs outline-none border-slate-200 focus:border-[#0b3c8f]"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer border-none bg-transparent"
+          >
+            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-1.5">
         <label className="block text-xs font-bold text-slate-700">Xác nhận mật khẩu mới</label>
-        <input
-          type="password"
-          placeholder="Nhập lại mật khẩu mới"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border text-xs outline-none border-slate-200 focus:border-[#0b3c8f]"
-        />
+        <div className="relative">
+          <input
+            type={showConfirmPassword ? 'text' : 'password'}
+            placeholder="Nhập lại mật khẩu mới"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="w-full bg-white text-slate-800 font-semibold py-2 pl-3.5 pr-10 rounded-xl border text-xs outline-none border-slate-200 focus:border-[#0b3c8f]"
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer border-none bg-transparent"
+          >
+            {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
 
       {error && (
