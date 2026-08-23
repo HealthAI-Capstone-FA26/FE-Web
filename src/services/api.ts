@@ -1,5 +1,14 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 
+export const getAvatarUrl = (avatar?: string) => {
+  if (!avatar) return '';
+  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+    return avatar;
+  }
+  const baseUrl = import.meta.env.VITE_UPLOAD_BASE_URL || 'http://localhost:9000/app-uploads';
+  return `${baseUrl}/${avatar}`;
+};
+
 export class ApiError extends Error {
   status: number;
   data: any;
