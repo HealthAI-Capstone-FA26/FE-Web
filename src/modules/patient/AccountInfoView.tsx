@@ -3,6 +3,7 @@ import { User, Mail, Phone, ShieldCheck, AlertTriangle, UserPlus, Calendar, Chec
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/user/user.service';
 import { Badge } from '../../components/common/Badge';
+import { getAvatarUrl } from '../../services/api';
 
 interface AccountInfoViewProps {
   onNavigateToProfile?: () => void;
@@ -19,7 +20,7 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = ({
   const [fullName, setFullName] = useState(user?.name || '');
   const [phoneNumber, setPhoneNumber] = useState(user?.phone || '');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const initialAvatar = user?.avatar && !user.avatar.includes('unsplash.com') ? user.avatar : null;
+  const initialAvatar = user?.avatar ? getAvatarUrl(user.avatar) : null;
   const [avatarPreview, setAvatarPreview] = useState<string | null>(initialAvatar);
 
   const [isSubmitting, setIsSubmitting] = useState(false);

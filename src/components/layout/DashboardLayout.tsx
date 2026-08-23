@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_NAV_CONFIG, ROLE_DEFAULT_PATHS } from '../../types/dashboard';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { getAvatarUrl } from '../../services/api';
 import type { UserRole } from '../../types/auth';
 import {
   LayoutDashboard,
@@ -23,9 +24,11 @@ import {
   AlertCircle,
   PanelLeft,
   PanelLeftClose,
-  Lock
+  Lock,
+  X
 } from 'lucide-react';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
+import { AccountInfoView } from '../../modules/patient/AccountInfoView';
 
 interface DashboardLayoutProps {
   children?: React.ReactNode;
@@ -36,6 +39,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const navigate = useNavigate();
 
   const navGroups = ROLE_NAV_CONFIG[currentRole] || ROLE_NAV_CONFIG.DOCTOR;
@@ -166,9 +170,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                 onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
                 className="flex items-center space-x-2.5 p-1.5 pl-2.5 rounded-xl hover:bg-slate-100 transition-all border border-slate-200/80 cursor-pointer bg-white"
               >
-                {user?.avatar && !user.avatar.includes('unsplash.com') ? (
+                {user?.avatar ? (
                   <img
-                    src={user.avatar}
+                    src={getAvatarUrl(user.avatar)}
                     alt={user?.name || 'User'}
                     className="w-7 h-7 rounded-full object-cover border border-blue-200 shrink-0"
                   />
@@ -218,6 +222,16 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                     <button
                       onClick={() => {
                         setIsRoleDropdownOpen(false);
+                        setIsProfileOpen(true);
+                      }}
+                      className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 flex items-center space-x-2 cursor-pointer border-none bg-transparent"
+                    >
+                      <User className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Hồ sơ của tôi</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsRoleDropdownOpen(false);
                         setIsChangePasswordOpen(true);
                       }}
                       className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-100 flex items-center space-x-2 cursor-pointer border-none bg-transparent"
@@ -244,6 +258,20 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                 isOpen={isChangePasswordOpen}
                 onClose={() => setIsChangePasswordOpen(false)}
               />
+
+              {isProfileOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 relative">
+                    <button
+                      onClick={() => setIsProfileOpen(false)}
+                      className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 rounded-full transition-colors border-none bg-transparent cursor-pointer"
+                    >
+                      <X className="w-4 h-4 text-slate-400" />
+                    </button>
+                    <AccountInfoView />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

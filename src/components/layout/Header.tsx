@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MapPin, User, Headphones, Calendar, Search, Menu, LogIn, LayoutDashboard, Lock } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { getAvatarUrl } from '../../services/api';
 import { LoginModal } from '../auth/LoginModal';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { useAuth } from '../../context/AuthContext';
@@ -65,9 +66,9 @@ export const Header = () => {
                       className="flex items-center space-x-2 p-1 px-2 rounded-xl hover:bg-slate-200/60 transition-all border border-slate-200 bg-white"
                       title="Đi tới trang quản lý tài khoản / bàn làm việc"
                     >
-                      {user.avatar && !user.avatar.includes('unsplash.com') ? (
+                      {user.avatar ? (
                         <img
-                          src={user.avatar}
+                          src={getAvatarUrl(user.avatar)}
                           alt={user.name}
                           className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
                         />
