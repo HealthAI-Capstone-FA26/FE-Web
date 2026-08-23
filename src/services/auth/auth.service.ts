@@ -99,10 +99,10 @@ export const authService = {
   },
 
   // Quên mật khẩu - Bước 3: Đặt mật khẩu mới
-  async resetPassword(resetToken: string, newPassword: string): Promise<{ message: string }> {
+  async resetPassword(resetToken: string, newPassword: string, confirmNewPassword: string): Promise<{ message: string }> {
     return apiFetch<{ message: string }>('/auth/forgot-password/reset-password', {
       method: 'POST',
-      body: JSON.stringify({ resetToken, newPassword }),
+      body: JSON.stringify({ resetToken, newPassword, confirmNewPassword }),
     });
   },
 

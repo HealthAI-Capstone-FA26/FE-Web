@@ -283,7 +283,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      await authService.resetPassword(resetToken, password);
+      await authService.resetPassword(resetToken, password, confirmPassword);
       setIsSubmitting(false);
       setIsSuccess(true);
       setInfoMessage('Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay.');
