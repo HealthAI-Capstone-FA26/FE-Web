@@ -51,17 +51,9 @@ export const authService = {
     });
   },
 
-  // Đăng nhập bước 1: Nhập Email/Password -> Gửi OTP qua mail
-  async login(data: LoginDto): Promise<{ message: string; email: string }> {
-    return apiFetch<{ message: string; email: string }>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
-
-  // Bước 2 đăng nhập: Nhập OTP -> Nhận cặp JWT Token + Thông tin User
-  async verifyLoginOtp(data: VerifyOtpDto): Promise<LoginSuccessResponse> {
-    return apiFetch<LoginSuccessResponse>('/auth/login/verify-otp', {
+  // Đăng nhập: Nhập Email/Password -> Nhận cặp JWT Token + Thông tin User
+  async login(data: LoginDto): Promise<LoginSuccessResponse> {
+    return apiFetch<LoginSuccessResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
     });

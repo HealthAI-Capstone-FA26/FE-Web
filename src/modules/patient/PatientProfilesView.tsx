@@ -87,9 +87,7 @@ export const PatientProfilesView: React.FC = () => {
             Quản lý các Profile đăng ký khám bệnh cho Bản thân và Người thân trong gia đình.
           </p>
         </div>
-        <Badge variant="normal" size="sm">
-          FR-HM-2.1
-        </Badge>
+
       </div>
 
       {/* Select Profile Tabs & Add Button */}
@@ -102,11 +100,10 @@ export const PatientProfilesView: React.FC = () => {
                 key={p.id}
                 type="button"
                 onClick={() => setSelectedProfileId(p.id)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-2 ${
-                  isActive
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-2 ${isActive
                     ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                }`}
+                  }`}
               >
                 <User className="w-3.5 h-3.5" />
                 <span>{p.fullName}</span>

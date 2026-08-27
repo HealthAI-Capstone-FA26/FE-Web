@@ -35,14 +35,20 @@ interface DashboardLayoutProps {
 }
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
-  const { user, currentRole, switchRole, logout, allRoles } = useAuth();
+  const { user, currentRole, switchRole, logout, allRoles, can } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const navigate = useNavigate();
 
-  const navGroups = ROLE_NAV_CONFIG[currentRole] || ROLE_NAV_CONFIG.DOCTOR;
+  const rawNavGroups = ROLE_NAV_CONFIG[currentRole] || ROLE_NAV_CONFIG.DOCTOR;
+  const navGroups = rawNavGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.requiredPermission || can(item.requiredPermission)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   const handleRoleSwitch = (targetRole: UserRole) => {
     switchRole(targetRole);
@@ -296,26 +302,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         >
           <div className="flex flex-col justify-between h-full space-y-4">
             <div className="space-y-4">
-              {/* Active Role Banner */}
-              {isSidebarOpen ? (
-                <div className="p-3 rounded-xl bg-slate-100/90 border border-slate-200/80 flex items-center justify-between">
-                  <div className="min-w-0 pr-2">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Phân hệ hiện tại</div>
-                    <div className="text-xs font-bold text-slate-800 truncate">{user?.roleTitle}</div>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 border border-blue-200/60 shrink-0">
-                    {currentRole}
-                  </span>
-                </div>
-              ) : (
-                <div
-                  title={`${user?.roleTitle} (${currentRole})`}
-                  className="w-11 h-11 rounded-xl bg-blue-100 text-blue-800 font-extrabold text-xs flex items-center justify-center mx-auto border border-blue-200/80 shadow-xs"
-                >
-                  {currentRole.slice(0, 3)}
-                </div>
-              )}
-
               {/* Categorized Tab Groups inside Sidebar */}
               <div className="space-y-4">
                 {navGroups.map((group, gIdx) => (
