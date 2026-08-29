@@ -218,7 +218,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name: backendUser.fullName || backendUser.email,
       email: backendUser.email,
       role: mappedRole,
-      roleTitle: mappedRole === 'PATIENT' ? 'Bệnh nhân' : 'Nhân viên Y tế',
+      roleTitle: mappedRole === 'PATIENT' ? 'Bệnh nhân' : mappedRole === 'ADMIN' ? 'Quản trị hệ thống (System Admin)' : 'Nhân viên Y tế',
       phone: backendUser.phoneNumber,
       avatar: backendUser.avatarUrl || '',
       permissions: backendUser.permissions || DEFAULT_ROLE_PERMISSIONS[mappedRole] || [],
