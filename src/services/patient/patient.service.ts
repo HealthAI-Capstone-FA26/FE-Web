@@ -12,6 +12,7 @@ export interface CreatePatientData {
   email?: string;
   address?: string;
   ethnicity?: string;
+  relationship?: string;
 }
 
 export interface PatientResponse {

@@ -1,6 +1,24 @@
 import React, { useState } from 'react';
-import { User, Mail, Phone, AlertTriangle, CheckCircle2, Edit, Save, X, Upload } from 'lucide-react';
+import {
+  User,
+  Mail,
+  Phone,
+  AlertTriangle,
+  CheckCircle2,
+  Edit,
+  Save,
+  X,
+  Upload,
+  ShieldCheck,
+  Key,
+  Lock,
+  Eye,
+  EyeOff,
+  Sparkles,
+  Fingerprint
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { authService } from '../../services/auth/auth.service';
 import { userService } from '../../services/user/user.service';
 import { getAvatarUrl } from '../../services/api';
 
@@ -22,6 +40,18 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Change Password State
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const [isChangingPass, setIsChangingPass] = useState(false);
+  const [passSuccessMsg, setPassSuccessMsg] = useState('');
+  const [passErrorMsg, setPassErrorMsg] = useState('');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -58,7 +88,7 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = () => {
 
       setIsSubmitting(false);
       setIsEditing(false);
-      setSuccessMessage('Cập nhật thông tin profile thành công!');
+      setSuccessMessage('Cập nhật thông tin tài khoản thành công!');
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err: any) {
       setIsSubmitting(false);
@@ -66,8 +96,45 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = () => {
     }
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassErrorMsg('');
+    setPassSuccessMsg('');
+
+    if (!currentPassword) {
+      setPassErrorMsg('Vui lòng nhập mật khẩu hiện tại');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPassErrorMsg('Mật khẩu mới phải có ít nhất 8 ký tự');
+      return;
+    }
+    if (newPassword.length > 72) {
+      setPassErrorMsg('Mật khẩu không được vượt quá 72 ký tự');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPassErrorMsg('Mật khẩu xác nhận không trùng khớp');
+      return;
+    }
+
+    setIsChangingPass(true);
+    try {
+      const res = await authService.changePassword(currentPassword, newPassword, confirmPassword);
+      setIsChangingPass(false);
+      setPassSuccessMsg(res.message || 'Đổi mật khẩu thành công! Hãy dùng mật khẩu mới cho lần đăng nhập sau.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => setPassSuccessMsg(''), 4000);
+    } catch (err: any) {
+      setIsChangingPass(false);
+      setPassErrorMsg(err.message || 'Đổi mật khẩu không thành công. Vui lòng kiểm tra lại mật khẩu hiện tại.');
+    }
+  };
+
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-200">
       {/* Header Banner */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -76,20 +143,20 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = () => {
             <span>Thông Tin Tài Khoản Đăng Nhập</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Quản lý tài khoản truy cập trực tuyến và kiểm tra trạng thái liên kết hồ sơ khám bệnh tại Bệnh viện 4AM.
+            Quản lý tài khoản truy cập trực tuyến, bảo mật và thông tin xác thực tại Bệnh viện 4AM.
           </p>
         </div>
       </div>
 
       {successMessage && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-emerald-800 text-xs font-bold">
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-emerald-800 text-xs font-bold animate-in fade-in">
           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
           <span>{successMessage}</span>
         </div>
       )}
 
       {errorMessage && (
-        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-800 text-xs font-bold">
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-800 text-xs font-bold animate-in fade-in">
           <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
           <span>{errorMessage}</span>
         </div>
@@ -106,8 +173,8 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = () => {
                 className="w-20 h-20 rounded-full object-cover border-2 border-slate-200 shadow-xs"
               />
             ) : (
-              <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center text-slate-400 shadow-xs shrink-0">
-                <User className="w-10 h-10 text-slate-400" />
+              <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center text-slate-400 shadow-xs shrink-0 font-bold text-2xl text-blue-700">
+                {user?.name ? user.name.charAt(0).toUpperCase() : <User className="w-10 h-10 text-slate-400" />}
               </div>
             )}
 
@@ -127,9 +194,9 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = () => {
                 Tài khoản Online đã xác thực
               </span>
             </div>
-            {user?.name && user?.name !== user?.email && (
-              <p className="text-xs text-slate-500 font-medium">{user?.email}</p>
-            )}
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              {user?.email}
+            </p>
           </div>
 
           <div>
@@ -159,39 +226,63 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = () => {
           </div>
         </div>
 
-        {/* Edit Form or Read-only Display */}
+        {/* Edit Form or Read-only Display Grid */}
         {isEditing ? (
-          <form onSubmit={handleSaveProfile} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-            <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">
-              Cập Nhật Thông Tin Cá Nhân
-            </h4>
+          <form onSubmit={handleSaveProfile} className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-blue-600" />
+                <span>Cập Nhật Thông Tin Cá Nhân</span>
+              </h4>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700">Họ và tên *</label>
+                <label className="block text-xs font-bold text-slate-700">Họ và tên tài khoản *</label>
                 <input
                   type="text"
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border text-xs outline-none border-slate-200 focus:border-[#0b3c8f]"
+                  className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border text-xs outline-none border-slate-200 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                   placeholder="Nhập họ và tên đầy đủ"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700">Số điện thoại liên hệ</label>
+                <label className="block text-xs font-bold text-slate-700">Số điện thoại liên hệ *</label>
                 <input
                   type="tel"
+                  required
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border text-xs outline-none border-slate-200 focus:border-[#0b3c8f]"
+                  className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border text-xs outline-none border-slate-200 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                   placeholder="Nhập số điện thoại"
                 />
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <label className="block text-xs font-bold text-slate-700">Email đăng nhập (Cố định)</label>
+                <input
+                  type="email"
+                  disabled
+                  value={user?.email || ''}
+                  className="w-full bg-slate-100 text-slate-500 font-medium py-2 px-3.5 rounded-xl border text-xs cursor-not-allowed border-slate-200"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  * Email được dùng làm định danh đăng nhập tài khoản trực tuyến và không thể thay đổi trực tiếp.
+                </p>
               </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-600 font-bold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer"
+              >
+                Hủy
+              </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -209,24 +300,152 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = () => {
             </div>
           </form>
         ) : (
-          /* Account Details Grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          /* Detailed Account Info Grid */
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email liên hệ đăng nhập</div>
-              <div className="text-xs font-extrabold text-slate-800 flex items-center gap-2">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5 text-slate-500" />
-                <span>{user?.email}</span>
+                <span>EMAIL LIÊN HỆ ĐĂNG NHẬP</span>
+              </div>
+              <div className="text-xs font-extrabold text-slate-800">
+                {user?.email}
               </div>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Số điện thoại xác thực</div>
-              <div className="text-xs font-extrabold text-slate-800 flex items-center gap-2">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Phone className="w-3.5 h-3.5 text-slate-500" />
-                <span>{user?.phone || 'Chưa cập nhật'}</span>
+                <span>SỐ ĐIỆN THOẠI XÁC THỰC</span>
+              </div>
+              <div className="text-xs font-extrabold text-slate-800">
+                {user?.phone || 'Chưa cập nhật'}
               </div>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Security & Change Password Section */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-slate-900">Bảo Mật & Mật Khẩu Đăng Nhập</h3>
+              <p className="text-xs text-slate-500">Đổi mật khẩu định kỳ để đảm bảo an toàn thông tin tài khoản.</p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowPasswordSection(!showPasswordSection)}
+            className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border-none"
+          >
+            <Key className="w-3.5 h-3.5 text-blue-600" />
+            <span>{showPasswordSection ? 'Ẩn Form Đổi Mật Khẩu' : 'Đổi Mật Khẩu'}</span>
+          </button>
+        </div>
+
+        {passSuccessMsg && (
+          <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-emerald-800 text-xs font-bold animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{passSuccessMsg}</span>
+          </div>
+        )}
+
+        {passErrorMsg && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2.5 text-rose-800 text-xs font-bold animate-in fade-in">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{passErrorMsg}</span>
+          </div>
+        )}
+
+        {showPasswordSection && (
+          <form onSubmit={handleChangePassword} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4 animate-in fade-in duration-200">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Mật khẩu hiện tại *</label>
+                <div className="relative">
+                  <input
+                    type={showCurrentPass ? 'text' : 'password'}
+                    required
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full bg-white text-slate-800 font-semibold py-2 pl-3.5 pr-9 rounded-xl border text-xs outline-none border-slate-200 focus:border-blue-600"
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPass(!showCurrentPass)}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer"
+                  >
+                    {showCurrentPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Mật khẩu mới *</label>
+                <div className="relative">
+                  <input
+                    type={showNewPass ? 'text' : 'password'}
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-white text-slate-800 font-semibold py-2 pl-3.5 pr-9 rounded-xl border text-xs outline-none border-slate-200 focus:border-blue-600"
+                    placeholder="Ít nhất 8 ký tự"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPass(!showNewPass)}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer"
+                  >
+                    {showNewPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Xác nhận mật khẩu mới *</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPass ? 'text' : 'password'}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full bg-white text-slate-800 font-semibold py-2 pl-3.5 pr-9 rounded-xl border text-xs outline-none border-slate-200 focus:border-blue-600"
+                    placeholder="Nhập lại mật khẩu mới"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPass(!showConfirmPass)}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer"
+                  >
+                    {showConfirmPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="submit"
+                disabled={isChangingPass}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-2 shadow-xs border-none cursor-pointer"
+              >
+                {isChangingPass ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <>
+                    <Key className="w-3.5 h-3.5" />
+                    <span>Cập Nhật Mật Khẩu Mới</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         )}
       </div>
     </div>

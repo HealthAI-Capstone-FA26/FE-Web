@@ -8,15 +8,30 @@ interface DobInputProps {
   className?: string;
 }
 
+const parseDob = (val: string) => {
+  if (!val) return { d: '', m: '', y: '' };
+  const parts = val.split('-');
+  if (parts.length === 3) {
+    const [y, m, d] = parts;
+    return {
+      y: y || '',
+      m: m ? m.padStart(2, '0') : '',
+      d: d ? d.padStart(2, '0') : '',
+    };
+  }
+  return { d: '', m: '', y: '' };
+};
+
 export const DobInput: React.FC<DobInputProps> = ({
   value,
   onChange,
   required,
   className = '',
 }) => {
-  const [day, setDay] = useState('');
-  const [month, setMonth] = useState('');
-  const [year, setYear] = useState('');
+  const initial = parseDob(value);
+  const [day, setDay] = useState(initial.d);
+  const [month, setMonth] = useState(initial.m);
+  const [year, setYear] = useState(initial.y);
 
   const monthRef = useRef<HTMLInputElement>(null);
   const yearRef = useRef<HTMLInputElement>(null);
@@ -26,19 +41,10 @@ export const DobInput: React.FC<DobInputProps> = ({
   useEffect(() => {
     if (value !== lastEmittedRef.current) {
       lastEmittedRef.current = value;
-      if (!value) {
-        setDay('');
-        setMonth('');
-        setYear('');
-      } else {
-        const parts = value.split('-');
-        if (parts.length === 3) {
-          const [y, m, d] = parts;
-          setYear(y || '');
-          setMonth(m ? m.padStart(2, '0') : '');
-          setDay(d ? d.padStart(2, '0') : '');
-        }
-      }
+      const { d, m, y } = parseDob(value);
+      setDay(d);
+      setMonth(m);
+      setYear(y);
     }
   }, [value]);
 
