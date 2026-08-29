@@ -25,6 +25,8 @@ import { PatientMedicalWorkspaceView } from './modules/patient/PatientMedicalWor
 import { PatientIntakeSubmissionWorkspaceView } from './modules/patient/PatientIntakeSubmissionWorkspaceView';
 import { PatientRecordsWorkspaceView } from './modules/patient/PatientRecordsWorkspaceView';
 
+import { ProtectedRoute } from './components/common/ProtectedRoute';
+
 const DashboardRedirect = () => {
   const { currentRole } = useAuth();
   const defaultPath = ROLE_DEFAULT_PATHS[currentRole] || '/bac-si/danh-sach-kham';
@@ -52,49 +54,61 @@ function App() {
           {/* Consolidated Internal Workspaces (Nested under DashboardOverview Layout) */}
           <Route element={<DashboardOverview />}>
             {/* BỆNH NHÂN WORKSPACES */}
-            <Route path="/benh-nhan/ho-so" element={<PatientIntakeWorkspaceView />} />
-            <Route path="/benh-nhan/ho-so-y-te" element={<PatientMedicalWorkspaceView />} />
-            <Route path="/benh-nhan/dong-y" element={<PatientMedicalWorkspaceView />} />
-            <Route path="/benh-nhan/trieu-chung" element={<PatientIntakeSubmissionWorkspaceView />} />
-            <Route path="/benh-nhan/bao-hiem" element={<PatientMedicalWorkspaceView />} />
-            <Route path="/benh-nhan/nhap-ho-so" element={<PatientIntakeSubmissionWorkspaceView />} />
-            
-            <Route path="/benh-nhan/lich-hen" element={<PatientRecordsWorkspaceView />} />
-            <Route path="/benh-nhan/ho-so-don-thuoc" element={<PatientRecordsWorkspaceView />} />
+            <Route element={<ProtectedRoute requiredRole={['PATIENT', 'ADMIN']} />}>
+              <Route path="/benh-nhan/ho-so" element={<PatientIntakeWorkspaceView />} />
+              <Route path="/benh-nhan/ho-so-y-te" element={<PatientMedicalWorkspaceView />} />
+              <Route path="/benh-nhan/dong-y" element={<PatientMedicalWorkspaceView />} />
+              <Route path="/benh-nhan/trieu-chung" element={<PatientIntakeSubmissionWorkspaceView />} />
+              <Route path="/benh-nhan/bao-hiem" element={<PatientMedicalWorkspaceView />} />
+              <Route path="/benh-nhan/nhap-ho-so" element={<PatientIntakeSubmissionWorkspaceView />} />
+              
+              <Route path="/benh-nhan/lich-hen" element={<PatientRecordsWorkspaceView />} />
+              <Route path="/benh-nhan/ho-so-don-thuoc" element={<PatientRecordsWorkspaceView />} />
+            </Route>
 
             {/* TIẾP NHẬN WORKSPACES */}
-            <Route path="/tiep-nhan/danh-sach-cho" element={<ReceptionIntakeWorkspaceView />} />
-            <Route path="/tiep-nhan/dang-ky-tai-quay" element={<ReceptionIntakeWorkspaceView />} />
-            <Route path="/tiep-nhan/ho-so-benh-nhan" element={<ReceptionIntakeWorkspaceView />} />
+            <Route element={<ProtectedRoute requiredRole={['RECEPTION', 'ADMIN']} />}>
+              <Route path="/tiep-nhan/danh-sach-cho" element={<ReceptionIntakeWorkspaceView />} />
+              <Route path="/tiep-nhan/dang-ky-tai-quay" element={<ReceptionIntakeWorkspaceView />} />
+              <Route path="/tiep-nhan/ho-so-benh-nhan" element={<ReceptionIntakeWorkspaceView />} />
 
-            <Route path="/tiep-nhan/benh-nhan" element={<ReceptionPatientManageWorkspaceView />} />
-            <Route path="/tiep-nhan/trieu-chung-benh-nhan" element={<ReceptionPatientManageWorkspaceView />} />
-            <Route path="/tiep-nhan/hang-cho-phong-kham" element={<ReceptionIntakeWorkspaceView />} />
-            
-            <Route path="/tiep-nhan/thu-phi" element={<ReceptionBillingWorkspaceView />} />
-            <Route path="/tiep-nhan/ho-don" element={<ReceptionBillingWorkspaceView />} />
+              <Route path="/tiep-nhan/benh-nhan" element={<ReceptionPatientManageWorkspaceView />} />
+              <Route path="/tiep-nhan/trieu-chung-benh-nhan" element={<ReceptionPatientManageWorkspaceView />} />
+              <Route path="/tiep-nhan/hang-cho-phong-kham" element={<ReceptionIntakeWorkspaceView />} />
+              
+              <Route path="/tiep-nhan/thu-phi" element={<ReceptionBillingWorkspaceView />} />
+              <Route path="/tiep-nhan/ho-don" element={<ReceptionBillingWorkspaceView />} />
+            </Route>
 
             {/* ĐIỀU DƯỠNG WORKSPACE */}
-            <Route path="/dieu-duong/hang-cho-sinh-hieu" element={<NurseWorkspaceView />} />
-            <Route path="/dieu-duong/nhap-sinh-hieu" element={<NurseWorkspaceView />} />
-            <Route path="/dieu-duong/canh-bao" element={<NurseWorkspaceView />} />
+            <Route element={<ProtectedRoute requiredRole={['NURSE', 'ADMIN']} />}>
+              <Route path="/dieu-duong/hang-cho-sinh-hieu" element={<NurseWorkspaceView />} />
+              <Route path="/dieu-duong/nhap-sinh-hieu" element={<NurseWorkspaceView />} />
+              <Route path="/dieu-duong/canh-bao" element={<NurseWorkspaceView />} />
+            </Route>
 
             {/* BÁC SĨ WORKSPACE */}
-            <Route path="/bac-si/danh-sach-kham" element={<DoctorWorkspaceView />} />
-            <Route path="/bac-si/hang-cho-kham" element={<DoctorWorkspaceView />} />
-            <Route path="/bac-si/kham-benh" element={<DoctorWorkspaceView />} />
-            <Route path="/bac-si/ke-don" element={<DoctorWorkspaceView />} />
+            <Route element={<ProtectedRoute requiredRole={['DOCTOR', 'ADMIN']} />}>
+              <Route path="/bac-si/danh-sach-kham" element={<DoctorWorkspaceView />} />
+              <Route path="/bac-si/hang-cho-kham" element={<DoctorWorkspaceView />} />
+              <Route path="/bac-si/kham-benh" element={<DoctorWorkspaceView />} />
+              <Route path="/bac-si/ke-don" element={<DoctorWorkspaceView />} />
+            </Route>
 
             {/* XÉT NGHIỆM WORKSPACE */}
-            <Route path="/xet-nghiem/hang-cho-xet-nghiem" element={<LabWorkspaceView />} />
-            <Route path="/xet-nghiem/upload-dicom" element={<LabWorkspaceView />} />
-            <Route path="/xet-nghiem/canh-bao" element={<LabWorkspaceView />} />
+            <Route element={<ProtectedRoute requiredRole={['LAB', 'ADMIN']} />}>
+              <Route path="/xet-nghiem/hang-cho-xet-nghiem" element={<LabWorkspaceView />} />
+              <Route path="/xet-nghiem/upload-dicom" element={<LabWorkspaceView />} />
+              <Route path="/xet-nghiem/canh-bao" element={<LabWorkspaceView />} />
+            </Route>
 
             {/* QUẢN TRỊ WORKSPACES */}
-            <Route path="/quan-tri/tong-quan" element={<AdminRealtimeWorkspaceView />} />
-            <Route path="/quan-tri/bao-cao" element={<AdminRealtimeWorkspaceView />} />
-            <Route path="/quan-tri/nhat-ky-he-thong" element={<AdminSecurityWorkspaceView />} />
-            <Route path="/quan-tri/fhir-log" element={<AdminSecurityWorkspaceView />} />
+            <Route element={<ProtectedRoute requiredRole="ADMIN" />}>
+              <Route path="/quan-tri/tong-quan" element={<AdminRealtimeWorkspaceView />} />
+              <Route path="/quan-tri/bao-cao" element={<AdminRealtimeWorkspaceView />} />
+              <Route path="/quan-tri/nhat-ky-he-thong" element={<AdminSecurityWorkspaceView />} />
+              <Route path="/quan-tri/fhir-log" element={<AdminSecurityWorkspaceView />} />
+            </Route>
           </Route>
 
           {/* Catch-all Dashboard Redirects */}

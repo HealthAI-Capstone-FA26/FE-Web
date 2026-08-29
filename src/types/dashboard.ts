@@ -7,6 +7,7 @@ export interface TabNavItem {
   path: string;
   badge?: string;
   moduleTag?: string;
+  requiredPermission?: string;
 }
 
 export interface NavGroup {
@@ -28,9 +29,9 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
     {
       groupName: 'Nghiệp vụ Tiếp nhận',
       items: [
-        { id: 'rec_workspace_checkin', label: 'Tiếp nhận & Đăng ký quầy', path: '/tiep-nhan/danh-sach-cho', iconName: 'UserCheck', badge: '08 Chờ' },
-        { id: 'rec_workspace_patients', label: 'Khai báo & Tra cứu Hồ sơ', path: '/tiep-nhan/benh-nhan', iconName: 'Users' },
-        { id: 'rec_workspace_billing', label: 'Quản lý Thu phí & Hóa đơn', path: '/tiep-nhan/thu-phi', iconName: 'CreditCard', badge: '05 Chờ' }
+        { id: 'rec_workspace_checkin', label: 'Tiếp nhận & Đăng ký quầy', path: '/tiep-nhan/danh-sach-cho', iconName: 'UserCheck', badge: '08 Chờ', requiredPermission: 'queue-ticket:read:all' },
+        { id: 'rec_workspace_patients', label: 'Khai báo & Tra cứu Hồ sơ', path: '/tiep-nhan/benh-nhan', iconName: 'Users', requiredPermission: 'patient:read:all' },
+        { id: 'rec_workspace_billing', label: 'Quản lý Thu phí & Hóa đơn', path: '/tiep-nhan/thu-phi', iconName: 'CreditCard', badge: '05 Chờ', requiredPermission: 'claim:read:all' }
       ]
     }
   ],
@@ -38,7 +39,7 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
     {
       groupName: 'Không gian Nghiệp vụ',
       items: [
-        { id: 'nurse_workspace_vitals', label: 'Quản lý Sinh hiệu & Cảnh báo', path: '/dieu-duong/hang-cho-sinh-hieu', iconName: 'Activity', badge: '12 Ca' }
+        { id: 'nurse_workspace_vitals', label: 'Quản lý Sinh hiệu & Cảnh báo', path: '/dieu-duong/hang-cho-sinh-hieu', iconName: 'Activity', badge: '12 Ca', requiredPermission: 'observation:read:all' }
       ]
     }
   ],
@@ -46,7 +47,7 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
     {
       groupName: 'Không gian Thăm khám',
       items: [
-        { id: 'doc_workspace_clinical', label: 'Bàn làm việc Bác sĩ (Clinical)', path: '/bac-si/danh-sach-kham', iconName: 'Stethoscope', badge: 'AI Integrated' }
+        { id: 'doc_workspace_clinical', label: 'Bàn làm việc Bác sĩ (Clinical)', path: '/bac-si/danh-sach-kham', iconName: 'Stethoscope', badge: 'AI Integrated', requiredPermission: 'encounter:read:all' }
       ]
     }
   ],
@@ -54,7 +55,7 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
     {
       groupName: 'Không gian Chẩn đoán',
       items: [
-        { id: 'lab_workspace_diagnostic', label: 'Xét nghiệm & Chẩn đoán AI', path: '/xet-nghiem/hang-cho-xet-nghiem', iconName: 'FlaskConical', badge: '09 Ca' }
+        { id: 'lab_workspace_diagnostic', label: 'Xét nghiệm & Chẩn đoán AI', path: '/xet-nghiem/hang-cho-xet-nghiem', iconName: 'FlaskConical', badge: '09 Ca', requiredPermission: 'imaging-study:read:all' }
       ]
     }
   ],
@@ -62,8 +63,8 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
     {
       groupName: 'Không gian Quản trị',
       items: [
-        { id: 'admin_workspace_realtime', label: 'Giám sát Realtime & Báo cáo', path: '/quan-tri/tong-quan', iconName: 'LayoutDashboard', badge: 'Live' },
-        { id: 'admin_workspace_security', label: 'Bảo mật Audit & Chuẩn FHIR', path: '/quan-tri/nhat-ky-he-thong', iconName: 'ShieldCheck' }
+        { id: 'admin_workspace_realtime', label: 'Giám sát Realtime & Báo cáo', path: '/quan-tri/tong-quan', iconName: 'LayoutDashboard', badge: 'Live', requiredPermission: 'user:read:all' },
+        { id: 'admin_workspace_security', label: 'Bảo mật Audit & Chuẩn FHIR', path: '/quan-tri/nhat-ky-he-thong', iconName: 'ShieldCheck', requiredPermission: 'security-config:read:all' }
       ]
     }
   ],
@@ -71,10 +72,10 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
     {
       groupName: 'Cổng Bệnh nhân',
       items: [
-        { id: 'pat_workspace_profile', label: 'Tài khoản & Profile', path: '/benh-nhan/ho-so', iconName: 'UserCheck' },
-        { id: 'pat_workspace_medical', label: 'Hồ sơ Y tế & Tiền sử', path: '/benh-nhan/ho-so-y-te', iconName: 'FileText', badge: 'HL7 FHIR' },
-        { id: 'pat_workspace_submission', label: 'Khai báo & Nộp dữ liệu', path: '/benh-nhan/trieu-chung', iconName: 'Activity' },
-        { id: 'pat_workspace_records', label: 'Lịch hẹn & Bệnh án PDF', path: '/benh-nhan/lich-hen', iconName: 'Calendar' }
+        { id: 'pat_workspace_profile', label: 'Hồ sơ khách hàng', path: '/benh-nhan/ho-so', iconName: 'UserCheck', requiredPermission: 'patient:read:own' },
+        { id: 'pat_workspace_medical', label: 'Hồ sơ Y tế & Tiền sử', path: '/benh-nhan/ho-so-y-te', iconName: 'FileText', badge: 'HL7 FHIR', requiredPermission: 'patient:read:own' },
+        { id: 'pat_workspace_submission', label: 'Khai báo & Nộp dữ liệu', path: '/benh-nhan/trieu-chung', iconName: 'Activity', requiredPermission: 'observation:create:own' },
+        { id: 'pat_workspace_records', label: 'Lịch hẹn & Bệnh án PDF', path: '/benh-nhan/lich-hen', iconName: 'Calendar', requiredPermission: 'appointment:read:own' }
       ]
     }
   ]

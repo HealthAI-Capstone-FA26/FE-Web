@@ -10,6 +10,7 @@ export type UserProfile = {
   department?: string;
   staffCode?: string;
   phone?: string;
+  permissions?: string[];
 };
 
 export type RoleNavigationItem = {
@@ -18,4 +19,5 @@ export type RoleNavigationItem = {
   path: string;
   iconName: string;
   badge?: string;
+  requiredPermission?: string;
 };

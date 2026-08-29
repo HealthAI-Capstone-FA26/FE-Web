@@ -5,11 +5,13 @@
 import React, { useState } from 'react';
 import { ShieldCheck, FileCheck, CheckCircle2, AlertTriangle, PenTool, Lock } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
+import { useAuth } from '../../context/AuthContext';
 
 export const PatientConsentView: React.FC = () => {
+  const { user } = useAuth();
   const [agreeDataTerms, setAgreeDataTerms] = useState(true);
   const [agreeAIAssist, setAgreeAIAssist] = useState(true);
-  const [signatureName, setSignatureName] = useState('Khưu Trọng Quân');
+  const [signatureName, setSignatureName] = useState(user?.name || 'Nguyễn Văn A');
   const [isSigned, setIsSigned] = useState(true);
   const [signedTimestamp, setSignedTimestamp] = useState('2026-08-20 09:15:22');
 

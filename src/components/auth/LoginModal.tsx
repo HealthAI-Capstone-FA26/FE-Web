@@ -145,9 +145,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           password: password,
         });
         setIsSubmitting(false);
-        setOtpFlow('login');
-        setStep('otp');
-        setInfoMessage(res.message || 'Mã OTP xác thực đã được gửi tới email của bạn.');
+        setIsSuccess(true);
+        setInfoMessage('Đăng nhập thành công!');
+
+        loginWithTokens(res.accessToken, res.refreshToken, res.user);
+
+        setTimeout(() => {
+          setIsSuccess(false);
+          if (onLoginSuccess) {
+            onLoginSuccess(res.user.fullName || res.user.email);
+          }
+          onClose();
+          navigate('/dashboard');
+        }, 1000);
       } catch (err: any) {
         setIsSubmitting(false);
         setError(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email & mật khẩu.');
@@ -226,24 +236,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           setPassword('');
           setOtpCode('');
         }, 1500);
-      } else if (otpFlow === 'login') {
-        const res = await authService.verifyLoginOtp({
-          email: emailOrPhone.trim(),
-          otp: otpCode.trim(),
-        });
-        setIsSubmitting(false);
-        setIsSuccess(true);
-
-        loginWithTokens(res.accessToken, res.refreshToken, res.user);
-
-        setTimeout(() => {
-          setIsSuccess(false);
-          if (onLoginSuccess) {
-            onLoginSuccess(res.user.fullName || res.user.email);
-          }
-          onClose();
-          navigate('/dashboard');
-        }, 1000);
       } else if (otpFlow === 'forgot-password') {
         const res = await authService.verifyForgotPasswordOtp(emailOrPhone.trim(), otpCode.trim());
         setIsSubmitting(false);

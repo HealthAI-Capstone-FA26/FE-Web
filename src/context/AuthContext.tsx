@@ -2,15 +2,74 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { UserProfile, UserRole } from '../types/auth';
 import { authService } from '../services/auth/auth.service';
 
+export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
+  PATIENT: [
+    'patient:read:own',
+    'patient:update:own',
+    'appointment:create:own',
+    'appointment:read:own',
+    'encounter:read:own',
+    'observation:read:own',
+    'observation:create:own',
+  ],
+  RECEPTION: [
+    'patient:read:all',
+    'patient:create:all',
+    'patient:update:all',
+    'appointment:create:all',
+    'appointment:read:all',
+    'appointment:update:all',
+    'queue-ticket:create:all',
+    'queue-ticket:read:all',
+    'claim:read:all',
+  ],
+  NURSE: [
+    'patient:read:all',
+    'observation:create:all',
+    'observation:read:all',
+    'queue-ticket:read:all',
+    'queue-ticket:update:all',
+  ],
+  DOCTOR: [
+    'patient:read:all',
+    'encounter:create:all',
+    'encounter:read:all',
+    'encounter:update:all',
+    'observation:read:all',
+    'allergy:read:all',
+    'condition:read:all',
+    'medication:create:all',
+  ],
+  LAB: [
+    'patient:read:all',
+    'imaging-study:create:all',
+    'imaging-study:read:all',
+    'imaging-study:update:all',
+    'observation:create:all',
+  ],
+  ADMIN: [
+    'security-config:read:all',
+    'security-config:update:all',
+    'role:read:all',
+    'role:update:all',
+    'user:read:all',
+    'user:create:all',
+    'user:update:all',
+    'patient:read:all',
+    'doctor:read:all',
+  ],
+};
+
 const MOCK_USERS: Record<UserRole, UserProfile> = {
   PATIENT: {
-    id: 'P-90234',
-    name: 'Khưu Trọng Quân',
-    email: 'quan.khuu@gmail.com',
+    id: 'P-10001',
+    name: 'Bệnh nhân (Khách hàng)',
+    email: 'benhnhan@gmail.com',
     role: 'PATIENT',
     roleTitle: 'Bệnh nhân',
-    phone: '0902 357 872',
-    avatar: ''
+    phone: '0900 000 000',
+    avatar: '',
+    permissions: DEFAULT_ROLE_PERMISSIONS.PATIENT,
   },
   RECEPTION: {
     id: 'ST-101',
@@ -19,7 +78,8 @@ const MOCK_USERS: Record<UserRole, UserProfile> = {
     role: 'RECEPTION',
     roleTitle: 'Lễ tân / Thu ngân',
     staffCode: 'REC-001',
-    department: 'Quầy Tiếp Nhận & Thu Ngân 01'
+    department: 'Quầy Tiếp Nhận & Thu Ngân 01',
+    permissions: DEFAULT_ROLE_PERMISSIONS.RECEPTION,
   },
   NURSE: {
     id: 'ST-102',
@@ -28,7 +88,8 @@ const MOCK_USERS: Record<UserRole, UserProfile> = {
     role: 'NURSE',
     roleTitle: 'Điều dưỡng viên',
     staffCode: 'NUR-005',
-    department: 'Phòng Kiểm tra Sinh hiệu 102'
+    department: 'Phòng Kiểm tra Sinh hiệu 102',
+    permissions: DEFAULT_ROLE_PERMISSIONS.NURSE,
   },
   DOCTOR: {
     id: 'ST-103',
@@ -37,7 +98,8 @@ const MOCK_USERS: Record<UserRole, UserProfile> = {
     role: 'DOCTOR',
     roleTitle: 'Bác sĩ Thăm khám & Chẩn đoán',
     staffCode: 'DOC-088',
-    department: 'Khoa Nội Tổng Hợp - Phòng 305'
+    department: 'Khoa Nội Tổng Hợp - Phòng 305',
+    permissions: DEFAULT_ROLE_PERMISSIONS.DOCTOR,
   },
   LAB: {
     id: 'ST-104',
@@ -46,7 +108,8 @@ const MOCK_USERS: Record<UserRole, UserProfile> = {
     role: 'LAB',
     roleTitle: 'Kỹ thuật viên Phòng Lab',
     staffCode: 'LAB-012',
-    department: 'Trung tâm Xét nghiệm & Cận Lâm Sàng'
+    department: 'Trung tâm Xét nghiệm & Cận Lâm Sàng',
+    permissions: DEFAULT_ROLE_PERMISSIONS.LAB,
   },
   ADMIN: {
     id: 'ST-999',
@@ -55,7 +118,8 @@ const MOCK_USERS: Record<UserRole, UserProfile> = {
     role: 'ADMIN',
     roleTitle: 'Quản trị hệ thống (System Admin)',
     staffCode: 'ADM-001',
-    department: 'Ban Điều Hành & Quản Trị Hệ Thống'
+    department: 'Ban Điều Hành & Quản Trị Hệ Thống',
+    permissions: DEFAULT_ROLE_PERMISSIONS.ADMIN,
   }
 };
 
@@ -63,9 +127,11 @@ interface AuthContextType {
   user: UserProfile | null;
   currentRole: UserRole;
   isLoggedIn: boolean;
+  permissions: string[];
+  can: (permissionCode: string) => boolean;
   switchRole: (role: UserRole) => void;
   login: (email: string, role: UserRole) => void;
-  loginWithTokens: (accessToken: string, refreshToken: string, backendUser: { userId: string; email: string; fullName: string; actorRole: string; avatarUrl?: string; phoneNumber?: string }) => void;
+  loginWithTokens: (accessToken: string, refreshToken: string, backendUser: { userId: string; email: string; fullName: string; actorRole: string; avatarUrl?: string; phoneNumber?: string; permissions?: string[] }) => void;
   logout: () => void;
   updateUserProfile: (partial: { name?: string; phone?: string; avatar?: string }) => void;
   allRoles: { role: UserRole; label: string; desc: string }[];
@@ -126,10 +192,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     switchRole(role);
   };
 
+  const userPermissions = user?.permissions || DEFAULT_ROLE_PERMISSIONS[currentRole] || [];
+
+  const can = (permissionCode: string): boolean => {
+    if (!isLoggedIn || !user) return false;
+    if (user.role === 'ADMIN') return true;
+    return userPermissions.includes(permissionCode);
+  };
+
   const loginWithTokens = (
     accessToken: string,
     refreshToken: string,
-    backendUser: { userId: string; email: string; fullName: string; actorRole: string; avatarUrl?: string; phoneNumber?: string }
+    backendUser: { userId: string; email: string; fullName: string; actorRole: string; avatarUrl?: string; phoneNumber?: string; permissions?: string[] }
   ) => {
     localStorage.setItem('access_token', accessToken);
     localStorage.setItem('refresh_token', refreshToken);
@@ -147,6 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       roleTitle: mappedRole === 'PATIENT' ? 'Bệnh nhân' : 'Nhân viên Y tế',
       phone: backendUser.phoneNumber,
       avatar: backendUser.avatarUrl || '',
+      permissions: backendUser.permissions || DEFAULT_ROLE_PERMISSIONS[mappedRole] || [],
     };
 
     setCurrentRole(mappedRole);
@@ -194,7 +269,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ];
 
   return (
-    <AuthContext.Provider value={{ user, currentRole, isLoggedIn, switchRole, login, loginWithTokens, logout, updateUserProfile, allRoles }}>
+    <AuthContext.Provider value={{ user, currentRole, isLoggedIn, permissions: userPermissions, can, switchRole, login, loginWithTokens, logout, updateUserProfile, allRoles }}>
       {children}
     </AuthContext.Provider>
   );

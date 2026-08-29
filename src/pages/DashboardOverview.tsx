@@ -1,34 +1,10 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
-import { Outlet, useLocation, Navigate } from 'react-router-dom';
-import type { UserRole } from '../types/auth';
-
-const PREFIX_ROLE_MAP: Record<string, UserRole> = {
-  '/benh-nhan': 'PATIENT',
-  '/tiep-nhan': 'RECEPTION',
-  '/dieu-duong': 'NURSE',
-  '/bac-si': 'DOCTOR',
-  '/xet-nghiem': 'LAB',
-  '/quan-tri': 'ADMIN'
-};
+import { Outlet, Navigate } from 'react-router-dom';
 
 export const DashboardOverview: React.FC = () => {
-  const { isLoggedIn, currentRole, switchRole } = useAuth();
-  const location = useLocation();
-
-  // Automatically sync active role in AuthContext based on current URL path
-  useEffect(() => {
-    const matchedPrefix = Object.keys(PREFIX_ROLE_MAP).find((prefix) =>
-      location.pathname.startsWith(prefix)
-    );
-    if (matchedPrefix) {
-      const roleForPath = PREFIX_ROLE_MAP[matchedPrefix];
-      if (roleForPath !== currentRole) {
-        switchRole(roleForPath);
-      }
-    }
-  }, [location.pathname]);
+  const { isLoggedIn } = useAuth();
 
   if (!isLoggedIn) {
     return <Navigate to="/" replace />;
