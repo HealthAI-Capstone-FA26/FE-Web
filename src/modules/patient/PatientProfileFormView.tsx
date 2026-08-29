@@ -3,26 +3,32 @@
 // Trạng thái: Mock UI (chưa nối API)
 
 import React, { useState } from 'react';
-import { User, Calendar, Phone, Mail, MapPin, AlertCircle, Plus, X, Save, CheckCircle2 } from 'lucide-react';
+import { User, Calendar, Phone, Mail, MapPin, AlertCircle, Plus, X, Save, CheckCircle2, Loader2 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
+import { DobInput } from '../../components/common/DobInput';
+import { useAuth } from '../../context/AuthContext';
+import { patientService, type PatientGender } from '../../services/patient/patient.service';
 
 export const PatientProfileFormView: React.FC = () => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
-    fullName: 'Khưu Trọng Quân',
-    dob: '1995-08-15',
+    fullName: user?.name || '',
+    dob: '',
     gender: 'Nam',
-    identityCard: '079195001234',
-    phone: '0902 357 872',
-    email: 'quan.khuu@gmail.com',
-    address: '123 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh',
-    medicalHistory: 'Tiền sử tăng huyết áp nhẹ (chẩn đoán năm 2023). Đã từng phẫu thuật ruột thừa năm 2018.',
-    currentMedications: 'Amlodipine 5mg (1 viên/ngày uống buổi sáng)',
-    familyHistory: 'Cha có tiền sử đái tháo đường type 2. Mẹ khỏe mạnh.'
+    identityCard: '',
+    phone: user?.phone || '',
+    email: user?.email || '',
+    address: '',
+    medicalHistory: '',
+    currentMedications: '',
+    familyHistory: ''
   });
 
-  const [allergies, setAllergies] = useState<string[]>(['Penicillin', 'Hải sản (Tôm, Cua)']);
+  const [allergies, setAllergies] = useState<string[]>([]);
   const [newAllergy, setNewAllergy] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleAddAllergy = () => {
     if (newAllergy.trim() && !allergies.includes(newAllergy.trim())) {
@@ -35,10 +41,35 @@ export const PatientProfileFormView: React.FC = () => {
     setAllergies(allergies.filter((a) => a !== item));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 3000);
+    setErrorMessage('');
+    setIsSubmitting(true);
+
+    const mapGenderToBE = (g: string): PatientGender => {
+      if (g === 'Nam') return 'male';
+      if (g === 'Nữ') return 'female';
+      return 'other';
+    };
+
+    try {
+      await patientService.createPatient({
+        fullName: formData.fullName.trim(),
+        dateOfBirth: formData.dob,
+        gender: mapGenderToBE(formData.gender),
+        phoneNumber: formData.phone.trim(),
+        identityNumber: formData.identityCard.trim() || undefined,
+        email: formData.email.trim() || undefined,
+        address: formData.address.trim() || undefined,
+      });
+
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Không thể tạo hồ sơ bệnh nhân. Vui lòng kiểm tra lại thông tin.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -57,6 +88,13 @@ export const PatientProfileFormView: React.FC = () => {
           FR-HM-2.1
         </Badge>
       </div>
+
+      {errorMessage && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-3 text-red-700 text-xs font-bold animate-in fade-in duration-200">
+          <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
 
       {isSaved && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-emerald-800 text-sm font-bold animate-in fade-in duration-200">
@@ -97,17 +135,12 @@ export const PatientProfileFormView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Ngày sinh *</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  required
-                  value={formData.dob}
-                  onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50"
-                />
-                <Calendar className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
-              </div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Ngày sinh (Ngày / Tháng / Năm) *</label>
+              <DobInput
+                value={formData.dob}
+                onChange={(val) => setFormData({ ...formData, dob: val })}
+                required
+              />
             </div>
 
             <div>
@@ -244,10 +277,11 @@ export const PatientProfileFormView: React.FC = () => {
         <div className="flex justify-end gap-3">
           <button
             type="submit"
-            className="px-6 py-2.5 bg-blue-600 text-white font-bold text-xs rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 cursor-pointer shadow-md border-none"
+            disabled={isSubmitting}
+            className="px-6 py-2.5 bg-blue-600 text-white font-bold text-xs rounded-xl hover:bg-blue-700 disabled:bg-blue-300 transition-colors flex items-center gap-2 cursor-pointer shadow-md border-none"
           >
-            <Save className="w-4 h-4" />
-            <span>Lưu Thay Đổi Hồ Sơ</span>
+            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>{isSubmitting ? 'Đang lưu...' : 'Lưu Thay Đổi Hồ Sơ'}</span>
           </button>
         </div>
       </form>

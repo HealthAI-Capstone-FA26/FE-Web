@@ -19,7 +19,7 @@ const MOCK_FHIR_PREVIEW: FHIRResource[] = [
     resourceType: 'Patient',
     id: 'fhir-pat-001',
     status: 'Active',
-    details: 'Khưu Trọng Quân • Nam • 1995-08-15',
+    details: 'Nguyễn Văn A • Nam • 1995-08-15',
     date: '2026-08-01'
   },
   {

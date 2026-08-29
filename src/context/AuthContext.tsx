@@ -62,12 +62,12 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
 
 const MOCK_USERS: Record<UserRole, UserProfile> = {
   PATIENT: {
-    id: 'P-90234',
-    name: 'Khưu Trọng Quân',
-    email: 'quan.khuu@gmail.com',
+    id: 'P-10001',
+    name: 'Bệnh nhân (Khách hàng)',
+    email: 'benhnhan@gmail.com',
     role: 'PATIENT',
     roleTitle: 'Bệnh nhân',
-    phone: '0902 357 872',
+    phone: '0900 000 000',
     avatar: '',
     permissions: DEFAULT_ROLE_PERMISSIONS.PATIENT,
   },
