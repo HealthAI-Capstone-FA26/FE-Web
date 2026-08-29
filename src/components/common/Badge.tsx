@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlertTriangle, CheckCircle, Info, Sparkles, AlertCircle } from 'lucide-react';
 
-export type BadgeVariant = 'normal' | 'warning' | 'critical' | 'info' | 'ai' | 'neutral';
+export type BadgeVariant = 'normal' | 'success' | 'warning' | 'critical' | 'info' | 'ai' | 'neutral';
 
 interface BadgeProps {
   variant?: BadgeVariant;
@@ -18,8 +18,9 @@ export const Badge: React.FC<BadgeProps> = ({
   size = 'md',
   className = ''
 }) => {
-  const variantStyles = {
+  const variantStyles: Record<BadgeVariant, string> = {
     normal: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+    success: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
     warning: 'bg-amber-50 text-amber-800 border-amber-300 animate-pulse',
     critical: 'bg-rose-50 text-rose-700 border-rose-300 font-bold animate-pulse',
     info: 'bg-sky-50 text-sky-700 border-sky-200',
@@ -38,6 +39,7 @@ export const Badge: React.FC<BadgeProps> = ({
     const iconClass = size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5';
     switch (variant) {
       case 'normal':
+      case 'success':
         return <CheckCircle className={iconClass} />;
       case 'warning':
         return <AlertTriangle className={iconClass} />;

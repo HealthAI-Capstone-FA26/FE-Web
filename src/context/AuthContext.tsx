@@ -208,17 +208,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('access_token', accessToken);
     localStorage.setItem('refresh_token', refreshToken);
 
-    const mappedRole: UserRole =
-      (backendUser.actorRole?.toUpperCase() as UserRole) in MOCK_USERS
-        ? (backendUser.actorRole.toUpperCase() as UserRole)
-        : 'PATIENT';
+    let mappedRole: UserRole = 'PATIENT';
+    if (backendUser.actorRole && (backendUser.actorRole.toUpperCase() as UserRole) in MOCK_USERS) {
+      mappedRole = backendUser.actorRole.toUpperCase() as UserRole;
+    } else if (backendUser.email && backendUser.email.toLowerCase().includes('admin')) {
+      mappedRole = 'ADMIN';
+    } else if (backendUser.email && backendUser.email.toLowerCase().includes('doctor')) {
+      mappedRole = 'DOCTOR';
+    } else if (backendUser.email && backendUser.email.toLowerCase().includes('reception')) {
+      mappedRole = 'RECEPTION';
+    } else if (backendUser.email && backendUser.email.toLowerCase().includes('nurse')) {
+      mappedRole = 'NURSE';
+    } else if (backendUser.email && backendUser.email.toLowerCase().includes('lab')) {
+      mappedRole = 'LAB';
+    }
 
     const userProfile: UserProfile = {
       id: backendUser.userId,
       name: backendUser.fullName || backendUser.email,
       email: backendUser.email,
       role: mappedRole,
-      roleTitle: mappedRole === 'PATIENT' ? 'Bệnh nhân' : 'Nhân viên Y tế',
+      roleTitle: MOCK_USERS[mappedRole]?.roleTitle || 'Thành viên hệ thống',
       phone: backendUser.phoneNumber,
       avatar: backendUser.avatarUrl || '',
       permissions: backendUser.permissions || DEFAULT_ROLE_PERMISSIONS[mappedRole] || [],
@@ -227,6 +237,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentRole(mappedRole);
     setUser(userProfile);
     setIsLoggedIn(true);
+    localStorage.setItem('4am_active_role', mappedRole);
+    localStorage.setItem('4am_is_logged_in', 'true');
     localStorage.setItem('4am_user_data', JSON.stringify(userProfile));
     localStorage.setItem('4am_user_name', userProfile.name);
   };

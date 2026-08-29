@@ -54,7 +54,7 @@ function App() {
           {/* Consolidated Internal Workspaces (Nested under DashboardOverview Layout) */}
           <Route element={<DashboardOverview />}>
             {/* BỆNH NHÂN WORKSPACES */}
-            <Route element={<ProtectedRoute requiredRole={['PATIENT', 'ADMIN']} />}>
+            <Route element={<ProtectedRoute requiredRole="PATIENT" />}>
               <Route path="/benh-nhan/ho-so" element={<PatientIntakeWorkspaceView />} />
               <Route path="/benh-nhan/ho-so-y-te" element={<PatientMedicalWorkspaceView />} />
               <Route path="/benh-nhan/dong-y" element={<PatientMedicalWorkspaceView />} />
@@ -67,7 +67,7 @@ function App() {
             </Route>
 
             {/* TIẾP NHẬN WORKSPACES */}
-            <Route element={<ProtectedRoute requiredRole={['RECEPTION', 'ADMIN']} />}>
+            <Route element={<ProtectedRoute requiredRole="RECEPTION" />}>
               <Route path="/tiep-nhan/danh-sach-cho" element={<ReceptionIntakeWorkspaceView />} />
               <Route path="/tiep-nhan/dang-ky-tai-quay" element={<ReceptionIntakeWorkspaceView />} />
               <Route path="/tiep-nhan/ho-so-benh-nhan" element={<ReceptionIntakeWorkspaceView />} />
@@ -81,14 +81,14 @@ function App() {
             </Route>
 
             {/* ĐIỀU DƯỠNG WORKSPACE */}
-            <Route element={<ProtectedRoute requiredRole={['NURSE', 'ADMIN']} />}>
+            <Route element={<ProtectedRoute requiredRole="NURSE" />}>
               <Route path="/dieu-duong/hang-cho-sinh-hieu" element={<NurseWorkspaceView />} />
               <Route path="/dieu-duong/nhap-sinh-hieu" element={<NurseWorkspaceView />} />
               <Route path="/dieu-duong/canh-bao" element={<NurseWorkspaceView />} />
             </Route>
 
             {/* BÁC SĨ WORKSPACE */}
-            <Route element={<ProtectedRoute requiredRole={['DOCTOR', 'ADMIN']} />}>
+            <Route element={<ProtectedRoute requiredRole="DOCTOR" />}>
               <Route path="/bac-si/danh-sach-kham" element={<DoctorWorkspaceView />} />
               <Route path="/bac-si/hang-cho-kham" element={<DoctorWorkspaceView />} />
               <Route path="/bac-si/kham-benh" element={<DoctorWorkspaceView />} />
@@ -96,7 +96,7 @@ function App() {
             </Route>
 
             {/* XÉT NGHIỆM WORKSPACE */}
-            <Route element={<ProtectedRoute requiredRole={['LAB', 'ADMIN']} />}>
+            <Route element={<ProtectedRoute requiredRole="LAB" />}>
               <Route path="/xet-nghiem/hang-cho-xet-nghiem" element={<LabWorkspaceView />} />
               <Route path="/xet-nghiem/upload-dicom" element={<LabWorkspaceView />} />
               <Route path="/xet-nghiem/canh-bao" element={<LabWorkspaceView />} />
@@ -105,6 +105,7 @@ function App() {
             {/* QUẢN TRỊ WORKSPACES */}
             <Route element={<ProtectedRoute requiredRole="ADMIN" />}>
               <Route path="/quan-tri/tong-quan" element={<AdminRealtimeWorkspaceView />} />
+              <Route path="/quan-tri/bac-si" element={<AdminRealtimeWorkspaceView />} />
               <Route path="/quan-tri/bao-cao" element={<AdminRealtimeWorkspaceView />} />
               <Route path="/quan-tri/nhat-ky-he-thong" element={<AdminSecurityWorkspaceView />} />
               <Route path="/quan-tri/fhir-log" element={<AdminSecurityWorkspaceView />} />
@@ -114,6 +115,7 @@ function App() {
           {/* Catch-all Dashboard Redirects */}
           <Route path="/dashboard" element={<DashboardRedirect />} />
           <Route path="/dashboard/*" element={<DashboardRedirect />} />
+          <Route path="*" element={<DashboardRedirect />} />
         </Routes>
       </Router>
     </AuthProvider>
