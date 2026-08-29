@@ -10,6 +10,7 @@ import { SpecialtyPage } from './pages/SpecialtyPage';
 import { NewsPage } from './pages/NewsPage';
 import NewsDetailPage from './pages/NewsDetailPage';
 import { CustomerPage } from './pages/CustomerPage';
+import { ExpertsPage } from './pages/ExpertsPage';
 
 // Consolidated Workspaces
 import { DoctorWorkspaceView } from './modules/doctor/DoctorWorkspaceView';
@@ -43,7 +44,7 @@ function App() {
           <Route path="/gioi-thieu" element={<PlaceholderPage title="Giới thiệu" />} />
           <Route path="/chuyen-khoa" element={<SpecialtyPage />} />
           <Route path="/khach-hang" element={<CustomerPage />} />
-          <Route path="/chuyen-gia" element={<PlaceholderPage title="Chuyên gia - Bác sĩ" />} />
+          <Route path="/chuyen-gia" element={<ExpertsPage />} />
           <Route path="/dich-vu" element={<PlaceholderPage title="Dịch vụ đặc biệt" />} />
           <Route path="/tien-nghi" element={<PlaceholderPage title="Tiện nghi" />} />
           <Route path="/giai-thuong" element={<PlaceholderPage title="Giải thưởng" />} />
