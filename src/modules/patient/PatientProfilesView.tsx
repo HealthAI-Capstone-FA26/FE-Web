@@ -31,6 +31,7 @@ interface ProfileItem {
   dob: string; // YYYY-MM-DD
   gender: 'Nam' | 'Nữ' | 'Khác';
   identityCard: string;
+  insuranceCard?: string;
   phone: string;
   email: string;
   address: string;
@@ -38,6 +39,18 @@ interface ProfileItem {
 }
 
 type ViewMode = 'DETAIL' | 'CREATE' | 'EDIT';
+
+const mapRelationshipToFE = (rel?: string): string => {
+  if (!rel) return 'Bản thân';
+  const lower = rel.toLowerCase();
+  if (lower === 'self' || lower === 'bản thân') return 'Bản thân';
+  if (lower === 'child' || lower === 'con cái' || lower === 'con') return 'Con cái';
+  if (lower === 'parent' || lower === 'bố/mẹ' || lower === 'cha mẹ' || lower === 'bố' || lower === 'mẹ') return 'Bố/Mẹ';
+  if (lower === 'spouse' || lower === 'vợ/chồng' || lower === 'vợ' || lower === 'chồng') return 'Vợ/Chồng';
+  if (lower === 'guardian' || lower === 'người giám hộ') return 'Người giám hộ';
+  if (lower === 'other' || lower === 'khác') return 'Khác';
+  return rel;
+};
 
 const mapGenderToFE = (g?: string): 'Nam' | 'Nữ' | 'Khác' => {
   if (g === 'male' || g === 'Nam') return 'Nam';
@@ -80,6 +93,7 @@ export const PatientProfilesView: React.FC = () => {
     dob: '',
     gender: 'Nam',
     identityCard: '',
+    insuranceCard: '',
     phone: '',
     email: '',
     address: '',
@@ -95,20 +109,18 @@ export const PatientProfilesView: React.FC = () => {
         const mapped: ProfileItem[] = data.map((p) => ({
           id: p.patientId,
           patientCode: p.patientCode,
-          relationship: p.relationship === 'self' ? 'Bản thân' : (p.relationship || 'Bản thân'),
+          relationship: mapRelationshipToFE(p.relationship),
           fullName: p.fullName || '',
           dob: p.dateOfBirth ? p.dateOfBirth.split('T')[0] : '',
           gender: mapGenderToFE(p.gender),
           identityCard: p.identityNumber || '',
+          insuranceCard: p.insuranceNumber || '',
           phone: p.phoneNumber || '',
           email: p.email || '',
           address: p.address || '',
           isBackendRecord: true,
         }));
         setProfiles(mapped);
-        if (!selectedProfileId || !mapped.some((m) => m.id === selectedProfileId)) {
-          setSelectedProfileId(mapped[0].id);
-        }
       } else {
         // Nếu getMyPatients trả về [] (do chưa có PatientContact), dùng API match-suggestion để tìm và tự động khôi phục hồ sơ
         try {
@@ -130,13 +142,13 @@ export const PatientProfilesView: React.FC = () => {
                 dob: fullP.dateOfBirth ? fullP.dateOfBirth.split('T')[0] : '',
                 gender: mapGenderToFE(fullP.gender),
                 identityCard: fullP.identityNumber || '',
+                insuranceCard: fullP.insuranceNumber || '',
                 phone: fullP.phoneNumber || '',
                 email: fullP.email || '',
                 address: fullP.address || '',
                 isBackendRecord: true,
               };
               setProfiles([mappedSingle]);
-              setSelectedProfileId(mappedSingle.id);
               return;
             }
           }
@@ -157,7 +169,7 @@ export const PatientProfilesView: React.FC = () => {
     loadPatients();
   }, []);
 
-  const activeProfile = profiles.find((p) => p.id === selectedProfileId) || profiles[0];
+  const activeProfile = profiles.find((p) => p.id === selectedProfileId) || null;
 
   const handleSelectProfile = (id: string) => {
     setSelectedProfileId(id);
@@ -166,13 +178,15 @@ export const PatientProfilesView: React.FC = () => {
   };
 
   const handleOpenCreate = () => {
+    const hasSelf = profiles.some((p) => p.relationship === 'Bản thân' || p.relationship === 'self');
     setFormData({
       id: `NEW_${Date.now()}`,
-      relationship: 'Con cái',
+      relationship: hasSelf ? 'Con cái' : 'Bản thân',
       fullName: '',
       dob: '',
       gender: 'Nam',
       identityCard: '',
+      insuranceCard: '',
       phone: user?.phone || '',
       email: user?.email || '',
       address: '',
@@ -205,8 +219,10 @@ export const PatientProfilesView: React.FC = () => {
         gender: mapGenderToBE(formData.gender),
         phoneNumber: formData.phone.trim(),
         identityNumber: formData.identityCard.trim() || undefined,
+        insuranceNumber: formData.insuranceCard?.trim() || undefined,
         email: formData.email.trim() || undefined,
         address: formData.address.trim() || undefined,
+        relationship: formData.relationship,
       };
 
       if (viewMode === 'EDIT' && formData.isBackendRecord && formData.id) {
@@ -272,6 +288,10 @@ export const PatientProfilesView: React.FC = () => {
     }
   };
 
+  const hasOtherSelfProfile = profiles.some(
+    (p) => (p.relationship === 'Bản thân' || p.relationship === 'self') && p.id !== formData.id
+  );
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Header Banner */}
@@ -336,7 +356,7 @@ export const PatientProfilesView: React.FC = () => {
                 <div
                   key={p.id}
                   onClick={() => handleSelectProfile(p.id)}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between space-y-3 ${
+                  className={`group p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between space-y-3 ${
                     isSelected
                       ? 'bg-blue-50/40 border-blue-600 ring-2 ring-blue-600/20 shadow-md'
                       : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-xs'
@@ -344,13 +364,13 @@ export const PatientProfilesView: React.FC = () => {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
                         isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'
                       }`}>
                         {p.fullName ? p.fullName.charAt(0).toUpperCase() : <User className="w-5 h-5" />}
                       </div>
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-900 line-clamp-1">{p.fullName || 'Chưa đặt tên'}</h4>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-sm text-slate-900 truncate">{p.fullName || 'Chưa đặt tên'}</h4>
                         <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold mt-0.5">
                           {p.relationship}
                         </span>
@@ -358,16 +378,14 @@ export const PatientProfilesView: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-1 text-xs text-slate-600 pt-2 border-t border-slate-100">
-                    {p.patientCode && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Mã BN:</span>
-                        <span className="font-extrabold text-blue-700">{p.patientCode}</span>
-                      </div>
-                    )}
+                  <div className="space-y-1.5 text-xs text-slate-600 pt-2.5 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Mã BN:</span>
+                      <span className="font-extrabold text-blue-700">{p.patientCode || 'Chưa cấp'}</span>
+                    </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">SĐT:</span>
-                      <span className="font-medium text-slate-800">{p.phone || 'N/A'}</span>
+                      <span className="font-medium text-slate-800">{p.phone || 'Chưa cập nhật'}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">Ngày sinh:</span>
@@ -375,12 +393,18 @@ export const PatientProfilesView: React.FC = () => {
                     </div>
                   </div>
 
-                  {isSelected && (
-                    <div className="text-[10px] text-blue-700 font-bold flex items-center justify-end gap-1 pt-1">
-                      <span>Đang xem chi tiết</span>
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                    </div>
-                  )}
+                  <div className="h-5 flex items-center justify-end">
+                    {isSelected ? (
+                      <span className="text-[10px] text-blue-700 font-bold flex items-center gap-1">
+                        <span>Đang xem chi tiết</span>
+                        <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-medium group-hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all">
+                        Xem chi tiết →
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -454,6 +478,11 @@ export const PatientProfilesView: React.FC = () => {
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Mã số thẻ BHYT / Bảo hiểm</span>
+              <p className="text-xs font-bold text-slate-800">{activeProfile.insuranceCard || 'Chưa cập nhật'}</p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Ngày sinh (DD/MM/YYYY)</span>
               <p className="text-xs font-bold text-slate-800">{formatDateForDisplay(activeProfile.dob)}</p>
             </div>
@@ -512,7 +541,9 @@ export const PatientProfilesView: React.FC = () => {
                 onChange={(e) => handleFormChange('relationship', e.target.value)}
                 className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50"
               >
-                <option value="Bản thân">Bản thân</option>
+                <option value="Bản thân" disabled={hasOtherSelfProfile}>
+                  Bản thân {hasOtherSelfProfile ? '(Đã có 1 hồ sơ Bản thân)' : ''}
+                </option>
                 <option value="Con cái">Con cái</option>
                 <option value="Cha / Mẹ">Cha / Mẹ</option>
                 <option value="Người thân">Người thân khác</option>
@@ -543,6 +574,20 @@ export const PatientProfilesView: React.FC = () => {
                   className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50"
                 />
                 <CreditCard className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Mã số thẻ BHYT / Bảo hiểm</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Nhập mã thẻ BHYT (nếu có)"
+                  value={formData.insuranceCard || ''}
+                  onChange={(e) => handleFormChange('insuranceCard', e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50"
+                />
+                <ShieldCheck className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
               </div>
             </div>
 
