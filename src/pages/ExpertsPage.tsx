@@ -19,7 +19,7 @@ import {
   PhoneCall,
   Clock
 } from 'lucide-react';
-import { doctorService, type DoctorResponse } from '../services/doctor/doctor.service';
+import { doctorService, type DoctorResponse, type DepartmentResponse } from '../services/doctor/doctor.service';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -28,6 +28,7 @@ export const ExpertsPage: React.FC = () => {
   const navigate = useNavigate();
 
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
+  const [allDepartments, setAllDepartments] = useState<DepartmentResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedDept, setSelectedDept] = useState<string>('all');
@@ -54,6 +55,7 @@ export const ExpertsPage: React.FC = () => {
 
   useEffect(() => {
     fetchDoctors();
+    doctorService.getDepartments().then((depts) => setAllDepartments(depts || [])).catch(() => []);
   }, []);
 
   // Unique specializations list
@@ -67,6 +69,12 @@ export const ExpertsPage: React.FC = () => {
 
   // Unique hospital departments list (with departmentCode and departmentName)
   const hospitalDepartmentsList = useMemo(() => {
+    if (allDepartments.length > 0) {
+      return allDepartments.map((dept) => ({
+        code: dept.departmentCode,
+        name: dept.departmentName,
+      }));
+    }
     const map = new Map<string, { code: string; name: string }>();
     doctors.forEach((d) => {
       d.doctorDepartments?.forEach((dd) => {
@@ -79,7 +87,7 @@ export const ExpertsPage: React.FC = () => {
       });
     });
     return Array.from(map.values());
-  }, [doctors]);
+  }, [doctors, allDepartments]);
 
   // Filtered doctors client-side
   const filteredDoctors = useMemo(() => {
@@ -212,7 +220,7 @@ export const ExpertsPage: React.FC = () => {
               </div>
 
               {/* Dynamic Filter Pills */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none justify-start sm:justify-center w-full">
+              <div className="flex flex-wrap items-center justify-center gap-2 max-w-4xl mx-auto py-2">
                 <button
                   onClick={() => setSelectedDept('all')}
                   className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${

@@ -42,7 +42,34 @@ export interface SearchDoctorQuery {
   departmentId?: string;
 }
 
+export interface DepartmentResponse {
+  departmentId: string;
+  departmentCode: string;
+  departmentName: string;
+  description?: string;
+  roomLocation?: string;
+  isActive: boolean;
+}
+
+export interface AssignDepartmentData {
+  departmentId: string;
+  isPrimary?: boolean;
+}
+
 export const doctorService = {
+  // GET /departments — Danh sách khoa phòng
+  async getDepartments(): Promise<DepartmentResponse[]> {
+    return apiFetch<DepartmentResponse[]>('/departments', { method: 'GET' });
+  },
+
+  // POST /doctors/:id/departments — Gán bác sĩ vào khoa
+  async assignDoctorDepartment(doctorId: string, data: AssignDepartmentData) {
+    return apiFetch(`/doctors/${doctorId}/departments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   // GET /doctors — Danh sách bác sĩ
   async getDoctors(query?: SearchDoctorQuery): Promise<DoctorResponse[]> {
     const params = new URLSearchParams();

@@ -118,18 +118,18 @@ export const DobInput: React.FC<DobInputProps> = ({
   };
 
   return (
-    <div className={`grid grid-cols-3 gap-2 ${className}`}>
+    <div className={`grid grid-cols-3 gap-1.5 sm:gap-2 ${className}`}>
       <div className="relative">
         <input
           type="text"
           inputMode="numeric"
           maxLength={2}
-          placeholder="Ngày (DD)"
+          placeholder="Ngày"
           value={day}
           onChange={handleDayChange}
           onBlur={handleBlurDay}
           required={required}
-          className="w-full px-3 py-2 text-xs text-center rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50 font-medium"
+          className="w-full px-2 py-2.5 text-xs text-center rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50 font-semibold text-slate-800 placeholder:text-slate-400"
         />
       </div>
 
@@ -139,12 +139,12 @@ export const DobInput: React.FC<DobInputProps> = ({
           type="text"
           inputMode="numeric"
           maxLength={2}
-          placeholder="Tháng (MM)"
+          placeholder="Tháng"
           value={month}
           onChange={handleMonthChange}
           onBlur={handleBlurMonth}
           required={required}
-          className="w-full px-3 py-2 text-xs text-center rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50 font-medium"
+          className="w-full px-2 py-2.5 text-xs text-center rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50 font-semibold text-slate-800 placeholder:text-slate-400"
         />
       </div>
 
@@ -154,13 +154,13 @@ export const DobInput: React.FC<DobInputProps> = ({
           type="text"
           inputMode="numeric"
           maxLength={4}
-          placeholder="Năm (YYYY)"
+          placeholder="Năm"
           value={year}
           onChange={handleYearChange}
           required={required}
-          className="w-full px-3 py-2 text-xs text-center rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50 pr-7 font-medium"
+          className="w-full pl-2 pr-6 py-2.5 text-xs text-center rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50 font-semibold text-slate-800 placeholder:text-slate-400"
         />
-        <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2.5 pointer-events-none" />
+        <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-3 pointer-events-none" />
       </div>
     </div>
   );
