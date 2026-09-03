@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MapPin, User, Headphones, Calendar, Search, Menu, LogIn, LayoutDashboard, Lock } from 'lucide-react';
+import { MapPin, User, Headphones, Calendar, Search, Menu, LogIn, LayoutDashboard } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getAvatarUrl } from '../../services/api';
 import { LoginModal } from '../auth/LoginModal';
@@ -161,11 +161,15 @@ export const Header = () => {
         </div>
       </div>
 
-      {/* Render Login Modal Inline Overlay */}
+      {/* Render Modals */}
       <LoginModal 
         isOpen={isLoginOpen} 
         onClose={() => setIsLoginOpen(false)} 
         onLoginSuccess={() => {}}
+      />
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
       />
     </header>
   );

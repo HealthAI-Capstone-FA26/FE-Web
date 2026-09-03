@@ -5,19 +5,14 @@ import { Footer } from '../components/layout/Footer';
 import {
   Search,
   Stethoscope,
-  Award,
   Calendar,
   ShieldCheck,
   Building2,
   X,
   User,
   Loader2,
-  ArrowRight,
   CheckCircle2,
-  Filter,
-  Sparkles,
-  PhoneCall,
-  Clock
+  Sparkles
 } from 'lucide-react';
 import { doctorService, type DoctorResponse, type DepartmentResponse } from '../services/doctor/doctor.service';
 import { useAuth } from '../context/AuthContext';
@@ -134,7 +129,7 @@ export const ExpertsPage: React.FC = () => {
     }
   };
 
-  const handleBooking = (doc: DoctorResponse) => {
+  const handleBooking = (_doc: DoctorResponse) => {
     setIsModalOpen(false);
     if (!user) {
       // If guest user, navigate to login or registration

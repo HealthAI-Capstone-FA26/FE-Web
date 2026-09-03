@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Plus, X, Loader2, Save, AlertCircle, CreditCard, ShieldCheck, Phone, Mail, MapPin } from 'lucide-react';
+import { Plus, X, Loader2, Save, AlertCircle, CreditCard, ShieldCheck, Phone, Mail, MapPin } from 'lucide-react';
 import { DobInput } from '../../../components/common/DobInput';
 import { patientService, type PatientGender } from '../../../services/patient/patient.service';
 

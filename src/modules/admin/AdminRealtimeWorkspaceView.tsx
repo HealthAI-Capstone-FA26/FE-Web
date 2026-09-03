@@ -1,8 +1,9 @@
 import React from 'react';
-import { LayoutDashboard, Activity, Stethoscope } from 'lucide-react';
+import { LayoutDashboard, Activity, Stethoscope, Users } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { AdminRealtimeMonitorView } from './AdminRealtimeMonitorView';
 import { AdminDoctorsView } from './AdminDoctorsView';
+import { AdminUsersView } from './AdminUsersView';
 
 export const AdminRealtimeWorkspaceView: React.FC = () => {
   const tabs: WorkspaceTab[] = [
@@ -12,6 +13,12 @@ export const AdminRealtimeWorkspaceView: React.FC = () => {
       icon: LayoutDashboard,
       badge: 'Live',
       component: <AdminRealtimeMonitorView />
+    },
+    {
+      id: 'user-management',
+      label: 'Quản Lý Tài Khoản (Users)',
+      icon: Users,
+      component: <AdminUsersView />
     },
     {
       id: 'doctor-management',
@@ -30,11 +37,12 @@ export const AdminRealtimeWorkspaceView: React.FC = () => {
   return (
     <WorkspaceContainer
       title="Giám Sát Realtime & Quản Trị Hệ Thống (Admin Workspace)"
-      subtitle="Theo dõi luồng khám bệnh 7 bước thời gian thực, quản lý bác sĩ và rà soát vận hành bệnh viện"
+      subtitle="Theo dõi luồng khám bệnh 7 bước thời gian thực, quản lý tài khoản người dùng, bác sĩ và rà soát vận hành bệnh viện"
       icon={LayoutDashboard}
       tabs={tabs}
       defaultTabId="realtime-monitor"
     />
   );
 };
+
 

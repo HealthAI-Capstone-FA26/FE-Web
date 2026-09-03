@@ -3,7 +3,6 @@ import { useAuth } from '../../context/AuthContext';
 import { ROLE_NAV_CONFIG, ROLE_DEFAULT_PATHS } from '../../types/dashboard';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { getAvatarUrl } from '../../services/api';
-import type { UserRole } from '../../types/auth';
 import {
   LayoutDashboard,
   User,
@@ -35,7 +34,7 @@ interface DashboardLayoutProps {
 }
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
-  const { user, currentRole, switchRole, logout, allRoles, can } = useAuth();
+  const { user, currentRole, logout, can } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -49,13 +48,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       items: group.items.filter((item) => !item.requiredPermission || can(item.requiredPermission)),
     }))
     .filter((group) => group.items.length > 0);
-
-  const handleRoleSwitch = (targetRole: UserRole) => {
-    switchRole(targetRole);
-    setIsRoleDropdownOpen(false);
-    const targetPath = ROLE_DEFAULT_PATHS[targetRole] || '/bac-si/danh-sach-kham';
-    navigate(targetPath);
-  };
 
   const getIconComponent = (iconName: string) => {
     switch (iconName) {

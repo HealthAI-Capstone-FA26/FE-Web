@@ -9,13 +9,11 @@ import {
   Save,
   X,
   Upload,
-  ShieldCheck,
   Key,
   Lock,
   Eye,
   EyeOff,
-  Sparkles,
-  Fingerprint
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { authService } from '../../services/auth/auth.service';
