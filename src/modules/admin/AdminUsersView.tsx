@@ -33,7 +33,7 @@ const ROLE_CONFIG: Record<
   ADMIN: { label: 'Quản trị viên', icon: Shield, color: 'text-purple-600 bg-purple-50 border-purple-200', badgeVariant: 'purple' },
   DOCTOR: { label: 'Bác sĩ', icon: Stethoscope, color: 'text-blue-600 bg-blue-50 border-blue-200', badgeVariant: 'blue' },
   NURSE: { label: 'Điều dưỡng', icon: HeartPulse, color: 'text-rose-600 bg-rose-50 border-rose-200', badgeVariant: 'rose' },
-  RECEPTION: { label: 'Lễ tân', icon: Receipt, color: 'text-amber-600 bg-amber-50 border-amber-200', badgeVariant: 'amber' },
+  RECEPTIONIST: { label: 'Lễ tân', icon: Receipt, color: 'text-amber-600 bg-amber-50 border-amber-200', badgeVariant: 'amber' },
   LAB: { label: 'KTV Xét nghiệm', icon: FlaskConical, color: 'text-cyan-600 bg-cyan-50 border-cyan-200', badgeVariant: 'blue' },
   PATIENT: { label: 'Bệnh nhân', icon: UserCheck, color: 'text-emerald-600 bg-emerald-50 border-emerald-200', badgeVariant: 'emerald' },
 };
@@ -97,7 +97,7 @@ export const AdminUsersView: React.FC = () => {
       PATIENT: 0,
       DOCTOR: 0,
       NURSE: 0,
-      RECEPTION: 0,
+      RECEPTIONIST: 0,
       LAB: 0,
       ADMIN: 0,
     };
@@ -174,7 +174,7 @@ export const AdminUsersView: React.FC = () => {
           { key: 'ALL', label: 'Tổng tài khoản', count: roleCounts.ALL, icon: Users, color: 'text-blue-700 bg-blue-50' },
           { key: 'DOCTOR', label: 'Bác sĩ', count: roleCounts.DOCTOR, icon: Stethoscope, color: 'text-indigo-700 bg-indigo-50' },
           { key: 'NURSE', label: 'Điều dưỡng', count: roleCounts.NURSE, icon: HeartPulse, color: 'text-rose-700 bg-rose-50' },
-          { key: 'RECEPTION', label: 'Lễ tân / Thu ngân', count: roleCounts.RECEPTION, icon: Receipt, color: 'text-amber-700 bg-amber-50' },
+          { key: 'RECEPTIONIST', label: 'Lễ tân / Thu ngân', count: roleCounts.RECEPTIONIST, icon: Receipt, color: 'text-amber-700 bg-amber-50' },
           { key: 'LAB', label: 'KTV Xét nghiệm', count: roleCounts.LAB, icon: FlaskConical, color: 'text-cyan-700 bg-cyan-50' },
           { key: 'PATIENT', label: 'Bệnh nhân', count: roleCounts.PATIENT, icon: UserCheck, color: 'text-emerald-700 bg-emerald-50' },
         ].map((item) => (
@@ -220,7 +220,7 @@ export const AdminUsersView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
-            {['ALL', 'DOCTOR', 'NURSE', 'RECEPTION', 'LAB', 'PATIENT', 'ADMIN'].map((tab) => (
+            {['ALL', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'LAB', 'PATIENT', 'ADMIN'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setSelectedRoleTab(tab)}

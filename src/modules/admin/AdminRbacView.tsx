@@ -26,6 +26,7 @@ const ROLE_ICONS: Record<string, { icon: any; color: string; bgColor: string; bo
   ADMIN: { icon: Shield, color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-200' },
   DOCTOR: { icon: Stethoscope, color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
   NURSE: { icon: HeartPulse, color: 'text-rose-700', bgColor: 'bg-rose-50', borderColor: 'border-rose-200' },
+  RECEPTIONIST: { icon: Receipt, color: 'text-amber-700', bgColor: 'bg-amber-50', borderColor: 'border-amber-200' },
   RECEPTION: { icon: Receipt, color: 'text-amber-700', bgColor: 'bg-amber-50', borderColor: 'border-amber-200' },
   LAB: { icon: FlaskConical, color: 'text-cyan-700', bgColor: 'bg-cyan-50', borderColor: 'border-cyan-200' },
   PATIENT: { icon: UserCheck, color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },

@@ -24,7 +24,7 @@ interface CreatePatientProfileModalProps {
   userPhone?: string;
   userEmail?: string;
   hasSelfProfile: boolean;
-  onSuccess: (message?: string) => void;
+  onSuccess: (message?: string, newPatientId?: string) => void;
 }
 
 const mapGenderToBE = (g: string): PatientGender => {
@@ -41,15 +41,16 @@ export const CreatePatientProfileModal: React.FC<CreatePatientProfileModalProps>
   hasSelfProfile,
   onSuccess,
 }) => {
-  const [formData, setFormData] = useState<Omit<ProfileItem, 'id'>>({
-    relationship: 'Bản thân',
+  const [formData, setFormData] = useState<ProfileItem>({
+    id: '',
+    relationship: hasSelfProfile ? 'Con cái' : 'Bản thân',
     fullName: '',
     dob: '',
     gender: 'Nam',
     identityCard: '',
     insuranceCard: '',
-    phone: '',
-    email: '',
+    phone: userPhone || '',
+    email: userEmail || '',
     address: '',
     isBackendRecord: false,
   });
@@ -60,14 +61,15 @@ export const CreatePatientProfileModal: React.FC<CreatePatientProfileModalProps>
   useEffect(() => {
     if (isOpen) {
       setFormData({
+        id: '',
         relationship: hasSelfProfile ? 'Con cái' : 'Bản thân',
         fullName: '',
         dob: '',
         gender: 'Nam',
         identityCard: '',
         insuranceCard: '',
-        phone: userPhone,
-        email: userEmail,
+        phone: userPhone || '',
+        email: userEmail || '',
         address: '',
         isBackendRecord: false,
       });
@@ -77,7 +79,7 @@ export const CreatePatientProfileModal: React.FC<CreatePatientProfileModalProps>
 
   if (!isOpen) return null;
 
-  const handleFormChange = (field: keyof Omit<ProfileItem, 'id'>, value: string) => {
+  const handleFormChange = (field: keyof ProfileItem, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -116,8 +118,11 @@ export const CreatePatientProfileModal: React.FC<CreatePatientProfileModalProps>
         relationship: formData.relationship,
       };
 
+      let newPatientId: string | undefined;
+
       try {
-        await patientService.createPatient(payload);
+        const created = await patientService.createPatient(payload);
+        newPatientId = created?.patientId;
       } catch (createErr: any) {
         if (
           createErr?.message?.includes('đã có hồ sơ') ||
@@ -132,6 +137,7 @@ export const CreatePatientProfileModal: React.FC<CreatePatientProfileModalProps>
 
           if (suggestion?.matched && suggestion.patient?.patientId) {
             await patientService.linkUser(suggestion.patient.patientId);
+            newPatientId = suggestion.patient.patientId;
           } else {
             throw createErr;
           }
@@ -140,7 +146,7 @@ export const CreatePatientProfileModal: React.FC<CreatePatientProfileModalProps>
         }
       }
 
-      onSuccess(`Đã tạo thành công hồ sơ bệnh nhân ${formData.fullName}!`);
+      onSuccess(`Đã tạo thành công hồ sơ bệnh nhân ${formData.fullName}!`, newPatientId);
       onClose();
     } catch (err: any) {
       setFormError(err?.message || 'Tạo hồ sơ bệnh nhân thất bại. Vui lòng kiểm tra lại.');
