@@ -16,13 +16,13 @@ export const ReceptionIntakeWorkspaceView: React.FC = () => {
     },
     {
       id: 'patients-list',
-      label: 'Danh sách & Quản lý Bệnh nhân',
+      label: 'Danh sách bệnh nhân',
       icon: Users,
       component: <ReceptionPatientsView />
     },
     {
       id: 'create-profile',
-      label: 'Tạo mới Hồ sơ Bệnh nhân',
+      label: 'Tạo hồ sơ bệnh nhân',
       icon: UserPlus,
       component: <ReceptionPatientProfileFormView />
     }

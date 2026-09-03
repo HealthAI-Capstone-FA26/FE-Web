@@ -46,14 +46,10 @@ interface Patient {
   visitHistory: Visit[];
 }
 
-const initialPatientsData: Patient[] = [];
-
 export const ReceptionPatientsView: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [activeSearchTab, setActiveSearchTab] = useState<'patients' | 'conditions' | 'programs'>('patients');
 
   // Filter & Pagination States
   const [selectedFilterTab, setSelectedFilterTab] = useState<string>('ALL');
@@ -62,6 +58,7 @@ export const ReceptionPatientsView: React.FC = () => {
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [reloadTrigger, setReloadTrigger] = useState(0);
@@ -81,28 +78,17 @@ export const ReceptionPatientsView: React.FC = () => {
   const [validationError, setValidationError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const searchRef = useRef<HTMLDivElement>(null);
-
   // Reset page when filter changes
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedFilterTab, pageSize]);
 
-  // Close dropdown on click outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setIsSearchFocused(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const loadPatients = async () => {
-    setIsLoading(true);
+  const loadPatients = async (isSilent: boolean = false) => {
+    if (!isSilent) {
+      setIsLoading(true);
+    }
     setFetchError(null);
     try {
       const data = await patientService.getAllPatients(searchTerm || undefined);
@@ -111,7 +97,7 @@ export const ReceptionPatientsView: React.FC = () => {
           const birthYear = p.dateOfBirth ? new Date(p.dateOfBirth).getFullYear() : 1995;
           const computedAge = isNaN(birthYear) ? 30 : new Date().getFullYear() - birthYear;
           return {
-            patientId: p.patientId || p.patientCode,
+            patientId: p.patientId || p.patientCode || p.id,
             mrn: p.patientCode || p.patientId || '',
             name: p.fullName || 'Chưa đặt tên',
             age: computedAge,
@@ -134,10 +120,14 @@ export const ReceptionPatientsView: React.FC = () => {
       }
     } catch (err: any) {
       console.log('Lỗi tải danh sách bệnh nhân từ Backend:', err);
-      setPatients([]);
-      setFetchError(err?.message || 'Không thể kết nối đến máy chủ Backend.');
+      if (!isSilent) {
+        setPatients([]);
+        setFetchError(err?.message || 'Không thể kết nối đến máy chủ Backend.');
+      }
     } finally {
-      setIsLoading(false);
+      if (!isSilent) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -176,21 +166,10 @@ export const ReceptionPatientsView: React.FC = () => {
     return filteredPatients.slice(startIdx, startIdx + pageSize);
   }, [filteredPatients, currentPage, pageSize]);
 
-  // Dropdown list matching search (from backend patients)
-  const mockupDropdownMatches = useMemo(() => {
-    return filteredPatients.map(p => ({
-      name: p.name,
-      mrn: p.mrn,
-      ssn: p.cccd,
-      patient: p,
-    }));
-  }, [filteredPatients]);
-
-  // Handle adding new patient with strict duplicate checks
-  const handleAddPatient = (e: React.FormEvent) => {
+  // Handle adding new patient with API call and duplicate checks
+  const handleAddPatient = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError('');
-    setSuccessMsg('');
 
     // 1. Mandatory Fields Check
     if (!formName.trim()) {
@@ -206,68 +185,67 @@ export const ReceptionPatientsView: React.FC = () => {
       return;
     }
     if (!formCccd.trim()) {
-      setValidationError('Số CCCD/SSN là bắt buộc.');
+      setValidationError('Số CCCD là bắt buộc.');
       return;
     }
 
-    // 2. Duplicate Check by CCCD
+    // 2. Client Duplicate Check by CCCD
     const duplicateCccd = patients.find(p => p.cccd === formCccd.trim());
     if (duplicateCccd) {
-      setValidationError(`Trùng lặp hồ sơ! Số CCCD này đã được đăng ký cho bệnh nhân ${duplicateCccd.name} (MRN: ${duplicateCccd.mrn}).`);
+      setValidationError(`Trùng lặp hồ sơ! Số CCCD này đã được đăng ký cho bệnh nhân ${duplicateCccd.name} (Mã: ${duplicateCccd.mrn}).`);
       return;
     }
 
-    // 3. Duplicate Check by BHYT (if entered)
+    // 3. Client Duplicate Check by BHYT (if entered)
     if (formBhyt.trim()) {
       const duplicateBhyt = patients.find(p => p.bhyt === formBhyt.trim());
       if (duplicateBhyt) {
-        setValidationError(`Trùng lặp hồ sơ! Mã BHYT này đã được đăng ký cho bệnh nhân ${duplicateBhyt.name} (MRN: ${duplicateBhyt.mrn}).`);
+        setValidationError(`Trùng lặp hồ sơ! Mã BHYT này đã được đăng ký cho bệnh nhân ${duplicateBhyt.name} (Mã: ${duplicateBhyt.mrn}).`);
         return;
       }
     }
 
-    // Calculate age roughly
-    const birthYear = new Date(formDob).getFullYear();
-    const currentYear = new Date().getFullYear();
-    const calculatedAge = currentYear - birthYear;
+    setIsSubmittingAdd(true);
 
-    // Create new patient MRN
-    const newMrn = Math.floor(1000000 + Math.random() * 9000000).toString();
+    try {
+      const payload = {
+        fullName: formName.trim(),
+        dateOfBirth: formDob,
+        gender: formGender === 'Nam' ? 'male' as const : formGender === 'Nữ' ? 'female' as const : 'other' as const,
+        phoneNumber: formPhone.trim(),
+        identityNumber: formCccd.trim(),
+        insuranceNumber: formBhyt.trim() || undefined,
+        email: formEmail.trim() || undefined,
+      };
 
-    // Initialize first visit from form entry
-    const initialVisit: Visit = {
-      date: new Date().toISOString().split('T')[0],
-      reason: formAction,
-      diagnosis: `Tiếp nhận yêu cầu khám: ${formAction}`,
-      doctor: formDoctor,
-      specialty: formDoctor === 'BS. Emily Johnson' ? 'Khoa Tim mạch' : 'Khoa Tiêu hóa',
-      prescription: "Chưa có kê đơn (chờ khám sàng lọc)",
-      notes: "Bệnh nhân đăng ký khám tại quầy trực tiếp."
-    };
+      const res = await patientService.createPatient(payload);
 
-    const newPatient: Patient = {
-      patientId: newMrn,
-      mrn: newMrn,
-      name: formName,
-      age: calculatedAge,
-      gender: formGender,
-      email: formEmail || `${formName.toLowerCase().replace(/\s+/g, '')}@gmail.com`,
-      phone: formPhone,
-      cccd: formCccd,
-      ssn: formCccd,
-      bhyt: formBhyt || 'Không có',
-      dob: formDob,
-      recentAction: formAction,
-      doctor: formDoctor,
-      specialty: formDoctor === 'BS. Emily Johnson' ? 'Khoa Tim mạch' : 'Khoa Tiêu hóa',
-      visitHistory: [initialVisit]
-    };
+      const birthYear = new Date(formDob).getFullYear();
+      const currentYear = new Date().getFullYear();
+      const calculatedAge = isNaN(birthYear) ? 30 : currentYear - birthYear;
 
-    setPatients([newPatient, ...patients]);
-    setSuccessMsg(`Tiếp nhận thành công! Tạo hồ sơ mới cho bệnh nhân ${formName} (MRN: ${newMrn})`);
+      const createdPatient: Patient = {
+        patientId: res.patientId || (res as any).id || formCccd,
+        mrn: res.patientCode || (res as any).patientCode || formCccd,
+        name: formName.trim(),
+        age: calculatedAge,
+        gender: formGender,
+        email: formEmail.trim() || 'Chưa cập nhật',
+        phone: formPhone.trim(),
+        cccd: formCccd.trim(),
+        ssn: formCccd.trim(),
+        bhyt: formBhyt.trim() || 'Không có',
+        dob: formDob,
+        recentAction: formAction,
+        doctor: formDoctor,
+        specialty: formDoctor === 'BS. Emily Johnson' ? 'Khoa Tim mạch' : 'Khoa Tiêu hóa',
+        visitHistory: []
+      };
 
-    // Clear form
-    setTimeout(() => {
+      setPatients((prev) => [createdPatient, ...prev]);
+      setSuccessMsg(`Tiếp nhận thành công! Đã tạo hồ sơ cho bệnh nhân ${formName.trim()}!`);
+      setTimeout(() => setSuccessMsg(''), 4000);
+
       setIsAddModalOpen(false);
       setFormName('');
       setFormDob('');
@@ -277,8 +255,14 @@ export const ReceptionPatientsView: React.FC = () => {
       setFormBhyt('');
       setFormEmail('');
       setValidationError('');
-      setSuccessMsg('');
-    }, 2000);
+
+      // Silent sync with backend
+      loadPatients(true);
+    } catch (err: any) {
+      setValidationError(err?.message || 'Không thể tạo hồ sơ bệnh nhân trên hệ thống. Vui lòng kiểm tra lại.');
+    } finally {
+      setIsSubmittingAdd(false);
+    }
   };
 
   return (
@@ -305,7 +289,7 @@ export const ReceptionPatientsView: React.FC = () => {
           </button>
 
           <button
-            onClick={loadPatients}
+            onClick={() => loadPatients()}
             disabled={isLoading}
             className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all flex items-center gap-1.5 border-none cursor-pointer"
           >
@@ -395,7 +379,7 @@ export const ReceptionPatientsView: React.FC = () => {
             <AlertCircle className="w-8 h-8" />
             <span className="text-xs font-bold">{fetchError}</span>
             <button
-              onClick={loadPatients}
+              onClick={() => loadPatients()}
               className="mt-2 px-4 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-xl cursor-pointer border-none"
             >
               Thử lại
@@ -422,7 +406,7 @@ export const ReceptionPatientsView: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginatedPatients.map((patient) => (
-                  <tr key={patient.mrn} className="hover:bg-slate-50/60 transition-colors">
+                  <tr key={patient.patientId || patient.mrn} className="hover:bg-slate-50/60 transition-colors">
                     {/* Patient Info */}
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
@@ -976,9 +960,17 @@ export const ReceptionPatientsView: React.FC = () => {
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl text-xs md:text-sm shadow hover:shadow-md cursor-pointer border-none"
+                      disabled={isSubmittingAdd}
+                      className="px-5 py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl text-xs md:text-sm shadow hover:shadow-md cursor-pointer border-none flex items-center gap-1.5 disabled:opacity-50"
                     >
-                      Tiếp nhận
+                      {isSubmittingAdd ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Đang tiếp nhận...</span>
+                        </>
+                      ) : (
+                        <span>Tiếp nhận</span>
+                      )}
                     </button>
                   </div>
 
@@ -990,14 +982,42 @@ export const ReceptionPatientsView: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {successMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold border border-emerald-500"
+          >
+            <CheckCircle2 className="w-4 h-4 text-emerald-100 shrink-0" />
+            <span>{successMsg}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 6. POPUP MODAL: EDIT PATIENT PROFILE */}
       <EditPatientModal
         isOpen={!!editingPatient}
         onClose={() => setEditingPatient(null)}
         patient={editingPatient}
-        onSuccess={(msg) => {
+        onSuccess={(msg, updatedData) => {
           setSuccessMsg(msg || 'Cập nhật hồ sơ bệnh nhân thành công!');
-          setReloadTrigger((prev) => prev + 1);
+          setTimeout(() => setSuccessMsg(''), 4000);
+
+          if (updatedData && editingPatient) {
+            setPatients((prev) =>
+              prev.map((p) =>
+                (p.patientId && p.patientId === editingPatient.patientId) ||
+                (p.mrn && p.mrn === editingPatient.mrn)
+                  ? { ...p, ...updatedData }
+                  : p
+              )
+            );
+          }
+          // Silent background sync with backend
+          loadPatients(true);
         }}
       />
 

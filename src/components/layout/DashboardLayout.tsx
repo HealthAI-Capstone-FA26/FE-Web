@@ -112,13 +112,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
           {/* Right Topbar Action & Profile */}
           <div className="flex items-center space-x-3">
-            <span className="hidden md:inline-flex items-center gap-1.5 text-xs text-slate-600 bg-slate-100 font-bold px-3 py-1.5 rounded-lg border border-slate-200/80 whitespace-nowrap">
-              <ShieldCheck className="w-3.5 h-3.5 text-blue-700" />
-              <span>{user?.roleTitle || (currentRole === 'PATIENT' ? 'Cổng Bệnh Nhân 4AM' : 'Phân Hệ Nội Bộ Bệnh Viện')}</span>
-            </span>
-
-            <div className="w-px h-4 bg-slate-200 hidden md:block"></div>
-
             <button className="relative p-2 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer border-none bg-transparent">
               <Bell className="w-4 h-4" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>
@@ -143,8 +136,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                   </div>
                 )}
                 <div className="text-left hidden sm:block">
-                  <div className="text-xs font-extrabold text-slate-800 leading-tight whitespace-nowrap">{user?.name}</div>
-                  <div className="text-[10px] text-blue-700 font-bold uppercase whitespace-nowrap">{user?.roleTitle}</div>
+                  <div className="text-xs font-extrabold text-slate-800 leading-tight whitespace-nowrap">
+                    {user?.role === 'ADMIN' ? 'Quản trị viên' : user?.name}
+                  </div>
+                  <div className="text-[10px] text-blue-700 font-bold whitespace-nowrap">
+                    {user?.role === 'ADMIN' ? 'System admin' : user?.roleTitle}
+                  </div>
                 </div>
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
               </button>

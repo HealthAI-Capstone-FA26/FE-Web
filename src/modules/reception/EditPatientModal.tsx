@@ -24,7 +24,7 @@ interface EditPatientModalProps {
   isOpen: boolean;
   onClose: () => void;
   patient: PatientItem | null;
-  onSuccess: (message?: string) => void;
+  onSuccess: (message?: string, updatedData?: Partial<PatientItem>) => void;
 }
 
 export const EditPatientModal: React.FC<EditPatientModalProps> = ({
@@ -89,7 +89,20 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
     try {
       const targetId = patient.patientId || patient.mrn;
       await patientService.updatePatient(targetId, payload);
-      onSuccess(`Đã cập nhật thành công hồ sơ bệnh nhân ${formData.fullName}!`);
+      const birthYear = formData.dob ? new Date(formData.dob).getFullYear() : 1995;
+      const computedAge = isNaN(birthYear) ? 30 : new Date().getFullYear() - birthYear;
+
+      onSuccess(`Đã cập nhật thành công hồ sơ bệnh nhân ${formData.fullName.trim()}!`, {
+        name: formData.fullName.trim(),
+        dob: formData.dob,
+        age: computedAge,
+        gender: formData.gender,
+        phone: formData.phone.trim() || 'Chưa cập nhật',
+        cccd: formData.identityCard.trim() || 'Chưa cập nhật',
+        ssn: formData.identityCard.trim() || 'Chưa cập nhật',
+        bhyt: formData.insuranceCard.trim() || 'Chưa cập nhật',
+        email: formData.email.trim() || 'Chưa cập nhật',
+      });
       onClose();
     } catch (err: any) {
       setFormError(err?.message || 'Cập nhật hồ sơ bệnh nhân thất bại. Vui lòng kiểm tra lại.');

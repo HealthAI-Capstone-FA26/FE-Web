@@ -28,14 +28,38 @@ import { EditUserModal } from './components/EditUserModal';
 
 const ROLE_CONFIG: Record<
   string,
-  { label: string; icon: any; color: string; badgeVariant: 'blue' | 'emerald' | 'amber' | 'purple' | 'slate' | 'rose' }
+  { label: string; icon: any; className: string }
 > = {
-  ADMIN: { label: 'Quản trị viên', icon: Shield, color: 'text-purple-600 bg-purple-50 border-purple-200', badgeVariant: 'purple' },
-  DOCTOR: { label: 'Bác sĩ', icon: Stethoscope, color: 'text-blue-600 bg-blue-50 border-blue-200', badgeVariant: 'blue' },
-  NURSE: { label: 'Điều dưỡng', icon: HeartPulse, color: 'text-rose-600 bg-rose-50 border-rose-200', badgeVariant: 'rose' },
-  RECEPTIONIST: { label: 'Lễ tân', icon: Receipt, color: 'text-amber-600 bg-amber-50 border-amber-200', badgeVariant: 'amber' },
-  LAB: { label: 'KTV Xét nghiệm', icon: FlaskConical, color: 'text-cyan-600 bg-cyan-50 border-cyan-200', badgeVariant: 'blue' },
-  PATIENT: { label: 'Bệnh nhân', icon: UserCheck, color: 'text-emerald-600 bg-emerald-50 border-emerald-200', badgeVariant: 'emerald' },
+  ADMIN: {
+    label: 'Quản trị viên',
+    icon: Shield,
+    className: 'bg-purple-50 text-purple-700 border-purple-200/90 shadow-2xs',
+  },
+  DOCTOR: {
+    label: 'Bác sĩ',
+    icon: Stethoscope,
+    className: 'bg-blue-50 text-blue-700 border-blue-200/90 shadow-2xs',
+  },
+  NURSE: {
+    label: 'Điều dưỡng',
+    icon: HeartPulse,
+    className: 'bg-rose-50 text-rose-700 border-rose-200/90 shadow-2xs',
+  },
+  RECEPTIONIST: {
+    label: 'Lễ tân',
+    icon: Receipt,
+    className: 'bg-amber-50 text-amber-700 border-amber-200/90 shadow-2xs',
+  },
+  LAB: {
+    label: 'KTV Xét nghiệm',
+    icon: FlaskConical,
+    className: 'bg-cyan-50 text-cyan-700 border-cyan-200/90 shadow-2xs',
+  },
+  PATIENT: {
+    label: 'Bệnh nhân',
+    icon: UserCheck,
+    className: 'bg-emerald-50 text-emerald-700 border-emerald-200/90 shadow-2xs',
+  },
 };
 
 export const AdminUsersView: React.FC = () => {
@@ -57,17 +81,23 @@ export const AdminUsersView: React.FC = () => {
   // Toast
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchData = async (isSilent: boolean = false) => {
+    if (!isSilent) {
+      setIsLoading(true);
+    }
     setError(null);
     try {
       const data = await userService.getUsers();
       setUsers(data);
     } catch (err: any) {
       console.error('Lỗi tải danh sách người dùng:', err);
-      setError(err?.message || 'Không thể kết nối đến máy chủ để tải danh sách người dùng');
+      if (!isSilent) {
+        setError(err?.message || 'Không thể kết nối đến máy chủ để tải danh sách người dùng');
+      }
     } finally {
-      setIsLoading(false);
+      if (!isSilent) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -83,7 +113,7 @@ export const AdminUsersView: React.FC = () => {
   }, [searchQuery, selectedRoleTab, pageSize]);
 
   const handleSuccess = (message?: string) => {
-    fetchData();
+    fetchData(true);
     if (message) {
       setSuccessToast(message);
       setTimeout(() => setSuccessToast(null), 4000);
@@ -159,7 +189,7 @@ export const AdminUsersView: React.FC = () => {
         </div>
 
         <button
-          onClick={fetchData}
+          onClick={() => fetchData()}
           disabled={isLoading}
           className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all flex items-center gap-1.5 self-start md:self-auto border-none cursor-pointer"
         >
@@ -246,7 +276,7 @@ export const AdminUsersView: React.FC = () => {
             <AlertCircle className="w-8 h-8" />
             <span className="text-xs font-bold">{error}</span>
             <button
-              onClick={fetchData}
+              onClick={() => fetchData()}
               className="mt-2 px-4 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-xl cursor-pointer border-none"
             >
               Thử lại
@@ -315,12 +345,13 @@ export const AdminUsersView: React.FC = () => {
 
                       {/* Role */}
                       <td className="py-3.5 px-4 text-center">
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border"
-                          style={{ backgroundColor: 'var(--role-bg)', color: 'var(--role-text)' }}>
-                          <span className={`inline-flex items-center gap-1.5 ${roleCfg.color.split(' ')[0]}`}>
-                            <roleCfg.icon className="w-3.5 h-3.5" />
-                            <span>{roleCfg.label}</span>
-                          </span>
+                        <div
+                          className={`inline-flex items-center justify-center gap-1.5 w-36 py-1.5 px-3 rounded-full text-xs font-bold border transition-all ${
+                            roleCfg?.className || 'bg-slate-50 text-slate-700 border-slate-200 shadow-2xs'
+                          }`}
+                        >
+                          <roleCfg.icon className="w-3.5 h-3.5 shrink-0" />
+                          <span className="whitespace-nowrap">{roleCfg.label}</span>
                         </div>
                       </td>
 
