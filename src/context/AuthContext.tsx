@@ -12,7 +12,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'observation:read:own',
     'observation:create:own',
   ],
-  RECEPTION: [
+  RECEPTIONIST: [
     'patient:read:all',
     'patient:create:all',
     'patient:update:all',
@@ -71,15 +71,15 @@ const MOCK_USERS: Record<UserRole, UserProfile> = {
     avatar: '',
     permissions: DEFAULT_ROLE_PERMISSIONS.PATIENT,
   },
-  RECEPTION: {
+  RECEPTIONIST: {
     id: 'ST-101',
     name: 'Nguyễn Văn Minh',
     email: 'minh.reception@tamanh.vn',
-    role: 'RECEPTION',
+    role: 'RECEPTIONIST',
     roleTitle: 'Lễ tân / Thu ngân',
     staffCode: 'REC-001',
     department: 'Quầy Tiếp Nhận & Thu Ngân 01',
-    permissions: DEFAULT_ROLE_PERMISSIONS.RECEPTION,
+    permissions: DEFAULT_ROLE_PERMISSIONS.RECEPTIONIST,
   },
   NURSE: {
     id: 'ST-102',
@@ -276,7 +276,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const allRoles: { role: UserRole; label: string; desc: string }[] = [
     { role: 'PATIENT', label: 'Bệnh nhân', desc: 'Đặt lịch, xem EMR & tải đơn thuốc PDF' },
-    { role: 'RECEPTION', label: 'Lễ tân / Thu ngân', desc: 'Tiếp nhận, xếp hàng chờ & thu phí' },
+    { role: 'RECEPTIONIST', label: 'Lễ tân / Thu ngân', desc: 'Tiếp nhận, xếp hàng chờ & thu phí' },
     { role: 'NURSE', label: 'Điều dưỡng', desc: 'Đo & ghi nhận sinh hiệu, cảnh báo bất thường' },
     { role: 'DOCTOR', label: 'Bác sĩ khám', desc: 'Xem AI tóm tắt EMR, chỉ định, chẩn đoán ICD-10' },
     { role: 'LAB', label: 'KTV Phòng Lab', desc: 'Nhập kết quả xét nghiệm, upload ảnh DICOM' },

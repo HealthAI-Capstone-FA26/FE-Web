@@ -3,7 +3,7 @@
 // Trạng thái: Mock UI (chưa nối API)
 
 import React, { useState } from 'react';
-import { User, Calendar, Phone, Mail, MapPin, AlertCircle, Plus, X, Save, CheckCircle2, Loader2 } from 'lucide-react';
+import { User, Phone, Mail, MapPin, AlertCircle, Plus, X, Save, CheckCircle2, Loader2 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { DobInput } from '../../components/common/DobInput';
 import { useAuth } from '../../context/AuthContext';

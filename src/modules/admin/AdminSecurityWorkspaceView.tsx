@@ -1,31 +1,27 @@
 import React from 'react';
-import { ShieldCheck, Sparkles } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
-import { AdminRealtimeMonitorView } from './AdminRealtimeMonitorView';
+import { AdminRbacView } from './AdminRbacView';
 
 export const AdminSecurityWorkspaceView: React.FC = () => {
   const tabs: WorkspaceTab[] = [
     {
-      id: 'audit-logs',
-      label: 'Nhật ký Truy cập Audit Log',
-      icon: ShieldCheck,
-      component: <AdminRealtimeMonitorView />
-    },
-    {
-      id: 'fhir-compliance',
-      label: 'Rà soát Chuẩn dữ liệu HL7 FHIR R4',
-      icon: Sparkles,
-      component: <AdminRealtimeMonitorView />
+      id: 'rbac-matrix',
+      label: ' Quyền Hệ Thống',
+      icon: Shield,
+      component: <AdminRbacView />
     }
   ];
 
   return (
     <WorkspaceContainer
-      title="Bảo Mật Audit Log & Chuẩn HL7 FHIR (Admin Workspace)"
-      subtitle="Quản lý nhật ký hoạt động hệ thống, kiểm soát truy cập dữ liệu y tế và rà soát tính tuân thủ chuẩn HL7 FHIR"
-      icon={ShieldCheck}
+      title="Bảo Mật & Quản Trị Phân Quyền Vai Trò (Admin Workspace)"
+      subtitle="Quản lý ma trận phân quyền RBAC và cấu hình quyền hạn chi tiết cho từng vai trò người dùng"
+      icon={Shield}
       tabs={tabs}
-      defaultTabId="audit-logs"
+      defaultTabId="rbac-matrix"
     />
   );
 };
+
+

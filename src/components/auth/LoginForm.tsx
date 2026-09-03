@@ -27,7 +27,7 @@ export const DEMO_STAFF_ACCOUNTS: Array<{
     icon: Activity
   },
   {
-    role: 'RECEPTION',
+    role: 'RECEPTIONIST',
     label: 'Lễ tân / Thu ngân',
     name: 'Nguyễn Văn Minh',
     email: 'minh.reception@tamanh.vn',

@@ -15,9 +15,20 @@ export interface NavGroup {
   items: TabNavItem[];
 }
 
+const receptionNavGroups: NavGroup[] = [
+  {
+    groupName: 'Nghiệp vụ Tiếp nhận',
+    items: [
+      { id: 'rec_workspace_checkin', label: 'Tiếp nhận & Đăng ký quầy', path: '/tiep-nhan/danh-sach-cho', iconName: 'UserCheck', badge: '08 Chờ', requiredPermission: 'queue-ticket:read:all' },
+      { id: 'rec_workspace_patients', label: 'Khai báo & Tra cứu Hồ sơ', path: '/tiep-nhan/benh-nhan', iconName: 'Users', requiredPermission: 'patient:read:all' },
+      { id: 'rec_workspace_billing', label: 'Quản lý Thu phí & Hóa đơn', path: '/tiep-nhan/thu-phi', iconName: 'CreditCard', badge: '05 Chờ', requiredPermission: 'claim:read:all' }
+    ]
+  }
+];
+
 export const ROLE_DEFAULT_PATHS: Record<UserRole, string> = {
-  PATIENT: '/benh-nhan/lich-hen',
-  RECEPTION: '/tiep-nhan/danh-sach-cho',
+  PATIENT: '/benh-nhan/ho-so',
+  RECEPTIONIST: '/tiep-nhan/danh-sach-cho',
   NURSE: '/dieu-duong/hang-cho-sinh-hieu',
   DOCTOR: '/bac-si/danh-sach-kham',
   LAB: '/xet-nghiem/hang-cho-xet-nghiem',
@@ -25,16 +36,7 @@ export const ROLE_DEFAULT_PATHS: Record<UserRole, string> = {
 };
 
 export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
-  RECEPTION: [
-    {
-      groupName: 'Nghiệp vụ Tiếp nhận',
-      items: [
-        { id: 'rec_workspace_checkin', label: 'Tiếp nhận & Đăng ký quầy', path: '/tiep-nhan/danh-sach-cho', iconName: 'UserCheck', badge: '08 Chờ', requiredPermission: 'queue-ticket:read:all' },
-        { id: 'rec_workspace_patients', label: 'Khai báo & Tra cứu Hồ sơ', path: '/tiep-nhan/benh-nhan', iconName: 'Users', requiredPermission: 'patient:read:all' },
-        { id: 'rec_workspace_billing', label: 'Quản lý Thu phí & Hóa đơn', path: '/tiep-nhan/thu-phi', iconName: 'CreditCard', badge: '05 Chờ', requiredPermission: 'claim:read:all' }
-      ]
-    }
-  ],
+  RECEPTIONIST: receptionNavGroups,
   NURSE: [
     {
       groupName: 'Không gian Nghiệp vụ',

@@ -9,7 +9,7 @@ interface EditPatientProfileModalProps {
   profile: ProfileItem | null;
   onClose: () => void;
   hasOtherSelfProfile: boolean;
-  onSuccess: (message?: string) => void;
+  onSuccess: (message?: string, targetId?: string) => void;
 }
 
 const mapGenderToBE = (g: string): PatientGender => {
@@ -86,7 +86,7 @@ export const EditPatientProfileModal: React.FC<EditPatientProfileModalProps> = (
         await patientService.updatePatient(formData.id, payload);
       }
 
-      onSuccess(`Đã cập nhật thành công hồ sơ bệnh nhân ${formData.fullName}!`);
+      onSuccess(`Đã cập nhật thành công hồ sơ bệnh nhân ${formData.fullName}!`, formData.id);
       onClose();
     } catch (err: any) {
       setFormError(err?.message || 'Cập nhật hồ sơ bệnh nhân thất bại. Vui lòng kiểm tra lại.');
