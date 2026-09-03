@@ -210,7 +210,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     let mappedRole: UserRole = 'PATIENT';
     let rawRole = backendUser.actorRole?.toUpperCase();
-    if (rawRole === 'RECEPTIONIST') rawRole = 'RECEPTION';
+    if (rawRole === 'RECEPTION') rawRole = 'RECEPTIONIST';
 
     if (rawRole && (rawRole as UserRole) in MOCK_USERS) {
       mappedRole = rawRole as UserRole;
@@ -219,7 +219,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else if (backendUser.email && backendUser.email.toLowerCase().includes('doctor')) {
       mappedRole = 'DOCTOR';
     } else if (backendUser.email && (backendUser.email.toLowerCase().includes('reception') || backendUser.email.toLowerCase().includes('letan'))) {
-      mappedRole = 'RECEPTION';
+      mappedRole = 'RECEPTIONIST';
     } else if (backendUser.email && backendUser.email.toLowerCase().includes('nurse')) {
       mappedRole = 'NURSE';
     } else if (backendUser.email && backendUser.email.toLowerCase().includes('lab')) {

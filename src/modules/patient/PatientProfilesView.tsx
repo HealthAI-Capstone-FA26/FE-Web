@@ -51,6 +51,7 @@ export const PatientProfilesView: React.FC = () => {
   const [selectedProfileId, setSelectedProfileId] = useState<string>('');
   
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
+  const isLoading = isInitialLoading;
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [successToast, setSuccessToast] = useState<string | null>(null);
