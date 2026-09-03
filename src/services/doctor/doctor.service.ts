@@ -33,7 +33,9 @@ export interface CreateDoctorData {
   title?: string;
   licenseNumber?: string;
   specialization?: string;
-  userId?: string;
+  email?: string;
+  password?: string;
+  phoneNumber?: string;
   isActive?: boolean;
 }
 

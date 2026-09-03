@@ -209,13 +209,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('refresh_token', refreshToken);
 
     let mappedRole: UserRole = 'PATIENT';
-    if (backendUser.actorRole && (backendUser.actorRole.toUpperCase() as UserRole) in MOCK_USERS) {
-      mappedRole = backendUser.actorRole.toUpperCase() as UserRole;
+    let rawRole = backendUser.actorRole?.toUpperCase();
+    if (rawRole === 'RECEPTIONIST') rawRole = 'RECEPTION';
+
+    if (rawRole && (rawRole as UserRole) in MOCK_USERS) {
+      mappedRole = rawRole as UserRole;
     } else if (backendUser.email && backendUser.email.toLowerCase().includes('admin')) {
       mappedRole = 'ADMIN';
     } else if (backendUser.email && backendUser.email.toLowerCase().includes('doctor')) {
       mappedRole = 'DOCTOR';
-    } else if (backendUser.email && backendUser.email.toLowerCase().includes('reception')) {
+    } else if (backendUser.email && (backendUser.email.toLowerCase().includes('reception') || backendUser.email.toLowerCase().includes('letan'))) {
       mappedRole = 'RECEPTION';
     } else if (backendUser.email && backendUser.email.toLowerCase().includes('nurse')) {
       mappedRole = 'NURSE';

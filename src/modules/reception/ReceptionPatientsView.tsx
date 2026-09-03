@@ -2,9 +2,11 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Users, CheckCircle2, UserPlus, Search, Download, Eye, 
   MoreVertical, X, ShieldAlert, Heart, FileText,
-  Calendar, Stethoscope, Clock
+  Calendar, Stethoscope, Clock, Loader2, Edit3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { patientService } from '../../services/patient/patient.service';
+import { EditPatientModal } from './EditPatientModal';
 
 /* 
  * DESIGN READ:
@@ -26,10 +28,11 @@ interface Visit {
 }
 
 interface Patient {
+  patientId: string;
   mrn: string;
   name: string;
   age: number;
-  gender: 'Nam' | 'Nữ';
+  gender: 'Nam' | 'Nữ' | string;
   email: string;
   phone: string;
   cccd: string;
@@ -42,299 +45,11 @@ interface Patient {
   visitHistory: Visit[];
 }
 
-const initialPatientsData: Patient[] = [
-  {
-    mrn: "8756321",
-    name: "Lê Hoài Nam",
-    age: 35,
-    gender: "Nam",
-    email: "nam.le@gmail.com",
-    phone: "0987 339 387",
-    cccd: "3572478745",
-    ssn: "3572478745",
-    bhyt: "GD479085001234",
-    dob: "1991-04-12",
-    recentAction: "Điều trị gãy xương",
-    doctor: "BS. Daniel McAdams",
-    specialty: "Khoa Tiêu hóa",
-    visitHistory: [
-      {
-        date: "2026-08-10",
-        reason: "Gãy xương cẳng tay trái sau tai nạn ngã xe",
-        diagnosis: "Chấn thương gãy đầu dưới xương quay trái",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa / Chấn thương",
-        prescription: "Paracetamol 500mg (20 viên), Alpha Chymotrypsin (20 viên), nẹp cố định cánh tay",
-        notes: "Tránh vận động mạnh tay trái, tái khám sau 2 tuần để chụp lại X-quang."
-      },
-      {
-        date: "2026-05-12",
-        reason: "Khám dạ dày định kỳ và đau vùng thượng vị",
-        diagnosis: "Viêm loét dạ dày tá tràng nhẹ, HP âm tính",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa",
-        prescription: "Esomeprazole 40mg (30 viên), Gaviscon (15 gói)",
-        notes: "Uống thuốc trước ăn 30 phút, kiêng đồ chua cay, chất kích thích."
-      },
-      {
-        date: "2026-01-20",
-        reason: "Rối loạn tiêu hóa, tiêu chảy kéo dài 2 ngày",
-        diagnosis: "Ngộ độc thực phẩm nhẹ do ăn uống mất vệ sinh",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa",
-        prescription: "Berberin 100mg (40 viên), Oresol (10 gói bù nước)",
-        notes: "Ăn cháo loãng, uống nhiều nước oresol pha đúng tỷ lệ."
-      }
-    ]
-  },
-  {
-    mrn: "3498712",
-    name: "Nguyễn Thị Mai",
-    age: 37,
-    gender: "Nữ",
-    email: "mai.nguyen@yahoo.com",
-    phone: "0976 558 338",
-    cccd: "648778945",
-    ssn: "648778945",
-    bhyt: "GD479085002345",
-    dob: "1989-08-25",
-    recentAction: "Khám thai sản",
-    doctor: "BS. Emily Johnson",
-    specialty: "Khoa Tim mạch",
-    visitHistory: [
-      {
-        date: "2026-07-15",
-        reason: "Khám thai định kỳ tuần thứ 24",
-        diagnosis: "Thai nhi 24 tuần tuổi phát triển tốt, mẹ hơi thiếu sắt",
-        doctor: "BS. Emily Johnson",
-        specialty: "Khoa Sản / Tim mạch",
-        prescription: "Tardyferon B9 (Sắt - 30 viên), Canxi Corbiere (20 ống)",
-        notes: "Ăn nhiều thực phẩm giàu sắt, tập thể dục nhẹ nhàng."
-      },
-      {
-        date: "2026-04-10",
-        reason: "Khám thai định kỳ tuần thứ 12 & đo độ mờ da gáy",
-        diagnosis: "Thai nhi 12 tuần tuổi, chỉ số độ mờ da gáy bình thường",
-        doctor: "BS. Emily Johnson",
-        specialty: "Khoa Sản / Tim mạch",
-        prescription: "Acid Folic 5mg (30 viên), Elevit prenatal (30 viên)",
-        notes: "Tránh tiếp xúc hóa chất độc hại, tái khám đúng lịch hẹn sàng lọc quý 2."
-      }
-    ]
-  },
-  {
-    mrn: "7877457",
-    name: "Trần Thị Kim Anh",
-    age: 87,
-    gender: "Nữ",
-    email: "anh.tran@gmail.com",
-    phone: "0906 339 886",
-    cccd: "784574587",
-    ssn: "784574587",
-    bhyt: "GD479085003456",
-    dob: "1939-11-03",
-    recentAction: "Trị liệu tâm lý (CBT)",
-    doctor: "BS. Daniel McAdams",
-    specialty: "Khoa Tiêu hóa",
-    visitHistory: [
-      {
-        date: "2026-08-01",
-        reason: "Mất ngủ kéo dài, suy nhược cơ thể",
-        diagnosis: "Rối loạn giấc ngủ tuổi già, suy nhược thần kinh nhẹ",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa / Thần kinh",
-        prescription: "Mimosa (30 viên), Vitamin nhóm B (20 viên), Rotunda (10 viên)",
-        notes: "Uống thuốc trước khi ngủ 30 phút, hạn chế uống nhiều nước vào buổi tối."
-      },
-      {
-        date: "2026-06-15",
-        reason: "Đau mỏi khớp gối khi lên xuống cầu thang",
-        diagnosis: "Thoái hóa khớp gối hai bên độ 2",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Cơ Xương Khớp",
-        prescription: "Glucosamine 500mg (60 viên), Celecoxib 200mg (14 viên)",
-        notes: "Tránh ngồi xổm, hạn chế leo cầu thang nhiều."
-      },
-      {
-        date: "2026-04-10",
-        reason: "Đau dạ dày cấp tính dữ dội",
-        diagnosis: "Cơn viêm dạ dày cấp tính do căng thẳng lo âu",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa",
-        prescription: "Esomeprazole 20mg (14 viên), Phosphalugel (20 gói)",
-        notes: "Ăn đồ ăn lỏng dễ tiêu, giảm stress lo âu."
-      },
-      {
-        date: "2026-02-05",
-        reason: "Đau đầu, chóng mặt đột ngột buổi sáng",
-        diagnosis: "Tăng huyết áp vô căn độ 1",
-        doctor: "BS. Emily Johnson",
-        specialty: "Khoa Tim mạch",
-        prescription: "Amlodipine 5mg (30 viên, uống mỗi sáng 1 viên)",
-        notes: "Theo dõi huyết áp tại nhà hàng ngày, giảm muối trong chế độ ăn."
-      }
-    ]
-  },
-  {
-    mrn: "5455856",
-    name: "Phạm Minh Tuấn",
-    age: 40,
-    gender: "Nam",
-    email: "tuan.pham@gmail.com",
-    phone: "0887 668 776",
-    cccd: "878745124",
-    ssn: "878745124",
-    bhyt: "GD479085004567",
-    dob: "1986-05-15",
-    recentAction: "Khám tâm thần",
-    doctor: "BS. Daniel McAdams",
-    specialty: "Khoa Tiêu hóa",
-    visitHistory: [
-      {
-        date: "2026-08-05",
-        reason: "Khám sàng lọc và tư vấn sức khỏe tâm thần",
-        diagnosis: "Rối loạn lo âu nhẹ do áp lực công việc kéo dài",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa / Thần kinh",
-        prescription: "Magnesium B6 (30 viên), Seduxen 5mg (5 viên - uống khi cực kỳ khó ngủ)",
-        notes: "Nghỉ ngơi hợp lý, tham gia các hoạt động thể thao ngoài trời."
-      }
-    ]
-  },
-  {
-    mrn: "4578567",
-    name: "Đỗ Hoàng Long",
-    age: 28,
-    gender: "Nam",
-    email: "long.do@gmail.com",
-    phone: "0939 997 009",
-    cccd: "954786138",
-    ssn: "954786138",
-    bhyt: "GD479085005678",
-    dob: "1998-10-31",
-    recentAction: "Nội soi đại tràng",
-    doctor: "BS. Daniel McAdams",
-    specialty: "Khoa Tiêu hóa",
-    visitHistory: [
-      {
-        date: "2026-08-11",
-        reason: "Rối loạn đại tiện, đi ngoài ra máu",
-        diagnosis: "Polyp đại tràng sigma lành tính, đã cắt bỏ khi nội soi",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa",
-        prescription: "Ciprofloxacin 500mg (10 viên), Metronidazole 250mg (20 viên)",
-        notes: "Ăn cháo nguội nhẹ nhàng trong 3 ngày đầu, tránh đồ cay nóng."
-      }
-    ]
-  },
-  {
-    mrn: "9876543",
-    name: "Vũ Tiến Thành",
-    age: 32,
-    gender: "Nam",
-    email: "thanh.vu@gmail.com",
-    phone: "0887 776 446",
-    cccd: "079085006789",
-    ssn: "079085006789",
-    bhyt: "GD479085006789",
-    dob: "1994-02-17",
-    recentAction: "Nong mạch vành",
-    doctor: "BS. Emily Johnson",
-    specialty: "Khoa Tim mạch",
-    visitHistory: [
-      {
-        date: "2026-08-12",
-        reason: "Tức ngực trái khi gắng sức",
-        diagnosis: "Hẹp mạch vành nhánh LAD 70%, đã đặt stent thành công",
-        doctor: "BS. Emily Johnson",
-        specialty: "Khoa Tim mạch",
-        prescription: "Aspirin 81mg (30 viên), Clopidogrel 75mg (30 viên), Atorvastatin 20mg (30 viên)",
-        notes: "Uống thuốc chống ngưng tập tiểu cầu đều đặn hàng ngày, không tự ý ngưng thuốc."
-      }
-    ]
-  },
-  {
-    mrn: "2134567",
-    name: "Hoàng Văn Minh",
-    age: 48,
-    gender: "Nam",
-    email: "minh.hoang@gmail.com",
-    phone: "0976 998 339",
-    cccd: "079085007890",
-    ssn: "079085007890",
-    bhyt: "GD479085007890",
-    dob: "1978-07-22",
-    recentAction: "Chụp X-quang",
-    doctor: "BS. Michael Lee",
-    specialty: "Khoa Chấn thương",
-    visitHistory: [
-      {
-        date: "2026-08-14",
-        reason: "Đau mỏi vai gáy cánh tay phải lan xuống ngón tay",
-        diagnosis: "Thoái hóa đốt sống cổ C5-C6 chèn ép rễ thần kinh",
-        doctor: "BS. Michael Lee",
-        specialty: "Khoa Chấn thương / Thần kinh",
-        prescription: "Mydocalm 150mg (20 viên), Neurontin 300mg (20 viên), Meloxicam 15mg (10 viên)",
-        notes: "Tránh mang vác vật nặng trên vai, tập bài tập cổ nhẹ nhàng theo hướng dẫn phục hồi chức năng."
-      }
-    ]
-  },
-  {
-    mrn: "1902844",
-    name: "Hồ Hoàng Nam",
-    age: 48,
-    gender: "Nam",
-    email: "nam.ho@gmail.com",
-    phone: "0976 998 325",
-    cccd: "079085008901",
-    ssn: "079085008901",
-    bhyt: "GD479085008901",
-    dob: "1978-03-14",
-    recentAction: "Phẫu thuật LASIK",
-    doctor: "BS. Michael Lee",
-    specialty: "Khoa Nội tiết",
-    visitHistory: [
-      {
-        date: "2026-08-15",
-        reason: "Khám kiểm tra mắt cận thị nặng để mổ cận",
-        diagnosis: "Cận thị nặng hai mắt kèm loạn thị nhẹ, đủ điều kiện phẫu thuật LASIK",
-        doctor: "BS. Michael Lee",
-        specialty: "Khoa Mắt / Nội tiết",
-        prescription: "Nước mắt nhân tạo Systane Ultra (2 chai), Tobradex nhỏ mắt (1 lọ)",
-        notes: "Đeo kính bảo vệ mắt chống bụi bẩn 24/24 trong tuần đầu tiên, hạn chế sử dụng máy tính."
-      }
-    ]
-  },
-  {
-    mrn: "6543210",
-    name: "Trần Bảo Ngọc",
-    age: 26,
-    gender: "Nữ",
-    email: "ngoc.tran@gmail.com",
-    phone: "0934 567 901",
-    cccd: "079085009012",
-    ssn: "079085009012",
-    bhyt: "GD479085009012",
-    dob: "2000-09-09",
-    recentAction: "Nội soi đại tràng",
-    doctor: "BS. Michael Lee",
-    specialty: "Khoa Tiêu hóa",
-    visitHistory: [
-      {
-        date: "2026-08-16",
-        reason: "Đau bụng lâm râm hố chậu phải kèm táo bón",
-        diagnosis: "Hội chứng ruột kích thích thể táo bón (IBS-C)",
-        doctor: "BS. Michael Lee",
-        specialty: "Khoa Tiêu hóa",
-        prescription: "Duphalac (15 gói), Spasmo-canulase (30 viên), Probiotics men vi sinh (30 gói)",
-        notes: "Ăn nhiều rau xanh, uống đủ 2 lít nước mỗi ngày, tập thể dục nhẹ."
-      }
-    ]
-  }
-];
+const initialPatientsData: Patient[] = [];
 
 export const ReceptionPatientsView: React.FC = () => {
-  const [patients, setPatients] = useState<Patient[]>(initialPatientsData);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeSearchTab, setActiveSearchTab] = useState<'patients' | 'conditions' | 'programs'>('patients');
@@ -342,6 +57,8 @@ export const ReceptionPatientsView: React.FC = () => {
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
 
   // Form states
   const [formName, setFormName] = useState('');
@@ -371,32 +88,81 @@ export const ReceptionPatientsView: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // Fetch real patient list from Backend API (GET /patients)
+  useEffect(() => {
+    let isMounted = true;
+    const loadPatients = async () => {
+      setIsLoading(true);
+      setFetchError(null);
+      try {
+        const data = await patientService.getAllPatients(searchTerm || undefined);
+        if (isMounted) {
+          if (Array.isArray(data)) {
+            const mapped: Patient[] = data.map((p: any) => {
+              const birthYear = p.dateOfBirth ? new Date(p.dateOfBirth).getFullYear() : 1995;
+              const computedAge = isNaN(birthYear) ? 30 : new Date().getFullYear() - birthYear;
+              return {
+                patientId: p.patientId || p.patientCode,
+                mrn: p.patientCode || p.patientId || '',
+                name: p.fullName || 'Chưa đặt tên',
+                age: computedAge,
+                gender: p.gender === 'male' || p.gender === 'Nam' ? 'Nam' : 'Nữ',
+                email: p.email || 'Chưa cập nhật',
+                phone: p.phoneNumber || 'Chưa cập nhật',
+                cccd: p.identityNumber || 'Chưa cập nhật',
+                ssn: p.identityNumber || 'Chưa cập nhật',
+                bhyt: p.insuranceNumber || 'Chưa cập nhật',
+                dob: p.dateOfBirth ? String(p.dateOfBirth).split('T')[0] : '1995-01-01',
+                recentAction: 'Hồ sơ tiếp nhận',
+                doctor: 'Chưa chỉ định',
+                specialty: 'Khoa Tiếp Nhận',
+                visitHistory: []
+              };
+            });
+            setPatients(mapped);
+          } else {
+            setPatients([]);
+          }
+        }
+      } catch (err: any) {
+        console.log('Lỗi tải danh sách bệnh nhân từ Backend:', err);
+        if (isMounted) {
+          setPatients([]);
+          setFetchError(err?.message || 'Không thể kết nối đến máy chủ Backend.');
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    loadPatients();
+    return () => {
+      isMounted = false;
+    };
+  }, [searchTerm, reloadTrigger]);
+
   // Filter patients based on search input
   const filteredPatients = useMemo(() => {
+    if (!searchTerm.trim()) return patients;
+    const term = searchTerm.toLowerCase().trim();
     return patients.filter(p => 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.mrn.includes(searchTerm) ||
-      p.cccd.includes(searchTerm)
+      (p.name || '').toLowerCase().includes(term) ||
+      (p.mrn || '').toLowerCase().includes(term) ||
+      (p.cccd || '').toLowerCase().includes(term) ||
+      (p.phone || '').toLowerCase().includes(term)
     );
   }, [patients, searchTerm]);
 
-  // Dropdown list matching mockup (when typing or searching or default)
+  // Dropdown list matching search (from backend patients)
   const mockupDropdownMatches = useMemo(() => {
-    const sampleDropdown = [
-      { name: "Lê Hoài Nam", mrn: "8756321", ssn: "3572478745" },
-      { name: "Nguyễn Thị Mai", mrn: "3498712", ssn: "648778945" },
-      { name: "Trần Thị Kim Anh", mrn: "7877457", ssn: "784574587" },
-      { name: "Phạm Minh Tuấn", mrn: "5455856", ssn: "878745124" },
-      { name: "Đỗ Hoàng Long", mrn: "4578567", ssn: "954786138" }
-    ];
-    
-    if (!searchTerm) return sampleDropdown;
-    return sampleDropdown.filter(item => 
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.mrn.includes(searchTerm) ||
-      item.ssn.includes(searchTerm)
-    );
-  }, [searchTerm]);
+    return filteredPatients.map(p => ({
+      name: p.name,
+      mrn: p.mrn,
+      ssn: p.cccd,
+      patient: p,
+    }));
+  }, [filteredPatients]);
 
   // Handle adding new patient with strict duplicate checks
   const handleAddPatient = (e: React.FormEvent) => {
@@ -583,6 +349,7 @@ export const ReceptionPatientsView: React.FC = () => {
                         onClick={() => {
                           setSearchTerm(item.name);
                           setIsSearchFocused(false);
+                          if (item.patient) setSelectedPatient(item.patient);
                         }}
                         className="w-full flex items-start gap-2.5 p-2 rounded-xl hover:bg-slate-50 transition-all text-left border-none bg-transparent cursor-pointer group"
                       >
@@ -639,7 +406,16 @@ export const ReceptionPatientsView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-              {filteredPatients.length > 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                      <span className="text-slate-600 font-bold text-xs">Đang tải danh sách hồ sơ bệnh nhân từ hệ thống...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredPatients.length > 0 ? (
                 filteredPatients.map((patient) => (
                   <tr key={patient.mrn} className="hover:bg-slate-50/50 transition-all">
                     {/* Checkbox */}
@@ -706,6 +482,14 @@ export const ReceptionPatientsView: React.FC = () => {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
+                        {/* Edit icon to update patient profile */}
+                        <button 
+                          onClick={() => setEditingPatient(patient)}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-100 transition-all cursor-pointer border-none bg-transparent"
+                          title="Chỉnh sửa / Cập nhật hồ sơ"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
                         <button className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-all cursor-pointer border-none bg-transparent">
                           <MoreVertical className="w-4 h-4" />
                         </button>
@@ -716,8 +500,17 @@ export const ReceptionPatientsView: React.FC = () => {
               ) : (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center">
-                    <p className="text-slate-400 text-xs font-mono">0 kết quả</p>
-                    <h4 className="font-bold text-slate-600 uppercase text-xs mt-1">Không tìm thấy hồ sơ bệnh nhân</h4>
+                    {fetchError ? (
+                      <div className="space-y-1">
+                        <p className="text-rose-500 text-xs font-mono">Lỗi kết nối API: {fetchError}</p>
+                        <h4 className="font-bold text-rose-700 uppercase text-xs mt-1">Không thể tải dữ liệu bệnh nhân (Vui lòng kiểm tra lại đăng nhập)</h4>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-slate-400 text-xs font-mono">0 kết quả</p>
+                        <h4 className="font-bold text-slate-600 uppercase text-xs mt-1">Không tìm thấy hồ sơ bệnh nhân</h4>
+                      </>
+                    )}
                   </td>
                 </tr>
               )}
@@ -1140,6 +933,17 @@ export const ReceptionPatientsView: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* 6. POPUP MODAL: EDIT PATIENT PROFILE */}
+      <EditPatientModal
+        isOpen={!!editingPatient}
+        onClose={() => setEditingPatient(null)}
+        patient={editingPatient}
+        onSuccess={(msg) => {
+          setSuccessMsg(msg || 'Cập nhật hồ sơ bệnh nhân thành công!');
+          setReloadTrigger((prev) => prev + 1);
+        }}
+      />
 
     </div>
   );

@@ -61,6 +61,15 @@ export const patientService = {
     });
   },
 
+  // Danh sách / Tìm kiếm tất cả hồ sơ bệnh nhân (GET /patients?search=...) — dành cho Lễ tân/Admin
+  async getAllPatients(search?: string): Promise<PatientResponse[]> {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    const queryString = params.toString();
+    const url = `/patients${queryString ? `?${queryString}` : ''}`;
+    return apiFetch<PatientResponse[]>(url, { method: 'GET' });
+  },
+
   // Danh sách hồ sơ bệnh nhân user đang quản lý (GET /patients/my)
   async getMyPatients(): Promise<PatientResponse[]> {
     return apiFetch<PatientResponse[]>('/patients/my', {
