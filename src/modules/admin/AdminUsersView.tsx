@@ -22,6 +22,7 @@ import {
   ChevronsRight,
 } from 'lucide-react';
 import { userService, type UserItemResponse } from '../../services/user/user.service';
+import { rbacService } from '../../services/rbac/rbac.service';
 import { getAvatarUrl } from '../../services/api';
 import { EditUserModal } from './components/EditUserModal';
 
@@ -72,6 +73,8 @@ export const AdminUsersView: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    // Prefetch roles in background for 0ms instant modal opening
+    rbacService.getRoles().catch(() => {});
   }, []);
 
   // Reset page when filter changes

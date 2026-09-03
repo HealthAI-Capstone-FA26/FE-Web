@@ -85,11 +85,17 @@ export const AdminRbacView: React.FC = () => {
         rbacService.getAllPermissions().catch(() => []),
       ]);
 
-      setRoles(rolesData || []);
+      const cleanedRoles = (rolesData || []).map((r) => ({
+        ...r,
+        roleCode: (r.roleCode || '').trim(),
+        roleName: (r.roleName || '').trim(),
+      }));
+
+      setRoles(cleanedRoles);
       setAllPermissions(permissionsData || []);
 
-      if (rolesData && rolesData.length > 0) {
-        const defaultRole = rolesData.find((r) => r.roleCode === 'DOCTOR') || rolesData[0];
+      if (cleanedRoles && cleanedRoles.length > 0) {
+        const defaultRole = cleanedRoles.find((r) => r.roleCode === 'DOCTOR') || cleanedRoles[0];
         setSelectedRoleId(defaultRole.roleId);
         loadRolePermissions(defaultRole);
       }
@@ -272,8 +278,8 @@ export const AdminRbacView: React.FC = () => {
             onClick={handleSave}
             disabled={!isDirty || isSaving || isLoading}
             className={`px-5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-sm border-none cursor-pointer ${isDirty
-                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 animate-pulse'
-                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 animate-pulse'
+              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
               }`}
           >
             {isSaving ? (
@@ -305,8 +311,8 @@ export const AdminRbacView: React.FC = () => {
               key={r.roleId}
               onClick={() => handleSelectRole(r)}
               className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${isSelected
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/15'
-                  : 'bg-white text-slate-800 border-slate-200/90 hover:border-blue-200 hover:bg-slate-50/50'
+                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/15'
+                : 'bg-white text-slate-800 border-slate-200/90 hover:border-blue-200 hover:bg-slate-50/50'
                 }`}
             >
               <div className="flex items-center justify-between">
@@ -339,7 +345,7 @@ export const AdminRbacView: React.FC = () => {
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-700">Đang chỉnh sửa phân quyền cho:</span>
             <span className="text-xs font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
-              {activeRole?.roleName || 'Chưa chọn vai trò'} ({activeRole?.roleCode})
+              {activeRole?.roleCode || 'Chưa chọn vai trò'}
             </span>
           </div>
 
@@ -446,8 +452,8 @@ export const AdminRbacView: React.FC = () => {
                         <label
                           key={p.permissionId}
                           className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 select-none ${isChecked
-                              ? 'bg-blue-50/50 border-blue-300 ring-1 ring-blue-500/20'
-                              : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                            ? 'bg-blue-50/50 border-blue-300 ring-1 ring-blue-500/20'
+                            : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
                             }`}
                         >
                           <input
@@ -549,8 +555,8 @@ export const AdminRbacView: React.FC = () => {
                         <button
                           onClick={() => setCurrentPage(page)}
                           className={`w-7 h-7 text-xs font-bold rounded-lg transition-colors border cursor-pointer ${currentPage === page
-                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                             }`}
                         >
                           {page}

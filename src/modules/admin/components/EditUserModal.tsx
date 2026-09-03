@@ -10,15 +10,6 @@ interface EditUserModalProps {
   onSuccess: (message?: string) => void;
 }
 
-const DEFAULT_ROLES = [
-  { roleCode: 'PATIENT', roleName: 'Bệnh nhân (PATIENT)', description: 'Đặt lịch, xem hồ sơ bệnh án cá nhân' },
-  { roleCode: 'DOCTOR', roleName: 'Bác sĩ (DOCTOR)', description: 'Khám bệnh, chẩn đoán ICD-10, kê đơn thuốc' },
-  { roleCode: 'NURSE', roleName: 'Điều dưỡng (NURSE)', description: 'Đo sinh hiệu, phân luồng hàng đợi khám' },
-  { roleCode: 'RECEPTION', roleName: 'Lễ tân / Thu ngân (RECEPTION)', description: 'Tiếp đón tại quầy, cấp số thứ tự, thu phí' },
-  { roleCode: 'LAB', roleName: 'Kỹ thuật viên Lab (LAB)', description: 'Quản lý xét nghiệm & ảnh DICOM' },
-  { roleCode: 'ADMIN', roleName: 'Quản trị hệ thống (ADMIN)', description: 'Toàn quyền cấu hình và quản trị' },
-];
-
 export const EditUserModal: React.FC<EditUserModalProps> = ({
   user,
   onClose,
@@ -30,26 +21,35 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
-  const [availableRoles, setAvailableRoles] = useState<Array<{ roleId?: string; roleCode: string; roleName: string; description?: string }>>(DEFAULT_ROLES);
+  const [availableRoles, setAvailableRoles] = useState<Array<{ roleId?: string; roleCode: string; roleName: string; description?: string }>>([]);
+  const [isLoadingRoles, setIsLoadingRoles] = useState<boolean>(true);
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Fetch roles from DB
+  // Fetch roles directly from DB
   useEffect(() => {
+    setIsLoadingRoles(true);
     rbacService.getRoles()
       .then((roles) => {
         if (roles && roles.length > 0) {
-          setAvailableRoles(roles.map((r) => ({
-            roleId: r.roleId,
-            roleCode: r.roleCode,
-            roleName: `${r.roleName} (${r.roleCode})`,
-            description: r.description,
-          })));
+          setAvailableRoles(roles.map((r) => {
+            const cleanCode = (r.roleCode || '').trim();
+            const cleanName = (r.roleName || '').trim();
+            return {
+              roleId: r.roleId,
+              roleCode: cleanCode,
+              roleName: `${cleanName} (${cleanCode})`,
+              description: r.description,
+            };
+          }));
         }
       })
       .catch((err) => {
-        console.warn('Không thể tải danh sách role động từ server, sử dụng danh sách mặc định:', err);
+        console.error('Không thể tải danh sách role từ server:', err);
+      })
+      .finally(() => {
+        setIsLoadingRoles(false);
       });
   }, []);
 
@@ -57,7 +57,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
     if (user) {
       setFullName(user.fullName || '');
       setPhoneNumber(user.phoneNumber || '');
-      setActorRole(user.actorRole || 'PATIENT');
+      setActorRole((user.actorRole || 'PATIENT').trim());
       setAvatarFile(null);
       setAvatarPreview(user.avatarUrl ? getAvatarUrl(user.avatarUrl) : null);
       setFormError(null);
@@ -85,17 +85,18 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
     setFormError(null);
 
     try {
+      const cleanActorRole = actorRole.trim();
       const payload: UpdateProfileData = {
         fullName: fullName.trim(),
         phoneNumber: phoneNumber.trim() || undefined,
-        actorRole: actorRole,
+        actorRole: cleanActorRole,
         avatarFile: avatarFile || undefined,
       };
 
       await userService.updateUserById(user.userId, payload);
 
       // Nếu có roleId tương ứng trong DB, đồng bộ luôn qua RBAC assignRole
-      const targetRoleObj = availableRoles.find((r) => r.roleCode === actorRole);
+      const targetRoleObj = availableRoles.find((r) => r.roleCode === cleanActorRole);
       if (targetRoleObj?.roleId) {
         await rbacService.assignRoleToUser(user.userId, targetRoleObj.roleId).catch(() => {});
       }
@@ -219,13 +220,18 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
                 <select
                   value={actorRole}
                   onChange={(e) => setActorRole(e.target.value)}
-                  className="w-full pl-9 pr-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white"
+                  disabled={isLoadingRoles}
+                  className="w-full pl-9 pr-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white disabled:bg-slate-50 disabled:text-slate-400"
                 >
-                  {availableRoles.map((r) => (
-                    <option key={r.roleCode} value={r.roleCode}>
-                      {r.roleName}
-                    </option>
-                  ))}
+                  {isLoadingRoles ? (
+                    <option value={actorRole}>Đang tải danh mục vai trò...</option>
+                  ) : (
+                    availableRoles.map((r) => (
+                      <option key={r.roleCode} value={r.roleCode}>
+                        {r.roleName}
+                      </option>
+                    ))
+                  )}
                 </select>
                 <Shield className="w-4 h-4 text-blue-600 absolute left-3 top-2.5" />
               </div>
