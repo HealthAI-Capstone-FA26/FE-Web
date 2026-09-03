@@ -1,10 +1,11 @@
-// FR-HM-2.1 — Tạo/Cập nhật hồ sơ bệnh nhân (Nhập hộ siêu tốc tại quầy)
+// FR-HM-2.1 — Tạo/Cập nhật hồ sơ bệnh nhân (Nhập hộ tại quầy)
 // Actor: Nhân viên tiếp nhận (Reception)
-// Trạng thái: Mock UI (chưa nối API)
 
 import React, { useState } from 'react';
-import { UserPlus, Search, Save, CheckCircle2, Zap } from 'lucide-react';
+import { UserPlus, Search, Save, CheckCircle2, Zap, Loader2, AlertCircle } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
+import { patientService, type CreatePatientData } from '../../services/patient/patient.service';
+import { DobInput } from '../../components/common/DobInput';
 
 export const ReceptionPatientProfileFormView: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -12,16 +13,17 @@ export const ReceptionPatientProfileFormView: React.FC = () => {
     dob: '',
     gender: 'Nam',
     identityCard: '',
+    insuranceCard: '',
     phone: '',
     email: '',
     address: '',
-    medicalHistory: '',
-    allergiesText: '',
-    currentMedications: ''
+    relationship: 'Bản thân',
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [patientCode, setPatientCode] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleQuickLookup = () => {
     setFormData({
@@ -29,20 +31,53 @@ export const ReceptionPatientProfileFormView: React.FC = () => {
       dob: '1988-04-20',
       gender: 'Nam',
       identityCard: '079188009876',
-      phone: '0918 234 567',
+      insuranceCard: 'HS4010123456789',
+      phone: '0918234567',
       email: 'hoang.tran@gmail.com',
       address: '456 Lê Văn Sỹ, Phường 14, Quận 3, TP. Hồ Chí Minh',
-      medicalHistory: 'Tiểu đường type 2 (đang điều trị)',
-      allergiesText: 'Aspirin',
-      currentMedications: 'Metformin 500mg'
+      relationship: 'Bản thân',
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const generatedCode = 'P-' + Math.floor(10000 + Math.random() * 90000);
-    setPatientCode(generatedCode);
-    setIsSaved(true);
+    if (!formData.fullName.trim()) {
+      setErrorMessage('Vui lòng nhập họ và tên bệnh nhân');
+      return;
+    }
+    if (!formData.dob) {
+      setErrorMessage('Vui lòng chọn ngày sinh');
+      return;
+    }
+    if (!formData.phone.trim()) {
+      setErrorMessage('Vui lòng nhập số điện thoại');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const payload: CreatePatientData = {
+        fullName: formData.fullName.trim(),
+        dateOfBirth: formData.dob,
+        gender: formData.gender === 'Nam' ? 'male' : formData.gender === 'Nữ' ? 'female' : 'other',
+        phoneNumber: formData.phone.trim(),
+        identityNumber: formData.identityCard.trim() || undefined,
+        insuranceNumber: formData.insuranceCard.trim() || undefined,
+        email: formData.email.trim() || undefined,
+        address: formData.address.trim() || undefined,
+        relationship: formData.relationship || 'Bản thân',
+      };
+
+      const res = await patientService.createPatient(payload);
+      setPatientCode(res.patientCode || res.patientId || 'Đã cấp');
+      setIsSaved(true);
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Tạo hồ sơ bệnh nhân thất bại. Vui lòng kiểm tra lại.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -57,47 +92,49 @@ export const ReceptionPatientProfileFormView: React.FC = () => {
             Mẫu nhập liệu tối ưu hóa tốc độ cao cho Lễ tân tiếp nhận bệnh nhân vãng lai hoặc đăng ký tại quầy.
           </p>
         </div>
-        <Badge variant="normal" size="sm">
-          FR-HM-2.1 (Lễ Tân)
-        </Badge>
+
       </div>
+
+      {errorMessage && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-800 text-xs font-bold animate-in fade-in">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
 
       {isSaved && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-emerald-900 animate-in fade-in duration-200">
           <div className="flex items-center gap-3">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
             <div>
-              <p className="font-bold text-sm">Đã tạo thành công Hồ sơ bệnh nhân mới!</p>
+              <p className="font-bold text-sm">Đã tạo thành công Hồ sơ bệnh nhân mới vào cơ sở dữ liệu!</p>
               <p className="text-xs text-emerald-700">Mã Bệnh Nhân: <span className="font-black text-blue-900">{patientCode}</span> • Tên: {formData.fullName}</p>
             </div>
           </div>
           <button
             onClick={() => {
               setIsSaved(false);
-              setFormData({ fullName: '', dob: '', gender: 'Nam', identityCard: '', phone: '', email: '', address: '', medicalHistory: '', allergiesText: '', currentMedications: '' });
+              setFormData({
+                fullName: '',
+                dob: '',
+                gender: 'Nam',
+                identityCard: '',
+                insuranceCard: '',
+                phone: '',
+                email: '',
+                address: '',
+                relationship: 'Bản thân',
+              });
             }}
-            className="px-3 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 cursor-pointer border-none"
+            className="px-3.5 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 cursor-pointer border-none shadow-xs"
           >
-            Tạo Hồ Sơ Mới
+            Tạo Hồ Sơ Mới Tiếp Theo
           </button>
         </div>
       )}
 
       {/* Action Bar */}
-      <div className="bg-blue-50/70 p-4 rounded-2xl border border-blue-200/80 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2 text-blue-900 font-bold text-xs">
-          <Zap className="w-4 h-4 text-blue-700" />
-          <span>Quét nhanh CCCD chip hoặc Tra cứu thông tin có sẵn:</span>
-        </div>
-        <button
-          type="button"
-          onClick={handleQuickLookup}
-          className="px-4 py-2 bg-blue-600 text-white font-bold text-xs rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs border-none"
-        >
-          <Search className="w-3.5 h-3.5" />
-          <span>Đọc Dữ Liệu CCCD Demo</span>
-        </button>
-      </div>
+
 
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs space-y-6">
         <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
@@ -119,10 +156,9 @@ export const ReceptionPatientProfileFormView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Số CCCD / Định danh *</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Số CCCD / Định danh</label>
             <input
               type="text"
-              required
               placeholder="12 chữ số CCCD"
               value={formData.identityCard}
               onChange={(e) => setFormData({ ...formData, identityCard: e.target.value })}
@@ -131,13 +167,22 @@ export const ReceptionPatientProfileFormView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Ngày sinh *</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Mã số thẻ BHYT</label>
             <input
-              type="date"
-              required
-              value={formData.dob}
-              onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+              type="text"
+              placeholder="HS4010123456789"
+              value={formData.insuranceCard}
+              onChange={(e) => setFormData({ ...formData, insuranceCard: e.target.value })}
               className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Ngày sinh *</label>
+            <DobInput
+              value={formData.dob}
+              onChange={(val) => setFormData({ ...formData, dob: val })}
+              required
             />
           </div>
 
@@ -155,7 +200,7 @@ export const ReceptionPatientProfileFormView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Số điện thoại *</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Số điện thoại liên hệ *</label>
             <input
               type="tel"
               required
@@ -166,8 +211,22 @@ export const ReceptionPatientProfileFormView: React.FC = () => {
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Mối quan hệ</label>
+            <select
+              value={formData.relationship}
+              onChange={(e) => setFormData({ ...formData, relationship: e.target.value })}
+              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50"
+            >
+              <option value="Bản thân">Bản thân</option>
+              <option value="Con cái">Con cái</option>
+              <option value="Cha / Mẹ">Cha / Mẹ</option>
+              <option value="Người thân">Người thân khác</option>
+            </select>
+          </div>
+
           <div className="md:col-span-2">
-            <label className="block text-xs font-bold text-slate-700 mb-1">Địa chỉ cư trú</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Địa chỉ thường trú</label>
             <input
               type="text"
               placeholder="Số nhà, Đường, Phường/Xã, Quận/Huyện, Tỉnh/TP"
@@ -189,37 +248,14 @@ export const ReceptionPatientProfileFormView: React.FC = () => {
           </div>
         </div>
 
-        <div className="pt-4 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Dị ứng (Nếu có)</label>
-            <input
-              type="text"
-              placeholder="VD: Dị ứng Penicillin, Hải sản..."
-              value={formData.allergiesText}
-              onChange={(e) => setFormData({ ...formData, allergiesText: e.target.value })}
-              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Tiền sử bệnh lý chính</label>
-            <input
-              type="text"
-              placeholder="VD: Tăng huyết áp, Đái tháo đường..."
-              value={formData.medicalHistory}
-              onChange={(e) => setFormData({ ...formData, medicalHistory: e.target.value })}
-              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/50"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-3 pt-2">
+        <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
           <button
             type="submit"
-            className="px-6 py-2.5 bg-blue-600 text-white font-bold text-xs rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 cursor-pointer shadow-md border-none"
+            disabled={isSubmitting}
+            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-2 cursor-pointer shadow-md border-none disabled:opacity-50"
           >
-            <Save className="w-4 h-4" />
-            <span>Tạo Hồ Sơ & Xếp Hàng Khám</span>
+            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>{isSubmitting ? 'Đang gửi...' : 'Tạo Hồ Sơ Bệnh Nhân'}</span>
           </button>
         </div>
       </form>

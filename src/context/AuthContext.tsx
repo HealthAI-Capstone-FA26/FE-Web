@@ -208,8 +208,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('access_token', accessToken);
     localStorage.setItem('refresh_token', refreshToken);
 
-    // Lấy chính xác vai trò (actorRole) được Backend trả về nguyên bản
-    const mappedRole: UserRole = (backendUser.actorRole || 'PATIENT').toUpperCase().trim() as UserRole;
+    let mappedRole: UserRole = 'PATIENT';
+    let rawRole = backendUser.actorRole?.toUpperCase();
+    if (rawRole === 'RECEPTION') rawRole = 'RECEPTIONIST';
+
+    if (rawRole && (rawRole as UserRole) in MOCK_USERS) {
+      mappedRole = rawRole as UserRole;
+    } else if (backendUser.email && backendUser.email.toLowerCase().includes('admin')) {
+      mappedRole = 'ADMIN';
+    } else if (backendUser.email && backendUser.email.toLowerCase().includes('doctor')) {
+      mappedRole = 'DOCTOR';
+    } else if (backendUser.email && (backendUser.email.toLowerCase().includes('reception') || backendUser.email.toLowerCase().includes('letan'))) {
+      mappedRole = 'RECEPTIONIST';
+    } else if (backendUser.email && backendUser.email.toLowerCase().includes('nurse')) {
+      mappedRole = 'NURSE';
+    } else if (backendUser.email && backendUser.email.toLowerCase().includes('lab')) {
+      mappedRole = 'LAB';
+    }
 
     const userProfile: UserProfile = {
       id: backendUser.userId,

@@ -1,10 +1,13 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { 
-  Users, CheckCircle2, UserPlus, Search, Download, Eye, 
+import {
+  Users, CheckCircle2, UserPlus, Search, Download, Eye,
   MoreVertical, X, ShieldAlert, Heart, FileText,
-  Calendar, Stethoscope, Clock
+  Calendar, Stethoscope, Clock, Loader2, Edit3, RefreshCw, Mail, Phone, Shield, AlertCircle,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { patientService } from '../../services/patient/patient.service';
+import { EditPatientModal } from './EditPatientModal';
 
 /* 
  * DESIGN READ:
@@ -26,10 +29,11 @@ interface Visit {
 }
 
 interface Patient {
+  patientId: string;
   mrn: string;
   name: string;
   age: number;
-  gender: 'Nam' | 'Nữ';
+  gender: 'Nam' | 'Nữ' | string;
   email: string;
   phone: string;
   cccd: string;
@@ -42,306 +46,25 @@ interface Patient {
   visitHistory: Visit[];
 }
 
-const initialPatientsData: Patient[] = [
-  {
-    mrn: "8756321",
-    name: "Lê Hoài Nam",
-    age: 35,
-    gender: "Nam",
-    email: "nam.le@gmail.com",
-    phone: "0987 339 387",
-    cccd: "3572478745",
-    ssn: "3572478745",
-    bhyt: "GD479085001234",
-    dob: "1991-04-12",
-    recentAction: "Điều trị gãy xương",
-    doctor: "BS. Daniel McAdams",
-    specialty: "Khoa Tiêu hóa",
-    visitHistory: [
-      {
-        date: "2026-08-10",
-        reason: "Gãy xương cẳng tay trái sau tai nạn ngã xe",
-        diagnosis: "Chấn thương gãy đầu dưới xương quay trái",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa / Chấn thương",
-        prescription: "Paracetamol 500mg (20 viên), Alpha Chymotrypsin (20 viên), nẹp cố định cánh tay",
-        notes: "Tránh vận động mạnh tay trái, tái khám sau 2 tuần để chụp lại X-quang."
-      },
-      {
-        date: "2026-05-12",
-        reason: "Khám dạ dày định kỳ và đau vùng thượng vị",
-        diagnosis: "Viêm loét dạ dày tá tràng nhẹ, HP âm tính",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa",
-        prescription: "Esomeprazole 40mg (30 viên), Gaviscon (15 gói)",
-        notes: "Uống thuốc trước ăn 30 phút, kiêng đồ chua cay, chất kích thích."
-      },
-      {
-        date: "2026-01-20",
-        reason: "Rối loạn tiêu hóa, tiêu chảy kéo dài 2 ngày",
-        diagnosis: "Ngộ độc thực phẩm nhẹ do ăn uống mất vệ sinh",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa",
-        prescription: "Berberin 100mg (40 viên), Oresol (10 gói bù nước)",
-        notes: "Ăn cháo loãng, uống nhiều nước oresol pha đúng tỷ lệ."
-      }
-    ]
-  },
-  {
-    mrn: "3498712",
-    name: "Nguyễn Thị Mai",
-    age: 37,
-    gender: "Nữ",
-    email: "mai.nguyen@yahoo.com",
-    phone: "0976 558 338",
-    cccd: "648778945",
-    ssn: "648778945",
-    bhyt: "GD479085002345",
-    dob: "1989-08-25",
-    recentAction: "Khám thai sản",
-    doctor: "BS. Emily Johnson",
-    specialty: "Khoa Tim mạch",
-    visitHistory: [
-      {
-        date: "2026-07-15",
-        reason: "Khám thai định kỳ tuần thứ 24",
-        diagnosis: "Thai nhi 24 tuần tuổi phát triển tốt, mẹ hơi thiếu sắt",
-        doctor: "BS. Emily Johnson",
-        specialty: "Khoa Sản / Tim mạch",
-        prescription: "Tardyferon B9 (Sắt - 30 viên), Canxi Corbiere (20 ống)",
-        notes: "Ăn nhiều thực phẩm giàu sắt, tập thể dục nhẹ nhàng."
-      },
-      {
-        date: "2026-04-10",
-        reason: "Khám thai định kỳ tuần thứ 12 & đo độ mờ da gáy",
-        diagnosis: "Thai nhi 12 tuần tuổi, chỉ số độ mờ da gáy bình thường",
-        doctor: "BS. Emily Johnson",
-        specialty: "Khoa Sản / Tim mạch",
-        prescription: "Acid Folic 5mg (30 viên), Elevit prenatal (30 viên)",
-        notes: "Tránh tiếp xúc hóa chất độc hại, tái khám đúng lịch hẹn sàng lọc quý 2."
-      }
-    ]
-  },
-  {
-    mrn: "7877457",
-    name: "Trần Thị Kim Anh",
-    age: 87,
-    gender: "Nữ",
-    email: "anh.tran@gmail.com",
-    phone: "0906 339 886",
-    cccd: "784574587",
-    ssn: "784574587",
-    bhyt: "GD479085003456",
-    dob: "1939-11-03",
-    recentAction: "Trị liệu tâm lý (CBT)",
-    doctor: "BS. Daniel McAdams",
-    specialty: "Khoa Tiêu hóa",
-    visitHistory: [
-      {
-        date: "2026-08-01",
-        reason: "Mất ngủ kéo dài, suy nhược cơ thể",
-        diagnosis: "Rối loạn giấc ngủ tuổi già, suy nhược thần kinh nhẹ",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa / Thần kinh",
-        prescription: "Mimosa (30 viên), Vitamin nhóm B (20 viên), Rotunda (10 viên)",
-        notes: "Uống thuốc trước khi ngủ 30 phút, hạn chế uống nhiều nước vào buổi tối."
-      },
-      {
-        date: "2026-06-15",
-        reason: "Đau mỏi khớp gối khi lên xuống cầu thang",
-        diagnosis: "Thoái hóa khớp gối hai bên độ 2",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Cơ Xương Khớp",
-        prescription: "Glucosamine 500mg (60 viên), Celecoxib 200mg (14 viên)",
-        notes: "Tránh ngồi xổm, hạn chế leo cầu thang nhiều."
-      },
-      {
-        date: "2026-04-10",
-        reason: "Đau dạ dày cấp tính dữ dội",
-        diagnosis: "Cơn viêm dạ dày cấp tính do căng thẳng lo âu",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa",
-        prescription: "Esomeprazole 20mg (14 viên), Phosphalugel (20 gói)",
-        notes: "Ăn đồ ăn lỏng dễ tiêu, giảm stress lo âu."
-      },
-      {
-        date: "2026-02-05",
-        reason: "Đau đầu, chóng mặt đột ngột buổi sáng",
-        diagnosis: "Tăng huyết áp vô căn độ 1",
-        doctor: "BS. Emily Johnson",
-        specialty: "Khoa Tim mạch",
-        prescription: "Amlodipine 5mg (30 viên, uống mỗi sáng 1 viên)",
-        notes: "Theo dõi huyết áp tại nhà hàng ngày, giảm muối trong chế độ ăn."
-      }
-    ]
-  },
-  {
-    mrn: "5455856",
-    name: "Phạm Minh Tuấn",
-    age: 40,
-    gender: "Nam",
-    email: "tuan.pham@gmail.com",
-    phone: "0887 668 776",
-    cccd: "878745124",
-    ssn: "878745124",
-    bhyt: "GD479085004567",
-    dob: "1986-05-15",
-    recentAction: "Khám tâm thần",
-    doctor: "BS. Daniel McAdams",
-    specialty: "Khoa Tiêu hóa",
-    visitHistory: [
-      {
-        date: "2026-08-05",
-        reason: "Khám sàng lọc và tư vấn sức khỏe tâm thần",
-        diagnosis: "Rối loạn lo âu nhẹ do áp lực công việc kéo dài",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa / Thần kinh",
-        prescription: "Magnesium B6 (30 viên), Seduxen 5mg (5 viên - uống khi cực kỳ khó ngủ)",
-        notes: "Nghỉ ngơi hợp lý, tham gia các hoạt động thể thao ngoài trời."
-      }
-    ]
-  },
-  {
-    mrn: "4578567",
-    name: "Đỗ Hoàng Long",
-    age: 28,
-    gender: "Nam",
-    email: "long.do@gmail.com",
-    phone: "0939 997 009",
-    cccd: "954786138",
-    ssn: "954786138",
-    bhyt: "GD479085005678",
-    dob: "1998-10-31",
-    recentAction: "Nội soi đại tràng",
-    doctor: "BS. Daniel McAdams",
-    specialty: "Khoa Tiêu hóa",
-    visitHistory: [
-      {
-        date: "2026-08-11",
-        reason: "Rối loạn đại tiện, đi ngoài ra máu",
-        diagnosis: "Polyp đại tràng sigma lành tính, đã cắt bỏ khi nội soi",
-        doctor: "BS. Daniel McAdams",
-        specialty: "Khoa Tiêu hóa",
-        prescription: "Ciprofloxacin 500mg (10 viên), Metronidazole 250mg (20 viên)",
-        notes: "Ăn cháo nguội nhẹ nhàng trong 3 ngày đầu, tránh đồ cay nóng."
-      }
-    ]
-  },
-  {
-    mrn: "9876543",
-    name: "Vũ Tiến Thành",
-    age: 32,
-    gender: "Nam",
-    email: "thanh.vu@gmail.com",
-    phone: "0887 776 446",
-    cccd: "079085006789",
-    ssn: "079085006789",
-    bhyt: "GD479085006789",
-    dob: "1994-02-17",
-    recentAction: "Nong mạch vành",
-    doctor: "BS. Emily Johnson",
-    specialty: "Khoa Tim mạch",
-    visitHistory: [
-      {
-        date: "2026-08-12",
-        reason: "Tức ngực trái khi gắng sức",
-        diagnosis: "Hẹp mạch vành nhánh LAD 70%, đã đặt stent thành công",
-        doctor: "BS. Emily Johnson",
-        specialty: "Khoa Tim mạch",
-        prescription: "Aspirin 81mg (30 viên), Clopidogrel 75mg (30 viên), Atorvastatin 20mg (30 viên)",
-        notes: "Uống thuốc chống ngưng tập tiểu cầu đều đặn hàng ngày, không tự ý ngưng thuốc."
-      }
-    ]
-  },
-  {
-    mrn: "2134567",
-    name: "Hoàng Văn Minh",
-    age: 48,
-    gender: "Nam",
-    email: "minh.hoang@gmail.com",
-    phone: "0976 998 339",
-    cccd: "079085007890",
-    ssn: "079085007890",
-    bhyt: "GD479085007890",
-    dob: "1978-07-22",
-    recentAction: "Chụp X-quang",
-    doctor: "BS. Michael Lee",
-    specialty: "Khoa Chấn thương",
-    visitHistory: [
-      {
-        date: "2026-08-14",
-        reason: "Đau mỏi vai gáy cánh tay phải lan xuống ngón tay",
-        diagnosis: "Thoái hóa đốt sống cổ C5-C6 chèn ép rễ thần kinh",
-        doctor: "BS. Michael Lee",
-        specialty: "Khoa Chấn thương / Thần kinh",
-        prescription: "Mydocalm 150mg (20 viên), Neurontin 300mg (20 viên), Meloxicam 15mg (10 viên)",
-        notes: "Tránh mang vác vật nặng trên vai, tập bài tập cổ nhẹ nhàng theo hướng dẫn phục hồi chức năng."
-      }
-    ]
-  },
-  {
-    mrn: "1902844",
-    name: "Hồ Hoàng Nam",
-    age: 48,
-    gender: "Nam",
-    email: "nam.ho@gmail.com",
-    phone: "0976 998 325",
-    cccd: "079085008901",
-    ssn: "079085008901",
-    bhyt: "GD479085008901",
-    dob: "1978-03-14",
-    recentAction: "Phẫu thuật LASIK",
-    doctor: "BS. Michael Lee",
-    specialty: "Khoa Nội tiết",
-    visitHistory: [
-      {
-        date: "2026-08-15",
-        reason: "Khám kiểm tra mắt cận thị nặng để mổ cận",
-        diagnosis: "Cận thị nặng hai mắt kèm loạn thị nhẹ, đủ điều kiện phẫu thuật LASIK",
-        doctor: "BS. Michael Lee",
-        specialty: "Khoa Mắt / Nội tiết",
-        prescription: "Nước mắt nhân tạo Systane Ultra (2 chai), Tobradex nhỏ mắt (1 lọ)",
-        notes: "Đeo kính bảo vệ mắt chống bụi bẩn 24/24 trong tuần đầu tiên, hạn chế sử dụng máy tính."
-      }
-    ]
-  },
-  {
-    mrn: "6543210",
-    name: "Trần Bảo Ngọc",
-    age: 26,
-    gender: "Nữ",
-    email: "ngoc.tran@gmail.com",
-    phone: "0934 567 901",
-    cccd: "079085009012",
-    ssn: "079085009012",
-    bhyt: "GD479085009012",
-    dob: "2000-09-09",
-    recentAction: "Nội soi đại tràng",
-    doctor: "BS. Michael Lee",
-    specialty: "Khoa Tiêu hóa",
-    visitHistory: [
-      {
-        date: "2026-08-16",
-        reason: "Đau bụng lâm râm hố chậu phải kèm táo bón",
-        diagnosis: "Hội chứng ruột kích thích thể táo bón (IBS-C)",
-        doctor: "BS. Michael Lee",
-        specialty: "Khoa Tiêu hóa",
-        prescription: "Duphalac (15 gói), Spasmo-canulase (30 viên), Probiotics men vi sinh (30 gói)",
-        notes: "Ăn nhiều rau xanh, uống đủ 2 lít nước mỗi ngày, tập thể dục nhẹ."
-      }
-    ]
-  }
-];
+const initialPatientsData: Patient[] = [];
 
 export const ReceptionPatientsView: React.FC = () => {
-  const [patients, setPatients] = useState<Patient[]>(initialPatientsData);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeSearchTab, setActiveSearchTab] = useState<'patients' | 'conditions' | 'programs'>('patients');
-  
+
+  // Filter & Pagination States
+  const [selectedFilterTab, setSelectedFilterTab] = useState<string>('ALL');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(8);
+
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
 
   // Form states
   const [formName, setFormName] = useState('');
@@ -353,12 +76,17 @@ export const ReceptionPatientsView: React.FC = () => {
   const [formEmail, setFormEmail] = useState('');
   const [formAction, setFormAction] = useState('Khám sức khỏe');
   const [formDoctor, setFormDoctor] = useState('BS. Daniel McAdams');
-  
+
   // Validation errors
   const [validationError, setValidationError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedFilterTab, pageSize]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -371,32 +99,92 @@ export const ReceptionPatientsView: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter patients based on search input
-  const filteredPatients = useMemo(() => {
-    return patients.filter(p => 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.mrn.includes(searchTerm) ||
-      p.cccd.includes(searchTerm)
-    );
-  }, [patients, searchTerm]);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Dropdown list matching mockup (when typing or searching or default)
+  const loadPatients = async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const data = await patientService.getAllPatients(searchTerm || undefined);
+      if (Array.isArray(data)) {
+        const mapped: Patient[] = data.map((p: any) => {
+          const birthYear = p.dateOfBirth ? new Date(p.dateOfBirth).getFullYear() : 1995;
+          const computedAge = isNaN(birthYear) ? 30 : new Date().getFullYear() - birthYear;
+          return {
+            patientId: p.patientId || p.patientCode,
+            mrn: p.patientCode || p.patientId || '',
+            name: p.fullName || 'Chưa đặt tên',
+            age: computedAge,
+            gender: p.gender === 'male' || p.gender === 'Nam' ? 'Nam' : 'Nữ',
+            email: p.email || 'Chưa cập nhật',
+            phone: p.phoneNumber || 'Chưa cập nhật',
+            cccd: p.identityNumber || 'Chưa cập nhật',
+            ssn: p.identityNumber || 'Chưa cập nhật',
+            bhyt: p.insuranceNumber || 'Chưa cập nhật',
+            dob: p.dateOfBirth ? String(p.dateOfBirth).split('T')[0] : '1995-01-01',
+            recentAction: 'Hồ sơ tiếp nhận',
+            doctor: 'Chưa chỉ định',
+            specialty: 'Khoa Tiếp Nhận',
+            visitHistory: []
+          };
+        });
+        setPatients(mapped);
+      } else {
+        setPatients([]);
+      }
+    } catch (err: any) {
+      console.log('Lỗi tải danh sách bệnh nhân từ Backend:', err);
+      setPatients([]);
+      setFetchError(err?.message || 'Không thể kết nối đến máy chủ Backend.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch real patient list from Backend API (GET /patients)
+  useEffect(() => {
+    loadPatients();
+  }, [searchTerm, reloadTrigger]);
+
+  // Filter patients based on search input & selected tab
+  const filteredPatients = useMemo(() => {
+    return patients.filter((p) => {
+      const term = searchTerm.toLowerCase().trim();
+      const matchesSearch =
+        !term ||
+        (p.name || '').toLowerCase().includes(term) ||
+        (p.mrn || '').toLowerCase().includes(term) ||
+        (p.cccd || '').toLowerCase().includes(term) ||
+        (p.phone || '').toLowerCase().includes(term);
+
+      const matchesTab =
+        selectedFilterTab === 'ALL' ||
+        (selectedFilterTab === 'MALE' && p.gender === 'Nam') ||
+        (selectedFilterTab === 'FEMALE' && p.gender === 'Nữ') ||
+        (selectedFilterTab === 'BHYT' && p.bhyt && p.bhyt !== 'Không có' && p.bhyt !== 'Chưa cập nhật');
+
+      return matchesSearch && matchesTab;
+    });
+  }, [patients, searchTerm, selectedFilterTab]);
+
+  // Pagination calculation
+  const totalPatients = filteredPatients.length;
+  const totalPages = Math.max(1, Math.ceil(totalPatients / pageSize));
+
+  const paginatedPatients = useMemo(() => {
+    const startIdx = (currentPage - 1) * pageSize;
+    return filteredPatients.slice(startIdx, startIdx + pageSize);
+  }, [filteredPatients, currentPage, pageSize]);
+
+  // Dropdown list matching search (from backend patients)
   const mockupDropdownMatches = useMemo(() => {
-    const sampleDropdown = [
-      { name: "Lê Hoài Nam", mrn: "8756321", ssn: "3572478745" },
-      { name: "Nguyễn Thị Mai", mrn: "3498712", ssn: "648778945" },
-      { name: "Trần Thị Kim Anh", mrn: "7877457", ssn: "784574587" },
-      { name: "Phạm Minh Tuấn", mrn: "5455856", ssn: "878745124" },
-      { name: "Đỗ Hoàng Long", mrn: "4578567", ssn: "954786138" }
-    ];
-    
-    if (!searchTerm) return sampleDropdown;
-    return sampleDropdown.filter(item => 
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.mrn.includes(searchTerm) ||
-      item.ssn.includes(searchTerm)
-    );
-  }, [searchTerm]);
+    return filteredPatients.map(p => ({
+      name: p.name,
+      mrn: p.mrn,
+      ssn: p.cccd,
+      patient: p,
+    }));
+  }, [filteredPatients]);
 
   // Handle adding new patient with strict duplicate checks
   const handleAddPatient = (e: React.FormEvent) => {
@@ -458,6 +246,7 @@ export const ReceptionPatientsView: React.FC = () => {
     };
 
     const newPatient: Patient = {
+      patientId: newMrn,
       mrn: newMrn,
       name: formName,
       age: calculatedAge,
@@ -476,7 +265,7 @@ export const ReceptionPatientsView: React.FC = () => {
 
     setPatients([newPatient, ...patients]);
     setSuccessMsg(`Tiếp nhận thành công! Tạo hồ sơ mới cho bệnh nhân ${formName} (MRN: ${newMrn})`);
-    
+
     // Clear form
     setTimeout(() => {
       setIsAddModalOpen(false);
@@ -493,257 +282,317 @@ export const ReceptionPatientsView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto text-slate-800 animate-in fade-in duration-200">
-      
+    <div className="space-y-6 animate-in fade-in duration-200">
       {/* 1. Header Card */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">
-            Quản Lý Hồ Sơ Bệnh Nhân
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-700" />
+            <span>Quản Lý Hồ Sơ Bệnh Nhân & Bệnh Án</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Tìm kiếm, tra cứu hồ sơ bệnh án và quản lý thông tin hành chính.
+            Quản trị danh sách bệnh nhân, tra cứu thông tin hành chính, số CCCD/BHYT và lịch sử khám bệnh
           </p>
         </div>
 
-        <button 
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center gap-2 text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 px-4 py-2.5 rounded-xl shadow hover:shadow-md transition-all cursor-pointer border-none"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>Thêm Bệnh Nhân Mới</span>
-        </button>
+        <div className="flex items-center gap-2.5 self-start md:self-auto">
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer border-none"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Thêm Bệnh Nhân Mới</span>
+          </button>
+
+          <button
+            onClick={loadPatients}
+            disabled={isLoading}
+            className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all flex items-center gap-1.5 border-none cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+            <span>Làm mới</span>
+          </button>
+        </div>
       </div>
 
-      {/* 2. Search and Filter Box */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4 shrink-0 relative">
-        
-        {/* Left: Input Search Box */}
-        <div ref={searchRef} className="relative w-full max-w-md">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { key: 'ALL', label: 'Tổng bệnh nhân', count: patients.length, icon: Users, color: 'text-blue-700 bg-blue-50' },
+          { key: 'MALE', label: 'Bệnh nhân Nam', count: patients.filter(p => p.gender === 'Nam').length, icon: Users, color: 'text-indigo-700 bg-indigo-50' },
+          { key: 'FEMALE', label: 'Bệnh nhân Nữ', count: patients.filter(p => p.gender === 'Nữ').length, icon: Users, color: 'text-rose-700 bg-rose-50' },
+          { key: 'BHYT', label: 'Có thẻ BHYT', count: patients.filter(p => p.bhyt && p.bhyt !== 'Không có' && p.bhyt !== 'Chưa cập nhật').length, icon: Shield, color: 'text-emerald-700 bg-emerald-50' },
+        ].map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setSelectedFilterTab(item.key)}
+            className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${selectedFilterTab === item.key
+                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/10'
+                : 'bg-white text-slate-800 border-slate-200/90 hover:border-blue-200 hover:bg-slate-50/50'
+              }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-[11px] font-bold ${selectedFilterTab === item.key ? 'text-blue-100' : 'text-slate-500'}`}>
+                {item.label}
+              </span>
+              <div
+                className={`p-1.5 rounded-lg ${selectedFilterTab === item.key ? 'bg-white/20 text-white' : item.color}`}
+              >
+                <item.icon className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className={`text-xl font-black mt-2 ${selectedFilterTab === item.key ? 'text-white' : 'text-slate-900'}`}>
+              {item.count}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Main Table Card */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        {/* Search Bar & Gender/BHYT Filter Bar */}
+        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-3 items-center justify-between bg-slate-50/30">
+          <div className="relative w-full md:w-80">
             <input
               type="text"
-              placeholder="Tìm kiếm tên bệnh nhân, mã MRN..."
               value={searchTerm}
-              onFocus={() => setIsSearchFocused(true)}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setIsSearchFocused(true);
-              }}
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 bg-white rounded-xl text-xs md:text-sm font-semibold outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/20 transition-all shadow-xs"
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Tìm theo tên, mã MRN, CCCD, SĐT..."
+              className="w-full pl-9 pr-3.5 py-2 text-xs font-medium rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white"
             />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           </div>
 
-          {/* Search Dropdown Overlay */}
-          {isSearchFocused && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200/90 rounded-2xl shadow-xl z-45 p-4 max-h-[360px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
-              {/* Dropdown Tabs */}
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-2 mb-3 text-[11px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setActiveSearchTab('patients')}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-all border-none cursor-pointer ${
-                    activeSearchTab === 'patients' ? 'bg-[#0b3c8f] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+            {[
+              { id: 'ALL', label: 'Tất cả' },
+              { id: 'MALE', label: 'Nam' },
+              { id: 'FEMALE', label: 'Nữ' },
+              { id: 'BHYT', label: 'Có BHYT' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setSelectedFilterTab(tab.id)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all shrink-0 border cursor-pointer ${selectedFilterTab === tab.id
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                   }`}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>Bệnh nhân</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveSearchTab('conditions')}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-all border-none cursor-pointer ${
-                    activeSearchTab === 'conditions' ? 'bg-[#0b3c8f] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Bệnh lý</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveSearchTab('programs')}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-all border-none cursor-pointer ${
-                    activeSearchTab === 'programs' ? 'bg-[#0b3c8f] text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  <Heart className="w-3.5 h-3.5" />
-                  <span>Chương trình chăm sóc</span>
-                </button>
-              </div>
-
-              {/* Matches List */}
-              {activeSearchTab === 'patients' ? (
-                <div className="space-y-2">
-                  {mockupDropdownMatches.length > 0 ? (
-                    mockupDropdownMatches.map((item) => (
-                      <button
-                        key={item.mrn}
-                        type="button"
-                        onClick={() => {
-                          setSearchTerm(item.name);
-                          setIsSearchFocused(false);
-                        }}
-                        className="w-full flex items-start gap-2.5 p-2 rounded-xl hover:bg-slate-50 transition-all text-left border-none bg-transparent cursor-pointer group"
-                      >
-                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600 shrink-0">
-                          <Users className="w-4 h-4" />
-                        </div>
-                        <div className="flex-grow">
-                          <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
-                            {item.name}
-                          </h4>
-                          <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
-                            Mã MRN: {item.mrn} • CCCD/SSN: {item.ssn}
-                          </p>
-                        </div>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="py-6 text-center text-slate-400 text-[11px] font-medium">
-                      Không tìm thấy bệnh nhân phù hợp.
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="py-6 text-center text-slate-400 text-[11px] font-medium">
-                  Tính năng tìm kiếm đang được kết nối AI...
-                </div>
-              )}
-            </div>
-          )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Right: Download list button */}
-        <button className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 px-4 py-2.5 rounded-xl hover:bg-slate-50 transition-all shadow-xs cursor-pointer ml-auto">
-          <Download className="w-4 h-4" />
-          <span>Tải danh sách</span>
-        </button>
-      </div>
-
-      {/* 3. Grid Table of Patients */}
-      <div className="bg-white border border-slate-200/90 rounded-3xl overflow-hidden shadow-xs flex flex-col min-w-0">
-        <div className="overflow-x-auto min-w-0">
-          <table className="w-full border-collapse text-left text-xs md:text-sm">
-            <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px] h-12">
-                <th className="px-6 py-4 w-12 text-center">
-                  <input type="checkbox" className="rounded border-slate-300 focus:ring-blue-500" />
-                </th>
-                <th className="px-6 py-4">Bệnh nhân</th>
-                <th className="px-6 py-4">Liên hệ</th>
-                <th className="px-6 py-4">Số CCCD / BHYT</th>
-                <th className="px-6 py-4">Hoạt động khám gần nhất</th>
-                <th className="px-6 py-4">Bác sĩ phụ trách</th>
-                <th className="px-6 py-4 text-center">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-              {filteredPatients.length > 0 ? (
-                filteredPatients.map((patient) => (
-                  <tr key={patient.mrn} className="hover:bg-slate-50/50 transition-all">
-                    {/* Checkbox */}
-                    <td className="px-6 py-4 text-center">
-                      <input type="checkbox" className="rounded border-slate-300 focus:ring-blue-500" />
-                    </td>
-                    {/* Name, Age, Gender */}
-                    <td className="px-6 py-4">
+        {/* Content Table */}
+        {isLoading ? (
+          <div className="p-12 flex flex-col items-center justify-center gap-3 text-slate-400">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            <span className="text-xs font-medium">Đang tải danh sách hồ sơ bệnh nhân...</span>
+          </div>
+        ) : fetchError ? (
+          <div className="p-10 flex flex-col items-center justify-center gap-3 text-rose-600">
+            <AlertCircle className="w-8 h-8" />
+            <span className="text-xs font-bold">{fetchError}</span>
+            <button
+              onClick={loadPatients}
+              className="mt-2 px-4 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-xl cursor-pointer border-none"
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : filteredPatients.length === 0 ? (
+          <div className="p-12 text-center text-slate-400 space-y-2">
+            <Users className="w-10 h-10 mx-auto text-slate-300" />
+            <div className="text-xs font-bold text-slate-700">Không tìm thấy hồ sơ bệnh nhân nào</div>
+            <p className="text-[11px] text-slate-400">Hãy thử đổi từ khóa tìm kiếm hoặc chọn bộ lọc khác.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/80 text-slate-500 font-bold border-b border-slate-100 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">Bệnh nhân</th>
+                  <th className="py-3 px-4">Liên hệ</th>
+                  <th className="py-3 px-4">Số CCCD / BHYT</th>
+                  <th className="py-3 px-4">Hoạt động khám</th>
+                  <th className="py-3 px-4 text-center">Trạng thái</th>
+                  <th className="py-3 px-4 text-center">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {paginatedPatients.map((patient) => (
+                  <tr key={patient.mrn} className="hover:bg-slate-50/60 transition-colors">
+                    {/* Patient Info */}
+                    <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 font-bold text-xs uppercase overflow-hidden shrink-0">
-                          {patient.name.charAt(0)}
+                        <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 font-black text-xs shrink-0">
+                          {patient.name ? patient.name.charAt(0).toUpperCase() : <Users className="w-5 h-5 text-slate-400" />}
                         </div>
-                        <div>
-                          <div className="font-extrabold text-slate-800 text-xs md:text-sm">{patient.name}</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider">
-                            {patient.age} Tuổi, {patient.gender}
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 text-xs truncate">{patient.name}</div>
+                          <div className="text-[10px] text-slate-400 font-medium">
+                            Mã BN: <span className="font-mono text-blue-700 font-bold">{patient.mrn}</span> • {patient.age} tuổi ({patient.gender})
                           </div>
                         </div>
                       </div>
                     </td>
-                    {/* Contact info */}
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="text-xs font-semibold text-slate-800">{patient.email}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5 font-mono">{patient.phone}</div>
+
+                    {/* Contact */}
+                    <td className="py-3.5 px-4 space-y-0.5">
+                      <div className="flex items-center gap-1.5 text-slate-700 font-medium">
+                        <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span className="truncate">{patient.email}</span>
                       </div>
+                      {patient.phone && (
+                        <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
+                          <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span>{patient.phone}</span>
+                        </div>
+                      )}
                     </td>
+
                     {/* CCCD / BHYT */}
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="text-xs text-slate-800 font-semibold">CCCD: <span className="font-mono">{patient.cccd}</span></div>
-                        <div className="text-[10px] text-slate-400 mt-0.5 font-semibold">BHYT: <span className="font-mono">{patient.bhyt}</span></div>
-                      </div>
+                    <td className="py-3.5 px-4 space-y-0.5 font-mono text-slate-700">
+                      <div><span className="text-[10px] text-slate-400 font-sans">CCCD:</span> {patient.cccd}</div>
+                      <div><span className="text-[10px] text-slate-400 font-sans">BHYT:</span> {patient.bhyt}</div>
                     </td>
-                    {/* Action Pill Tag */}
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm ${
-                        patient.recentAction.includes('gãy') || patient.recentAction.includes('Fracture')
-                          ? 'bg-red-50 text-red-700 border border-red-100'
-                          : patient.recentAction.includes('thai') || patient.recentAction.includes('Prenatal')
-                          ? 'bg-purple-50 text-purple-700 border border-purple-100'
-                          : patient.recentAction.includes('tâm lý') || patient.recentAction.includes('CBT')
-                          ? 'bg-blue-50 text-blue-700 border border-blue-100'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                      }`}>
+
+                    {/* Recent Action */}
+                    <td className="py-3.5 px-4">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
                         {patient.recentAction}
                       </span>
                     </td>
-                    {/* Assigned Doctor */}
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="font-bold text-slate-800">{patient.doctor}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{patient.specialty}</div>
-                      </div>
+
+                    {/* Status */}
+                    <td className="py-3.5 px-4 text-center">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Hoạt động
+                      </span>
                     </td>
+
                     {/* Actions */}
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        {/* Eye icon to view detail and medical history */}
-                        <button 
+                    <td className="py-3.5 px-4 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
                           onClick={() => setSelectedPatient(patient)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-100 transition-all cursor-pointer border-none bg-transparent"
-                          title="Xem lịch sử bệnh án"
+                          className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                          title="Xem chi tiết & lịch sử khám"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Xem</span>
                         </button>
-                        <button className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-all cursor-pointer border-none bg-transparent">
-                          <MoreVertical className="w-4 h-4" />
+                        <button
+                          onClick={() => setEditingPatient(patient)}
+                          className="px-2.5 py-1 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-colors inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                          title="Chỉnh sửa hồ sơ"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Sửa</span>
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
-                    <p className="text-slate-400 text-xs font-mono">0 kết quả</p>
-                    <h4 className="font-bold text-slate-600 uppercase text-xs mt-1">Không tìm thấy hồ sơ bệnh nhân</h4>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* 4. Pagination Footer */}
-        <div className="h-16 border-t border-slate-200 px-6 flex justify-between items-center bg-slate-50 shrink-0">
-          <button className="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-[11px] font-bold text-slate-500 hover:bg-slate-50 transition-all shadow-xs cursor-pointer">
-            &lt; Trước
-          </button>
-          <div className="flex items-center gap-1">
-            <button className="w-8 h-8 rounded-lg bg-[#0b3c8f] text-white font-bold text-xs shadow-xs">1</button>
-            <button className="w-8 h-8 rounded-lg hover:bg-slate-200 text-slate-600 font-bold text-xs transition-all border-none bg-transparent cursor-pointer">2</button>
-            <button className="w-8 h-8 rounded-lg hover:bg-slate-200 text-slate-600 font-bold text-xs transition-all border-none bg-transparent cursor-pointer">3</button>
-            <button className="w-8 h-8 rounded-lg hover:bg-slate-200 text-slate-600 font-bold text-xs transition-all border-none bg-transparent cursor-pointer">4</button>
-            <button className="w-8 h-8 rounded-lg hover:bg-slate-200 text-slate-600 font-bold text-xs transition-all border-none bg-transparent cursor-pointer">5</button>
-            <span className="text-slate-400 text-xs px-1">...</span>
-            <button className="w-8 h-8 rounded-lg hover:bg-slate-200 text-slate-600 font-bold text-xs transition-all border-none bg-transparent cursor-pointer">9</button>
-            <button className="w-8 h-8 rounded-lg hover:bg-slate-200 text-slate-600 font-bold text-xs transition-all border-none bg-transparent cursor-pointer">10</button>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <button className="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-[11px] font-bold text-slate-500 hover:bg-slate-50 transition-all shadow-xs cursor-pointer">
-            Sau &gt;
-          </button>
-        </div>
+        )}
+
+        {/* Pagination Bar */}
+        {!isLoading && totalPatients > 0 && (
+          <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/60">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 font-medium">
+              <span>Hiển thị</span>
+              <span className="font-bold text-slate-800">
+                {(currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, totalPatients)}
+              </span>
+              <span>trên tổng số</span>
+              <span className="font-bold text-slate-800">{totalPatients} bệnh nhân</span>
+
+              <span className="mx-2 text-slate-300 hidden sm:inline">|</span>
+
+              <label className="flex items-center gap-1.5">
+                <span className="text-[11px] text-slate-400">Số dòng/trang:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-blue-600 cursor-pointer"
+                >
+                  <option value={5}>5 bệnh nhân</option>
+                  <option value={8}>8 bệnh nhân</option>
+                  <option value={10}>10 bệnh nhân</option>
+                  <option value={15}>15 bệnh nhân</option>
+                  <option value={20}>20 bệnh nhân</option>
+                  <option value={9999}>Tất cả</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                title="Trang đầu"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <ChevronsLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                title="Trang trước"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Page Numbers */}
+              <div className="flex items-center gap-1 px-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((page) => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1)
+                  .map((page, idx, array) => {
+                    const prevPage = array[idx - 1];
+                    const hasGap = prevPage && page - prevPage > 1;
+
+                    return (
+                      <React.Fragment key={page}>
+                        {hasGap && <span className="px-1 text-slate-400 text-xs">...</span>}
+                        <button
+                          onClick={() => setCurrentPage(page)}
+                          className={`w-7 h-7 text-xs font-bold rounded-lg transition-colors border cursor-pointer ${currentPage === page
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                            }`}
+                        >
+                          {page}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                title="Trang sau"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                title="Trang cuối"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <ChevronsRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 5. POPUP MODAL: VIEW DETAILED RECORD & PATIENT VISIT HISTORY TIMELINE */}
@@ -789,14 +638,14 @@ export const ReceptionPatientsView: React.FC = () => {
 
               {/* Content Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs">
-                
+
                 {/* Left Column: Administrative Information Summary */}
                 <div className="lg:col-span-1 space-y-4 border-r border-slate-100 pr-0 lg:pr-6">
                   <div className="bg-slate-50/80 border border-slate-100 rounded-2xl p-4 space-y-3.5">
                     <h4 className="text-xs font-black text-slate-700 uppercase tracking-wide border-b border-slate-200 pb-1.5">
                       Thông tin hành chính
                     </h4>
-                    
+
                     <div className="space-y-2">
                       <div>
                         <span className="text-slate-400 block font-medium">Họ và tên</span>
@@ -852,10 +701,10 @@ export const ReceptionPatientsView: React.FC = () => {
                   <div className="relative pl-6 border-l-2 border-indigo-100 space-y-6 max-h-[420px] overflow-y-auto pr-2 py-2">
                     {selectedPatient.visitHistory && selectedPatient.visitHistory.map((visit, index) => (
                       <div key={index} className="relative group">
-                        
+
                         {/* Timeline Node Dot */}
                         <div className="absolute -left-[31px] top-0 w-4 h-4 rounded-full bg-white border-4 border-indigo-600 flex items-center justify-center group-hover:scale-125 transition-all shadow-xs" />
-                        
+
                         {/* Visit Card */}
                         <div className="bg-white hover:bg-slate-50/50 border border-slate-200/80 rounded-2xl p-4 shadow-xs transition-all space-y-2">
                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -921,7 +770,7 @@ export const ReceptionPatientsView: React.FC = () => {
       <AnimatePresence>
         {isAddModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            
+
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -938,7 +787,7 @@ export const ReceptionPatientsView: React.FC = () => {
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               className="relative z-10 w-full max-w-[540px] bg-white rounded-3xl shadow-2xl p-6 md:p-8 flex flex-col text-slate-800"
             >
-              
+
               {/* Close button */}
               <button
                 onClick={() => setIsAddModalOpen(false)}
@@ -968,7 +817,7 @@ export const ReceptionPatientsView: React.FC = () => {
               ) : (
                 /* Form */
                 <form onSubmit={handleAddPatient} className="space-y-4">
-                  
+
                   {/* Họ tên (Required) */}
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -1140,6 +989,17 @@ export const ReceptionPatientsView: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* 6. POPUP MODAL: EDIT PATIENT PROFILE */}
+      <EditPatientModal
+        isOpen={!!editingPatient}
+        onClose={() => setEditingPatient(null)}
+        patient={editingPatient}
+        onSuccess={(msg) => {
+          setSuccessMsg(msg || 'Cập nhật hồ sơ bệnh nhân thành công!');
+          setReloadTrigger((prev) => prev + 1);
+        }}
+      />
 
     </div>
   );

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { patientService } from '../../services/patient/patient.service';
+import { getAvatarUrl } from '../../services/api';
 import { CreatePatientProfileModal, type ProfileItem } from './components/CreatePatientProfileModal';
 import { EditPatientProfileModal } from './components/EditPatientProfileModal';
 
@@ -50,6 +51,7 @@ export const PatientProfilesView: React.FC = () => {
   const [selectedProfileId, setSelectedProfileId] = useState<string>('');
   
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
+  const isLoading = isInitialLoading;
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -255,6 +257,13 @@ export const PatientProfilesView: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
+                      {(p.relationship === 'Bản thân' || p.relationship === 'self') && user?.avatar ? (
+                        <img
+                          src={getAvatarUrl(user.avatar)}
+                          alt={p.fullName}
+                          className="w-9 h-9 rounded-xl object-cover border border-blue-200 shrink-0"
+                        />
+                      ) : (
                         <div
                           className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
                             isSelected ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 group-hover:bg-blue-100 group-hover:text-blue-700'
@@ -262,6 +271,7 @@ export const PatientProfilesView: React.FC = () => {
                         >
                           {p.fullName ? p.fullName.charAt(0).toUpperCase() : <User className="w-4 h-4" />}
                         </div>
+                      )}
                         <div className="min-w-0">
                           <h4 className={`font-bold text-xs truncate ${isSelected ? 'text-blue-950' : 'text-slate-800'}`}>
                             {p.fullName || 'Chưa đặt tên'}
@@ -302,9 +312,17 @@ export const PatientProfilesView: React.FC = () => {
               {/* Detail Header Banner */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
                 <div className="flex items-center gap-3.5">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xl shadow-md shadow-blue-500/20">
-                    {activeProfile.fullName ? activeProfile.fullName.charAt(0).toUpperCase() : <User className="w-7 h-7" />}
-                  </div>
+                  {(activeProfile.relationship === 'Bản thân' || activeProfile.relationship === 'self') && user?.avatar ? (
+                    <img
+                      src={getAvatarUrl(user.avatar)}
+                      alt={activeProfile.fullName}
+                      className="w-14 h-14 rounded-2xl object-cover border-2 border-blue-200 shadow-md shrink-0"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xl shadow-md shadow-blue-500/20">
+                      {activeProfile.fullName ? activeProfile.fullName.charAt(0).toUpperCase() : <User className="w-7 h-7" />}
+                    </div>
+                  )}
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-extrabold text-lg sm:text-xl text-slate-900">{activeProfile.fullName}</h3>
