@@ -3,7 +3,6 @@ import { useAuth } from '../../context/AuthContext';
 import { ROLE_NAV_CONFIG, ROLE_DEFAULT_PATHS } from '../../types/dashboard';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { getAvatarUrl } from '../../services/api';
-import type { UserRole } from '../../types/auth';
 import {
   LayoutDashboard,
   User,
@@ -35,7 +34,7 @@ interface DashboardLayoutProps {
 }
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
-  const { user, currentRole, switchRole, logout, allRoles, can } = useAuth();
+  const { user, currentRole, logout, can } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -49,13 +48,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       items: group.items.filter((item) => !item.requiredPermission || can(item.requiredPermission)),
     }))
     .filter((group) => group.items.length > 0);
-
-  const handleRoleSwitch = (targetRole: UserRole) => {
-    switchRole(targetRole);
-    setIsRoleDropdownOpen(false);
-    const targetPath = ROLE_DEFAULT_PATHS[targetRole] || '/bac-si/danh-sach-kham';
-    navigate(targetPath);
-  };
 
   const getIconComponent = (iconName: string) => {
     switch (iconName) {
@@ -240,8 +232,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         {/* Sidebar Sticky & Flush Left */}
         <aside
           className={`fixed lg:sticky top-[78px] left-0 z-20 h-[calc(100vh-78px)] bg-white border-r border-slate-200/90 transition-all duration-300 ease-in-out shrink-0 overflow-y-auto ${isSidebarOpen
-            ? 'w-72 translate-x-0 p-4'
-            : '-translate-x-full lg:translate-x-0 lg:w-20 p-2'
+            ? 'w-52 translate-x-0 p-3'
+            : '-translate-x-full lg:translate-x-0 lg:w-16 p-2'
             }`}
         >
           <div className="flex flex-col justify-between h-full space-y-4">
@@ -251,7 +243,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                 {navGroups.map((group, gIdx) => (
                   <div key={gIdx} className="space-y-1">
                     {isSidebarOpen ? (
-                      <div className="px-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                      <div className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">
                         {group.groupName}
                       </div>
                     ) : (
@@ -268,8 +260,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                           title={item.label}
                           className={({ isActive }) =>
                             `flex items-center transition-all cursor-pointer border ${isSidebarOpen
-                              ? 'w-full justify-between px-3 py-2.5 rounded-xl text-xs text-left'
-                              : 'w-11 h-11 mx-auto justify-center rounded-xl'
+                              ? 'w-full justify-between px-2.5 py-2 rounded-xl text-xs text-left'
+                              : 'w-10 h-10 mx-auto justify-center rounded-xl'
                             } ${isActive
                               ? 'bg-blue-600 text-white border-blue-600 font-black shadow-sm'
                               : 'bg-transparent border-transparent text-slate-700 hover:bg-slate-100 hover:text-blue-900 font-bold'
@@ -280,9 +272,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                             <>
                               {isSidebarOpen ? (
                                 <>
-                                  <div className="flex items-center space-x-2.5 min-w-0 flex-1">
+                                  <div className="flex items-center space-x-2 min-w-0 flex-1">
                                     <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                                    <span className="text-xs font-bold leading-tight">{item.label}</span>
+                                    <span className="text-xs font-bold leading-tight truncate">{item.label}</span>
                                   </div>
                                   {item.badge && (
                                     <span
@@ -295,7 +287,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                                 </>
                               ) : (
                                 <div className="relative flex items-center justify-center">
-                                  <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-600'}`} />
+                                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-600'}`} />
                                   {item.badge && (
                                     <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-ping" />
                                   )}
@@ -314,9 +306,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
             {/* Sidebar Footer Info */}
             <div className="pt-3 border-t border-slate-100">
               {isSidebarOpen ? (
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-xs text-slate-600 space-y-1">
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 text-xs text-slate-600 space-y-1">
                   <div className="flex items-center justify-between font-bold text-slate-800">
-                    <span className="whitespace-nowrap">Tiêu chuẩn HL7 FHIR</span>
+                    <span className="text-[11px] whitespace-nowrap">Tiêu chuẩn HL7 FHIR</span>
                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                   </div>
                   <p className="text-[10px] text-slate-500 leading-normal">
@@ -325,7 +317,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                 </div>
               ) : (
                 <div className="flex justify-center" title="Tiêu chuẩn HL7 FHIR - Hoạt động">
-                  <span className="w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-emerald-100" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-100" />
                 </div>
               )}
             </div>
@@ -333,7 +325,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         </aside>
 
         {/* Content Outlet */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden min-w-0">
+        <main className="flex-1 p-3 sm:p-5 lg:p-6 overflow-x-hidden min-w-0">
           {children || <Outlet />}
         </main>
       </div>

@@ -68,7 +68,7 @@ function App() {
             </Route>
 
             {/* TIẾP NHẬN WORKSPACES */}
-            <Route element={<ProtectedRoute requiredRole="RECEPTION" />}>
+            <Route element={<ProtectedRoute requiredRole="RECEPTIONIST" />}>
               <Route path="/tiep-nhan/danh-sach-cho" element={<ReceptionIntakeWorkspaceView />} />
               <Route path="/tiep-nhan/dang-ky-tai-quay" element={<ReceptionIntakeWorkspaceView />} />
               <Route path="/tiep-nhan/ho-so-benh-nhan" element={<ReceptionIntakeWorkspaceView />} />

@@ -56,8 +56,8 @@ export const LoginPage = () => {
       // 2. Lưu token & update state người dùng
       loginWithTokens(res.accessToken, res.refreshToken, res.user);
 
-      // 3. Chuyển hướng theo role từ backend
-      const mappedRole = (res.user.actorRole?.toUpperCase() as UserRole) || 'PATIENT';
+      // 3. Chuyển hướng theo đúng role từ backend trả về
+      const mappedRole = (res.user.actorRole || 'PATIENT').toUpperCase().trim() as UserRole;
       const targetPath = ROLE_DEFAULT_PATHS[mappedRole] || '/dashboard';
 
       setTimeout(() => {
@@ -213,7 +213,7 @@ export const LoginPage = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickRoleLogin('RECEPTION')}
+                  onClick={() => handleQuickRoleLogin('RECEPTIONIST')}
                   className="p-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-semibold flex items-center justify-center gap-1 hover:bg-blue-100 transition-colors cursor-pointer"
                 >
                   <UserCheck className="w-3.5 h-3.5" />

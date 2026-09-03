@@ -17,7 +17,7 @@ export const SEVEN_STEPS_WORKFLOW: WorkflowStep[] = [
     title: 'Đăng ký & Tiếp nhận',
     shortTitle: 'Đăng ký',
     description: 'Đăng ký online hoặc trực tiếp tại quầy Lễ tân, xác minh CCCD/BHYT & chữ ký điện tử',
-    assignedRole: 'RECEPTION',
+    assignedRole: 'RECEPTIONIST',
     roleName: 'Nhân viên Lễ tân',
     moduleName: 'Mô-đun 2 & 3',
     icon: 'UserCheck'
@@ -47,7 +47,7 @@ export const SEVEN_STEPS_WORKFLOW: WorkflowStep[] = [
     title: 'Thanh toán chi phí',
     shortTitle: 'Thanh toán',
     description: 'Tính tổng phí xét nghiệm, thanh toán VietQR / MoMo / Tiền mặt & tự động xuất hóa đơn PDF',
-    assignedRole: 'RECEPTION',
+    assignedRole: 'RECEPTIONIST',
     roleName: 'Thu ngân / Bệnh nhân',
     moduleName: 'Mô-đun 6',
     icon: 'CreditCard'
