@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Edit3, X, Loader2, Save, AlertCircle, Upload, Shield, User, Phone, Mail } from 'lucide-react';
 import { userService, type UserItemResponse, type UpdateProfileData } from '../../../services/user/user.service';
+import { rbacService } from '../../../services/rbac/rbac.service';
 import { getAvatarUrl } from '../../../services/api';
 
 interface EditUserModalProps {
@@ -9,13 +10,13 @@ interface EditUserModalProps {
   onSuccess: (message?: string) => void;
 }
 
-const AVAILABLE_ROLES = [
-  { value: 'PATIENT', label: 'Bệnh nhân (PATIENT)', desc: 'Đặt lịch, xem hồ sơ bệnh án cá nhân' },
-  { value: 'DOCTOR', label: 'Bác sĩ (DOCTOR)', desc: 'Khám bệnh, chẩn đoán ICD-10, kê đơn thuốc' },
-  { value: 'NURSE', label: 'Điều dưỡng (NURSE)', desc: 'Đo sinh hiệu, phân luồng hàng đợi khám' },
-  { value: 'RECEPTION', label: 'Lễ tân / Thu ngân (RECEPTION)', desc: 'Tiếp đón tại quầy, cấp số thứ tự, thu phí' },
-  { value: 'LAB', label: 'Kỹ thuật viên Lab (LAB)', desc: 'Quản lý xét nghiệm & ảnh DICOM' },
-  { value: 'ADMIN', label: 'Quản trị hệ thống (ADMIN)', desc: 'Toàn quyền cấu hình và quản trị' },
+const DEFAULT_ROLES = [
+  { roleCode: 'PATIENT', roleName: 'Bệnh nhân (PATIENT)', description: 'Đặt lịch, xem hồ sơ bệnh án cá nhân' },
+  { roleCode: 'DOCTOR', roleName: 'Bác sĩ (DOCTOR)', description: 'Khám bệnh, chẩn đoán ICD-10, kê đơn thuốc' },
+  { roleCode: 'NURSE', roleName: 'Điều dưỡng (NURSE)', description: 'Đo sinh hiệu, phân luồng hàng đợi khám' },
+  { roleCode: 'RECEPTION', roleName: 'Lễ tân / Thu ngân (RECEPTION)', description: 'Tiếp đón tại quầy, cấp số thứ tự, thu phí' },
+  { roleCode: 'LAB', roleName: 'Kỹ thuật viên Lab (LAB)', description: 'Quản lý xét nghiệm & ảnh DICOM' },
+  { roleCode: 'ADMIN', roleName: 'Quản trị hệ thống (ADMIN)', description: 'Toàn quyền cấu hình và quản trị' },
 ];
 
 export const EditUserModal: React.FC<EditUserModalProps> = ({
@@ -29,8 +30,28 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
+  const [availableRoles, setAvailableRoles] = useState<Array<{ roleId?: string; roleCode: string; roleName: string; description?: string }>>(DEFAULT_ROLES);
+
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Fetch roles from DB
+  useEffect(() => {
+    rbacService.getRoles()
+      .then((roles) => {
+        if (roles && roles.length > 0) {
+          setAvailableRoles(roles.map((r) => ({
+            roleId: r.roleId,
+            roleCode: r.roleCode,
+            roleName: `${r.roleName} (${r.roleCode})`,
+            description: r.description,
+          })));
+        }
+      })
+      .catch((err) => {
+        console.warn('Không thể tải danh sách role động từ server, sử dụng danh sách mặc định:', err);
+      });
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -72,6 +93,13 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
       };
 
       await userService.updateUserById(user.userId, payload);
+
+      // Nếu có roleId tương ứng trong DB, đồng bộ luôn qua RBAC assignRole
+      const targetRoleObj = availableRoles.find((r) => r.roleCode === actorRole);
+      if (targetRoleObj?.roleId) {
+        await rbacService.assignRoleToUser(user.userId, targetRoleObj.roleId).catch(() => {});
+      }
+
       onSuccess(`Đã cập nhật thành công tài khoản ${fullName.trim()}!`);
       onClose();
     } catch (err: any) {
@@ -193,16 +221,16 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
                   onChange={(e) => setActorRole(e.target.value)}
                   className="w-full pl-9 pr-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white"
                 >
-                  {AVAILABLE_ROLES.map((r) => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
+                  {availableRoles.map((r) => (
+                    <option key={r.roleCode} value={r.roleCode}>
+                      {r.roleName}
                     </option>
                   ))}
                 </select>
                 <Shield className="w-4 h-4 text-blue-600 absolute left-3 top-2.5" />
               </div>
               <p className="text-[11px] text-slate-400 mt-1">
-                {AVAILABLE_ROLES.find((r) => r.value === actorRole)?.desc}
+                {availableRoles.find((r) => r.roleCode === actorRole)?.description || 'Vai trò phân quyền trong hệ thống'}
               </p>
             </div>
           </div>

@@ -28,7 +28,7 @@ const ROLE_CONFIG: Record<
   ADMIN: { label: 'Quản trị viên', icon: Shield, color: 'text-purple-600 bg-purple-50 border-purple-200', badgeVariant: 'purple' },
   DOCTOR: { label: 'Bác sĩ', icon: Stethoscope, color: 'text-blue-600 bg-blue-50 border-blue-200', badgeVariant: 'blue' },
   NURSE: { label: 'Điều dưỡng', icon: HeartPulse, color: 'text-rose-600 bg-rose-50 border-rose-200', badgeVariant: 'rose' },
-  RECEPTION: { label: 'Lễ tân / Thu ngân', icon: Receipt, color: 'text-amber-600 bg-amber-50 border-amber-200', badgeVariant: 'amber' },
+  RECEPTION: { label: 'Lễ tân', icon: Receipt, color: 'text-amber-600 bg-amber-50 border-amber-200', badgeVariant: 'amber' },
   LAB: { label: 'KTV Xét nghiệm', icon: FlaskConical, color: 'text-cyan-600 bg-cyan-50 border-cyan-200', badgeVariant: 'blue' },
   PATIENT: { label: 'Bệnh nhân', icon: UserCheck, color: 'text-emerald-600 bg-emerald-50 border-emerald-200', badgeVariant: 'emerald' },
 };
