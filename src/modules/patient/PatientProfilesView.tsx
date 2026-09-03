@@ -181,113 +181,6 @@ export const PatientProfilesView: React.FC = () => {
         </button>
       </div>
 
-<<<<<<< HEAD
-      {/* Profile Cards Grid Section */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-            <FileText className="w-4 h-4 text-blue-600" />
-            <span>Danh sách hồ sơ bệnh nhân ({profiles.length})</span>
-          </h3>
-        </div>
-
-        {isLoading ? (
-          <div className="bg-white p-8 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col items-center justify-center text-slate-500 gap-3">
-            <Loader2 className="w-7 h-7 text-blue-600 animate-spin" />
-            <span className="text-xs font-semibold">Đang tải danh sách hồ sơ...</span>
-          </div>
-        ) : profiles.length === 0 ? (
-          <div className="bg-white p-8 rounded-2xl border border-dashed border-slate-300 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
-              <User className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-800">Chưa có hồ sơ bệnh nhân nào</p>
-              <p className="text-xs text-slate-500 mt-1">Bấm nút "Tạo Hồ Sơ Bệnh Nhân Mới" để tạo hồ sơ khám bệnh đầu tiên.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsCreateModalOpen(true)}
-              className="px-4 py-2 bg-blue-600 text-white font-bold text-xs rounded-xl hover:bg-blue-700 transition-colors inline-flex items-center gap-1.5 cursor-pointer border-none"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Tạo Hồ Sơ Mới Ngay</span>
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
-            {profiles.map((p) => {
-              const isSelected = p.id === selectedProfileId;
-              return (
-                <div
-                  key={p.id}
-                  onClick={() => setSelectedProfileId(p.id)}
-                  className={`group p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between space-y-3 ${
-                    isSelected
-                      ? 'bg-blue-50/40 border-blue-600 ring-2 ring-blue-600/20 shadow-md'
-                      : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-xs'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-3">
-                      {(p.relationship === 'Bản thân' || p.relationship === 'self') && user?.avatar ? (
-                        <img
-                          src={getAvatarUrl(user.avatar)}
-                          alt={p.fullName}
-                          className="w-10 h-10 rounded-xl object-cover border border-blue-200 shrink-0"
-                        />
-                      ) : (
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
-                          isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {p.fullName ? p.fullName.charAt(0).toUpperCase() : <User className="w-5 h-5" />}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <h4 className="font-bold text-sm text-slate-900 truncate">{p.fullName || 'Chưa đặt tên'}</h4>
-                        <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold mt-0.5">
-                          {p.relationship}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 text-xs text-slate-600 pt-2.5 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Mã BN:</span>
-                      <span className="font-extrabold text-blue-700">{p.patientCode || 'Chưa cấp'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">SĐT:</span>
-                      <span className="font-medium text-slate-800">{p.phone || 'Chưa cập nhật'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Ngày sinh:</span>
-                      <span className="font-medium text-slate-800">{formatDateForDisplay(p.dob)}</span>
-                    </div>
-                  </div>
-
-                  <div className="h-5 flex items-center justify-end">
-                    {isSelected ? (
-                      <span className="text-[10px] text-blue-700 font-bold flex items-center gap-1">
-                        <span>Đang xem chi tiết</span>
-                        <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-slate-400 font-medium group-hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all">
-                        Xem chi tiết →
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-=======
->>>>>>> 2801a8054b137571982c2b486351529e60336de0
       {/* Global Error Banner */}
       {errorMessage && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-3 text-red-700 text-xs font-bold animate-in fade-in duration-200">
@@ -310,38 +203,6 @@ export const PatientProfilesView: React.FC = () => {
         </div>
       )}
 
-<<<<<<< HEAD
-      {/* Detail View Mode Card */}
-      {activeProfile && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs space-y-6 animate-in fade-in duration-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              {(activeProfile.relationship === 'Bản thân' || activeProfile.relationship === 'self') && user?.avatar ? (
-                <img
-                  src={getAvatarUrl(user.avatar)}
-                  alt={activeProfile.fullName}
-                  className="w-12 h-12 rounded-2xl object-cover border border-blue-200 shrink-0"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-lg">
-                  {activeProfile.fullName ? activeProfile.fullName.charAt(0).toUpperCase() : <User className="w-6 h-6" />}
-                </div>
-              )}
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-lg text-slate-900">{activeProfile.fullName}</h3>
-                  <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-xs font-bold">
-                    {activeProfile.relationship}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {activeProfile.patientCode ? `Mã Bệnh Nhân: ${activeProfile.patientCode}` : 'Hồ sơ chưa có mã định danh'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-=======
       {/* Main Layout: Compact Corner List (Left) + Expanded Detail View (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* LEFT COLUMN: Compact Profile Cards (Gọn gàng ở 1 góc) */}
@@ -353,7 +214,6 @@ export const PatientProfilesView: React.FC = () => {
                 <span>Hồ sơ đã tạo ({profiles.length})</span>
                 {isRefreshing && <Loader2 className="w-3 h-3 text-blue-600 animate-spin ml-1" />}
               </h3>
->>>>>>> 2801a8054b137571982c2b486351529e60336de0
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
