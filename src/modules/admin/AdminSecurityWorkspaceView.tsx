@@ -7,9 +7,8 @@ export const AdminSecurityWorkspaceView: React.FC = () => {
   const tabs: WorkspaceTab[] = [
     {
       id: 'rbac-matrix',
-      label: 'Phân Quyền Hệ Thống (RBAC)',
+      label: ' Quyền Hệ Thống',
       icon: Shield,
-      badge: 'Bảo mật',
       component: <AdminRbacView />
     }
   ];

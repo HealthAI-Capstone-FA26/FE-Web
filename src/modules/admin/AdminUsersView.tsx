@@ -16,6 +16,10 @@ import {
   Phone,
   Mail,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { userService, type UserItemResponse } from '../../services/user/user.service';
 import { getAvatarUrl } from '../../services/api';
@@ -42,6 +46,10 @@ export const AdminUsersView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedRoleTab, setSelectedRoleTab] = useState<string>('ALL');
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(8);
+
   // Modal State
   const [editingUser, setEditingUser] = useState<UserItemResponse | null>(null);
 
@@ -65,6 +73,11 @@ export const AdminUsersView: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedRoleTab, pageSize]);
 
   const handleSuccess = (message?: string) => {
     fetchData();
@@ -110,6 +123,15 @@ export const AdminUsersView: React.FC = () => {
       return matchesSearch && matchesRole;
     });
   }, [users, searchQuery, selectedRoleTab]);
+
+  // Pagination calculation
+  const totalUsers = filteredUsers.length;
+  const totalPages = Math.max(1, Math.ceil(totalUsers / pageSize));
+
+  const paginatedUsers = useMemo(() => {
+    const startIdx = (currentPage - 1) * pageSize;
+    return filteredUsers.slice(startIdx, startIdx + pageSize);
+  }, [filteredUsers, currentPage, pageSize]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -247,7 +269,7 @@ export const AdminUsersView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredUsers.map((u) => {
+                {paginatedUsers.map((u) => {
                   const roleKey = (u.actorRole || 'PATIENT').toUpperCase();
                   const roleCfg = ROLE_CONFIG[roleKey] || ROLE_CONFIG.PATIENT;
                   const avatarSrc = u.avatarUrl ? getAvatarUrl(u.avatarUrl) : null;
@@ -330,6 +352,101 @@ export const AdminUsersView: React.FC = () => {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Bar */}
+        {!isLoading && totalUsers > 0 && (
+          <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/60">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 font-medium">
+              <span>Hiển thị</span>
+              <span className="font-bold text-slate-800">
+                {(currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, totalUsers)}
+              </span>
+              <span>trên tổng số</span>
+              <span className="font-bold text-slate-800">{totalUsers} tài khoản</span>
+
+              <span className="mx-2 text-slate-300 hidden sm:inline">|</span>
+
+              <label className="flex items-center gap-1.5">
+                <span className="text-[11px] text-slate-400">Số dòng/trang:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-blue-600 cursor-pointer"
+                >
+                  <option value={5}>5 tài khoản</option>
+                  <option value={8}>8 tài khoản</option>
+                  <option value={10}>10 tài khoản</option>
+                  <option value={15}>15 tài khoản</option>
+                  <option value={20}>20 tài khoản</option>
+                  <option value={50}>50 tài khoản</option>
+                  <option value={9999}>Tất cả</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                title="Trang đầu"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <ChevronsLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                title="Trang trước"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Page Numbers */}
+              <div className="flex items-center gap-1 px-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((page) => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1)
+                  .map((page, idx, array) => {
+                    const prevPage = array[idx - 1];
+                    const hasGap = prevPage && page - prevPage > 1;
+
+                    return (
+                      <React.Fragment key={page}>
+                        {hasGap && <span className="px-1 text-slate-400 text-xs">...</span>}
+                        <button
+                          onClick={() => setCurrentPage(page)}
+                          className={`w-7 h-7 text-xs font-bold rounded-lg transition-colors border cursor-pointer ${
+                            currentPage === page
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                title="Trang sau"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                title="Trang cuối"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <ChevronsRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         )}
       </div>
