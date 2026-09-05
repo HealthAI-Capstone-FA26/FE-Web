@@ -10,22 +10,26 @@ import {
   ShieldCheck,
   FileText,
   X,
+  Link2,
+  Sparkles,
+  ArrowRight,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { patientService } from '../../services/patient/patient.service';
+import { patientService, type MatchSuggestionResult } from '../../services/patient/patient.service';
 import { getAvatarUrl } from '../../services/api';
 import { CreatePatientProfileModal, type ProfileItem } from './components/CreatePatientProfileModal';
 import { EditPatientProfileModal } from './components/EditPatientProfileModal';
+import { LinkPatientProfileModal } from './components/LinkPatientProfileModal';
 
 const mapRelationshipToFE = (rel?: string): string => {
   if (!rel) return 'Bản thân';
   const lower = rel.toLowerCase();
   if (lower === 'self' || lower === 'bản thân') return 'Bản thân';
   if (lower === 'child' || lower === 'con cái' || lower === 'con') return 'Con cái';
-  if (lower === 'parent' || lower === 'bố/mẹ' || lower === 'cha mẹ' || lower === 'bố' || lower === 'mẹ') return 'Bố/Mẹ';
+  if (lower === 'parent' || lower === 'bố/mẹ' || lower === 'cha mẹ' || lower === 'cha / mẹ' || lower === 'bố' || lower === 'mẹ') return 'Bố/Mẹ';
   if (lower === 'spouse' || lower === 'vợ/chồng' || lower === 'vợ' || lower === 'chồng') return 'Vợ/Chồng';
   if (lower === 'guardian' || lower === 'người giám hộ') return 'Người giám hộ';
-  if (lower === 'other' || lower === 'khác') return 'Khác';
+  if (lower === 'other' || lower === 'khác' || lower === 'người thân' || lower === 'người thân khác') return 'Người thân';
   return rel;
 };
 
@@ -58,7 +62,12 @@ export const PatientProfilesView: React.FC = () => {
 
   // Modals state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState<boolean>(false);
   const [editingProfile, setEditingProfile] = useState<ProfileItem | null>(null);
+
+  // Match suggestion state
+  const [suggestedProfile, setSuggestedProfile] = useState<MatchSuggestionResult['patient'] | null>(null);
+  const [isSuggestionDismissed, setIsSuggestionDismissed] = useState<boolean>(false);
 
   const loadPatients = async (options?: { silent?: boolean; selectId?: string }) => {
     const isSilent = options?.silent ?? (profiles.length > 0);
@@ -94,41 +103,17 @@ export const PatientProfilesView: React.FC = () => {
           setSelectedProfileId(mapped[0].id);
         }
       } else {
-        // Nếu getMyPatients trả về [], dùng API match-suggestion để tự động liên kết
+        setProfiles([]);
+        // Kiểm tra xem có gợi ý hồ sơ trùng khớp với tài khoản không
         try {
           const cleanPhone = (user?.phone || '').replace(/\D/g, '');
           const suggestion = await patientService.findMatchSuggestion({ phoneNumber: cleanPhone || undefined });
           if (suggestion?.matched && suggestion.patient?.patientId) {
-            try {
-              await patientService.linkUser(suggestion.patient.patientId);
-            } catch (linkErr) {
-              console.log('Lưu ý khi liên kết hồ sơ:', linkErr);
-            }
-            const fullP = await patientService.getPatientById(suggestion.patient.patientId);
-            if (fullP) {
-              const mappedSingle: ProfileItem = {
-                id: fullP.patientId,
-                patientCode: fullP.patientCode,
-                relationship: 'Bản thân',
-                fullName: fullP.fullName || '',
-                dob: fullP.dateOfBirth ? fullP.dateOfBirth.split('T')[0] : '',
-                gender: mapGenderToFE(fullP.gender),
-                identityCard: fullP.identityNumber || '',
-                insuranceCard: fullP.insuranceNumber || '',
-                phone: fullP.phoneNumber || '',
-                email: fullP.email || '',
-                address: fullP.address || '',
-                isBackendRecord: true,
-              };
-              setProfiles([mappedSingle]);
-              setSelectedProfileId(mappedSingle.id);
-              return;
-            }
+            setSuggestedProfile(suggestion.patient);
           }
         } catch (sugErr) {
-          console.log('Thử tìm gợi ý hồ sơ thất bại:', sugErr);
+          console.log('Kiểm tra gợi ý hồ sơ:', sugErr);
         }
-        setProfiles([]);
       }
     } catch (err: any) {
       console.error('Lỗi tải danh sách hồ sơ:', err);
@@ -148,6 +133,7 @@ export const PatientProfilesView: React.FC = () => {
 
   const handleSuccess = (message?: string, selectId?: string) => {
     loadPatients({ silent: true, selectId: selectId || selectedProfileId });
+    setSuggestedProfile(null);
     if (message) {
       setSuccessToast(message);
       setTimeout(() => {
@@ -172,15 +158,68 @@ export const PatientProfilesView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsCreateModalOpen(true)}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer border-none"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Tạo Hồ Sơ Bệnh Nhân Mới</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setIsLinkModalOpen(true)}
+            className="px-3.5 py-2.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer border border-slate-200/80 active:scale-95"
+          >
+            <Link2 className="w-4 h-4 text-blue-600" />
+            <span>Tra Cứu & Liên Kết Hồ Sơ</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 shrink-0 cursor-pointer border-none"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Tạo Hồ Sơ Bệnh Nhân Mới</span>
+          </button>
+        </div>
       </div>
+
+      {/* SMART SUGGESTION BANNER (Khi hệ thống tìm thấy hồ sơ khớp tại viện) */}
+      {suggestedProfile && !hasSelfProfile && !isSuggestionDismissed && (
+        <div className="p-4 bg-linear-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-xs shrink-0">
+              <Sparkles className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-blue-950 flex items-center gap-2">
+                <span>Tìm thấy hồ sơ y tế cũ của bạn tại bệnh viện</span>
+                <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[10px] font-bold">
+                  Khớp SĐT {user?.phone}
+                </span>
+              </h4>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Bệnh nhân: <strong className="text-slate-900">{suggestedProfile.fullName}</strong>
+                {suggestedProfile.maskedIdentityNumber && ` • CCCD: ${suggestedProfile.maskedIdentityNumber}`}
+                {suggestedProfile.patientCode && ` • Mã BN: ${suggestedProfile.patientCode}`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={() => setIsSuggestionDismissed(true)}
+              className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-800 font-semibold cursor-pointer border-none bg-transparent"
+            >
+              Để sau
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsLinkModalOpen(true)}
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer border-none"
+            >
+              <span>Xem & Liên Kết Ngay</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Global Error Banner */}
       {errorMessage && (
@@ -455,6 +494,16 @@ export const PatientProfilesView: React.FC = () => {
         userPhone={user?.phone}
         userEmail={user?.email}
         hasSelfProfile={hasSelfProfile}
+        onSuccess={handleSuccess}
+      />
+
+      <LinkPatientProfileModal
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        userPhone={user?.phone}
+        userEmail={user?.email}
+        hasSelfProfile={hasSelfProfile}
+        initialSuggestion={suggestedProfile}
         onSuccess={handleSuccess}
       />
 

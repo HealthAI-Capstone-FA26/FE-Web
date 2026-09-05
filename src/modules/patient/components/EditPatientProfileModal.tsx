@@ -139,7 +139,8 @@ export const EditPatientProfileModal: React.FC<EditPatientProfileModalProps> = (
                   Bản thân {hasOtherSelfProfile ? '(Đã có 1 hồ sơ Bản thân)' : ''}
                 </option>
                 <option value="Con cái">Con cái</option>
-                <option value="Cha / Mẹ">Cha / Mẹ</option>
+                <option value="Bố/Mẹ">Bố/Mẹ</option>
+                <option value="Vợ/Chồng">Vợ/Chồng</option>
                 <option value="Người thân">Người thân khác</option>
               </select>
             </div>

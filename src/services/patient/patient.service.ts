@@ -112,5 +112,31 @@ export const patientService = {
       method: 'POST',
     });
   },
+
+  // Bước 1: Gửi yêu cầu làm người liên hệ / liên kết người thân (POST /patients/contact-requests)
+  async createContactRequest(data: {
+    fullName: string;
+    dateOfBirth: string;
+    identityNumber: string;
+    phoneNumber: string;
+    relationship: 'parent' | 'child' | 'spouse' | 'guardian' | 'other';
+    verifyMethod: 'email' | 'sms';
+    email?: string;
+  }): Promise<{ message: string; verifyMethod: string }> {
+    return apiFetch<{ message: string; verifyMethod: string }>('/patients/contact-requests', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Bước 2: Xác thực OTP để hoàn tất liên kết người thân (POST /patients/contact-requests/verify-otp)
+  async verifyContactRequestOtp(data: {
+    otp: string;
+  }): Promise<{ message: string; contact?: any }> {
+    return apiFetch<{ message: string; contact?: any }>('/patients/contact-requests/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
