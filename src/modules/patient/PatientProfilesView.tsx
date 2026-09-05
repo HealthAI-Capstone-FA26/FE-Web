@@ -26,10 +26,10 @@ const mapRelationshipToFE = (rel?: string): string => {
   const lower = rel.toLowerCase();
   if (lower === 'self' || lower === 'bản thân') return 'Bản thân';
   if (lower === 'child' || lower === 'con cái' || lower === 'con') return 'Con cái';
-  if (lower === 'parent' || lower === 'bố/mẹ' || lower === 'cha mẹ' || lower === 'bố' || lower === 'mẹ') return 'Bố/Mẹ';
+  if (lower === 'parent' || lower === 'bố/mẹ' || lower === 'cha mẹ' || lower === 'cha / mẹ' || lower === 'bố' || lower === 'mẹ') return 'Bố/Mẹ';
   if (lower === 'spouse' || lower === 'vợ/chồng' || lower === 'vợ' || lower === 'chồng') return 'Vợ/Chồng';
   if (lower === 'guardian' || lower === 'người giám hộ') return 'Người giám hộ';
-  if (lower === 'other' || lower === 'khác') return 'Khác';
+  if (lower === 'other' || lower === 'khác' || lower === 'người thân' || lower === 'người thân khác') return 'Người thân';
   return rel;
 };
 

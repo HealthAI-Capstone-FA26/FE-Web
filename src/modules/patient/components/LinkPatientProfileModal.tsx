@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Link2,
   Search,
@@ -7,8 +7,8 @@ import {
   Users,
   Phone,
   CreditCard,
-  Lock,
   ArrowRight,
+  ArrowLeft,
   Sparkles,
   CheckCircle2,
   AlertCircle,
@@ -17,6 +17,9 @@ import {
   KeyRound,
   Mail,
   User,
+  Smartphone,
+  RefreshCw,
+  Info,
 } from 'lucide-react';
 import { DobInput } from '../../../components/common/DobInput';
 import { patientService, type MatchSuggestionResult } from '../../../services/patient/patient.service';
@@ -61,25 +64,51 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
   const [verifyMethod, setVerifyMethod] = useState<'email' | 'sms'>('sms');
 
   const [relativeStep, setRelativeStep] = useState<'form' | 'otp'>('form');
-  const [otpCode, setOtpCode] = useState<string>('');
+  const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [countdown, setCountdown] = useState<number>(60);
   const [isSendingOtp, setIsSendingOtp] = useState<boolean>(false);
+  const [isResendingOtp, setIsResendingOtp] = useState<boolean>(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState<boolean>(false);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // General feedback
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successInfo, setSuccessInfo] = useState<string | null>(null);
 
+  // Reset states on open
   useEffect(() => {
     if (isOpen) {
       setErrorMessage(null);
       setSuccessInfo(null);
       setSelfPhone(userPhone || '');
+      setOtpDigits(['', '', '', '', '', '']);
       if (initialSuggestion) {
         setMatchedProfile(initialSuggestion);
         setHasSearchedSelf(true);
       }
     }
   }, [isOpen, userPhone, initialSuggestion]);
+
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval>;
+    if (relativeStep === 'otp' && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [relativeStep, countdown]);
+
+  // Focus the first OTP box upon entering the OTP step
+  useEffect(() => {
+    if (relativeStep === 'otp') {
+      const timeout = setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 120);
+      return () => clearTimeout(timeout);
+    }
+  }, [relativeStep]);
 
   if (!isOpen) return null;
 
@@ -126,7 +155,10 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
     setErrorMessage(null);
     try {
       await patientService.linkUser(matchedProfile.patientId);
-      onSuccess(`Liên kết hồ sơ thành công! Đã kết nối hồ sơ ${matchedProfile.fullName || ''} với tài khoản của bạn.`, matchedProfile.patientId);
+      onSuccess(
+        `Liên kết hồ sơ thành công! Đã kết nối hồ sơ ${matchedProfile.fullName || ''} với tài khoản của bạn.`,
+        matchedProfile.patientId,
+      );
       onClose();
     } catch (err: any) {
       setErrorMessage(err?.message || 'Không thể liên kết hồ sơ này. Vui lòng kiểm tra lại.');
@@ -173,7 +205,9 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
         email: verifyMethod === 'email' ? relativeEmail.trim() : undefined,
       });
 
-      setSuccessInfo(res.message || 'Mã OTP xác thực đã được gửi đến bệnh nhân.');
+      setSuccessInfo(res.message || 'Mã OTP xác thực đã được gửi thành công.');
+      setOtpDigits(['', '', '', '', '', '']);
+      setCountdown(60);
       setRelativeStep('otp');
     } catch (err: any) {
       setErrorMessage(err?.message || 'Thông tin không khớp với hồ sơ bệnh nhân tại viện hoặc đã liên kết.');
@@ -182,10 +216,98 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
     }
   };
 
-  const handleVerifyRelativeOtp = async (e: React.FormEvent) => {
+  const handleResendRelativeOtp = async () => {
+    if (countdown > 0 || isResendingOtp) return;
+    setIsResendingOtp(true);
+    setErrorMessage(null);
+    try {
+      const res = await patientService.createContactRequest({
+        fullName: relativeFullName.trim(),
+        dateOfBirth: relativeDob,
+        identityNumber: relativeCccd.trim(),
+        phoneNumber: relativePhone.trim().replace(/\D/g, ''),
+        relationship: relationship,
+        verifyMethod: verifyMethod,
+        email: verifyMethod === 'email' ? relativeEmail.trim() : undefined,
+      });
+      setSuccessInfo(res.message || 'Đã gửi lại mã OTP xác thực mới.');
+      setCountdown(60);
+      setOtpDigits(['', '', '', '', '', '']);
+      inputRefs.current[0]?.focus();
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Không thể gửi lại mã OTP. Vui lòng thử lại sau.');
+    } finally {
+      setIsResendingOtp(false);
+    }
+  };
+
+  const handleOtpDigitChange = (index: number, value: string) => {
+    const clean = value.replace(/\D/g, '');
+    if (!clean) {
+      const next = [...otpDigits];
+      next[index] = '';
+      setOtpDigits(next);
+      return;
+    }
+
+    // If multiple digits pasted directly into an input
+    if (clean.length > 1) {
+      const pasted = clean.slice(0, 6).split('');
+      const next = [...otpDigits];
+      for (let i = 0; i < 6; i++) {
+        if (i < pasted.length) next[i] = pasted[i];
+      }
+      setOtpDigits(next);
+      const targetIdx = Math.min(pasted.length, 5);
+      inputRefs.current[targetIdx]?.focus();
+      return;
+    }
+
+    // Single digit input
+    const next = [...otpDigits];
+    next[index] = clean;
+    setOtpDigits(next);
+
+    // Auto move to next input box
+    if (index < 5 && clean) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') {
+      if (!otpDigits[index] && index > 0) {
+        const next = [...otpDigits];
+        next[index - 1] = '';
+        setOtpDigits(next);
+        inputRefs.current[index - 1]?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
-    if (!otpCode.trim()) {
-      setErrorMessage('Vui lòng nhập mã OTP xác thực');
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pastedData) return;
+
+    const next = [...otpDigits];
+    for (let i = 0; i < 6; i++) {
+      next[i] = pastedData[i] || '';
+    }
+    setOtpDigits(next);
+    const targetIdx = Math.min(pastedData.length, 5);
+    inputRefs.current[targetIdx]?.focus();
+  };
+
+  const handleVerifyRelativeOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const fullOtp = otpDigits.join('');
+    if (fullOtp.length < 6) {
+      setErrorMessage('Vui lòng nhập đầy đủ 6 chữ số mã OTP xác thực');
       return;
     }
 
@@ -193,7 +315,7 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
     setErrorMessage(null);
     try {
       await patientService.verifyContactRequestOtp({
-        otp: otpCode.trim(),
+        otp: fullOtp,
       });
 
       onSuccess(`Liên kết người thân thành công! Đã kết nối hồ sơ ${relativeFullName} vào danh sách quản lý.`);
@@ -205,13 +327,15 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
     }
   };
 
+  const isOtpComplete = otpDigits.every((d) => d.trim().length === 1);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header Modal */}
         <div className="p-5 sm:p-6 bg-linear-to-r from-blue-700 to-indigo-800 text-white flex items-center justify-between relative overflow-hidden shrink-0">
           <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-          
+
           <div className="flex items-center gap-3 relative z-10">
             <div className="p-2.5 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 text-white shadow-inner">
               <Link2 className="w-6 h-6" />
@@ -241,11 +365,10 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
               setActiveTab('self');
               setErrorMessage(null);
             }}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer border-none ${
-              activeTab === 'self'
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer border-none ${activeTab === 'self'
                 ? 'bg-white text-blue-700 shadow-xs border border-slate-200/80'
                 : 'text-slate-600 hover:bg-white/50 bg-transparent'
-            }`}
+              }`}
           >
             <UserCheck className="w-4 h-4 text-blue-600" />
             <span>Hồ Sơ Của Tôi (Chính chủ)</span>
@@ -257,11 +380,10 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
               setActiveTab('relative');
               setErrorMessage(null);
             }}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer border-none ${
-              activeTab === 'relative'
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer border-none ${activeTab === 'relative'
                 ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/80'
                 : 'text-slate-600 hover:bg-white/50 bg-transparent'
-            }`}
+              }`}
           >
             <Users className="w-4 h-4 text-indigo-600" />
             <span>Hồ Sơ Người Thân (Xác thực OTP)</span>
@@ -291,16 +413,16 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
               {hasSelfProfile && (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800 text-xs flex items-center gap-2 font-medium">
                   <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>Tài khoản của bạn đã có 1 hồ sơ Bản thân. Nếu muốn thêm người khác, vui lòng chọn tab &quot;Hồ Sơ Người Thân&quot;.</span>
+                  <span>
+                    Tài khoản của bạn đã có 1 hồ sơ Bản thân. Nếu muốn thêm người khác, vui lòng chọn tab &quot;Hồ Sơ Người Thân&quot;.
+                  </span>
                 </div>
               )}
 
               <form onSubmit={handleSearchSelf} className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Số CCCD / CMND
-                    </label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Số CCCD / CMND</label>
                     <div className="relative">
                       <CreditCard className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
@@ -314,9 +436,7 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Số Thẻ BHYT (tùy chọn)
-                    </label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Số Thẻ BHYT (tùy chọn)</label>
                     <div className="relative">
                       <ShieldCheck className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
@@ -331,9 +451,7 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Số Điện Thoại Khai Báo Tại Viện
-                  </label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Số Điện Thoại Khai Báo Tại Viện</label>
                   <div className="relative">
                     <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
@@ -390,21 +508,29 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
 
                       <div className="flex items-start gap-3">
                         <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
-                          {matchedProfile.fullName ? matchedProfile.fullName.charAt(0).toUpperCase() : <User className="w-5 h-5" />}
+                          {matchedProfile.fullName ? (
+                            matchedProfile.fullName.charAt(0).toUpperCase()
+                          ) : (
+                            <User className="w-5 h-5" />
+                          )}
                         </div>
                         <div className="space-y-0.5">
-                          <h4 className="font-bold text-sm text-slate-900">
-                            {matchedProfile.fullName}
-                          </h4>
+                          <h4 className="font-bold text-sm text-slate-900">{matchedProfile.fullName}</h4>
                           <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600">
                             {matchedProfile.dateOfBirth && (
-                              <span>Ngày sinh: <strong>{new Date(matchedProfile.dateOfBirth).toLocaleDateString('vi-VN')}</strong></span>
+                              <span>
+                                Ngày sinh: <strong>{new Date(matchedProfile.dateOfBirth).toLocaleDateString('vi-VN')}</strong>
+                              </span>
                             )}
                             {matchedProfile.maskedIdentityNumber && (
-                              <span>CCCD: <strong>{matchedProfile.maskedIdentityNumber}</strong></span>
+                              <span>
+                                CCCD: <strong>{matchedProfile.maskedIdentityNumber}</strong>
+                              </span>
                             )}
                             {matchedProfile.maskedPhoneNumber && (
-                              <span>SĐT: <strong>{matchedProfile.maskedPhoneNumber}</strong></span>
+                              <span>
+                                SĐT: <strong>{matchedProfile.maskedPhoneNumber}</strong>
+                              </span>
                             )}
                           </div>
                         </div>
@@ -439,7 +565,8 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
                       <AlertCircle className="w-6 h-6 text-slate-400 mx-auto" />
                       <p className="text-xs font-bold text-slate-700">Không tìm thấy hồ sơ khớp</p>
                       <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
-                        Vui lòng kiểm tra lại số CCCD/SĐT hoặc nếu bạn chưa từng đến khám tại viện, hãy sử dụng tính năng <strong>&quot;Tạo Hồ Sơ Bệnh Nhân Mới&quot;</strong>.
+                        Vui lòng kiểm tra lại số CCCD/SĐT hoặc nếu bạn chưa từng đến khám tại viện, hãy sử dụng tính năng{' '}
+                        <strong>&quot;Tạo Hồ Sơ Bệnh Nhân Mới&quot;</strong>.
                       </p>
                     </div>
                   )}
@@ -540,11 +667,10 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
                         <button
                           type="button"
                           onClick={() => setVerifyMethod('sms')}
-                          className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
-                            verifyMethod === 'sms'
+                          className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${verifyMethod === 'sms'
                               ? 'bg-indigo-50 border-indigo-600 text-indigo-700'
                               : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                          }`}
+                            }`}
                         >
                           <Phone className="w-3.5 h-3.5" />
                           <span>Qua SMS</span>
@@ -553,11 +679,10 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
                         <button
                           type="button"
                           onClick={() => setVerifyMethod('email')}
-                          className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
-                            verifyMethod === 'email'
+                          className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${verifyMethod === 'email'
                               ? 'bg-indigo-50 border-indigo-600 text-indigo-700'
                               : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                          }`}
+                            }`}
                         >
                           <Mail className="w-3.5 h-3.5" />
                           <span>Qua Email</span>
@@ -602,50 +727,125 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
                   </div>
                 </form>
               ) : (
-                /* STEP 2: OTP VERIFICATION */
-                <form onSubmit={handleVerifyRelativeOtp} className="space-y-4 animate-in fade-in duration-200">
-                  <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-2xl space-y-2">
-                    <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs">
+                /* STEP 2: BEAUTIFUL REDESIGNED OTP VERIFICATION */
+                <form onSubmit={handleVerifyRelativeOtp} className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                  {/* Channel-Specific Banner */}
+                  {verifyMethod === 'sms' ? (
+                    <div className="p-4 bg-linear-to-br from-emerald-50/90 via-teal-50/70 to-emerald-50/50 border border-emerald-200/90 rounded-2xl flex items-start gap-3.5 shadow-xs">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Smartphone className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-emerald-950">Xác Thực Qua Tin Nhắn SMS</span>
+                          <span className="px-2 py-0.5 bg-emerald-100/80 text-emerald-800 text-[10px] font-bold rounded-md">
+                            SĐT bệnh nhân
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          Mã OTP 6 chữ số đã được gửi đến số điện thoại{' '}
+                          <strong className="text-emerald-900 font-bold">{relativePhone}</strong> của bệnh nhân{' '}
+                          <strong className="text-slate-800 font-bold">{relativeFullName}</strong>.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-linear-to-br from-blue-50/90 via-indigo-50/70 to-blue-50/50 border border-blue-200/90 rounded-2xl flex items-start gap-3.5 shadow-xs">
+                      <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Mail className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-indigo-950">Xác Thực Qua Hòm Thư Email</span>
+                          <span className="px-2 py-0.5 bg-indigo-100/80 text-indigo-800 text-[10px] font-bold rounded-md">
+                            Email bệnh nhân
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          Mã OTP 6 chữ số đã được gửi đến địa chỉ email{' '}
+                          <strong className="text-indigo-900 font-bold">{relativeEmail}</strong> của bệnh nhân{' '}
+                          <strong className="text-slate-800 font-bold">{relativeFullName}</strong>.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 6 Digit Input Boxes */}
+                  <div className="p-4 sm:p-5 bg-slate-50/80 border border-slate-200/80 rounded-2xl space-y-3 text-center">
+                    <div className="flex items-center justify-center gap-1.5 text-slate-700 font-bold text-xs">
                       <KeyRound className="w-4 h-4 text-indigo-600" />
-                      <span>Nhập Mã Xác Thực OTP</span>
+                      <span>Nhập Mã Xác Thực 6 Số</span>
                     </div>
-                    <p className="text-xs text-slate-600">
-                      Mã OTP 6 chữ số đã được gửi tới{' '}
-                      <strong>{verifyMethod === 'sms' ? `SĐT ${relativePhone}` : `Email ${relativeEmail}`}</strong> của bệnh nhân{' '}
-                      <strong>{relativeFullName}</strong>.
-                    </p>
+
+                    <div className="flex justify-center items-center gap-2 sm:gap-3 py-1">
+                      {otpDigits.map((digit, idx) => (
+                        <input
+                          key={idx}
+                          ref={(el) => {
+                            inputRefs.current[idx] = el;
+                          }}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={1}
+                          value={digit}
+                          onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
+                          onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                          onPaste={handleOtpPaste}
+                          className={`w-10 h-12 sm:w-12 sm:h-14 text-center text-lg sm:text-xl font-black rounded-xl border-2 transition-all outline-hidden ${digit
+                              ? 'border-indigo-600 bg-white text-indigo-950 shadow-xs'
+                              : 'border-slate-300 bg-white text-slate-800 focus:border-indigo-500 focus:ring-3 focus:ring-indigo-600/15'
+                            }`}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Resend OTP Section */}
+                    <div className="pt-2 border-t border-slate-200/60 flex items-center justify-center gap-1 text-xs">
+                      <span className="text-slate-500 font-medium">Chưa nhận được mã OTP?</span>
+                      {countdown > 0 ? (
+                        <span className="font-semibold text-slate-600">
+                          Gửi lại mã sau (<strong className="text-indigo-600">{countdown}s</strong>)
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleResendRelativeOtp}
+                          disabled={isResendingOtp}
+                          className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer border-none bg-transparent flex items-center gap-1"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isResendingOtp ? 'animate-spin' : ''}`} />
+                          <span>Gửi lại mã OTP</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Mã OTP (6 số)
-                    </label>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="text"
-                        maxLength={6}
-                        value={otpCode}
-                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                        placeholder="••••••"
-                        className="w-full pl-9 pr-3 py-2.5 text-center tracking-widest text-sm font-bold rounded-xl border border-slate-200 focus:outline-hidden focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10"
-                      />
-                    </div>
-                  </div>
+                  {/* Environment notice / hint */}
+                  {/* <div className="p-2.5 bg-amber-50/70 border border-amber-200/70 rounded-xl text-[11px] text-amber-800 flex items-start gap-2">
+                    <Info className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                    <span>
+                      {verifyMethod === 'sms'
+                        ? 'Mẹo thử nghiệm: Mã OTP gửi qua SMS trong môi trường Dev được in trực tiếp ở cửa sổ Terminal của Backend.'
+                        : 'Vui lòng kiểm tra cả thư mục Hộp thư rác / Spam nếu không thấy email trong Hộp thư đến.'}
+                    </span>
+                  </div> */}
 
+                  {/* Actions */}
                   <div className="flex items-center justify-between pt-2">
                     <button
                       type="button"
                       onClick={() => setRelativeStep('form')}
-                      className="text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer border-none bg-transparent"
+                      className="px-3 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all cursor-pointer border-none bg-transparent flex items-center gap-1.5"
                     >
-                      ← Nhập lại thông tin
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Nhập lại thông tin</span>
                     </button>
 
                     <button
                       type="submit"
-                      disabled={isVerifyingOtp || otpCode.length < 4}
-                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer border-none disabled:opacity-50"
+                      disabled={isVerifyingOtp || !isOtpComplete}
+                      className="px-6 py-2.5 bg-linear-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer border-none disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isVerifyingOtp ? (
                         <>
