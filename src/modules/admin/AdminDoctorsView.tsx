@@ -712,6 +712,10 @@ export const AdminDoctorsView: React.FC = () => {
       <DetailDoctorModal
         doctor={viewingDoctor}
         onClose={() => setViewingDoctor(null)}
+        onOpenAssignModal={(doctorId) => {
+          setViewingDoctor(null);
+          handleOpenAssignModalForDoctor(doctorId);
+        }}
       />
 
       <AssignDepartmentModal

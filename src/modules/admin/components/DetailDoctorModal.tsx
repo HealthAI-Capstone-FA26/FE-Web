@@ -1,14 +1,19 @@
 import React from 'react';
-import { Eye, X } from 'lucide-react';
+import { Eye, X, Building2 } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import type { DoctorResponse } from '../../../services/doctor/doctor.service';
 
 interface DetailDoctorModalProps {
   doctor: DoctorResponse | null;
   onClose: () => void;
+  onOpenAssignModal?: (doctorId: string) => void;
 }
 
-export const DetailDoctorModal: React.FC<DetailDoctorModalProps> = ({ doctor, onClose }) => {
+export const DetailDoctorModal: React.FC<DetailDoctorModalProps> = ({
+  doctor,
+  onClose,
+  onOpenAssignModal,
+}) => {
   if (!doctor) return null;
 
   return (
@@ -21,7 +26,7 @@ export const DetailDoctorModal: React.FC<DetailDoctorModalProps> = ({ doctor, on
           </h3>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer border-none bg-transparent"
           >
             <X className="w-5 h-5" />
           </button>
@@ -75,10 +80,20 @@ export const DetailDoctorModal: React.FC<DetailDoctorModalProps> = ({ doctor, on
           )}
         </div>
 
-        <div className="flex items-center justify-end pt-3 border-t border-slate-100">
+        <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+          {onOpenAssignModal ? (
+            <button
+              onClick={() => onOpenAssignModal(doctor.doctorId)}
+              className="px-4 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors flex items-center gap-1.5 border border-indigo-200 cursor-pointer"
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Phân công khoa phòng</span>
+            </button>
+          ) : <div />}
+
           <button
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold text-xs cursor-pointer border-none"
           >
             Đóng
           </button>
