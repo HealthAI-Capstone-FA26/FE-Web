@@ -1,7 +1,8 @@
 import React from 'react';
-import { Users, Stethoscope, HeartPulse } from 'lucide-react';
+import { Users, Stethoscope, HeartPulse, CalendarDays } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { AdminDoctorsView } from './AdminDoctorsView';
+import { AdminDoctorSchedulesView } from './AdminDoctorSchedulesView';
 import { AdminUsersView } from './AdminUsersView';
 import { ReceptionPatientsView } from '../reception/ReceptionPatientsView';
 
@@ -18,6 +19,12 @@ export const AdminRealtimeWorkspaceView: React.FC = () => {
       label: 'Quản Lý Bác Sĩ',
       icon: Stethoscope,
       component: <AdminDoctorsView />
+    },
+    {
+      id: 'doctor-schedules',
+      label: 'Lịch Làm Của Bác Sĩ',
+      icon: CalendarDays,
+      component: <AdminDoctorSchedulesView />
     },
     {
       id: 'patient-management',
