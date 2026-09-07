@@ -215,6 +215,8 @@ export const AdminDoctorSchedulesView: React.FC = () => {
 
     let activeSlots = 0;
     let bookedSlots = 0;
+    let totalPatientsBooked = 0;
+    let totalPatientsCapacity = 0;
 
     // Chỉ đếm các khung giờ khám khả dụng (không tính ca đã hủy và slot bị khóa)
     activeSchedules.forEach((s) => {
@@ -222,10 +224,12 @@ export const AdminDoctorSchedulesView: React.FC = () => {
         s.appointmentSlots.forEach((slot) => {
           if (slot.status !== 'blocked') {
             activeSlots += 1;
+            totalPatientsCapacity += slot.capacity || s.maxPatientsPerSlot || 3;
           }
-          if (slot.status === 'booked' || slot.status === 'full' || slot.bookedCount > 0) {
+          if (slot.status === 'booked' || slot.status === 'full' || (slot.bookedCount && slot.bookedCount > 0)) {
             bookedSlots += 1;
           }
+          totalPatientsBooked += slot.bookedCount || 0;
         });
       }
     });
@@ -239,6 +243,8 @@ export const AdminDoctorSchedulesView: React.FC = () => {
       cancelledShifts,
       totalSlots: activeSlots,
       bookedSlots,
+      totalPatientsBooked,
+      totalPatientsCapacity,
     };
   }, [filteredSchedules]);
 
@@ -497,10 +503,12 @@ export const AdminDoctorSchedulesView: React.FC = () => {
           <span className="text-[11px] font-bold text-slate-500 block">Bệnh nhân đã đặt hẹn</span>
           <div className="text-xl font-black text-emerald-600 mt-1 flex items-center justify-between">
             <span>
-              {stats.bookedSlots} / {stats.totalSlots}
+              {stats.totalPatientsBooked} / {stats.totalPatientsCapacity} <span className="text-xs font-bold text-emerald-700">BN</span>
             </span>
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md">
-              {stats.totalSlots > 0 ? Math.round((stats.bookedSlots / stats.totalSlots) * 100) : 0}%
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md" title={`${stats.bookedSlots}/${stats.totalSlots} slot có hẹn`}>
+              {stats.totalPatientsCapacity > 0
+                ? Math.round((stats.totalPatientsBooked / stats.totalPatientsCapacity) * 100)
+                : 0}%
             </span>
           </div>
         </div>
@@ -615,8 +623,20 @@ export const AdminDoctorSchedulesView: React.FC = () => {
                                 {daySchedules.map((sch) => {
                                   const isCancelled = sch.status === 'cancelled';
                                   const slots = sch.appointmentSlots || [];
-                                  const bookedCount = slots.filter((s) => s.status === 'booked').length;
-                                  const totalCount = slots.length;
+                                  const totalBookedPatients = slots.reduce(
+                                    (acc, s) => acc + (s.bookedCount || 0),
+                                    0
+                                  );
+                                  const totalCapacity = slots.reduce(
+                                    (acc, s) => acc + (s.capacity || sch.maxPatientsPerSlot || 3),
+                                    0
+                                  );
+                                  const bookedSlotsCount = slots.filter(
+                                    (s) => (s.bookedCount && s.bookedCount > 0) || s.status === 'booked' || s.status === 'full'
+                                  ).length;
+                                  const totalSlotsCount = slots.length;
+                                  const isAllFull =
+                                    totalCapacity > 0 && totalBookedPatients >= totalCapacity;
 
                                   return (
                                     <div
@@ -627,7 +647,7 @@ export const AdminDoctorSchedulesView: React.FC = () => {
                                           ? 'bg-slate-100/80 border-slate-200 text-slate-400 line-through'
                                           : 'bg-white border-slate-200/90 text-slate-800 hover:border-blue-400 hover:shadow-md hover:scale-[1.02]'
                                       }`}
-                                      title="Bấm để xem chi tiết ca trực và danh sách slots"
+                                      title={`Ca trực có ${totalSlotsCount} khung giờ. Đã đặt: ${totalBookedPatients}/${totalCapacity} bệnh nhân (${bookedSlotsCount}/${totalSlotsCount} slot có hẹn)`}
                                     >
                                       <div className="flex items-center justify-between gap-1">
                                         {getSessionBadge(sch.session, sch.startTime, sch.endTime)}
@@ -638,12 +658,12 @@ export const AdminDoctorSchedulesView: React.FC = () => {
                                       </div>
 
                                       <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 text-[10px]">
-                                        <span className="font-bold text-slate-600">
-                                          {bookedCount}/{totalCount} đặt
+                                        <span className="font-bold text-slate-700" title={`${bookedSlotsCount}/${totalSlotsCount} slot có hẹn`}>
+                                          {totalBookedPatients}/{totalCapacity} BN
                                         </span>
                                         {isCancelled ? (
                                           <span className="text-rose-600 font-bold">Hủy</span>
-                                        ) : bookedCount === totalCount && totalCount > 0 ? (
+                                        ) : isAllFull ? (
                                           <span className="text-rose-600 font-bold">Đầy</span>
                                         ) : (
                                           <span className="text-emerald-600 font-bold">Còn</span>

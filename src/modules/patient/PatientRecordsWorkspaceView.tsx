@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Pill } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { PatientPortalAppointmentsView } from './PatientPortalAppointmentsView';
 
@@ -7,22 +7,16 @@ export const PatientRecordsWorkspaceView: React.FC = () => {
   const tabs: WorkspaceTab[] = [
     {
       id: 'appointments',
-      label: 'Lịch hẹn & Đăng ký khám',
+      label: 'Đặt lịch khám & Quản lý lịch hẹn',
       icon: Calendar,
-      component: <PatientPortalAppointmentsView />
-    },
-    {
-      id: 'records-pdf',
-      label: 'Đơn thuốc & Bệnh án PDF',
-      icon: Pill,
       component: <PatientPortalAppointmentsView />
     }
   ];
 
   return (
     <WorkspaceContainer
-      title="Lịch Hẹn Khám & Bệnh Án Điện Tử (Patient Records)"
-      subtitle="Quản lý lịch hẹn khám bệnh, theo dõi quá trình khám và xem/tải về đơn thuốc, bệnh án PDF"
+      title="Đặt Lịch Khám & Quản Lý Lịch Hẹn"
+      subtitle="Đăng ký lịch khám trực tuyến, theo dõi trạng thái lịch hẹn và xuất trình mã QR check-in"
       icon={Calendar}
       tabs={tabs}
       defaultTabId="appointments"
