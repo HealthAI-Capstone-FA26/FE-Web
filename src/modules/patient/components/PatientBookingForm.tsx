@@ -8,7 +8,6 @@ import {
   Loader2,
   Stethoscope,
   Building2,
-  ChevronRight,
   ShieldCheck,
   FileText,
   Sparkles,

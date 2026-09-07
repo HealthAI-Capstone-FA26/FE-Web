@@ -6,7 +6,6 @@ import {
   RotateCcw,
   Plus,
   Zap,
-  Building2,
   Stethoscope,
   Clock,
   CheckCircle2,
@@ -14,12 +13,9 @@ import {
   Loader2,
   Calendar,
   XCircle,
-  Users,
   Sun,
   Sunset,
   Moon,
-  Search,
-  Filter,
 } from 'lucide-react';
 import {
   doctorScheduleService,

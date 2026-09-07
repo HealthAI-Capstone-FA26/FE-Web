@@ -32,9 +32,6 @@ export const PatientPortalAppointmentsView: React.FC = () => {
   // Detail Modal
   const [selectedDetailAppointmentId, setSelectedDetailAppointmentId] = useState<string | null>(null);
 
-  // QR Modal
-  const [selectedQrAppointment, setSelectedQrAppointment] = useState<AppointmentItem | null>(null);
-
   // Cancel Modal
   const [cancellingAppointment, setCancellingAppointment] = useState<AppointmentItem | null>(null);
 
@@ -59,7 +56,7 @@ export const PatientPortalAppointmentsView: React.FC = () => {
     fetchAppointments();
   }, []);
 
-  const handleBookingSuccess = (newApp: AppointmentItem) => {
+  const handleBookingSuccess = () => {
     fetchAppointments();
     setActiveTab('my-appointments');
   };

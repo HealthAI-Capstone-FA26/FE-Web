@@ -151,4 +151,38 @@ export const appointmentService = {
       body: JSON.stringify({ cancelReason: cancelReason || 'Bệnh nhân chủ động hủy lịch qua hệ thống' }),
     });
   },
+
+  // Lễ tân xác nhận lịch hẹn (pending -> confirmed)
+  async confirmAppointment(id: string): Promise<AppointmentItem> {
+    return apiFetch<AppointmentItem>(`/appointments/${id}/confirm`, {
+      method: 'PATCH',
+    });
+  },
+
+  // Lễ tân tiếp nhận / check-in bệnh nhân (confirmed -> checked_in, tự động phát số thứ tự QueueTicket)
+  async checkInAppointment(id: string): Promise<{ appointment: AppointmentItem; queueTicket: any }> {
+    return apiFetch<{ appointment: AppointmentItem; queueTicket: any }>(`/appointments/${id}/check-in`, {
+      method: 'PATCH',
+    });
+  },
+
+  // Đánh dấu bệnh nhân vắng mặt / không đến (-> no_show)
+  async markNoShowAppointment(id: string): Promise<AppointmentItem> {
+    return apiFetch<AppointmentItem>(`/appointments/${id}/no-show`, {
+      method: 'PATCH',
+    });
+  },
+
+  // Lễ tân tạo lịch khám trực tiếp tại quầy (bookingChannel = at_hospital)
+  async createAtHospitalAppointment(payload: {
+    patientId?: string;
+    departmentId: string;
+    reasonForVisit?: string;
+    priority?: 'normal' | 'urgent' | 'emergency';
+  }): Promise<{ appointment: AppointmentItem; queueTicket: any }> {
+    return apiFetch<{ appointment: AppointmentItem; queueTicket: any }>('/appointments/at-hospital', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
 };

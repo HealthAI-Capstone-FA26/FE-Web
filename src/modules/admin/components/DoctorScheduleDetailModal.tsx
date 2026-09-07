@@ -127,7 +127,6 @@ export const DoctorScheduleDetailModal: React.FC<DoctorScheduleDetailModalProps>
   // Thống kê các slot
   const freeSlots = slots.filter((s) => s.status === 'free' && (!s.bookedCount || s.bookedCount === 0));
   const bookedSlots = slots.filter((s) => s.status === 'booked' || s.status === 'full' || (s.bookedCount && s.bookedCount > 0));
-  const blockedSlots = slots.filter((s) => s.status === 'blocked');
 
   // Lấy icon và màu theo ca
   const sessionConfig = SESSION_CONFIG[activeSchedule.session] || {
