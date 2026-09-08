@@ -1,18 +1,17 @@
 import React from 'react';
-import { UserCheck, UserPlus, Users } from 'lucide-react';
+import { UserCheck, UserPlus, Users, CalendarCheck } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
-import { ReceptionCheckinView } from './ReceptionCheckinView';
+import { ReceptionAppointmentsView } from './ReceptionAppointmentsView';
 import { ReceptionPatientsView } from './ReceptionPatientsView';
 import { ReceptionPatientProfileFormView } from './ReceptionPatientProfileFormView';
 
 export const ReceptionIntakeWorkspaceView: React.FC = () => {
   const tabs: WorkspaceTab[] = [
     {
-      id: 'checkin-list',
-      label: 'Danh sách chờ & Check-in',
-      icon: UserCheck,
-      badge: '08 Chờ',
-      component: <ReceptionCheckinView />
+      id: 'appointments-checkin',
+      label: 'Danh sách Lịch hẹn & Check-in',
+      icon: CalendarCheck,
+      component: <ReceptionAppointmentsView />
     },
     {
       id: 'patients-list',
@@ -31,10 +30,10 @@ export const ReceptionIntakeWorkspaceView: React.FC = () => {
   return (
     <WorkspaceContainer
       title="Tiếp Nhận & Đăng Ký Khám Tại Quầy"
-      subtitle="Thực hiện check-in, quản lý danh sách bệnh nhân và tạo mới hồ sơ bệnh nhân gọn gàng"
+      subtitle="Thực hiện xác nhận lịch hẹn, check-in cấp số thứ tự, quản lý danh sách bệnh nhân và tạo mới hồ sơ bệnh nhân"
       icon={UserCheck}
       tabs={tabs}
-      defaultTabId="checkin-list"
+      defaultTabId="appointments-checkin"
     />
   );
 };
