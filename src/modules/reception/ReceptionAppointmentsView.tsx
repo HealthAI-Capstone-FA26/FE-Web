@@ -750,8 +750,8 @@ export const ReceptionAppointmentsView: React.FC = () => {
                             </button>
                           )}
 
-                          {/* Confirmed -> Check-in */}
-                          {isConfirmed && (
+                          {/* Confirmed -> Check-in (chỉ hiện khi chưa có queue ticket) */}
+                          {isConfirmed && !app.queueTicket && (
                             <button
                               type="button"
                               onClick={() => handleCheckInAppointment(app)}

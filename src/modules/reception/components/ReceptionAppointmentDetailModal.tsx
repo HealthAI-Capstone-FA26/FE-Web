@@ -416,7 +416,7 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
               </button>
             )}
 
-            {appointment.status === 'confirmed' && onCheckIn && (
+            {appointment.status === 'confirmed' && !appointment.queueTicket && onCheckIn && (
               <button
                 type="button"
                 onClick={() => {
