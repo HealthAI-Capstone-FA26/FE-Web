@@ -125,9 +125,8 @@ export const DoctorScheduleDetailModal: React.FC<DoctorScheduleDetailModalProps>
   const slots = activeSchedule.appointmentSlots || [];
 
   // Thống kê các slot
-  const freeSlots = slots.filter((s) => s.status === 'free');
-  const bookedSlots = slots.filter((s) => s.status === 'booked' || s.status === 'full' || s.bookedCount > 0);
-  const blockedSlots = slots.filter((s) => s.status === 'blocked');
+  const freeSlots = slots.filter((s) => s.status === 'free' && (!s.bookedCount || s.bookedCount === 0));
+  const bookedSlots = slots.filter((s) => s.status === 'booked' || s.status === 'full' || (s.bookedCount && s.bookedCount > 0));
 
   // Lấy icon và màu theo ca
   const sessionConfig = SESSION_CONFIG[activeSchedule.session] || {
@@ -313,20 +312,22 @@ export const DoctorScheduleDetailModal: React.FC<DoctorScheduleDetailModalProps>
         {/* Slot Statistics Summary Bar */}
         <div className="grid grid-cols-4 gap-2 text-center text-xs">
           <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200">
-            <div className="text-[10px] text-slate-500 font-medium">Tổng Slot</div>
-            <div className="text-sm font-extrabold text-slate-900 mt-0.5">{slots.length}</div>
+            <div className="text-[10px] text-slate-500 font-medium">Tổng Khung Giờ</div>
+            <div className="text-sm font-extrabold text-slate-900 mt-0.5">{slots.length} <span className="text-xs font-semibold text-slate-500">slots</span></div>
           </div>
           <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900">
-            <div className="text-[10px] text-emerald-700 font-medium">Còn Trống</div>
-            <div className="text-sm font-extrabold text-emerald-700 mt-0.5">{freeSlots.length}</div>
+            <div className="text-[10px] text-emerald-700 font-medium">Slot Trống (0 BN)</div>
+            <div className="text-sm font-extrabold text-emerald-700 mt-0.5">{freeSlots.length} <span className="text-xs font-semibold text-emerald-600">slots</span></div>
           </div>
           <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900">
-            <div className="text-[10px] text-blue-700 font-medium">Đã Đặt</div>
-            <div className="text-sm font-extrabold text-blue-700 mt-0.5">{bookedSlots.length}</div>
+            <div className="text-[10px] text-blue-700 font-medium">Slot Đang Có Hẹn</div>
+            <div className="text-sm font-extrabold text-blue-700 mt-0.5">{bookedSlots.length} <span className="text-xs font-semibold text-blue-600">slots</span></div>
           </div>
-          <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900">
-            <div className="text-[10px] text-rose-700 font-medium">Bị Khóa / Hủy</div>
-            <div className="text-sm font-extrabold text-rose-700 mt-0.5">{blockedSlots.length}</div>
+          <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900">
+            <div className="text-[10px] text-purple-700 font-medium">Bệnh Nhân Đã Đặt</div>
+            <div className="text-sm font-extrabold text-purple-700 mt-0.5">
+              {slots.reduce((acc, s) => acc + (s.bookedCount || 0), 0)} / {slots.reduce((acc, s) => acc + (s.capacity || activeSchedule.maxPatientsPerSlot || 3), 0)} <span className="text-xs font-semibold text-purple-600">BN</span>
+            </div>
           </div>
         </div>
 

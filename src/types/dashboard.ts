@@ -19,9 +19,9 @@ const receptionNavGroups: NavGroup[] = [
   {
     groupName: 'Nghiệp vụ Tiếp nhận',
     items: [
-      { id: 'rec_workspace_checkin', label: 'Tiếp nhận & Đăng ký quầy', path: '/tiep-nhan/danh-sach-cho', iconName: 'UserCheck', badge: '08 Chờ', requiredPermission: 'queue-ticket:read:all' },
-      { id: 'rec_workspace_patients', label: 'Khai báo & Tra cứu Hồ sơ', path: '/tiep-nhan/benh-nhan', iconName: 'Users', requiredPermission: 'patient:read:all' },
-      { id: 'rec_workspace_billing', label: 'Quản lý Thu phí & Hóa đơn', path: '/tiep-nhan/thu-phi', iconName: 'CreditCard', badge: '05 Chờ', requiredPermission: 'claim:read:all' }
+      { id: 'rec_workspace_appointments', label: 'Lịch hẹn', path: '/tiep-nhan/danh-sach-cho', iconName: 'CalendarCheck', requiredPermission: 'appointment:read:all' },
+      { id: 'rec_workspace_registration', label: 'Đăng ký khám bệnh', path: '/tiep-nhan/benh-nhan', iconName: 'CalendarPlus', requiredPermission: 'patient:read:all' },
+      { id: 'rec_workspace_queue_call', label: 'Gọi số hồ sơ', path: '/tiep-nhan/goi-so', iconName: 'Megaphone', badge: 'Live', requiredPermission: 'queue-ticket:read:all' }
     ]
   }
 ];
@@ -77,7 +77,7 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
         { id: 'pat_workspace_profile', label: 'Hồ sơ khách hàng', path: '/benh-nhan/ho-so', iconName: 'UserCheck', requiredPermission: 'patient:read:own' },
         { id: 'pat_workspace_medical', label: 'Hồ sơ Y tế & Tiền sử', path: '/benh-nhan/ho-so-y-te', iconName: 'FileText', badge: 'HL7 FHIR', requiredPermission: 'patient:read:own' },
         { id: 'pat_workspace_submission', label: 'Khai báo & Nộp dữ liệu', path: '/benh-nhan/trieu-chung', iconName: 'Activity', requiredPermission: 'observation:create:own' },
-        { id: 'pat_workspace_records', label: 'Lịch hẹn & Bệnh án PDF', path: '/benh-nhan/lich-hen', iconName: 'Calendar', requiredPermission: 'appointment:read:own' }
+        { id: 'pat_workspace_records', label: 'Đặt lịch khám', path: '/benh-nhan/lich-hen', iconName: 'Calendar', requiredPermission: 'appointment:read:own' }
       ]
     }
   ]
