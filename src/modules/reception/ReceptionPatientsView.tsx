@@ -3,7 +3,7 @@ import {
   Users, CheckCircle2, UserPlus, Search, Download, Eye,
   MoreVertical, X, ShieldAlert, Heart, FileText,
   Calendar, Stethoscope, Clock, Loader2, Edit3, RefreshCw, Mail, Phone, Shield, AlertCircle,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CalendarPlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { patientService } from '../../services/patient/patient.service';
@@ -46,9 +46,43 @@ interface Patient {
   visitHistory: Visit[];
 }
 
-export const ReceptionPatientsView: React.FC = () => {
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+export interface ReceptionPatientsViewProps {
+  onSelectPatientForWalkin?: (patient: any) => void;
+}
+
+export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
+  onSelectPatientForWalkin,
+}) => {
+  const [patients, setPatients] = useState<Patient[]>(() => {
+    const cached = patientService.getCachedPatients();
+    if (cached && Array.isArray(cached)) {
+      return cached.map((p: any) => {
+        const birthYear = p.dateOfBirth ? new Date(p.dateOfBirth).getFullYear() : 1995;
+        const computedAge = isNaN(birthYear) ? 30 : new Date().getFullYear() - birthYear;
+        return {
+          patientId: p.patientId || p.patientCode || p.id,
+          mrn: p.patientCode || p.patientId || '',
+          name: p.fullName || 'Chưa đặt tên',
+          age: computedAge,
+          gender: p.gender === 'male' || p.gender === 'Nam' ? 'Nam' : 'Nữ',
+          email: p.email || '---',
+          phone: p.phoneNumber || '---',
+          cccd: p.identityNumber || '---',
+          bhyt: p.insuranceNumber || '---',
+          dob: p.dateOfBirth ? p.dateOfBirth.slice(0, 10) : '---',
+          recentAction: 'Khám sức khỏe',
+          doctor: 'Chuyên khoa',
+          specialty: 'Khám tổng quát',
+          ssn: p.identityNumber || '---',
+          visitHistory: [],
+        };
+      });
+    }
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    return !patientService.getCachedPatients();
+  });
   const [searchTerm, setSearchTerm] = useState('');
 
   // Filter & Pagination States
@@ -460,6 +494,28 @@ export const ReceptionPatientsView: React.FC = () => {
                     {/* Actions */}
                     <td className="py-3.5 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
+                        {onSelectPatientForWalkin && (
+                          <button
+                            onClick={() =>
+                              onSelectPatientForWalkin({
+                                patientId: patient.patientId,
+                                patientCode: patient.mrn,
+                                fullName: patient.name,
+                                dateOfBirth: patient.dob,
+                                gender: patient.gender === 'Nam' ? 'male' : 'female',
+                                phoneNumber: patient.phone,
+                                identityNumber: patient.cccd,
+                                insuranceNumber: patient.bhyt,
+                                email: patient.email,
+                              })
+                            }
+                            className="px-2.5 py-1 text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors inline-flex items-center gap-1 cursor-pointer shadow-2xs border-none"
+                            title="Đăng ký khám tại quầy cho bệnh nhân này"
+                          >
+                            <CalendarPlus className="w-3.5 h-3.5" />
+                            <span>Đăng ký khám</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => setSelectedPatient(patient)}
                           className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors inline-flex items-center gap-1 cursor-pointer shadow-2xs"

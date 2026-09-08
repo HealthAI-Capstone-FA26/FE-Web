@@ -19,8 +19,8 @@ const receptionNavGroups: NavGroup[] = [
   {
     groupName: 'Nghiệp vụ Tiếp nhận',
     items: [
-      { id: 'rec_workspace_checkin', label: 'Tiếp nhận & Đăng ký quầy', path: '/tiep-nhan/danh-sach-cho', iconName: 'UserCheck', badge: '08 Chờ', requiredPermission: 'queue-ticket:read:all' },
-      { id: 'rec_workspace_patients', label: 'Khai báo & Tra cứu Hồ sơ', path: '/tiep-nhan/benh-nhan', iconName: 'Users', requiredPermission: 'patient:read:all' },
+      { id: 'rec_workspace_checkin', label: 'Tiếp nhận & Check-in', path: '/tiep-nhan/danh-sach-cho', iconName: 'UserCheck', badge: '08 Chờ', requiredPermission: 'queue-ticket:read:all' },
+      { id: 'rec_workspace_patients', label: 'Khai báo & Đăng ký trực tiếp', path: '/tiep-nhan/benh-nhan', iconName: 'CalendarPlus', requiredPermission: 'patient:read:all' },
       { id: 'rec_workspace_billing', label: 'Quản lý Thu phí & Hóa đơn', path: '/tiep-nhan/thu-phi', iconName: 'CreditCard', badge: '05 Chờ', requiredPermission: 'claim:read:all' }
     ]
   }

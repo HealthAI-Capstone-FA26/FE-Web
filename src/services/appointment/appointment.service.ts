@@ -106,6 +106,17 @@ export interface FindAppointmentsQuery {
   to?: string;
 }
 
+let cachedAppointmentsMap: Map<string, AppointmentItem[]> = new Map();
+
+function getAppointmentQueryKey(query?: FindAppointmentsQuery): string {
+  const params = new URLSearchParams();
+  if (query?.patientId) params.append('patientId', query.patientId);
+  if (query?.status) params.append('status', query.status);
+  if (query?.from) params.append('from', query.from);
+  if (query?.to) params.append('to', query.to);
+  return params.toString();
+}
+
 export const appointmentService = {
   // Lấy danh sách Slot còn trống (status=free) của 1 bác sĩ theo ngày (YYYY-MM-DD)
   async getFreeSlots(doctorId: string, date: string): Promise<AppointmentSlotResponse[]> {
@@ -116,14 +127,31 @@ export const appointmentService = {
 
   // Đặt lịch khám online
   async createOnlineAppointment(payload: CreateOnlineAppointmentPayload): Promise<AppointmentItem> {
-    return apiFetch<AppointmentItem>('/appointments', {
+    const res = await apiFetch<AppointmentItem>('/appointments', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    this.invalidateCache();
+    return res;
   },
 
-  // Lấy danh sách lịch hẹn
-  async getAppointments(query?: FindAppointmentsQuery): Promise<AppointmentItem[]> {
+  // Lấy dữ liệu cache đồng bộ nếu đã có
+  getCachedAppointments(query?: FindAppointmentsQuery): AppointmentItem[] | null {
+    const key = getAppointmentQueryKey(query);
+    return cachedAppointmentsMap.get(key) || null;
+  },
+
+  invalidateCache() {
+    cachedAppointmentsMap.clear();
+  },
+
+  // Lấy danh sách lịch hẹn (hỗ trợ Memory Cache + Background Refresh)
+  async getAppointments(query?: FindAppointmentsQuery, forceRefresh = false): Promise<AppointmentItem[]> {
+    const key = getAppointmentQueryKey(query);
+    if (!forceRefresh && cachedAppointmentsMap.has(key)) {
+      return cachedAppointmentsMap.get(key)!;
+    }
+
     const queryParams = new URLSearchParams();
     if (query?.patientId) queryParams.append('patientId', query.patientId);
     if (query?.status) queryParams.append('status', query.status);
@@ -132,9 +160,11 @@ export const appointmentService = {
 
     const queryString = queryParams.toString();
     const url = `/appointments${queryString ? `?${queryString}` : ''}`;
-    return apiFetch<AppointmentItem[]>(url, {
+    const data = await apiFetch<AppointmentItem[]>(url, {
       method: 'GET',
     });
+    cachedAppointmentsMap.set(key, data);
+    return data;
   },
 
   // Xem chi tiết 1 lịch hẹn
@@ -146,31 +176,39 @@ export const appointmentService = {
 
   // Bệnh nhân hoặc lễ tân hủy lịch hẹn (pending / confirmed)
   async cancelAppointment(id: string, cancelReason?: string): Promise<AppointmentItem> {
-    return apiFetch<AppointmentItem>(`/appointments/${id}/cancel`, {
+    const res = await apiFetch<AppointmentItem>(`/appointments/${id}/cancel`, {
       method: 'PATCH',
       body: JSON.stringify({ cancelReason: cancelReason || 'Bệnh nhân chủ động hủy lịch qua hệ thống' }),
     });
+    this.invalidateCache();
+    return res;
   },
 
   // Lễ tân xác nhận lịch hẹn (pending -> confirmed)
   async confirmAppointment(id: string): Promise<AppointmentItem> {
-    return apiFetch<AppointmentItem>(`/appointments/${id}/confirm`, {
+    const res = await apiFetch<AppointmentItem>(`/appointments/${id}/confirm`, {
       method: 'PATCH',
     });
+    this.invalidateCache();
+    return res;
   },
 
   // Lễ tân tiếp nhận / check-in bệnh nhân (confirmed -> checked_in, tự động phát số thứ tự QueueTicket)
   async checkInAppointment(id: string): Promise<{ appointment: AppointmentItem; queueTicket: any }> {
-    return apiFetch<{ appointment: AppointmentItem; queueTicket: any }>(`/appointments/${id}/check-in`, {
+    const res = await apiFetch<{ appointment: AppointmentItem; queueTicket: any }>(`/appointments/${id}/check-in`, {
       method: 'PATCH',
     });
+    this.invalidateCache();
+    return res;
   },
 
   // Đánh dấu bệnh nhân vắng mặt / không đến (-> no_show)
   async markNoShowAppointment(id: string): Promise<AppointmentItem> {
-    return apiFetch<AppointmentItem>(`/appointments/${id}/no-show`, {
+    const res = await apiFetch<AppointmentItem>(`/appointments/${id}/no-show`, {
       method: 'PATCH',
     });
+    this.invalidateCache();
+    return res;
   },
 
   // Lễ tân tạo lịch khám trực tiếp tại quầy (bookingChannel = at_hospital)
@@ -180,9 +218,12 @@ export const appointmentService = {
     reasonForVisit?: string;
     priority?: 'normal' | 'urgent' | 'emergency';
   }): Promise<{ appointment: AppointmentItem; queueTicket: any }> {
-    return apiFetch<{ appointment: AppointmentItem; queueTicket: any }>('/appointments/at-hospital', {
+    const res = await apiFetch<{ appointment: AppointmentItem; queueTicket: any }>('/appointments/at-hospital', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    this.invalidateCache();
+    return res;
   },
 };
+

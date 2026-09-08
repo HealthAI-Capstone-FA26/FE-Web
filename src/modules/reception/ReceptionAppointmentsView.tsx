@@ -237,9 +237,16 @@ export const ReceptionAppointmentsView: React.FC = () => {
     }
   };
 
-  // Format date helper
+  // Format date helper (Timezone-safe)
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return '---';
+    if (typeof dateStr === 'string' && dateStr.includes('-')) {
+      const cleanDate = dateStr.slice(0, 10);
+      const [y, m, d] = cleanDate.split('-');
+      if (y && m && d && y.length === 4) {
+        return `${d}/${m}/${y}`;
+      }
+    }
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString('vi-VN', {
@@ -436,11 +443,10 @@ export const ReceptionAppointmentsView: React.FC = () => {
                 key={preset.id}
                 type="button"
                 onClick={() => setDatePreset(preset.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                  datePreset === preset.id
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${datePreset === preset.id
                     ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
                     : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                }`}
+                  }`}
               >
                 {preset.label}
               </button>
@@ -589,11 +595,10 @@ export const ReceptionAppointmentsView: React.FC = () => {
                         </div>
                         <div className="mt-0.5">
                           <span
-                            className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                              app.bookingChannel === 'online'
+                            className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md ${app.bookingChannel === 'online'
                                 ? 'bg-sky-50 text-sky-700 border border-sky-200'
                                 : 'bg-slate-100 text-slate-700 border border-slate-200'
-                            }`}
+                              }`}
                           >
                             {app.bookingChannel === 'online' ? '📱 Online' : '🏥 Tại quầy'}
                           </span>
@@ -657,21 +662,51 @@ export const ReceptionAppointmentsView: React.FC = () => {
                         <div className="text-[11px] font-bold text-teal-700 mt-0.5 flex items-center gap-1">
                           <Clock className="w-3 h-3 text-teal-500 shrink-0" />
                           <span>
-                            {formatSlotTime(
-                              app.slot?.slotStartTime || app.appointmentTime,
-                              app.slot?.slotEndTime
-                            )}
+                            {app.bookingChannel === 'at_hospital'
+                              ? 'Đăng ký tại quầy'
+                              : formatSlotTime(
+                                  app.slot?.slotStartTime || app.appointmentTime,
+                                  app.slot?.slotEndTime
+                                )}
                           </span>
                         </div>
                       </td>
 
-                      {/* Queue Ticket Number */}
+                      {/* Queue Ticket Number (Phân biệt rõ Phiếu A và Phiếu B) */}
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
                         {app.queueTicket ? (
-                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl text-xs font-black font-mono bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
-                            <Ticket className="w-3.5 h-3.5 text-emerald-600" />
-                            {app.queueTicket.ticketNumber}
-                          </span>
+                          (() => {
+                            const prefix =
+                              app.queueTicket.ticketPrefix ||
+                              (app.bookingChannel === 'at_hospital' ? 'B' : 'A');
+                            const numStr = String(app.queueTicket.ticketNumber || 1).padStart(3, '0');
+                            const isPrefixA = prefix === 'A';
+
+                            return (
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black font-mono shadow-2xs border ${
+                                  isPrefixA
+                                    ? 'bg-teal-50 text-teal-800 border-teal-300'
+                                    : 'bg-amber-50 text-amber-900 border-amber-300'
+                                }`}
+                                title={
+                                  isPrefixA
+                                    ? 'Phiếu A: Lịch đặt Online đã check-in'
+                                    : 'Phiếu B: Đăng ký khám trực tiếp tại quầy'
+                                }
+                              >
+                                <Ticket
+                                  className={`w-3.5 h-3.5 ${
+                                    isPrefixA ? 'text-teal-600' : 'text-amber-600'
+                                  }`}
+                                />
+                                <span>
+                                  {prefix}
+                                  {numStr}
+                                </span>
+                              </span>
+                            );
+                          })()
                         ) : (
                           <span className="text-[11px] text-slate-400 italic font-normal">
                             Chưa cấp số
@@ -806,9 +841,8 @@ export const ReceptionAppointmentsView: React.FC = () => {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold animate-in slide-in-from-bottom-5 text-white ${
-            toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'
-          }`}
+          className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold animate-in slide-in-from-bottom-5 text-white ${toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'
+            }`}
         >
           {toast.type === 'error' ? (
             <AlertTriangle className="w-4 h-4 text-rose-100" />

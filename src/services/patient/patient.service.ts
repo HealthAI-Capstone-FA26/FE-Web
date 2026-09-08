@@ -52,22 +52,58 @@ export interface MatchSuggestionResult {
   };
 }
 
+let cachedPatients: PatientResponse[] | null = null;
+let patientsFetchPromise: Promise<PatientResponse[]> | null = null;
+
 export const patientService = {
   // Tạo hồ sơ bệnh nhân (POST /patients)
   async createPatient(data: CreatePatientData): Promise<PatientResponse> {
-    return apiFetch<PatientResponse>('/patients', {
+    const res = await apiFetch<PatientResponse>('/patients', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    // Invalidate cache so new patient appears
+    cachedPatients = null;
+    return res;
   },
 
   // Danh sách / Tìm kiếm tất cả hồ sơ bệnh nhân (GET /patients?search=...) — dành cho Lễ tân/Admin
-  async getAllPatients(search?: string): Promise<PatientResponse[]> {
+  async getAllPatients(search?: string, forceRefresh = false): Promise<PatientResponse[]> {
+    if (!search && !forceRefresh && cachedPatients) {
+      return cachedPatients;
+    }
+    if (!search && !forceRefresh && patientsFetchPromise) {
+      return patientsFetchPromise;
+    }
+
     const params = new URLSearchParams();
     if (search) params.append('search', search);
     const queryString = params.toString();
     const url = `/patients${queryString ? `?${queryString}` : ''}`;
+
+    if (!search) {
+      patientsFetchPromise = apiFetch<PatientResponse[]>(url, { method: 'GET' })
+        .then((data) => {
+          cachedPatients = data;
+          patientsFetchPromise = null;
+          return data;
+        })
+        .catch((err) => {
+          patientsFetchPromise = null;
+          throw err;
+        });
+      return patientsFetchPromise;
+    }
+
     return apiFetch<PatientResponse[]>(url, { method: 'GET' });
+  },
+
+  getCachedPatients(): PatientResponse[] | null {
+    return cachedPatients;
+  },
+
+  async prefetchPatients(): Promise<PatientResponse[]> {
+    return this.getAllPatients();
   },
 
   // Danh sách hồ sơ bệnh nhân user đang quản lý (GET /patients/my)

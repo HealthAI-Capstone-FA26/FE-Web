@@ -58,10 +58,37 @@ export interface AssignDepartmentData {
   isPrimary?: boolean;
 }
 
+let cachedDepartments: DepartmentResponse[] | null = null;
+let departmentsFetchPromise: Promise<DepartmentResponse[]> | null = null;
+
 export const doctorService = {
-  // GET /departments — Danh sách khoa phòng
-  async getDepartments(): Promise<DepartmentResponse[]> {
-    return apiFetch<DepartmentResponse[]>('/departments', { method: 'GET' });
+  // GET /departments — Danh sách khoa phòng (có memory cache)
+  async getDepartments(forceRefresh = false): Promise<DepartmentResponse[]> {
+    if (!forceRefresh && cachedDepartments) {
+      return cachedDepartments;
+    }
+    if (!forceRefresh && departmentsFetchPromise) {
+      return departmentsFetchPromise;
+    }
+    departmentsFetchPromise = apiFetch<DepartmentResponse[]>('/departments', { method: 'GET' })
+      .then((data) => {
+        cachedDepartments = data;
+        departmentsFetchPromise = null;
+        return data;
+      })
+      .catch((err) => {
+        departmentsFetchPromise = null;
+        throw err;
+      });
+    return departmentsFetchPromise;
+  },
+
+  getCachedDepartments(): DepartmentResponse[] | null {
+    return cachedDepartments;
+  },
+
+  async prefetchDepartments(): Promise<DepartmentResponse[]> {
+    return this.getDepartments();
   },
 
   // POST /doctors/:id/departments — Gán bác sĩ vào khoa

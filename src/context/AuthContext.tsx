@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { UserProfile, UserRole } from '../types/auth';
 import { authService } from '../services/auth/auth.service';
+import { doctorService } from '../services/doctor/doctor.service';
+import { patientService } from '../services/patient/patient.service';
+import { appointmentService } from '../services/appointment/appointment.service';
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   PATIENT: [
@@ -170,6 +173,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isLoggedIn) {
       localStorage.setItem('4am_active_role', currentRole);
       localStorage.setItem('4am_is_logged_in', 'true');
+
+      if (currentRole === 'RECEPTIONIST' || currentRole === 'ADMIN') {
+        doctorService.getDepartments().catch(() => {});
+        patientService.getAllPatients().catch(() => {});
+        appointmentService.getAppointments().catch(() => {});
+      }
     } else {
       setUser(null);
       localStorage.removeItem('4am_is_logged_in');
@@ -186,6 +195,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const mockUser = MOCK_USERS[role];
     setUser(mockUser);
     localStorage.setItem('4am_user_data', JSON.stringify(mockUser));
+
+    if (role === 'RECEPTIONIST' || role === 'ADMIN') {
+      doctorService.getDepartments(true).catch(() => {});
+      patientService.getAllPatients(undefined, true).catch(() => {});
+      appointmentService.getAppointments().catch(() => {});
+    }
   };
 
   const login = (_email: string, role: UserRole) => {
@@ -244,6 +259,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('4am_is_logged_in', 'true');
     localStorage.setItem('4am_user_data', JSON.stringify(userProfile));
     localStorage.setItem('4am_user_name', userProfile.name);
+
+    if (mappedRole === 'RECEPTIONIST' || mappedRole === 'ADMIN') {
+      doctorService.getDepartments(true).catch(() => {});
+      patientService.getAllPatients(undefined, true).catch(() => {});
+      appointmentService.getAppointments().catch(() => {});
+    }
   };
 
   const logout = () => {

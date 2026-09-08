@@ -43,6 +43,19 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
   // Format date helper
   const formatDateVN = (dateStr?: string) => {
     if (!dateStr) return '---';
+    if (typeof dateStr === 'string' && dateStr.includes('-')) {
+      const cleanDate = dateStr.slice(0, 10);
+      const [y, m, d] = cleanDate.split('-');
+      if (y && m && d && y.length === 4) {
+        const localDate = new Date(Number(y), Number(m) - 1, Number(d));
+        return localDate.toLocaleDateString('vi-VN', {
+          weekday: 'long',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        });
+      }
+    }
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString('vi-VN', {
@@ -73,7 +86,8 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
     return timeStr;
   };
 
-  const formatTimeSlot = (startTime?: string, endTime?: string) => {
+  const formatTimeSlot = (startTime?: string, endTime?: string, bookingChannel?: string) => {
+    if (bookingChannel === 'at_hospital') return 'Đăng ký tại quầy';
     if (!startTime) return 'Theo lịch hẹn';
     const s = formatSingleTime(startTime);
     const e = formatSingleTime(endTime);
@@ -184,15 +198,34 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
             </div>
 
             {appointment.queueTicket ? (
-              <div className="p-2.5 px-4 rounded-2xl bg-emerald-500 text-white flex items-center gap-3 shadow-md">
-                <Ticket className="w-6 h-6 text-emerald-100" />
-                <div>
-                  <div className="text-[10px] font-bold text-emerald-100 uppercase tracking-wider">Số Phiếu Khám</div>
-                  <div className="text-xl font-black font-mono leading-none tracking-tight">
-                    {appointment.queueTicket.ticketNumber}
+              (() => {
+                const prefix =
+                  appointment.queueTicket.ticketPrefix ||
+                  (appointment.bookingChannel === 'at_hospital' ? 'B' : 'A');
+                const numStr = String(appointment.queueTicket.ticketNumber || 1).padStart(3, '0');
+                const isPrefixA = prefix === 'A';
+
+                return (
+                  <div
+                    className={`p-2.5 px-4 rounded-2xl flex items-center gap-3 shadow-md ${
+                      isPrefixA
+                        ? 'bg-teal-600 text-white'
+                        : 'bg-amber-600 text-white'
+                    }`}
+                  >
+                    <Ticket className="w-6 h-6 text-white/80" />
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-white/80">
+                        {isPrefixA ? 'Phiếu Khám (Online)' : 'Phiếu Khám (Tại Quầy)'}
+                      </div>
+                      <div className="text-xl font-black font-mono leading-none tracking-tight">
+                        {prefix}
+                        {numStr}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()
             ) : appointment.status === 'confirmed' ? (
               <div className="p-2.5 px-4 rounded-2xl bg-blue-50 border border-blue-200 text-blue-800 text-[11px] font-semibold flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-blue-600 shrink-0" />
@@ -286,7 +319,11 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
               <div>
                 <span className="text-slate-400 font-medium block">Khung giờ (Slot):</span>
                 <span className="font-extrabold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200 inline-block mt-0.5">
-                  {formatTimeSlot(appointment.slot?.slotStartTime, appointment.slot?.slotEndTime)}
+                  {formatTimeSlot(
+                    appointment.slot?.slotStartTime,
+                    appointment.slot?.slotEndTime,
+                    appointment.bookingChannel
+                  )}
                 </span>
               </div>
             </div>
