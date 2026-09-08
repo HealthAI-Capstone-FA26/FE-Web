@@ -16,6 +16,7 @@ import { ExpertsPage } from './pages/ExpertsPage';
 import { DoctorWorkspaceView } from './modules/doctor/DoctorWorkspaceView';
 import { ReceptionIntakeWorkspaceView } from './modules/reception/ReceptionIntakeWorkspaceView';
 import { ReceptionPatientManageWorkspaceView } from './modules/reception/ReceptionPatientManageWorkspaceView';
+import { ReceptionQueueCallingWorkspaceView } from './modules/reception/ReceptionQueueCallingWorkspaceView';
 import { ReceptionBillingWorkspaceView } from './modules/reception/ReceptionBillingWorkspaceView';
 import { NurseWorkspaceView } from './modules/nurse/NurseWorkspaceView';
 import { LabWorkspaceView } from './modules/lab/LabWorkspaceView';
@@ -77,6 +78,8 @@ function App() {
               <Route path="/tiep-nhan/trieu-chung-benh-nhan" element={<ReceptionPatientManageWorkspaceView />} />
               <Route path="/tiep-nhan/hang-cho-phong-kham" element={<ReceptionIntakeWorkspaceView />} />
               
+              <Route path="/tiep-nhan/goi-so" element={<ReceptionQueueCallingWorkspaceView />} />
+
               <Route path="/tiep-nhan/thu-phi" element={<ReceptionBillingWorkspaceView />} />
               <Route path="/tiep-nhan/ho-don" element={<ReceptionBillingWorkspaceView />} />
             </Route>

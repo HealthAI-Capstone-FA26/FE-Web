@@ -19,9 +19,9 @@ const receptionNavGroups: NavGroup[] = [
   {
     groupName: 'Nghiệp vụ Tiếp nhận',
     items: [
-      { id: 'rec_workspace_checkin', label: 'Tiếp nhận & Check-in', path: '/tiep-nhan/danh-sach-cho', iconName: 'UserCheck', badge: '08 Chờ', requiredPermission: 'queue-ticket:read:all' },
-      { id: 'rec_workspace_patients', label: 'Khai báo & Đăng ký trực tiếp', path: '/tiep-nhan/benh-nhan', iconName: 'CalendarPlus', requiredPermission: 'patient:read:all' },
-      { id: 'rec_workspace_billing', label: 'Quản lý Thu phí & Hóa đơn', path: '/tiep-nhan/thu-phi', iconName: 'CreditCard', badge: '05 Chờ', requiredPermission: 'claim:read:all' }
+      { id: 'rec_workspace_appointments', label: 'Lịch hẹn', path: '/tiep-nhan/danh-sach-cho', iconName: 'CalendarCheck', requiredPermission: 'appointment:read:all' },
+      { id: 'rec_workspace_registration', label: 'Đăng ký khám bệnh', path: '/tiep-nhan/benh-nhan', iconName: 'CalendarPlus', requiredPermission: 'patient:read:all' },
+      { id: 'rec_workspace_queue_call', label: 'Gọi số hồ sơ', path: '/tiep-nhan/goi-so', iconName: 'Megaphone', badge: 'Live', requiredPermission: 'queue-ticket:read:all' }
     ]
   }
 ];
