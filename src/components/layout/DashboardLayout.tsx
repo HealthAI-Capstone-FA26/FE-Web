@@ -95,9 +95,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               {isSidebarOpen ? <PanelLeftClose className="w-5 h-5 text-slate-700" /> : <PanelLeft className="w-5 h-5 text-blue-700" />}
             </button>
 
-            <Link to={ROLE_DEFAULT_PATHS[currentRole] || '/bac-si/danh-sach-kham'} className="flex items-center space-x-3 group">
-              <div className="w-9 h-9 rounded-xl bg-blue-900 text-white flex items-center justify-center font-extrabold text-sm shadow-md group-hover:bg-blue-800 transition-colors">
-                4AM
+            <Link 
+              to={currentRole === 'PATIENT' ? '/' : (ROLE_DEFAULT_PATHS[currentRole] || '/bac-si/danh-sach-kham')} 
+              className="flex items-center space-x-3 group"
+            >
+              <div className="w-10 h-10 rounded-full bg-white border border-slate-200 p-1 flex items-center justify-center shadow-xs group-hover:border-blue-600 transition-colors shrink-0">
+                <img src="/images/logo.png" alt="Logo 4AM" className="w-full h-full object-contain" />
               </div>
               <div className="flex flex-col">
                 <span className="font-black text-sm text-blue-950 uppercase tracking-tight whitespace-nowrap">
