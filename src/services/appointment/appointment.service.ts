@@ -33,6 +33,27 @@ export interface CreateOnlineAppointmentPayload {
   priority?: 'normal' | 'urgent' | 'emergency';
 }
 
+export interface GuestRequestOtpPayload {
+  phoneNumber: string;
+  email?: string;
+  fullName: string;
+  dateOfBirth: string;
+  gender: 'male' | 'female' | 'other';
+  identityNumber: string;
+  departmentId: string;
+  doctorId: string;
+  slotId: string;
+  reasonForVisit?: string;
+  priority?: 'normal' | 'urgent' | 'emergency';
+  verifyMethod: 'email' | 'sms';
+}
+
+export interface GuestVerifyOtpPayload {
+  phoneNumber: string;
+  otp: string;
+  email?: string;
+}
+
 export interface AppointmentItem {
   appointmentId: string;
   appointmentCode: string;
@@ -128,6 +149,24 @@ export const appointmentService = {
   // Đặt lịch khám online
   async createOnlineAppointment(payload: CreateOnlineAppointmentPayload): Promise<AppointmentItem> {
     const res = await apiFetch<AppointmentItem>('/appointments', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    this.invalidateCache();
+    return res;
+  },
+
+  // Khách vãng lai (Guest) đặt lịch - Bước 1: Gửi thông tin + yêu cầu mã OTP
+  async guestRequestOtp(payload: GuestRequestOtpPayload): Promise<{ message: string }> {
+    return apiFetch<{ message: string }>('/appointments/guest/request-otp', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // Khách vãng lai (Guest) đặt lịch - Bước 2: Nhập OTP để xác nhận và hoàn tất đặt lịch
+  async guestVerifyOtp(payload: GuestVerifyOtpPayload): Promise<AppointmentItem> {
+    const res = await apiFetch<AppointmentItem>('/appointments/guest/verify-otp', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
