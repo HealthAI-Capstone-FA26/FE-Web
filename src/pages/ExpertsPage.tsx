@@ -129,14 +129,29 @@ export const ExpertsPage: React.FC = () => {
     }
   };
 
-  const handleBooking = (_doc: DoctorResponse) => {
+  const handleBooking = (doc: DoctorResponse) => {
     setIsModalOpen(false);
+    const primaryDeptId =
+      doc.doctorDepartments?.find((dd) => dd.isPrimary)?.departmentId ||
+      doc.doctorDepartments?.[0]?.departmentId ||
+      '';
+
     if (!user) {
-      // If guest user, navigate to login or registration
-      navigate('/login');
+      // Khách vãng lai: Điều hướng về Trang chủ và tự động chọn sẵn Bác sĩ + Chuyên khoa
+      navigate('/', {
+        state: {
+          doctorId: doc.doctorId,
+          departmentId: primaryDeptId,
+        },
+      });
     } else {
-      // Patient user: Navigate to intake/booking workspace
-      navigate('/benh-nhan/trieu-chung');
+      // Bệnh nhân đã đăng nhập: Điều hướng tới trang lịch hẹn của bệnh nhân
+      navigate('/benh-nhan/lich-hen', {
+        state: {
+          doctorId: doc.doctorId,
+          departmentId: primaryDeptId,
+        },
+      });
     }
   };
 

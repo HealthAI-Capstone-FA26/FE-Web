@@ -27,6 +27,8 @@ interface ReceptionAppointmentDetailModalProps {
   onCheckIn?: (appointment: AppointmentItem) => void;
   onNoShow?: (appointment: AppointmentItem) => void;
   onCancel?: (appointment: AppointmentItem) => void;
+  onSync?: (appointment: AppointmentItem) => void;
+  onConfirmMain?: (appointment: AppointmentItem) => void;
 }
 
 export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetailModalProps> = ({
@@ -37,6 +39,8 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
   onCheckIn,
   onNoShow,
   onCancel,
+  onSync,
+  onConfirmMain,
 }) => {
   if (!isOpen || !appointment) return null;
 
@@ -241,30 +245,55 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
               <span>Thông Tin Bệnh Nhân Tiếp Nhận</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <span className="text-slate-400 font-medium block">Họ và tên:</span>
-                <span className="font-extrabold text-slate-900 text-sm">{appointment.patient?.fullName || '---'}</span>
+            {!appointment.patientId && appointment.suggestedPatientId ? (
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-amber-800 font-bold">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Khách vãng lai trùng hồ sơ cũ — Cần đối chiếu CCCD</span>
+                </div>
+                <p className="text-slate-600 text-[11px] leading-relaxed">
+                  Lịch hẹn này chưa gán hồ sơ bệnh nhân chính thức. Vui lòng kiểm tra thẻ CCCD/CMND gốc của người bệnh
+                  và bấm nút <strong>"Đối Chiếu CCCD & Đồng Bộ"</strong> bên dưới.
+                </p>
+                {appointment.suggestedReason && (
+                  <div className="text-[10px] text-amber-700 font-mono">
+                    Khớp hệ thống: {appointment.suggestedReason}
+                  </div>
+                )}
               </div>
-              <div>
-                <span className="text-slate-400 font-medium block">Mã hồ sơ BN:</span>
-                <span className="font-mono font-bold text-blue-700">{appointment.patient?.patientCode || '---'}</span>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <span className="text-slate-400 font-medium block">Họ và tên:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-extrabold text-slate-900 text-sm">{appointment.patient?.fullName || '---'}</span>
+                    {appointment.patient?.status === 'draft' && (
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-yellow-100 text-yellow-800 border border-yellow-300">
+                        Draft
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-medium block">Mã hồ sơ BN:</span>
+                  <span className="font-mono font-bold text-blue-700">{appointment.patient?.patientCode || '---'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-medium block">Số điện thoại liên hệ:</span>
+                  <span className="font-bold text-slate-800 flex items-center gap-1">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                    {appointment.patient?.phoneNumber || 'Chưa cập nhật'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-medium block">Số CCCD / Định danh:</span>
+                  <span className="font-bold text-slate-800 flex items-center gap-1">
+                    <CreditCard className="w-3.5 h-3.5 text-slate-400" />
+                    {appointment.patient?.identityNumber || 'Chưa có CCCD'}
+                  </span>
+                </div>
               </div>
-              <div>
-                <span className="text-slate-400 font-medium block">Số điện thoại liên hệ:</span>
-                <span className="font-bold text-slate-800 flex items-center gap-1">
-                  <Phone className="w-3.5 h-3.5 text-slate-400" />
-                  {appointment.patient?.phoneNumber || 'Chưa cập nhật'}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 font-medium block">Số CCCD / Định danh:</span>
-                <span className="font-bold text-slate-800 flex items-center gap-1">
-                  <CreditCard className="w-3.5 h-3.5 text-slate-400" />
-                  {appointment.patient?.identityNumber || 'Chưa có CCCD'}
-                </span>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Block 2: Department & Doctor */}
@@ -402,7 +431,37 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
               Đóng
             </button>
 
-            {appointment.status === 'pending' && onConfirm && (
+            {/* TH1: Nút đối chiếu CCCD nếu chưa có patientId */}
+            {!appointment.patientId && appointment.suggestedPatientId && onSync && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onSync(appointment);
+                }}
+                className="px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-all shadow-sm flex items-center gap-1.5 border-none cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Đối Chiếu CCCD & Đồng Bộ</span>
+              </button>
+            )}
+
+            {/* TH2 & 3: Nút xác thực draft sang main */}
+            {appointment.patient?.status === 'draft' && onConfirmMain && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onConfirmMain(appointment);
+                }}
+                className="px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <User className="w-4 h-4 text-emerald-600" />
+                <span>Xác Thực Hồ Sơ (Draft → Main)</span>
+              </button>
+            )}
+
+            {appointment.status === 'pending' && appointment.patientId && onConfirm && (
               <button
                 type="button"
                 onClick={() => {
@@ -416,7 +475,7 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
               </button>
             )}
 
-            {appointment.status === 'confirmed' && onCheckIn && (
+            {appointment.status === 'confirmed' && appointment.patientId && !appointment.queueTicket && onCheckIn && (
               <button
                 type="button"
                 onClick={() => {

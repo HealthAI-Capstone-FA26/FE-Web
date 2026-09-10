@@ -54,12 +54,44 @@ export interface GuestVerifyOtpPayload {
   email?: string;
 }
 
+export interface SyncPatientPayload {
+  appointmentId: string;
+  fullName: string;
+  identityNumber: string;
+  phoneNumber: string;
+}
+
+export interface ConfirmMainPatientPayload {
+  fullName?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  identityNumber?: string;
+  insuranceNumber?: string;
+  phoneNumber?: string;
+}
+
+export interface PatientDetail {
+  patientId: string;
+  patientCode: string;
+  fullName: string;
+  dateOfBirth: string;
+  gender: string;
+  identityNumber: string;
+  insuranceNumber?: string;
+  phoneNumber: string;
+  email?: string;
+  address?: string;
+  status: 'draft' | 'main';
+}
+
 export interface AppointmentItem {
   appointmentId: string;
   appointmentCode: string;
   bookingChannel: 'online' | 'at_hospital';
   status: 'pending' | 'confirmed' | 'checked_in' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
-  patientId: string;
+  patientId: string | null;
+  suggestedPatientId?: string | null;
+  suggestedReason?: string | null;
   doctorId: string;
   departmentId: string;
   slotId?: string;
@@ -79,6 +111,19 @@ export interface AppointmentItem {
     dateOfBirth?: string;
     gender?: string;
     identityNumber?: string;
+    insuranceNumber?: string;
+    status?: 'draft' | 'main';
+  };
+  suggestedPatient?: {
+    patientId: string;
+    patientCode: string;
+    fullName: string;
+    phoneNumber?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    identityNumber?: string;
+    insuranceNumber?: string;
+    status?: 'draft' | 'main';
   };
   doctor?: {
     doctorId: string;
@@ -263,6 +308,31 @@ export const appointmentService = {
     });
     this.invalidateCache();
     return res;
+  },
+
+  // Lễ tân đối chiếu CCCD cho case "matched" (appointment có suggestedPatientId, patientId=null)
+  async syncPatient(payload: SyncPatientPayload): Promise<AppointmentItem> {
+    const res = await apiFetch<AppointmentItem>('/appointments/sync-patient', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    this.invalidateCache();
+    return res;
+  },
+
+  // Lễ tân xác nhận danh tính bệnh nhân (draft -> main)
+  async confirmMainPatient(patientId: string, payload: ConfirmMainPatientPayload): Promise<PatientDetail> {
+    const res = await apiFetch<PatientDetail>(`/patients/${patientId}/confirm-main`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    this.invalidateCache();
+    return res;
+  },
+
+  // Lấy chi tiết hồ sơ bệnh nhân theo ID (dùng để xem thông tin gợi ý hoặc hồ sơ draft)
+  async getPatientById(patientId: string): Promise<PatientDetail> {
+    return apiFetch<PatientDetail>(`/patients/${patientId}`);
   },
 };
 

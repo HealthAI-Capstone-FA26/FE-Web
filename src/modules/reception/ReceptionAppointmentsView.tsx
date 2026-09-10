@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Loader2,
   Check,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   appointmentService,
@@ -23,6 +24,8 @@ import {
 } from '../../services/appointment/appointment.service';
 import { ReceptionAppointmentDetailModal } from './components/ReceptionAppointmentDetailModal';
 import { ReceptionCancelAppointmentModal } from './components/ReceptionCancelAppointmentModal';
+import { SyncPatientModal } from './components/SyncPatientModal';
+import { ConfirmMainPatientModal } from './components/ConfirmMainPatientModal';
 
 type DatePreset = 'today' | 'tomorrow' | 'this_week' | 'all' | 'custom';
 
@@ -47,6 +50,10 @@ export const ReceptionAppointmentsView: React.FC = () => {
   const [selectedAppointmentForDetail, setSelectedAppointmentForDetail] =
     useState<AppointmentItem | null>(null);
   const [selectedAppointmentForCancel, setSelectedAppointmentForCancel] =
+    useState<AppointmentItem | null>(null);
+  const [selectedAppointmentForSync, setSelectedAppointmentForSync] =
+    useState<AppointmentItem | null>(null);
+  const [selectedAppointmentForConfirmMain, setSelectedAppointmentForConfirmMain] =
     useState<AppointmentItem | null>(null);
   const [isProcessingActionId, setIsProcessingActionId] = useState<string | null>(null);
 
@@ -607,25 +614,52 @@ export const ReceptionAppointmentsView: React.FC = () => {
 
                       {/* Patient Info */}
                       <td className="py-3.5 px-4">
-                        <div className="font-extrabold text-slate-900">
-                          {app.patient?.fullName || '---'}
-                        </div>
-                        <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
-                          {app.patient?.patientCode && (
-                            <span className="font-mono text-blue-700 font-bold">
-                              {app.patient.patientCode}
-                            </span>
-                          )}
-                          {app.patient?.phoneNumber && (
-                            <span className="flex items-center gap-0.5">
-                              <Phone className="w-3 h-3 text-slate-400" />
-                              {app.patient.phoneNumber}
-                            </span>
-                          )}
-                        </div>
-                        {app.patient?.identityNumber && (
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            CCCD: {app.patient.identityNumber}
+                        {!app.patientId && app.suggestedPatientId ? (
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
+                                <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                Cần đối chiếu CCCD
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-1 font-semibold">
+                              Khách vãng lai trùng hồ sơ cũ
+                            </div>
+                            <div className="text-[10px] text-amber-700 font-medium mt-0.5">
+                              Chờ đối chiếu thẻ bản cứng tại quầy
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                              <span>{app.patient?.fullName || '---'}</span>
+                              {app.patient?.status === 'draft' && (
+                                <span
+                                  className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-yellow-100 text-yellow-800 border border-yellow-300"
+                                  title="Hồ sơ tạm (Draft) tạo từ đặt lịch guest - cần xác nhận thành main"
+                                >
+                                  Draft
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
+                              {app.patient?.patientCode && (
+                                <span className="font-mono text-blue-700 font-bold">
+                                  {app.patient.patientCode}
+                                </span>
+                              )}
+                              {app.patient?.phoneNumber && (
+                                <span className="flex items-center gap-0.5">
+                                  <Phone className="w-3 h-3 text-slate-400" />
+                                  {app.patient.phoneNumber}
+                                </span>
+                              )}
+                            </div>
+                            {app.patient?.identityNumber && (
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                CCCD: {app.patient.identityNumber}
+                              </div>
+                            )}
                           </div>
                         )}
                       </td>
@@ -732,8 +766,34 @@ export const ReceptionAppointmentsView: React.FC = () => {
                             <Eye className="w-4 h-4" />
                           </button>
 
-                          {/* Pending -> Confirm */}
-                          {isPending && (
+                          {/* TH1: Đối chiếu CCCD & đồng bộ hồ sơ cho khách guest trùng hồ sơ cũ */}
+                          {!app.patientId && app.suggestedPatientId && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedAppointmentForSync(app)}
+                              className="px-3 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-all shadow-2xs flex items-center gap-1 border-none cursor-pointer"
+                              title="Đối chiếu thẻ CCCD của khách và đồng bộ vào hồ sơ có sẵn"
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              <span>Đối chiếu CCCD</span>
+                            </button>
+                          )}
+
+                          {/* TH2 & 3: Xác thực hồ sơ draft sang main */}
+                          {app.patient?.status === 'draft' && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedAppointmentForConfirmMain(app)}
+                              className="px-2.5 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+                              title="Kiểm tra giấy tờ và chuyển hồ sơ bệnh nhân từ Draft sang Main"
+                            >
+                              <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Xác thực HS</span>
+                            </button>
+                          )}
+
+                          {/* Pending -> Confirm (Chỉ khi đã có patientId) */}
+                          {isPending && app.patientId && (
                             <button
                               type="button"
                               onClick={() => handleConfirmAppointment(app)}
@@ -750,8 +810,8 @@ export const ReceptionAppointmentsView: React.FC = () => {
                             </button>
                           )}
 
-                          {/* Confirmed -> Check-in */}
-                          {isConfirmed && (
+                          {/* Confirmed -> Check-in (chỉ hiện khi chưa có queue ticket và đã có patientId) */}
+                          {isConfirmed && app.patientId && !app.queueTicket && (
                             <button
                               type="button"
                               onClick={() => handleCheckInAppointment(app)}
@@ -825,6 +885,14 @@ export const ReceptionAppointmentsView: React.FC = () => {
           setSelectedAppointmentForDetail(null);
           setSelectedAppointmentForCancel(app);
         }}
+        onSync={(app) => {
+          setSelectedAppointmentForDetail(null);
+          setSelectedAppointmentForSync(app);
+        }}
+        onConfirmMain={(app) => {
+          setSelectedAppointmentForDetail(null);
+          setSelectedAppointmentForConfirmMain(app);
+        }}
       />
 
       {/* Cancel Modal */}
@@ -834,6 +902,29 @@ export const ReceptionAppointmentsView: React.FC = () => {
         onClose={() => setSelectedAppointmentForCancel(null)}
         onSuccess={() => {
           showToast('Đã hủy lịch hẹn thành công!');
+          fetchAppointments();
+        }}
+      />
+
+      {/* Sync Patient Modal (TH1: Khách vãng lai trùng khớp hồ sơ cũ) */}
+      <SyncPatientModal
+        isOpen={!!selectedAppointmentForSync}
+        appointment={selectedAppointmentForSync}
+        onClose={() => setSelectedAppointmentForSync(null)}
+        onSuccess={() => {
+          showToast('Đã đối chiếu và đồng bộ hồ sơ bệnh nhân thành công!');
+          fetchAppointments();
+        }}
+      />
+
+      {/* Confirm Main Patient Modal (TH2 & 3: Xác thực hồ sơ draft sang main) */}
+      <ConfirmMainPatientModal
+        isOpen={!!selectedAppointmentForConfirmMain}
+        patient={selectedAppointmentForConfirmMain?.patient || null}
+        appointmentCode={selectedAppointmentForConfirmMain?.appointmentCode}
+        onClose={() => setSelectedAppointmentForConfirmMain(null)}
+        onSuccess={() => {
+          showToast('Đã xác thực hồ sơ bệnh nhân chính thức (Main) thành công!');
           fetchAppointments();
         }}
       />
