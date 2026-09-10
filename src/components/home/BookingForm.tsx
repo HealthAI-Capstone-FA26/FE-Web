@@ -23,11 +23,16 @@ import {
 } from 'lucide-react';
 import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { appointmentService, type AppointmentSlotResponse, type AppointmentItem } from '../../services/appointment/appointment.service';
+import { useLocation } from 'react-router-dom';
 
 export const BookingForm = () => {
+  const location = useLocation();
+  const stateDoctorId = (location.state as any)?.doctorId;
+  const stateDeptId = (location.state as any)?.departmentId;
+
   // Dynamic API Lists
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
-  const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
+  const [filteredDoctors, setFilteredDoctors] = useState<DoctorResponse[]>([]);
   const [slots, setSlots] = useState<AppointmentSlotResponse[]>([]);
 
   // Selection State
@@ -63,24 +68,20 @@ export const BookingForm = () => {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [successBooking, setSuccessBooking] = useState<AppointmentItem | null>(null);
 
-  // 1. Fetch initial Departments & Doctors
+  // 1. Fetch initial Departments
   useEffect(() => {
     const fetchInit = async () => {
       try {
         setLoadingInit(true);
-        const [deptList, docList] = await Promise.all([
-          doctorService.getDepartments(),
-          doctorService.getDoctors(),
-        ]);
+        const deptList = await doctorService.getDepartments();
 
         const activeDepts = deptList.filter((d) => d.isActive);
         setDepartments(activeDepts);
-        if (activeDepts.length > 0) {
+        if (stateDeptId && activeDepts.some((d) => d.departmentId === stateDeptId)) {
+          setSelectedDeptId(stateDeptId);
+        } else if (activeDepts.length > 0) {
           setSelectedDeptId(activeDepts[0].departmentId);
         }
-
-        const activeDocs = docList.filter((d) => d.isActive);
-        setDoctors(activeDocs);
       } catch (err) {
         console.error('Failed to load init data for booking form:', err);
       } finally {
@@ -90,24 +91,56 @@ export const BookingForm = () => {
     fetchInit();
   }, []);
 
-  // Filter Doctors by selected Department
-  const filteredDoctors = doctors.filter((doc) => {
-    if (!selectedDeptId) return true;
-    return doc.doctorDepartments?.some((dd) => dd.departmentId === selectedDeptId);
-  });
-
-  // Auto select first doctor when department changes
+  // 2. Fetch Doctors by selected Department (GET /departments/:id/doctors)
   useEffect(() => {
-    if (filteredDoctors.length > 0) {
-      if (!filteredDoctors.some((d) => d.doctorId === selectedDoctorId)) {
-        setSelectedDoctorId(filteredDoctors[0].doctorId);
-      }
-    } else {
+    if (!selectedDeptId) {
+      setFilteredDoctors([]);
       setSelectedDoctorId('');
-      setSlots([]);
-      setSelectedSlotId('');
+      return;
     }
-  }, [selectedDeptId, doctors]);
+
+    const fetchDoctorsByDept = async () => {
+      try {
+        const list = await doctorService.getDoctorsByDepartment(selectedDeptId);
+        const mapped: DoctorResponse[] = list.map((item: any) => ({
+          ...item.doctor,
+          isPrimary: item.isPrimary,
+        }));
+        setFilteredDoctors(mapped);
+
+        if (mapped.length > 0) {
+          if (stateDoctorId && mapped.some((d) => d.doctorId === stateDoctorId)) {
+            setSelectedDoctorId(stateDoctorId);
+          } else {
+            setSelectedDoctorId(mapped[0].doctorId);
+          }
+        } else {
+          setSelectedDoctorId('');
+          setSlots([]);
+          setSelectedSlotId('');
+        }
+      } catch (err) {
+        console.error('Failed to load doctors for department:', err);
+        setFilteredDoctors([]);
+        setSelectedDoctorId('');
+      }
+    };
+
+    fetchDoctorsByDept();
+  }, [selectedDeptId, stateDoctorId]);
+
+  // Cuộn mượt tới form nếu được chuyển hướng từ trang Chuyên gia
+  useEffect(() => {
+    if (stateDoctorId || stateDeptId) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById('booking-form-section');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [stateDoctorId, stateDeptId]);
 
   // Load free slots when doctor or date changes
   useEffect(() => {
@@ -242,7 +275,7 @@ export const BookingForm = () => {
   };
 
   const currentDept = departments.find((d) => d.departmentId === selectedDeptId);
-  const currentDoctor = doctors.find((d) => d.doctorId === selectedDoctorId);
+  const currentDoctor = filteredDoctors.find((d) => d.doctorId === selectedDoctorId);
   const currentSlot = slots.find((s) => s.slotId === selectedSlotId);
 
   return (
