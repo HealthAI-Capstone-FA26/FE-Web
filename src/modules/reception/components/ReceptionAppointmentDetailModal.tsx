@@ -211,11 +211,10 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
 
                 return (
                   <div
-                    className={`p-2.5 px-4 rounded-2xl flex items-center gap-3 shadow-md ${
-                      isPrefixA
+                    className={`p-2.5 px-4 rounded-2xl flex items-center gap-3 shadow-md ${isPrefixA
                         ? 'bg-teal-600 text-white'
                         : 'bg-amber-600 text-white'
-                    }`}
+                      }`}
                   >
                     <Ticket className="w-6 h-6 text-white/80" />
                     <div>

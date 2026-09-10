@@ -451,8 +451,8 @@ export const ReceptionAppointmentsView: React.FC = () => {
                 type="button"
                 onClick={() => setDatePreset(preset.id)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${datePreset === preset.id
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                   }`}
               >
                 {preset.label}
@@ -581,7 +581,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
                   <th className="py-3.5 px-4">Thời Gian Hẹn</th>
                   <th className="py-3.5 px-4 text-center">Số Phiếu (STT)</th>
                   <th className="py-3.5 px-4 text-center">Trạng Thái</th>
-                  <th className="py-3.5 px-4 text-right">Thao Tác Tiếp Nhận</th>
+                  <th className="py-3.5 px-4 text-center">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
@@ -603,8 +603,8 @@ export const ReceptionAppointmentsView: React.FC = () => {
                         <div className="mt-0.5">
                           <span
                             className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md ${app.bookingChannel === 'online'
-                                ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                              ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                              : 'bg-slate-100 text-slate-700 border border-slate-200'
                               }`}
                           >
                             {app.bookingChannel === 'online' ? '📱 Online' : '🏥 Tại quầy'}
@@ -699,9 +699,9 @@ export const ReceptionAppointmentsView: React.FC = () => {
                             {app.bookingChannel === 'at_hospital'
                               ? 'Đăng ký tại quầy'
                               : formatSlotTime(
-                                  app.slot?.slotStartTime || app.appointmentTime,
-                                  app.slot?.slotEndTime
-                                )}
+                                app.slot?.slotStartTime || app.appointmentTime,
+                                app.slot?.slotEndTime
+                              )}
                           </span>
                         </div>
                       </td>
@@ -718,11 +718,10 @@ export const ReceptionAppointmentsView: React.FC = () => {
 
                             return (
                               <span
-                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black font-mono shadow-2xs border ${
-                                  isPrefixA
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black font-mono shadow-2xs border ${isPrefixA
                                     ? 'bg-teal-50 text-teal-800 border-teal-300'
                                     : 'bg-amber-50 text-amber-900 border-amber-300'
-                                }`}
+                                  }`}
                                 title={
                                   isPrefixA
                                     ? 'Phiếu A: Lịch đặt Online đã check-in'
@@ -730,9 +729,8 @@ export const ReceptionAppointmentsView: React.FC = () => {
                                 }
                               >
                                 <Ticket
-                                  className={`w-3.5 h-3.5 ${
-                                    isPrefixA ? 'text-teal-600' : 'text-amber-600'
-                                  }`}
+                                  className={`w-3.5 h-3.5 ${isPrefixA ? 'text-teal-600' : 'text-amber-600'
+                                    }`}
                                 />
                                 <span>
                                   {prefix}
@@ -754,51 +752,45 @@ export const ReceptionAppointmentsView: React.FC = () => {
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* View Detail Button */}
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <div className="w-[244px] mx-auto grid grid-cols-[32px_130px_32px_32px] gap-1.5 items-center">
+                          {/* Cột 1: Nút xem chi tiết (Cố định 32px) */}
                           <button
                             type="button"
                             onClick={() => setSelectedAppointmentForDetail(app)}
-                            className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors border border-slate-200 cursor-pointer bg-white"
+                            className="w-8 h-8 flex items-center justify-center p-0 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors border border-slate-200 cursor-pointer bg-white"
                             title="Xem chi tiết lịch hẹn"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
 
-                          {/* TH1: Đối chiếu CCCD & đồng bộ hồ sơ cho khách guest trùng hồ sơ cũ */}
-                          {!app.patientId && app.suggestedPatientId && (
+                          {/* Cột 2: Nút hành động chính (Cố định 130px) */}
+                          {!app.patientId && app.suggestedPatientId ? (
                             <button
                               type="button"
                               onClick={() => setSelectedAppointmentForSync(app)}
-                              className="px-3 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-all shadow-2xs flex items-center gap-1 border-none cursor-pointer"
+                              className="w-[130px] h-8 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5 border-none cursor-pointer"
                               title="Đối chiếu thẻ CCCD của khách và đồng bộ vào hồ sơ có sẵn"
                             >
                               <ShieldCheck className="w-3.5 h-3.5" />
                               <span>Đối chiếu CCCD</span>
                             </button>
-                          )}
-
-                          {/* TH2 & 3: Xác thực hồ sơ draft sang main */}
-                          {app.patient?.status === 'draft' && (
+                          ) : app.patient?.status === 'draft' ? (
                             <button
                               type="button"
                               onClick={() => setSelectedAppointmentForConfirmMain(app)}
-                              className="px-2.5 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+                              className="w-[130px] h-8 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                               title="Kiểm tra giấy tờ và chuyển hồ sơ bệnh nhân từ Draft sang Main"
                             >
                               <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
                               <span>Xác thực HS</span>
                             </button>
-                          )}
-
-                          {/* Pending -> Confirm (Chỉ khi đã có patientId) */}
-                          {isPending && app.patientId && (
+                          ) : isPending && app.patientId ? (
                             <button
                               type="button"
                               onClick={() => handleConfirmAppointment(app)}
                               disabled={isProcessing}
-                              className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-2xs flex items-center gap-1 border-none cursor-pointer disabled:opacity-50"
+                              className="w-[130px] h-8 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5 border-none cursor-pointer disabled:opacity-50"
                               title="Xác nhận lịch hẹn khám"
                             >
                               {isProcessing ? (
@@ -808,15 +800,12 @@ export const ReceptionAppointmentsView: React.FC = () => {
                               )}
                               <span>Xác nhận</span>
                             </button>
-                          )}
-
-                          {/* Confirmed -> Check-in (chỉ hiện khi chưa có queue ticket và đã có patientId) */}
-                          {isConfirmed && app.patientId && !app.queueTicket && (
+                          ) : isConfirmed && app.patientId && !app.queueTicket ? (
                             <button
                               type="button"
                               onClick={() => handleCheckInAppointment(app)}
                               disabled={isProcessing}
-                              className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-2xs flex items-center gap-1 border-none cursor-pointer disabled:opacity-50"
+                              className="w-[130px] h-8 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5 border-none cursor-pointer disabled:opacity-50"
                               title="Tiếp nhận bệnh nhân & cấp số thứ tự vào hàng chờ khám"
                             >
                               {isProcessing ? (
@@ -826,32 +815,46 @@ export const ReceptionAppointmentsView: React.FC = () => {
                               )}
                               <span>Check-in</span>
                             </button>
-                          )}
-
-                          {/* Confirmed -> No-show */}
-                          {isConfirmed && (
+                          ) : (
                             <button
                               type="button"
-                              onClick={() => handleNoShowAppointment(app)}
-                              disabled={isProcessing}
-                              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors border border-slate-200 cursor-pointer bg-white"
-                              title="Báo bệnh nhân vắng mặt / không đến"
+                              onClick={() => setSelectedAppointmentForDetail(app)}
+                              className="w-[130px] h-8 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors border-none cursor-pointer flex items-center justify-center gap-1"
+                              title="Xem chi tiết lịch hẹn"
                             >
-                              <UserX className="w-4 h-4" />
+                              <Eye className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Chi tiết</span>
                             </button>
                           )}
 
-                          {/* Pending/Confirmed -> Cancel */}
-                          {(isPending || isConfirmed) && (
+                          {/* Cột 3: Nút hủy lịch hẹn (Cố định 32px, liền kề nút chính) */}
+                          {isPending || isConfirmed ? (
                             <button
                               type="button"
                               onClick={() => setSelectedAppointmentForCancel(app)}
                               disabled={isProcessing}
-                              className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors border border-rose-200 cursor-pointer bg-white"
+                              className="w-8 h-8 flex items-center justify-center p-0 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors border border-rose-200 cursor-pointer bg-white"
                               title="Hủy lịch hẹn"
                             >
                               <XCircle className="w-4 h-4" />
                             </button>
+                          ) : (
+                            <div className="w-8 h-8" />
+                          )}
+
+                          {/* Cột 4: Nút báo vắng mặt (Cố định 32px, ngoài cùng bên phải) */}
+                          {isConfirmed ? (
+                            <button
+                              type="button"
+                              onClick={() => handleNoShowAppointment(app)}
+                              disabled={isProcessing}
+                              className="w-8 h-8 flex items-center justify-center p-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors border border-slate-200 cursor-pointer bg-white"
+                              title="Báo bệnh nhân vắng mặt / không đến"
+                            >
+                              <UserX className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <div className="w-8 h-8" />
                           )}
                         </div>
                       </td>
