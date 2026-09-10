@@ -66,7 +66,52 @@ export interface DetectAlertsResponse {
   }>;
 }
 
+export interface VitalItemResponse {
+  itemId: string;
+  itemCode: string;
+  itemName: string;
+  loincCode: string;
+  unit: string;
+  isCalculated: boolean;
+  isActive: boolean;
+}
+
+export interface VitalReferenceRangeResponse {
+  itemCode: string;
+  itemName: string;
+  unit: string;
+  minNormal: number;
+  maxNormal: number;
+  minCritical: number | null;
+  maxCritical: number | null;
+  sourceReference: string | null;
+}
+
 export const vitalService = {
+  /**
+   * GET /api/v1/patients/:patientId/vital-reference-ranges?measuredAt=...
+   * Khoảng bình thường / nguy kịch của các chỉ số sinh hiệu cho 1 bệnh nhân cụ thể
+   */
+  async getVitalReferenceRanges(
+    patientId: string,
+    measuredAt?: string,
+  ): Promise<VitalReferenceRangeResponse[]> {
+    const query = measuredAt ? `?measuredAt=${encodeURIComponent(measuredAt)}` : '';
+    return apiFetch<VitalReferenceRangeResponse[]>(`/patients/${patientId}/vital-reference-ranges${query}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * GET /api/v1/vital-items
+   * Danh mục các chỉ số sinh hiệu / thể trạng đang active
+   */
+  async getVitalItems(): Promise<VitalItemResponse[]> {
+    return apiFetch<VitalItemResponse[]>('/vital-items', {
+      method: 'GET',
+    });
+  },
+
   /**
    * POST /api/v1/vital-sessions
    * Ghi nhận phiên đo sinh hiệu / thể trạng mới

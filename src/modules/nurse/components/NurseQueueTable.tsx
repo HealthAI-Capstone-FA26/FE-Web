@@ -140,14 +140,13 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
           <button
             type="button"
             onClick={() => onOpenMeasure(row)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 shadow-2xs ${
-              row.status === 'Measured'
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 shadow-2xs ${row.status === 'Measured'
                 ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
                 : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600'
-            }`}
+              }`}
           >
             <Activity className="w-3.5 h-3.5" />
-            <span>{row.status === 'Measured' ? 'Đo lần tiếp' : 'Đo sinh hiệu'}</span>
+            <span>{row.status === 'Measured' ? 'Đo lại' : 'Đo sinh hiệu'}</span>
           </button>
 
           {row.status === 'Measured' && (
