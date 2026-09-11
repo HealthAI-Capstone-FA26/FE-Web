@@ -1,13 +1,20 @@
 import React from 'react';
-import { Shield } from 'lucide-react';
+import { Shield, Sliders } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { AdminRbacView } from './AdminRbacView';
+import { AdminSecuritySettingsView } from './AdminSecuritySettingsView';
 
 export const AdminSecurityWorkspaceView: React.FC = () => {
   const tabs: WorkspaceTab[] = [
     {
+      id: 'security-settings',
+      label: 'Bảo mật hệ thống',
+      icon: Sliders,
+      component: <AdminSecuritySettingsView />
+    },
+    {
       id: 'rbac-matrix',
-      label: ' Quyền Hệ Thống',
+      label: 'Phân Quyền Hệ Thống',
       icon: Shield,
       component: <AdminRbacView />
     }
@@ -15,13 +22,11 @@ export const AdminSecurityWorkspaceView: React.FC = () => {
 
   return (
     <WorkspaceContainer
-      title="Bảo Mật & Quản Trị Phân Quyền Vai Trò (Admin Workspace)"
-      subtitle="Quản lý ma trận phân quyền RBAC và cấu hình quyền hạn chi tiết cho từng vai trò người dùng"
+      title="Bảo Mật & Quản Trị Hệ Thống (Admin Workspace)"
+      subtitle="Cấu hình tham số bảo mật phiên làm việc, chống brute-force và quản lý ma trận phân quyền vai trò người dùng"
       icon={Shield}
       tabs={tabs}
-      defaultTabId="rbac-matrix"
+      defaultTabId="security-settings"
     />
   );
 };
-
-
