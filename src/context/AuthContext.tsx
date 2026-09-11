@@ -226,6 +226,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let mappedRole: UserRole = 'PATIENT';
     let rawRole = backendUser.actorRole?.toUpperCase();
     if (rawRole === 'RECEPTION') rawRole = 'RECEPTIONIST';
+    if (rawRole === 'LAB_STAFF') rawRole = 'LAB';
 
     if (rawRole && (rawRole as UserRole) in MOCK_USERS) {
       mappedRole = rawRole as UserRole;

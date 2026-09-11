@@ -454,8 +454,7 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
                         <th className="py-2 px-3">Chỉ số sinh hiệu</th>
-                        <th className="py-2 px-3">Khoảng Bình thường</th>
-                        <th className="py-2 px-3">Ngưỡng Nguy kịch</th>
+                        <th className="py-2 px-3">Khoảng Bình Thường Tham Chiếu</th>
                         <th className="py-2 px-3">Trạng thái Nhập thực tế</th>
                         <th className="py-2 px-3">Nguồn Chuẩn Y Tế</th>
                       </tr>
@@ -473,17 +472,13 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
                         else if (code === 'HEIGHT' && numHeight > 0) val = numHeight;
                         else if (code === 'WEIGHT' && numWeight > 0) val = numWeight;
 
-                        const isCrit =
-                          val !== null &&
-                          ((row.minCritical !== null && val < row.minCritical) ||
-                            (row.maxCritical !== null && val > row.maxCritical));
                         const isAbn = val !== null && (val < row.minNormal || val > row.maxNormal);
 
                         return (
                           <tr
                             key={row.itemCode}
                             className={`hover:bg-slate-50 transition-colors ${
-                              isCrit ? 'bg-rose-50/50 font-bold' : isAbn ? 'bg-amber-50/50' : ''
+                              isAbn ? 'bg-rose-50/60 font-medium' : ''
                             }`}
                           >
                             <td className="py-2 px-3 font-bold text-slate-800">
@@ -492,24 +487,11 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
                             <td className="py-2 px-3 font-semibold text-emerald-700">
                               {row.minNormal} - {row.maxNormal} {row.unit}
                             </td>
-                            <td className="py-2 px-3 text-rose-600 font-semibold">
-                              {row.minCritical !== null || row.maxCritical !== null ? (
-                                <>
-                                  {row.minCritical !== null ? `< ${row.minCritical}` : ''}
-                                  {row.minCritical !== null && row.maxCritical !== null ? ' hoặc ' : ''}
-                                  {row.maxCritical !== null ? `> ${row.maxCritical}` : ''} {row.unit}
-                                </>
-                              ) : (
-                                <span className="text-slate-300">-</span>
-                              )}
-                            </td>
                             <td className="py-2 px-3">
                               {val === null ? (
                                 <Badge variant="neutral" size="sm">Chưa nhập</Badge>
-                              ) : isCrit ? (
-                                <Badge variant="critical" size="sm">Nguy kịch 🚨 ({val} {row.unit})</Badge>
                               ) : isAbn ? (
-                                <Badge variant="warning" size="sm">Bất thường ⚠️ ({val} {row.unit})</Badge>
+                                <Badge variant="critical" size="sm">Cảnh báo bất thường 🚨 ({val} {row.unit})</Badge>
                               ) : (
                                 <Badge variant="normal" size="sm">Bình thường ({val} {row.unit})</Badge>
                               )}

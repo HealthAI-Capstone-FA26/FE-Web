@@ -102,6 +102,7 @@ function App() {
             {/* XÉT NGHIỆM WORKSPACE */}
             <Route element={<ProtectedRoute requiredRole="LAB" />}>
               <Route path="/xet-nghiem/hang-cho-xet-nghiem" element={<LabWorkspaceView />} />
+              <Route path="/xet-nghiem/phong-lab" element={<LabWorkspaceView />} />
               <Route path="/xet-nghiem/upload-dicom" element={<LabWorkspaceView />} />
               <Route path="/xet-nghiem/canh-bao" element={<LabWorkspaceView />} />
             </Route>

@@ -82,8 +82,8 @@ export interface VitalReferenceRangeResponse {
   unit: string;
   minNormal: number;
   maxNormal: number;
-  minCritical: number | null;
-  maxCritical: number | null;
+  minCritical?: number | null;
+  maxCritical?: number | null;
   sourceReference: string | null;
 }
 
