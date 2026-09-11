@@ -70,6 +70,19 @@ export interface EncounterItem {
   department?: EncounterDepartment;
   doctor?: EncounterDoctor;
   vitalSignSessions?: EncounterVitalSession[];
+  identityVerifications?: Array<{
+    verificationId: string;
+    verificationMethod: string;
+    verificationStatus: string;
+    mismatchNotes?: string;
+    verifiedAt: string;
+  }>;
+  consents?: Array<{
+    consentId: string;
+    consentType: string;
+    status: string;
+    agreedAt: string;
+  }>;
 }
 
 export interface ParsedVitals {

@@ -8,6 +8,7 @@ import {
   Stethoscope,
   History,
   Loader2,
+  Eye,
 } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import { DataTable, type Column } from '../../../components/common/DataTable';
@@ -18,6 +19,7 @@ interface NurseQueueTableProps {
   isLoading: boolean;
   onOpenMeasure: (row: NursePatientRow) => void;
   onOpenHistory: (row: NursePatientRow) => void;
+  onOpenDetail: (row: NursePatientRow) => void;
 }
 
 export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
@@ -25,6 +27,7 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
   isLoading,
   onOpenMeasure,
   onOpenHistory,
+  onOpenDetail,
 }) => {
   const formatTimeAgo = (dateStr?: string) => {
     if (!dateStr) return '---';
@@ -137,6 +140,16 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
       header: 'Thao Tác',
       cell: (row) => (
         <div className="flex items-center gap-1.5 whitespace-nowrap">
+          {/* Nút Xem chi tiết ca khám */}
+          <button
+            type="button"
+            onClick={() => onOpenDetail(row)}
+            title="Xem chi tiết hồ sơ ca khám (Lý do khám, Bác sĩ, Sinh hiệu)"
+            className="p-1.5 rounded-xl text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 transition-colors cursor-pointer"
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </button>
+
           <button
             type="button"
             onClick={() => onOpenMeasure(row)}
