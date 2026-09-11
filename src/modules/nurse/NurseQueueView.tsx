@@ -141,6 +141,7 @@ export const NurseQueueView: React.FC = () => {
         status: isMeasured ? 'Measured' : 'Pending',
         vitalSessionId,
         vitals,
+        chiefComplaint: enc.chiefComplaint,
       };
     });
   }, [encounters]);

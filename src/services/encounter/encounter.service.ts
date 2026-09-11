@@ -44,6 +44,17 @@ export interface EncounterVitalSession {
   observations: EncounterVitalObservation[];
 }
 
+export interface EncounterChiefComplaint {
+  complaintId: string;
+  encounterId: string;
+  reasonForVisit?: string;
+  symptoms?: string;
+  symptomOnsetDate?: string;
+  painLevel?: number;
+  inputChannel?: string;
+  recordedByUserId?: string;
+}
+
 export interface EncounterItem {
   encounterId: string;
   appointmentId: string;
@@ -54,10 +65,7 @@ export interface EncounterItem {
   patientType: string; // 'new' | 'returning'
   status: 'arrived' | 'registered' | 'waiting_for_doctor' | 'in_progress' | 'finished' | 'cancelled';
   arrivedAt: string;
-  chiefComplaint?: {
-    chiefComplaintId: string;
-    complaintText: string;
-  };
+  chiefComplaint?: EncounterChiefComplaint;
   patient?: EncounterPatient;
   department?: EncounterDepartment;
   doctor?: EncounterDoctor;
@@ -91,6 +99,7 @@ export interface NursePatientRow {
   status: 'Pending' | 'Measured';
   vitalSessionId?: string;
   vitals?: ParsedVitals;
+  chiefComplaint?: EncounterChiefComplaint;
 }
 
 export const encounterService = {

@@ -12,10 +12,15 @@ import {
   Stethoscope,
   AlertCircle,
   VolumeX,
+  FileText,
+  Calendar,
+  Flame,
+  Activity,
 } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { queueTicketService, type QueueTicketItem } from '../../services/queue/queue-ticket.service';
 import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../services/doctor/doctor.service';
+import { chiefComplaintService } from '../../services/reception/chief-complaint.service';
 
 // Helper phát tiếng chuông phát thanh bệnh viện (3 nốt nhạc) dùng Web Audio API
 const playQueueChime = (): Promise<void> => {
@@ -124,7 +129,16 @@ const speakQueueAnnouncement = (
   });
 };
 
+// Helper lấy ngày hiện tại theo giờ địa phương (tránh lệch timezone UTC)
+const getLocalDateString = (d: Date = new Date()): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const ReceptionQueueCallingBoard: React.FC = () => {
+  const [selectedDate, setSelectedDate] = useState<string>(getLocalDateString());
   const [selectedCounter, setSelectedCounter] = useState<string>('Quầy 01');
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'all' | 'waiting' | 'called' | 'done'>('all');
@@ -163,8 +177,13 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   const [isCallingNext, setIsCallingNext] = useState<boolean>(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-  const [assignDoctorModalTicket, setAssignDoctorModalTicket] = useState<QueueTicketItem | null>(null);
+  // State Modal Tiếp Đón & Khai Báo Lâm Sàng Ban Đầu (Chief Complaint & Intake)
+  const [intakeModalTicket, setIntakeModalTicket] = useState<QueueTicketItem | null>(null);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
+  const [reasonForVisit, setReasonForVisit] = useState<string>('');
+  const [symptoms, setSymptoms] = useState<string>('');
+  const [symptomOnsetDate, setSymptomOnsetDate] = useState<string>('');
+  const [painLevel, setPainLevel] = useState<number>(0);
   const [modalSubmitting, setModalSubmitting] = useState<boolean>(false);
 
   const [notification, setNotification] = useState<{ type: 'success' | 'info' | 'error'; message: string } | null>(null);
@@ -197,9 +216,9 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   const fetchTickets = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const queryDate = selectedDate || getLocalDateString();
       const query = {
-        date: todayStr,
+        date: queryDate,
         departmentId: selectedDepartmentId !== 'all' ? selectedDepartmentId : undefined,
       };
       const data = await queueTicketService.getQueueTickets(query);
@@ -210,7 +229,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
     } finally {
       if (!silent) setIsLoading(false);
     }
-  }, [selectedDepartmentId]);
+  }, [selectedDepartmentId, selectedDate]);
 
   useEffect(() => {
     fetchTickets();
@@ -330,44 +349,81 @@ const ReceptionQueueCallingBoard: React.FC = () => {
     }
   };
 
-  const handleOpenCompleteModalOrServe = async (ticket: QueueTicketItem) => {
-    if (ticket.appointment?.doctorId) {
-      setActionLoadingId(ticket.ticketId);
-      try {
-        await queueTicketService.serveDoneTicket(ticket.ticketId, {
-          doctorId: ticket.appointment.doctorId,
-        });
-        const code = formatTicketCode(ticket);
-        showToast(`Đã tiếp nhận thành công số ${code}! Hồ sơ đã chuyển sang Điều dưỡng & Bác sĩ.`, 'success');
-        fetchTickets(true);
-      } catch (err: any) {
-        showToast(err.message || 'Lỗi khi hoàn tất tiếp nhận', 'error');
-      } finally {
-        setActionLoadingId(null);
-      }
-    } else {
-      setAssignDoctorModalTicket(ticket);
-      const deptDocs = doctors.filter((d) =>
-        d.doctorDepartments?.some((dept) => dept.departmentId === ticket.departmentId)
-      );
-      setSelectedDoctorId(deptDocs[0]?.doctorId || doctors[0]?.doctorId || '');
-    }
+  const QUICK_SYMPTOM_TAGS = [
+    'Đau đầu / Chóng mặt',
+    'Sốt cao / Rét run',
+    'Đau ngực / Khó thở',
+    'Đau bụng âm ỉ',
+    'Buồn nôn / Nôn',
+    'Ho khan / Đau họng',
+    'Mệt mỏi / Suy nhược',
+    'Đau lưng / Mỏi khớp',
+  ];
+
+  const handleOpenCompleteModalOrServe = (ticket: QueueTicketItem) => {
+    setIntakeModalTicket(ticket);
+    const deptDocs = doctors.filter((d) =>
+      d.doctorDepartments?.some((dept) => dept.departmentId === ticket.departmentId)
+    );
+    setSelectedDoctorId(ticket.appointment?.doctorId || deptDocs[0]?.doctorId || doctors[0]?.doctorId || '');
+    setReasonForVisit(ticket.appointment?.reasonForVisit || '');
+    setSymptoms('');
+    setSymptomOnsetDate(new Date().toISOString().slice(0, 10));
+    setPainLevel(0);
   };
 
-  const handleConfirmServeWithDoctor = async () => {
-    if (!assignDoctorModalTicket) return;
+  const handleToggleQuickSymptom = (tag: string) => {
+    setSymptoms((prev) => {
+      if (!prev) return tag;
+      if (prev.includes(tag)) {
+        return prev
+          .replace(tag, '')
+          .replace(/,\s*,/g, ', ')
+          .replace(/^,\s*|,\s*$/g, '')
+          .trim();
+      }
+      return `${prev}, ${tag}`;
+    });
+  };
+
+  const handleConfirmIntakeAndServe = async () => {
+    if (!intakeModalTicket) return;
     if (!selectedDoctorId) {
       showToast('Vui lòng chọn bác sĩ khám trước khi hoàn tất tiếp nhận', 'error');
       return;
     }
     setModalSubmitting(true);
     try {
-      await queueTicketService.serveDoneTicket(assignDoctorModalTicket.ticketId, {
+      // 1. Chuyển trạng thái ticket -> done, appointment -> checked_in, tạo Encounter
+      const res = await queueTicketService.serveDoneTicket(intakeModalTicket.ticketId, {
         doctorId: selectedDoctorId,
       });
-      const code = formatTicketCode(assignDoctorModalTicket);
-      showToast(`Đã tiếp nhận thành công số ${code}! Hồ sơ đã chuyển sang Điều dưỡng & Bác sĩ.`, 'success');
-      setAssignDoctorModalTicket(null);
+
+      const encounterId = res.encounter?.encounterId;
+      const code = formatTicketCode(intakeModalTicket);
+
+      // 2. Ghi nhận Chief Complaint vào lượt khám Encounter
+      if (encounterId) {
+        try {
+          const finalReason =
+            reasonForVisit.trim() || intakeModalTicket.appointment?.reasonForVisit?.trim() || 'Khám bệnh';
+          await chiefComplaintService.upsert(encounterId, {
+            reasonForVisit: finalReason,
+            symptoms: symptoms.trim() || undefined,
+            symptomOnsetDate: symptomOnsetDate || undefined,
+            painLevel: painLevel,
+            inputChannel: 'receptionist_assisted',
+          });
+        } catch (ccErr: any) {
+          console.warn('Lưu Chief Complaint thất bại:', ccErr);
+        }
+      }
+
+      showToast(
+        `Đã tiếp nhận thành công số ${code} & lưu lý do khám! Hồ sơ đã chuyển sang Điều dưỡng & Bác sĩ.`,
+        'success'
+      );
+      setIntakeModalTicket(null);
       fetchTickets(true);
     } catch (err: any) {
       showToast(err.message || 'Lỗi khi hoàn tất tiếp nhận', 'error');
@@ -448,6 +504,19 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* Bộ chọn Ngày hàng đợi */}
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
+              <Calendar className="w-4 h-4 text-teal-600" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                aria-label="Chọn ngày hàng đợi"
+                className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                title="Chọn ngày hàng đợi khám"
+              />
             </div>
 
             {availableVoices.length > 0 && (
@@ -957,63 +1026,212 @@ const ReceptionQueueCallingBoard: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL GÁN BÁC SĨ */}
-      {assignDoctorModalTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold">
-                <Stethoscope className="w-5 h-5" />
+      {/* MODAL TIẾP ĐÓN & KHAI BÁO LÂM SÀNG BAN ĐẦU (CHIEF COMPLAINT) */}
+      {intakeModalTicket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold shadow-xs">
+                  <Stethoscope className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Tiếp Nhận & Khai Báo Khám Bệnh
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Số phiếu: <span className="font-bold text-teal-700">{formatTicketCode(intakeModalTicket)}</span> • Bệnh nhân:{' '}
+                    <span className="font-bold text-slate-800">
+                      {intakeModalTicket.appointment?.patient?.fullName || 'Chưa đặt tên'}
+                    </span>
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">
-                  Gán Bác Sĩ & Chuyển Khám
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Phiếu {formatTicketCode(assignDoctorModalTicket)} — {assignDoctorModalTicket.appointment?.patient?.fullName}
-                </p>
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                {intakeModalTicket.department?.departmentName || 'Khoa khám'}
+              </span>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 overflow-y-auto text-xs flex-1">
+              {/* Chọn Bác Sĩ */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                  <Stethoscope className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Bác sĩ phụ trách ca khám:</span>
+                  <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={selectedDoctorId}
+                  onChange={(e) => setSelectedDoctorId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
+                >
+                  <option value="" disabled>-- Chọn bác sĩ --</option>
+                  {doctors
+                    .filter((d) =>
+                      d.doctorDepartments?.some((dept) => dept.departmentId === intakeModalTicket.departmentId)
+                    )
+                    .map((doc) => (
+                      <option key={doc.doctorId} value={doc.doctorId}>
+                        {doc.fullName} ({doc.title || 'Bác sĩ chuyên khoa'})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Lý do đến khám (Chief Complaint - reasonForVisit) */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Lý do đến khám chính thức:</span>
+                    <span className="text-rose-500">*</span>
+                  </span>
+                  {intakeModalTicket.appointment?.reasonForVisit && (
+                    <span className="text-[10px] text-slate-400 font-normal">
+                      (Đặt lịch: {intakeModalTicket.appointment.reasonForVisit})
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  value={reasonForVisit}
+                  onChange={(e) => setReasonForVisit(e.target.value)}
+                  placeholder="VD: Đau đầu kéo dài, Khám sức khỏe tổng quát, Tức ngực khó thở..."
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
+                />
+              </div>
+
+              {/* Mô tả triệu chứng (Symptoms) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Mô tả triệu chứng lâm sàng:</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">Chọn nhanh hoặc tự gõ</span>
+                </div>
+
+                {/* Quick Chips */}
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_SYMPTOM_TAGS.map((tag) => {
+                    const isSelected = symptoms.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => handleToggleQuickSymptom(tag)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer border ${
+                          isSelected
+                            ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
+                            : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                        }`}
+                      >
+                        {isSelected ? `✓ ${tag}` : `+ ${tag}`}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <textarea
+                  rows={2}
+                  value={symptoms}
+                  onChange={(e) => setSymptoms(e.target.value)}
+                  placeholder="Nhập chi tiết các biểu hiện bất thường hoặc triệu chứng bệnh nhân đang gặp phải..."
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
+                />
+              </div>
+
+              {/* Grid 2 cột: Ngày khởi phát & Thang điểm đau */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                {/* Ngày khởi phát */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Ngày bắt đầu xuất hiện:</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={symptomOnsetDate}
+                    onChange={(e) => setSymptomOnsetDate(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
+                  />
+                </div>
+
+                {/* Thang điểm đau (VAS Pain Scale 0 - 10) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <Flame className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Mức độ đau (0 - 10):</span>
+                    </label>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                        painLevel >= 7
+                          ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                          : painLevel >= 4
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                          : painLevel > 0
+                          ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      }`}
+                    >
+                      {painLevel === 0
+                        ? '0 - Không đau'
+                        : painLevel < 4
+                        ? `${painLevel} - Đau nhẹ`
+                        : painLevel < 7
+                        ? `${painLevel} - Đau vừa`
+                        : `${painLevel} - Đau dữ dội`}
+                    </span>
+                  </div>
+
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="1"
+                    value={painLevel}
+                    onChange={(e) => setPainLevel(parseInt(e.target.value, 10))}
+                    className="w-full accent-teal-600 cursor-pointer h-2 bg-slate-200 rounded-lg"
+                  />
+                  <div className="flex justify-between text-[10px] text-slate-400 font-medium px-0.5">
+                    <span>0 (Êm dịu)</span>
+                    <span>5 (Đau vừa)</span>
+                    <span>10 (Dữ dội)</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <p className="text-xs text-slate-600 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
-              Đây là lịch hẹn đăng ký trực tiếp tại quầy ({assignDoctorModalTicket.department?.departmentName}). Vui lòng chọn bác sĩ phụ trách ca khám để mở hồ sơ khám bệnh (Encounter).
-            </p>
-
-            <div className="space-y-3 mb-6">
-              <label className="text-xs font-bold text-slate-700 block">Chọn Bác sĩ phụ trách:</label>
-              <select
-                value={selectedDoctorId}
-                onChange={(e) => setSelectedDoctorId(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
-              >
-                {doctors
-                  .filter((d) =>
-                    d.doctorDepartments?.some((dept) => dept.departmentId === assignDoctorModalTicket.departmentId)
-                  )
-                  .map((doc) => (
-                    <option key={doc.doctorId} value={doc.doctorId}>
-                      {doc.fullName} ({doc.title || 'Bác sĩ chuyên khoa'})
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            <div className="flex items-center justify-end gap-3">
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setAssignDoctorModalTicket(null)}
+                onClick={() => setIntakeModalTicket(null)}
                 disabled={modalSubmitting}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl transition cursor-pointer"
               >
-                Hủy
+                Hủy bỏ
               </button>
               <button
                 type="button"
-                onClick={handleConfirmServeWithDoctor}
+                onClick={handleConfirmIntakeAndServe}
                 disabled={modalSubmitting || !selectedDoctorId}
-                className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-md transition cursor-pointer disabled:opacity-50"
+                className="px-5 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
               >
-                {modalSubmitting ? 'Đang xử lý...' : 'Xác Nhận & Chuyển Khám'}
+                {modalSubmitting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Đang lưu hồ sơ...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Xác Nhận Tiếp Nhận & Chuyển Khám</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
