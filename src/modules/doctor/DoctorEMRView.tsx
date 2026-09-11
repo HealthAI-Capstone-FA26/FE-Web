@@ -6,9 +6,14 @@ import {
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { BorderBeam } from '../../components/ui/border-beam';
+import {
+  encounterService,
+  type EncounterItem,
+} from '../../services/encounter/encounter.service';
 
 interface PatientEMR {
   id: string;
+  encounterId?: string;
   name: string;
   age: number;
   gender: 'Nam' | 'Nữ';
@@ -120,6 +125,25 @@ export const DoctorEMRView: React.FC = () => {
     return localStorage.getItem('doctor_selected_patient_id') || 'BN-2026-088';
   });
 
+  const [apiEncounters, setApiEncounters] = useState<EncounterItem[]>([]);
+  const [isLoadingApi, setIsLoadingApi] = useState<boolean>(false);
+
+  // Fetch encounters from GET /api/v1/encounters
+  useEffect(() => {
+    setIsLoadingApi(true);
+    encounterService
+      .getEncounters()
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setApiEncounters(data);
+        }
+      })
+      .catch((err) => {
+        console.warn('Lỗi khi tải ca khám bác sĩ từ API:', err);
+      })
+      .finally(() => setIsLoadingApi(false));
+  }, []);
+
   const handleSelectPatientId = (id: string) => {
     setSelectedPatientId(id);
     localStorage.setItem('doctor_selected_patient_id', id);
@@ -144,13 +168,112 @@ export const DoctorEMRView: React.FC = () => {
   const [patientWorkflowStates, setPatientWorkflowStates] = useState<Record<string, 'initial' | 'ordered' | 'completed'>>({
     'BN-2026-088': 'initial',
     'BN-2026-089': 'initial',
-    'BN-2026-090': 'completed' // This patient has completed testing already!
+    'BN-2026-090': 'completed'
   });
+
+  // Map API Encounters to PatientEMR format
+  const combinedPatientsMap = useMemo(() => {
+    const map: Record<string, PatientEMR> = { ...mockPatientsEMR };
+
+    apiEncounters.forEach((enc) => {
+      const key = enc.patient?.patientCode || enc.encounterCode || enc.patientId;
+      const latestVitalSession = enc.vitalSignSessions && enc.vitalSignSessions.length > 0 ? enc.vitalSignSessions[0] : undefined;
+      
+      const getObs = (...codes: string[]) => {
+        if (!latestVitalSession) return undefined;
+        const obs = latestVitalSession.observations?.find((o) =>
+          o.item?.itemCode && codes.some((c) => c.toLowerCase() === o.item?.itemCode?.toLowerCase())
+        );
+        return obs?.observationValue;
+      };
+
+      const pulse = getObs('HR', 'PULSE');
+      const bpSys = getObs('SBP', 'BP_SYS', 'BP_SYSTOLIC');
+      const bpDia = getObs('BP_DIASTOLIC', 'DBP', 'BP_DIA');
+      const temp = getObs('TEMP', 'TEMPERATURE');
+      const spo2 = getObs('SPO2');
+
+      const birthYear = enc.patient?.dateOfBirth ? new Date(enc.patient.dateOfBirth).getFullYear() : 2000;
+      const age = new Date().getFullYear() - birthYear;
+
+      map[key] = {
+        id: key,
+        encounterId: enc.encounterId,
+        name: enc.patient?.fullName || 'Bệnh nhân',
+        age: age || 25,
+        gender: enc.patient?.gender === 'female' ? 'Nữ' : 'Nam',
+        dob: enc.patient?.dateOfBirth?.slice(0, 10) || '---',
+        phone: enc.patient?.phoneNumber || '---',
+        cccd: enc.patient?.identityNumber || '---',
+        bhyt: '---',
+        bloodType: enc.patient?.bloodType || 'O+',
+        allergies: 'Chưa ghi nhận dị ứng',
+        history: 'Theo dõi lâm sàng tại khoa',
+        symptoms: enc.chiefComplaint?.symptoms || enc.chiefComplaint?.reasonForVisit || 'Khai báo lâm sàng ban đầu',
+        vitals: {
+          bp: bpSys && bpDia ? `${bpSys}/${bpDia} mmHg` : '120/80 mmHg',
+          hr: Number(pulse) || 80,
+          spo2: Number(spo2) || 98,
+          temp: Number(temp) || 36.8,
+        },
+        aiSummary: `Bệnh nhân ${enc.patient?.fullName || 'khám'}, tuổi ${age}. Lý do khám: ${enc.chiefComplaint?.reasonForVisit || 'Khám tổng quát'}. Triệu chứng: ${enc.chiefComplaint?.symptoms || 'Bình thường'}. Ca khám ${enc.encounterCode} đã tiếp nhận vào ${enc.arrivedAt?.slice(0, 10)}.`,
+        aiSourceRef: 'Sinh hiệu Điều dưỡng + Khai báo tiếp đón Lễ tân',
+        aiProposedDiag: enc.chiefComplaint?.reasonForVisit || 'Viêm phế quản cấp / Theo dõi lâm sàng',
+        aiConfidence: '93.5%',
+        initialClinicalNote: 'Bệnh nhân tỉnh táo, tiếp xúc tốt. Thăm khám lâm sàng bình thường.',
+        initialDoctorDiag: enc.chiefComplaint?.reasonForVisit || 'Khám chuyên khoa',
+      };
+    });
+
+    return map;
+  }, [apiEncounters]);
 
   // Active Patient EMR Data
   const currentPatient = useMemo(() => {
-    return mockPatientsEMR[selectedPatientId] || mockPatientsEMR['BN-2026-088'];
-  }, [selectedPatientId]);
+    return combinedPatientsMap[selectedPatientId] || mockPatientsEMR['BN-2026-088'];
+  }, [selectedPatientId, combinedPatientsMap]);
+
+  // Fetch full Encounter Detail payload via GET /api/v1/encounters/{id}
+  const [selectedEncounterDetail, setSelectedEncounterDetail] = useState<EncounterItem | null>(null);
+  const [isLoadingEncounterDetail, setIsLoadingEncounterDetail] = useState<boolean>(false);
+
+  useEffect(() => {
+    const targetId = currentPatient.encounterId || (apiEncounters.find((e) => e.encounterCode === selectedPatientId || e.patient?.patientCode === selectedPatientId)?.encounterId);
+    if (targetId) {
+      setIsLoadingEncounterDetail(true);
+      encounterService
+        .getEncounterById(targetId)
+        .then((data) => {
+          setSelectedEncounterDetail(data);
+        })
+        .catch((err) => {
+          console.warn('Lỗi khi gọi GET /api/v1/encounters/{id}:', err);
+          setSelectedEncounterDetail(null);
+        })
+        .finally(() => setIsLoadingEncounterDetail(false));
+    } else {
+      setSelectedEncounterDetail(null);
+    }
+  }, [currentPatient.encounterId, selectedPatientId, apiEncounters]);
+
+  // Extract observations from GET /api/v1/encounters/{id}
+  const activeEncounterSession = selectedEncounterDetail?.vitalSignSessions && selectedEncounterDetail.vitalSignSessions.length > 0
+    ? selectedEncounterDetail.vitalSignSessions[0]
+    : undefined;
+
+  const getActiveEncounterObs = (...codes: string[]): string | number | undefined => {
+    if (!activeEncounterSession) return undefined;
+    const obs = activeEncounterSession.observations?.find((o) =>
+      o.item?.itemCode && codes.some((c) => c.toLowerCase() === o.item?.itemCode?.toLowerCase())
+    );
+    return obs?.observationValue;
+  };
+
+  const activePulse = getActiveEncounterObs('HR', 'PULSE');
+  const activeBpSys = getActiveEncounterObs('SBP', 'BP_SYS', 'BP_SYSTOLIC');
+  const activeBpDia = getActiveEncounterObs('DBP', 'BP_DIA', 'BP_DIASTOLIC');
+  const activeTemp = getActiveEncounterObs('TEMP', 'TEMPERATURE');
+  const activeSpo2 = getActiveEncounterObs('SPO2');
 
   // Form States
   const [clinicalExamNote, setClinicalExamNote] = useState('');
@@ -275,10 +398,10 @@ export const DoctorEMRView: React.FC = () => {
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Thông tin bệnh nhân</span>
                 <div className="space-y-1">
-                  <p><strong className="text-slate-700">Họ tên:</strong> {currentPatient.name}</p>
-                  <p><strong className="text-slate-700">Tuổi/Giới:</strong> {currentPatient.age} tuổi ({currentPatient.gender})</p>
-                  <p><strong className="text-slate-700">Ngày sinh:</strong> {currentPatient.dob}</p>
-                  <p><strong className="text-slate-700">Nhóm máu:</strong> {currentPatient.bloodType}</p>
+                  <p><strong className="text-slate-700">Họ tên:</strong> {selectedEncounterDetail?.patient?.fullName || currentPatient.name}</p>
+                  <p><strong className="text-slate-700">Tuổi/Giới:</strong> {currentPatient.age} tuổi ({selectedEncounterDetail?.patient?.gender === 'female' ? 'Nữ' : selectedEncounterDetail?.patient?.gender === 'male' ? 'Nam' : currentPatient.gender})</p>
+                  <p><strong className="text-slate-700">Ngày sinh:</strong> {selectedEncounterDetail?.patient?.dateOfBirth?.slice(0, 10) || currentPatient.dob}</p>
+                  <p><strong className="text-slate-700">Nhóm máu:</strong> {selectedEncounterDetail?.patient?.bloodType || currentPatient.bloodType}</p>
                 </div>
               </div>
 
@@ -288,7 +411,7 @@ export const DoctorEMRView: React.FC = () => {
                 <div className="space-y-1">
                   <p className="text-rose-600 font-bold"><strong className="text-slate-700">Dị ứng:</strong> {currentPatient.allergies}</p>
                   <p><strong className="text-slate-700">Tiền sử bệnh:</strong> {currentPatient.history}</p>
-                  <p><strong className="text-slate-700">Triệu chứng khai báo:</strong> {currentPatient.symptoms}</p>
+                  <p><strong className="text-slate-700">Triệu chứng khai báo:</strong> {selectedEncounterDetail?.chiefComplaint?.symptoms || selectedEncounterDetail?.chiefComplaint?.reasonForVisit || currentPatient.symptoms}</p>
                 </div>
               </div>
 
@@ -300,28 +423,36 @@ export const DoctorEMRView: React.FC = () => {
                     <Activity className="w-4 h-4 text-emerald-600 shrink-0" />
                     <div>
                       <span className="text-[9px] text-slate-400 block font-semibold leading-none">HA</span>
-                      <span className="font-mono">{currentPatient.vitals.bp}</span>
+                      <span className="font-mono">
+                        {activeBpSys && activeBpDia ? `${activeBpSys}/${activeBpDia} mmHg` : currentPatient.vitals.bp}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 text-slate-700">
                     <Heart className="w-4 h-4 text-rose-500 shrink-0" />
                     <div>
                       <span className="text-[9px] text-slate-400 block font-semibold leading-none">Nhịp tim</span>
-                      <span className="font-mono">{currentPatient.vitals.hr} bpm</span>
+                      <span className="font-mono">
+                        {activePulse ? `${activePulse} bpm` : `${currentPatient.vitals.hr} bpm`}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 text-slate-700">
                     <Activity className="w-4 h-4 text-blue-600 shrink-0" />
                     <div>
                       <span className="text-[9px] text-slate-400 block font-semibold leading-none">SpO2</span>
-                      <span className="font-mono">{currentPatient.vitals.spo2}%</span>
+                      <span className="font-mono">
+                        {activeSpo2 ? `${activeSpo2}%` : `${currentPatient.vitals.spo2}%`}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 text-slate-700">
                     <Thermometer className="w-4 h-4 text-amber-500 shrink-0" />
                     <div>
                       <span className="text-[9px] text-slate-400 block font-semibold leading-none">Nhiệt độ</span>
-                      <span className={`font-mono ${currentPatient.vitals.temp >= 38 ? 'text-rose-600' : 'text-slate-800'}`}>{currentPatient.vitals.temp}°C</span>
+                      <span className={`font-mono ${(Number(activeTemp) || currentPatient.vitals.temp) >= 38 ? 'text-rose-600' : 'text-slate-800'}`}>
+                        {activeTemp ? `${activeTemp}°C` : `${currentPatient.vitals.temp}°C`}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -591,11 +722,13 @@ export const DoctorEMRView: React.FC = () => {
           <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-tight">Hàng chờ Khám của Bác sĩ</h3>
-              <Badge variant="info" size="sm">03 Bệnh nhân</Badge>
+              <Badge variant="info" size="sm">
+                {String(Object.keys(combinedPatientsMap).length).padStart(2, '0')} Bệnh nhân
+              </Badge>
             </div>
 
             <div className="space-y-2.5">
-              {Object.values(mockPatientsEMR).map((p) => {
+              {Object.values(combinedPatientsMap).map((p) => {
                 const workflowState = patientWorkflowStates[p.id] || 'initial';
                 return (
                   <div

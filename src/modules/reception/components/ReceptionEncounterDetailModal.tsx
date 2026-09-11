@@ -10,6 +10,9 @@ import {
   Building2,
   CheckCircle2,
   XCircle,
+  Phone,
+  CreditCard,
+  Printer,
 } from 'lucide-react';
 import { Modal } from '../../../components/common/Modal';
 import { Badge } from '../../../components/common/Badge';
@@ -19,18 +22,16 @@ import {
   type EncounterVitalSession,
 } from '../../../services/encounter/encounter.service';
 
-interface EncounterDetailModalProps {
+interface ReceptionEncounterDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   encounterId: string | null;
-  onOpenMeasure?: (encounterId: string) => void;
 }
 
-export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
+export const ReceptionEncounterDetailModal: React.FC<ReceptionEncounterDetailModalProps> = ({
   isOpen,
   onClose,
   encounterId,
-  onOpenMeasure,
 }) => {
   const [encounter, setEncounter] = useState<EncounterItem | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -46,7 +47,7 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
           setEncounter(data);
         })
         .catch((err: any) => {
-          console.error('Lỗi khi tải chi tiết ca khám:', err);
+          console.error('Lỗi khi tải chi tiết ca khám (Lễ tân):', err);
           setError(err.message || 'Không thể tải chi tiết ca khám');
         })
         .finally(() => {
@@ -57,7 +58,6 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
     }
   }, [isOpen, encounterId]);
 
-  // Format date helper
   const formatDateTime = (dateStr?: string) => {
     if (!dateStr) return '---';
     try {
@@ -105,7 +105,6 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
     }
   };
 
-  // Helper lấy phiên sinh hiệu mới nhất
   const latestVitalSession: EncounterVitalSession | undefined =
     encounter?.vitalSignSessions && encounter.vitalSignSessions.length > 0
       ? encounter.vitalSignSessions[0]
@@ -137,13 +136,13 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
       maxWidth="4xl"
       title={
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-600 to-cyan-600 flex items-center justify-center text-white shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 to-indigo-700 flex items-center justify-center text-white shadow-xs">
             <FileText className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-slate-900">Chi Tiết Hồ Sơ Ca Khám</h3>
+            <h3 className="text-base font-bold text-slate-900">Chi Tiết Hồ Sơ Ca Khám (Lễ Tân)</h3>
             <p className="text-xs text-slate-500 font-normal">
-              Mã ca: <span className="font-bold text-teal-700">{encounter?.encounterCode || '---'}</span>
+              Mã ca: <span className="font-bold text-indigo-700">{encounter?.encounterCode || '---'}</span>
             </p>
           </div>
         </div>
@@ -156,31 +155,26 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
           <div className="flex items-center gap-2.5">
             <button
               type="button"
+              onClick={() => window.print()}
+              className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 cursor-pointer transition flex items-center gap-1.5"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-500" />
+              <span>In thông tin</span>
+            </button>
+            <button
+              type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer transition"
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl cursor-pointer transition"
             >
               Đóng
             </button>
-            {onOpenMeasure && encounterId && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenMeasure(encounterId);
-                }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition flex items-center gap-1.5"
-              >
-                <Activity className="w-4 h-4" />
-                <span>{hasVitals ? 'Đo lại sinh hiệu' : 'Đo sinh hiệu ngay'}</span>
-              </button>
-            )}
           </div>
         </div>
       }
     >
       {isLoading ? (
         <div className="py-20 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
-          <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
+          <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
           <span>Đang tải thông tin chi tiết ca khám...</span>
         </div>
       ) : error ? (
@@ -193,7 +187,7 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
           {/* Header Bệnh Nhân Banner */}
           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-extrabold text-sm shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-extrabold text-sm shrink-0">
                 <User className="w-5 h-5" />
               </div>
               <div>
@@ -278,7 +272,7 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
               <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-teal-600" />
+                <Building2 className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Khoa phụ trách:</span>
               </span>
               <p className="font-bold text-slate-900 text-xs">
@@ -293,7 +287,7 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
 
             <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
               <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
-                <Stethoscope className="w-3.5 h-3.5 text-teal-600" />
+                <Stethoscope className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Bác sĩ phụ trách:</span>
               </span>
               <p className="font-bold text-slate-900 text-xs">
@@ -314,7 +308,7 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-900 flex items-center gap-1.5">
                 <Activity className="w-4 h-4 text-blue-600" />
-                <span>Kết quả đo sinh hiệu gần nhất:</span>
+                <span>Kết quả đo sinh hiệu gần nhất từ Điều dưỡng:</span>
               </span>
               {hasVitals ? (
                 <span className="text-[10px] text-slate-400 font-medium">
@@ -401,12 +395,12 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
             )}
           </div>
 
-          {/* KHỐI 4: Xác thực danh tính & Đồng ý điều trị nếu có */}
+          {/* KHỐI 4: Xác thực danh tính */}
           {encounter.identityVerifications && encounter.identityVerifications.length > 0 && (
             <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
               <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
-                <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-                <span>Lịch sử xác minh giấy tờ danh tính:</span>
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                <span>Lịch sử xác minh giấy tờ danh tính (Lễ tân đối chiếu):</span>
               </span>
               <div className="space-y-1.5">
                 {encounter.identityVerifications.map((iv) => (

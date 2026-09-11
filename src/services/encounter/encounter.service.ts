@@ -116,11 +116,18 @@ export interface NursePatientRow {
 }
 
 export const encounterService = {
-  // Lấy danh sách ca khám (hỗ trợ lọc theo trạng thái: arrived, registered, ...)
-  async getEncounters(params?: { status?: string; patientId?: string }): Promise<EncounterItem[]> {
+  // Lấy danh sách ca khám (hỗ trợ lọc theo trạng thái, bệnh nhân, bác sĩ, khoa phòng)
+  async getEncounters(params?: {
+    status?: string;
+    patientId?: string;
+    doctorId?: string;
+    departmentId?: string;
+  }): Promise<EncounterItem[]> {
     const query = new URLSearchParams();
     if (params?.status) query.append('status', params.status);
     if (params?.patientId) query.append('patientId', params.patientId);
+    if (params?.doctorId) query.append('doctorId', params.doctorId);
+    if (params?.departmentId) query.append('departmentId', params.departmentId);
 
     const queryString = query.toString();
     const endpoint = queryString ? `/encounters?${queryString}` : '/encounters';
