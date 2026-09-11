@@ -815,16 +815,13 @@ export const ReceptionAppointmentsView: React.FC = () => {
                               )}
                               <span>Check-in</span>
                             </button>
+                          ) : app.queueTicket ? (
+                            <div className="w-[130px] h-8 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Đã check-in</span>
+                            </div>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedAppointmentForDetail(app)}
-                              className="w-[130px] h-8 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors border-none cursor-pointer flex items-center justify-center gap-1"
-                              title="Xem chi tiết lịch hẹn"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-slate-400" />
-                              <span>Chi tiết</span>
-                            </button>
+                            <div className="w-[130px] h-8" />
                           )}
 
                           {/* Cột 3: Nút hủy lịch hẹn (Cố định 32px, liền kề nút chính) */}

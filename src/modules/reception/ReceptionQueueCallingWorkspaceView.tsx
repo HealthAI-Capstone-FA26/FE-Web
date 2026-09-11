@@ -11,16 +11,150 @@ import {
   Check,
   Stethoscope,
   AlertCircle,
+  VolumeX,
 } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { queueTicketService, type QueueTicketItem } from '../../services/queue/queue-ticket.service';
 import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../services/doctor/doctor.service';
+
+// Helper phát tiếng chuông phát thanh bệnh viện (3 nốt nhạc) dùng Web Audio API
+const playQueueChime = (): Promise<void> => {
+  return new Promise((resolve) => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) {
+        resolve();
+        return;
+      }
+      const ctx = new AudioCtx();
+
+      // Nốt nhạc chuông bệnh viện: C5 (523.25Hz), E5 (659.25Hz), G5 (783.99Hz)
+      const notes = [
+        { freq: 523.25, duration: 0.22, time: 0 },
+        { freq: 659.25, duration: 0.22, time: 0.18 },
+        { freq: 783.99, duration: 0.45, time: 0.36 },
+      ];
+
+      notes.forEach((n) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(n.freq, ctx.currentTime + n.time);
+
+        gain.gain.setValueAtTime(0.01, ctx.currentTime + n.time);
+        gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + n.time + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + n.time + n.duration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(ctx.currentTime + n.time);
+        osc.stop(ctx.currentTime + n.time + n.duration);
+      });
+
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+        resolve();
+      }, 800);
+    } catch (e) {
+      console.warn('Lỗi Web Audio API:', e);
+      resolve();
+    }
+  });
+};
+
+// Helper lấy danh sách giọng đọc và ưu tiên giọng Tiếng Việt chuẩn
+const getVietnameseVoice = (selectedVoiceURI?: string): SpeechSynthesisVoice | null => {
+  if (!('speechSynthesis' in window)) return null;
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length === 0) return null;
+
+  if (selectedVoiceURI) {
+    const found = voices.find((v) => v.voiceURI === selectedVoiceURI);
+    if (found) return found;
+  }
+
+  // Ưu tiên 1: Giọng Tiếng Việt chuẩn (vi-VN) như Google Tiếng Việt hoặc Microsoft HoaiMy / An
+  const viVoice = voices.find(
+    (v) =>
+      v.lang.toLowerCase().includes('vi') ||
+      v.name.toLowerCase().includes('tiếng việt') ||
+      v.name.toLowerCase().includes('vietnamese') ||
+      v.name.toLowerCase().includes('hoaimy') ||
+      v.name.toLowerCase().includes('an')
+  );
+
+  return viVoice || voices[0] || null;
+};
+
+// Helper đọc loa phát thanh gọi số bằng tiếng Việt (Web Speech API)
+const speakQueueAnnouncement = (
+  ticketCode: string,
+  patientName?: string,
+  counterName?: string,
+  selectedVoiceURI?: string
+) => {
+  if (!('speechSynthesis' in window)) return;
+
+  // Dừng các câu đang đọc dở trước đó
+  window.speechSynthesis.cancel();
+
+  // Đọc mã số tách rời ký tự để rõ ràng hơn (VD: "B001" -> "B 0 0 1")
+  const formattedCode = ticketCode.split('').join(' ');
+  const counterStr = counterName || 'Quầy tiếp nhận';
+  const nameStr = patientName && patientName !== 'Bệnh nhân chưa đặt tên' ? `bệnh nhân ${patientName}` : 'bệnh nhân';
+
+  // Câu phát thanh chuẩn bệnh viện: "Xin mời bệnh nhân Nguyễn Văn A, số thứ tự B 0 0 1, đến Quầy 01"
+  const textToSpeak = `Xin mời ${nameStr}, số thứ tự ${formattedCode}, đến ${counterStr}.`;
+
+  const utterance = new SpeechSynthesisUtterance(textToSpeak);
+  utterance.lang = 'vi-VN';
+  utterance.rate = 0.88; // Tốc độ đọc vừa phải, chuẩn loa thông báo
+  utterance.pitch = 1.0;
+
+  const viVoice = getVietnameseVoice(selectedVoiceURI);
+  if (viVoice) {
+    utterance.voice = viVoice;
+  }
+
+  // Phát nhạc chuông trước, sau đó phát câu đọc
+  playQueueChime().then(() => {
+    window.speechSynthesis.speak(utterance);
+  });
+};
 
 const ReceptionQueueCallingBoard: React.FC = () => {
   const [selectedCounter, setSelectedCounter] = useState<string>('Quầy 01');
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'all' | 'waiting' | 'called' | 'done'>('all');
   const [searchKeyword, setSearchKeyword] = useState<string>('');
+  const [isAudioEnabled, setIsAudioEnabled] = useState<boolean>(true);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>('');
+
+  useEffect(() => {
+    const updateVoices = () => {
+      if ('speechSynthesis' in window) {
+        const vList = window.speechSynthesis.getVoices();
+        setAvailableVoices(vList);
+        const defaultVi = vList.find(
+          (v) =>
+            v.lang.toLowerCase().includes('vi') ||
+            v.name.toLowerCase().includes('tiếng việt') ||
+            v.name.toLowerCase().includes('vietnamese')
+        );
+        if (defaultVi) {
+          setSelectedVoiceURI(defaultVi.voiceURI);
+        }
+      }
+    };
+
+    updateVoices();
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = updateVoices;
+    }
+  }, []);
 
   const [tickets, setTickets] = useState<QueueTicketItem[]>([]);
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
@@ -125,6 +259,17 @@ const ReceptionQueueCallingBoard: React.FC = () => {
     });
   }, [tickets, activeTab, searchKeyword]);
 
+  const handleReplayAudio = (ticket: QueueTicketItem) => {
+    const code = formatTicketCode(ticket);
+    showToast(`Đã phát lại loa gọi số ${code}!`, 'info');
+    speakQueueAnnouncement(
+      code,
+      ticket.appointment?.patient?.fullName,
+      ticket.counterNumber || selectedCounter,
+      selectedVoiceURI
+    );
+  };
+
   const handleCallNext = async () => {
     if (!stats.nextTicket) {
       showToast('Hiện tại không còn bệnh nhân nào đang chờ trong hàng đợi', 'info');
@@ -136,6 +281,15 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       const code = formatTicketCode(stats.nextTicket);
       showToast(`Đã gọi số ${code} đến ${selectedCounter}!`, 'success');
       fetchTickets(true);
+
+      if (isAudioEnabled) {
+        speakQueueAnnouncement(
+          code,
+          stats.nextTicket.appointment?.patient?.fullName,
+          selectedCounter,
+          selectedVoiceURI
+        );
+      }
     } catch (err: any) {
       showToast(err.message || 'Lỗi khi gọi số tiếp theo', 'error');
     } finally {
@@ -144,14 +298,33 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   };
 
   const handleCallSpecificTicket = async (ticket: QueueTicketItem) => {
+    // Nếu phiếu đã ở trạng thái đang gọi ('called'), chỉ phát lại âm thanh mà không gửi API đổi trạng thái để tránh lỗi BE
+    if (ticket.status === 'called') {
+      handleReplayAudio(ticket);
+      return;
+    }
+
     setActionLoadingId(ticket.ticketId);
     try {
       await queueTicketService.callTicket(ticket.ticketId, selectedCounter);
       const code = formatTicketCode(ticket);
       showToast(`Đã gọi số ${code} đến ${selectedCounter}!`, 'success');
       fetchTickets(true);
+
+      if (isAudioEnabled) {
+        speakQueueAnnouncement(
+          code,
+          ticket.appointment?.patient?.fullName,
+          selectedCounter,
+          selectedVoiceURI
+        );
+      }
     } catch (err: any) {
-      showToast(err.message || 'Lỗi khi gọi số', 'error');
+      if (err.message?.includes('called')) {
+        handleReplayAudio(ticket);
+      } else {
+        showToast(err.message || 'Lỗi khi gọi số', 'error');
+      }
     } finally {
       setActionLoadingId(null);
     }
@@ -277,6 +450,46 @@ const ReceptionQueueCallingBoard: React.FC = () => {
               </select>
             </div>
 
+            {availableVoices.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider hidden sm:inline">Giọng:</span>
+                <select
+                  value={selectedVoiceURI}
+                  onChange={(e) => {
+                    setSelectedVoiceURI(e.target.value);
+                    speakQueueAnnouncement('TEST', 'Thử Giọng Đọc', selectedCounter, e.target.value);
+                  }}
+                  aria-label="Chọn giọng đọc phát thanh"
+                  className="bg-transparent text-xs font-bold text-teal-700 outline-none cursor-pointer max-w-[140px] sm:max-w-[180px] truncate"
+                >
+                  {availableVoices.map((v) => (
+                    <option key={v.voiceURI} value={v.voiceURI}>
+                      {v.name.replace(/Microsoft |Google /g, '')} ({v.lang})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                const nextState = !isAudioEnabled;
+                setIsAudioEnabled(nextState);
+                if (nextState) {
+                  speakQueueAnnouncement('TEST', 'Thử Âm Thanh', selectedCounter, selectedVoiceURI);
+                }
+              }}
+              title={isAudioEnabled ? 'Âm thanh tự động: Đang BẬT (Bấm để TẮT)' : 'Âm thanh tự động: Đang TẮT (Bấm để BẬT)'}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
+                isAudioEnabled
+                  ? 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100'
+                  : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
+              }`}
+            >
+              {isAudioEnabled ? <Volume2 className="w-4 h-4 text-teal-600" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+              <span>{isAudioEnabled ? 'Âm loa: Bật' : 'Âm loa: Tắt'}</span>
+            </button>
+
             <button
               onClick={() => fetchTickets(false)}
               disabled={isLoading}
@@ -386,7 +599,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
           {stats.currentServingTicket && (
             <div className="flex items-center gap-3 pt-5 mt-5 border-t border-slate-700/60">
               <button
-                onClick={() => handleCallSpecificTicket(stats.currentServingTicket!)}
+                onClick={() => handleReplayAudio(stats.currentServingTicket!)}
                 disabled={actionLoadingId === stats.currentServingTicket.ticketId}
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-700/70 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition cursor-pointer border border-slate-600/50"
               >
@@ -712,7 +925,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                           {isCalled && (
                             <>
                               <button
-                                onClick={() => handleCallSpecificTicket(ticket)}
+                                onClick={() => handleReplayAudio(ticket)}
                                 disabled={actionLoadingId === ticket.ticketId}
                                 title="Gọi lại loa"
                                 className="p-1.5 text-slate-600 hover:text-teal-700 bg-slate-100 hover:bg-teal-50 rounded-lg transition cursor-pointer"
