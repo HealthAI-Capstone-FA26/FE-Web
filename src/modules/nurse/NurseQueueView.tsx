@@ -11,6 +11,7 @@ import { NurseStatsHeader } from './components/NurseStatsHeader';
 import { NurseQueueTable } from './components/NurseQueueTable';
 import { NurseVitalModal } from './components/NurseVitalModal';
 import { NurseVitalHistoryModal } from './components/NurseVitalHistoryModal';
+import { EncounterDetailModal } from './components/EncounterDetailModal';
 
 export const NurseQueueView: React.FC = () => {
   const { user } = useAuth();
@@ -20,6 +21,7 @@ export const NurseQueueView: React.FC = () => {
   const [selectedRow, setSelectedRow] = useState<NursePatientRow | null>(null);
   const [isInputModalOpen, setIsInputModalOpen] = useState<boolean>(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+  const [selectedDetailEncounterId, setSelectedDetailEncounterId] = useState<string | null>(null);
 
   // Toast notification
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -155,6 +157,11 @@ export const NurseQueueView: React.FC = () => {
     return { total, pending, measured, abnormal };
   }, [tableData]);
 
+  // Xử lý mở Modal Chi tiết ca khám (Encounter Detail)
+  const handleOpenDetail = (row: NursePatientRow) => {
+    setSelectedDetailEncounterId(row.encounterId);
+  };
+
   // Xử lý mở Modal Đo / Cập nhật sinh hiệu
   const handleOpenMeasure = (row: NursePatientRow) => {
     setSelectedRow(row);
@@ -203,6 +210,20 @@ export const NurseQueueView: React.FC = () => {
         isLoading={isLoading}
         onOpenMeasure={handleOpenMeasure}
         onOpenHistory={handleOpenHistory}
+        onOpenDetail={handleOpenDetail}
+      />
+
+      {/* Modal Chi tiết ca khám (Encounter Detail) */}
+      <EncounterDetailModal
+        isOpen={!!selectedDetailEncounterId}
+        encounterId={selectedDetailEncounterId}
+        onClose={() => setSelectedDetailEncounterId(null)}
+        onOpenMeasure={(encId) => {
+          const row = tableData.find((r) => r.encounterId === encId);
+          if (row) {
+            handleOpenMeasure(row);
+          }
+        }}
       />
 
       {/* Modal Đo / Cập nhật sinh hiệu */}
