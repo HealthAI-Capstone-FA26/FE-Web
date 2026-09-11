@@ -3,6 +3,7 @@ import {
   Heart,
   Thermometer,
   ShieldAlert,
+  AlertCircle,
   CheckCircle2,
   Loader2,
   Table,
@@ -213,6 +214,46 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
       }
     >
       <div className="space-y-4 text-xs">
+        {patientRow?.chiefComplaint && (
+          <div className="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-amber-900">Lý do tiếp đón & Triệu chứng ban đầu:</span>
+                {typeof patientRow.chiefComplaint.painLevel === 'number' && (
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                      patientRow.chiefComplaint.painLevel >= 7
+                        ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                        : patientRow.chiefComplaint.painLevel >= 4
+                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                        : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                    }`}
+                  >
+                    Mức đau: {patientRow.chiefComplaint.painLevel}/10
+                  </span>
+                )}
+              </div>
+              <p className="text-slate-800 font-medium">
+                <span className="font-bold text-slate-700">Lý do:</span>{' '}
+                {patientRow.chiefComplaint.reasonForVisit || 'Khám tổng quát'}
+                {patientRow.chiefComplaint.symptoms && (
+                  <>
+                    {' '}• <span className="font-bold text-slate-700">Triệu chứng:</span>{' '}
+                    {patientRow.chiefComplaint.symptoms}
+                  </>
+                )}
+                {patientRow.chiefComplaint.symptomOnsetDate && (
+                  <>
+                    {' '}• <span className="font-bold text-slate-700">Khởi phát:</span>{' '}
+                    {patientRow.chiefComplaint.symptomOnsetDate.slice(0, 10)}
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
+
         {isFormAbnormal && (
           <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 font-bold flex items-center gap-2 animate-pulse">
             <ShieldAlert className="w-5 h-5 shrink-0" />
