@@ -30,7 +30,6 @@ export interface ReceptionWalkinBookingFormProps {
 
 export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProps> = ({
   initialPatient,
-  onNavigateToTab,
   onOpenCreatePatientModal,
 }) => {
   const navigate = useNavigate();
@@ -340,6 +339,15 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
               >
                 <RotateCcw className="w-4 h-4" />
                 <span>Tiếp tục tiếp nhận bệnh nhân tiếp theo</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all flex items-center gap-2 cursor-pointer shadow-xs"
+              >
+                <Printer className="w-4 h-4" />
+                <span>In phiếu tiếp nhận</span>
               </button>
 
               <button

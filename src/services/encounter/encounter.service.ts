@@ -115,6 +115,36 @@ export interface NursePatientRow {
   chiefComplaint?: EncounterChiefComplaint;
 }
 
+export type VerificationMethod =
+  | 'national_id_card'
+  | 'health_insurance_card'
+  | 'patient_card'
+  | 'phone_otp'
+  | 'manual';
+
+export type VerificationStatus = 'verified' | 'failed' | 'pending';
+
+export interface IdentityVerificationLog {
+  verificationId: string;
+  encounterId: string;
+  verifiedByUserId: string;
+  verificationMethod: VerificationMethod | string;
+  verificationStatus: VerificationStatus | string;
+  mismatchNotes?: string;
+  verifiedAt: string;
+  verifiedByUser?: {
+    userId?: string;
+    fullName?: string;
+    username?: string;
+  };
+}
+
+export interface CreateIdentityVerificationDto {
+  verificationMethod: VerificationMethod;
+  verificationStatus: VerificationStatus;
+  mismatchNotes?: string;
+}
+
 export const encounterService = {
   // Lấy danh sách ca khám (hỗ trợ lọc theo trạng thái, bệnh nhân, bác sĩ, khoa phòng)
   async getEncounters(params?: {
@@ -143,4 +173,23 @@ export const encounterService = {
       method: 'GET',
     });
   },
+
+  // Ghi nhận 1 log xác minh danh tính (POST /encounters/:id/identity-verifications)
+  async recordIdentityVerification(
+    encounterId: string,
+    dto: CreateIdentityVerificationDto
+  ): Promise<IdentityVerificationLog> {
+    return apiFetch<IdentityVerificationLog>(`/encounters/${encounterId}/identity-verifications`, {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  },
+
+  // Lấy lịch sử xác minh danh tính của lượt khám (GET /encounters/:id/identity-verifications)
+  async getIdentityVerifications(encounterId: string): Promise<IdentityVerificationLog[]> {
+    return apiFetch<IdentityVerificationLog[]>(`/encounters/${encounterId}/identity-verifications`, {
+      method: 'GET',
+    });
+  },
 };
+

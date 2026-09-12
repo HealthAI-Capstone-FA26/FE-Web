@@ -18,6 +18,7 @@ import {
   type EncounterItem,
   type EncounterVitalSession,
 } from '../../../services/encounter/encounter.service';
+import { IdentityVerificationHistoryModal } from '../../reception/components/IdentityVerificationHistoryModal';
 
 interface EncounterDetailModalProps {
   isOpen: boolean;
@@ -35,27 +36,34 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
   const [encounter, setEncounter] = useState<EncounterItem | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+
+  const loadEncounter = () => {
+    if (!encounterId) return;
+    setIsLoading(true);
+    setError(null);
+    encounterService
+      .getEncounterById(encounterId)
+      .then((data) => {
+        setEncounter(data);
+      })
+      .catch((err: any) => {
+        console.error('Lỗi khi tải chi tiết ca khám:', err);
+        setError(err.message || 'Không thể tải chi tiết ca khám');
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  };
 
   useEffect(() => {
     if (isOpen && encounterId) {
-      setIsLoading(true);
-      setError(null);
-      encounterService
-        .getEncounterById(encounterId)
-        .then((data) => {
-          setEncounter(data);
-        })
-        .catch((err: any) => {
-          console.error('Lỗi khi tải chi tiết ca khám:', err);
-          setError(err.message || 'Không thể tải chi tiết ca khám');
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
+      loadEncounter();
     } else {
       setEncounter(null);
     }
   }, [isOpen, encounterId]);
+
 
   // Format date helper
   const formatDateTime = (dateStr?: string) => {
@@ -402,12 +410,22 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
           </div>
 
           {/* KHỐI 4: Xác thực danh tính & Đồng ý điều trị nếu có */}
-          {encounter.identityVerifications && encounter.identityVerifications.length > 0 && (
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2.5">
+            <div className="flex items-center justify-between">
               <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
                 <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-                <span>Lịch sử xác minh giấy tờ danh tính:</span>
+                <span>Xác minh giấy tờ & danh tính bệnh nhân:</span>
               </span>
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(true)}
+                className="px-2.5 py-1 text-[11px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition cursor-pointer flex items-center gap-1"
+              >
+                <span>Xem chi tiết / Xác minh lại</span>
+              </button>
+            </div>
+
+            {encounter.identityVerifications && encounter.identityVerifications.length > 0 ? (
               <div className="space-y-1.5">
                 {encounter.identityVerifications.map((iv) => (
                   <div key={iv.verificationId} className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-200/60 text-[11px]">
@@ -429,10 +447,24 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="p-3 text-center bg-white rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                Chưa có lượt xác minh danh tính nào được ghi nhận cho ca khám này.
+              </div>
+            )}
+          </div>
         </div>
       )}
+
+      {/* MODAL LỊCH SỬ XÁC MINH DANH TÍNH (GET) */}
+      <IdentityVerificationHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        encounterId={encounter?.encounterId || null}
+        patientName={encounter?.patient?.fullName}
+        encounterCode={encounter?.encounterCode}
+        onVerificationCreated={loadEncounter}
+      />
     </Modal>
   );
 };

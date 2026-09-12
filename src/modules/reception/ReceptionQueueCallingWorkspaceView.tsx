@@ -16,11 +16,22 @@ import {
   Calendar,
   Flame,
   Activity,
+  ShieldCheck,
+  CreditCard,
+  Baby,
+  User,
+  FileCheck2,
 } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { queueTicketService, type QueueTicketItem } from '../../services/queue/queue-ticket.service';
 import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { chiefComplaintService } from '../../services/reception/chief-complaint.service';
+import {
+  encounterService,
+  type VerificationMethod,
+  type VerificationStatus,
+} from '../../services/encounter/encounter.service';
+import { IdentityVerificationHistoryModal } from './components/IdentityVerificationHistoryModal';
 
 // Helper phát tiếng chuông phát thanh bệnh viện (3 nốt nhạc) dùng Web Audio API
 const playQueueChime = (): Promise<void> => {
@@ -185,6 +196,19 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   const [symptomOnsetDate, setSymptomOnsetDate] = useState<string>('');
   const [painLevel, setPainLevel] = useState<number>(0);
   const [modalSubmitting, setModalSubmitting] = useState<boolean>(false);
+
+  // State Xác Minh Danh Tính (Identity Verification) trong modal tiếp nhận
+  const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>('national_id_card');
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('verified');
+  const [mismatchNotes, setMismatchNotes] = useState<string>('');
+  const [isPediatricPatient, setIsPediatricPatient] = useState<boolean>(false);
+
+  // State Modal Xem Lịch Sử Xác Minh Danh Tính (Chức năng 6 GET)
+  const [historyModalEncounterId, setHistoryModalEncounterId] = useState<string | null>(null);
+  const [historyModalPatientName, setHistoryModalPatientName] = useState<string>('');
+  const [historyModalEncounterCode, setHistoryModalEncounterCode] = useState<string>('');
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+
 
   const [notification, setNotification] = useState<{ type: 'success' | 'info' | 'error'; message: string } | null>(null);
 
@@ -370,6 +394,24 @@ const ReceptionQueueCallingBoard: React.FC = () => {
     setSymptoms('');
     setSymptomOnsetDate(new Date().toISOString().slice(0, 10));
     setPainLevel(0);
+
+    // Tính tuổi bệnh nhân để tự động nhận diện Bệnh Nhi nhỏ tuổi (< 15 tuổi)
+    const dob = ticket.appointment?.patient?.dateOfBirth;
+    let isChild = false;
+    if (dob) {
+      const birthYear = new Date(dob).getFullYear();
+      const currentYear = new Date().getFullYear();
+      if (!isNaN(birthYear)) {
+        isChild = currentYear - birthYear < 15;
+      }
+    }
+    setIsPediatricPatient(isChild);
+
+    // Bệnh nhi: ưu tiên Thẻ BHYT trẻ em (health_insurance_card) hoặc Giấy khai sinh (manual)
+    // Người lớn: mặc định CCCD gắn chip (national_id_card)
+    setVerificationMethod(isChild ? 'health_insurance_card' : 'national_id_card');
+    setVerificationStatus('verified');
+    setMismatchNotes('');
   };
 
   const handleToggleQuickSymptom = (tag: string) => {
@@ -392,6 +434,12 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       showToast('Vui lòng chọn bác sĩ khám trước khi hoàn tất tiếp nhận', 'error');
       return;
     }
+
+    if (verificationStatus === 'failed' && !mismatchNotes.trim()) {
+      showToast('Vui lòng nhập lý do không khớp khi kết quả xác minh thất bại', 'error');
+      return;
+    }
+
     setModalSubmitting(true);
     try {
       // 1. Chuyển trạng thái ticket -> done, appointment -> checked_in, tạo Encounter
@@ -402,8 +450,28 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       const encounterId = res.encounter?.encounterId;
       const code = formatTicketCode(intakeModalTicket);
 
-      // 2. Ghi nhận Chief Complaint vào lượt khám Encounter
+      // 2. Ghi nhận Log Xác Minh Danh Tính (Chức năng 5: POST /encounters/:id/identity-verifications)
       if (encounterId) {
+        try {
+          const isBhyt = verificationMethod === 'health_insurance_card';
+          const apiMethod = isBhyt ? 'manual' : verificationMethod;
+          const prefix = isBhyt ? '[BHYT/VssID]' : '';
+          const finalNotes = prefix
+            ? (verificationStatus === 'failed' && mismatchNotes.trim()
+                ? `${prefix} ${mismatchNotes.trim()}`
+                : prefix)
+            : (verificationStatus === 'failed' ? mismatchNotes.trim() : undefined);
+
+          await encounterService.recordIdentityVerification(encounterId, {
+            verificationMethod: apiMethod,
+            verificationStatus,
+            mismatchNotes: finalNotes,
+          });
+        } catch (idErr: any) {
+          console.warn('Ghi nhận log xác minh danh tính thất bại:', idErr);
+        }
+
+        // 3. Ghi nhận Chief Complaint vào lượt khám Encounter
         try {
           const finalReason =
             reasonForVisit.trim() || intakeModalTicket.appointment?.reasonForVisit?.trim() || 'Khám bệnh';
@@ -420,7 +488,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       }
 
       showToast(
-        `Đã tiếp nhận thành công số ${code} & lưu lý do khám! Hồ sơ đã chuyển sang Điều dưỡng & Bác sĩ.`,
+        `Đã tiếp nhận thành công số ${code}, lưu xác minh danh tính & chuyển khám!`,
         'success'
       );
       setIntakeModalTicket(null);
@@ -1013,7 +1081,49 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                           )}
 
                           {isDone && (
-                            <span className="text-[11px] text-slate-400 italic">Đã vào khám</span>
+                            <div className="inline-flex items-center gap-2">
+                              <span className="text-[11px] text-slate-400 italic">Đã vào khám</span>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  let encId =
+                                    ticket.appointment?.encounter?.encounterId ||
+                                    ticket.appointment?.encounters?.[0]?.encounterId;
+                                  let encCode =
+                                    ticket.appointment?.encounter?.encounterCode ||
+                                    ticket.appointment?.encounters?.[0]?.encounterCode ||
+                                    '';
+
+                                  if (!encId && ticket.appointment?.patientId) {
+                                    try {
+                                      const encList = await encounterService.getEncounters({
+                                        patientId: ticket.appointment.patientId,
+                                      });
+                                      if (encList && encList.length > 0) {
+                                        encId = encList[0].encounterId;
+                                        encCode = encList[0].encounterCode;
+                                      }
+                                    } catch (e) {
+                                      console.warn('Không thể tải ca khám:', e);
+                                    }
+                                  }
+
+                                  if (encId) {
+                                    setHistoryModalEncounterId(encId);
+                                    setHistoryModalPatientName(ticket.appointment?.patient?.fullName || '');
+                                    setHistoryModalEncounterCode(encCode);
+                                    setIsHistoryModalOpen(true);
+                                  } else {
+                                    showToast('Chưa tìm thấy mã lượt khám cho bệnh nhân này', 'info');
+                                  }
+                                }}
+                                title="Xem lịch sử xác minh danh tính"
+                                className="px-2.5 py-1 text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200/90 rounded-lg transition cursor-pointer flex items-center gap-1.5 font-bold text-xs shadow-2xs"
+                              >
+                                <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+                                <span>Lịch sử XM</span>
+                              </button>
+                            </div>
                           )}
                         </div>
                       </td>
@@ -1029,7 +1139,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       {/* MODAL TIẾP ĐÓN & KHAI BÁO LÂM SÀNG BAN ĐẦU (CHIEF COMPLAINT) */}
       {intakeModalTicket && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
               <div className="flex items-center gap-3">
@@ -1055,6 +1165,98 @@ const ReceptionQueueCallingBoard: React.FC = () => {
 
             {/* Modal Body */}
             <div className="p-6 space-y-4 overflow-y-auto text-xs flex-1">
+              {/* THÔNG TIN HỒ SƠ BỆNH NHÂN ĐỂ ĐỐI CHIẾU TẠI QUẦY */}
+              {(() => {
+                const patient = intakeModalTicket.appointment?.patient;
+                const birthYear = patient?.dateOfBirth ? new Date(patient.dateOfBirth).getFullYear() : null;
+                const age = birthYear && !isNaN(birthYear) ? new Date().getFullYear() - birthYear : null;
+
+                return (
+                  <div className="p-3.5 bg-gradient-to-br from-slate-50 to-teal-50/40 rounded-2xl border border-teal-100/90 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs text-teal-950">
+                        <User className="w-3.5 h-3.5 text-teal-600" />
+                        <span>Hồ sơ lưu trữ hệ thống (Dùng để đối chiếu giấy tờ thực tế):</span>
+                      </span>
+                      {patient?.identityVerified ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Đã từng xác minh danh tính</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          <AlertCircle className="w-3 h-3 text-amber-600" />
+                          <span>Chưa từng xác minh danh tính</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {/* Số CCCD / CMND */}
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                        <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                          <CreditCard className="w-3 h-3 text-blue-500" />
+                          <span>Số CCCD / CMND</span>
+                        </div>
+                        <div className="font-mono font-bold text-slate-800 text-xs mt-1">
+                          {patient?.identityNumber || (
+                            <span className="text-slate-400 font-normal italic text-[11px]">Chưa cập nhật CCCD</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Mã số thẻ BHYT */}
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                        <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                          <FileCheck2 className="w-3 h-3 text-emerald-500" />
+                          <span>Mã Thẻ BHYT</span>
+                        </div>
+                        <div className="font-mono font-bold text-emerald-700 text-xs mt-1">
+                          {patient?.insuranceNumber || (
+                            <span className="text-slate-400 font-normal italic text-[11px]">Chưa đăng ký BHYT</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Ngày sinh / Tuổi */}
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                        <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-purple-500" />
+                          <span>Ngày sinh & Tuổi</span>
+                        </div>
+                        <div className="font-semibold text-slate-800 text-xs mt-1">
+                          {patient?.dateOfBirth ? (
+                            <>
+                              <span>{new Date(patient.dateOfBirth).toLocaleDateString('vi-VN')}</span>
+                              {age !== null && (
+                                <span className="text-slate-500 font-normal text-[11px] ml-1">
+                                  ({age} tuổi)
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-slate-400 font-normal italic text-[11px]">Chưa có ngày sinh</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Giới tính & Số điện thoại */}
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                        <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                          <Users className="w-3 h-3 text-amber-500" />
+                          <span>Giới tính / SĐT</span>
+                        </div>
+                        <div className="font-semibold text-slate-800 text-xs mt-1">
+                          <span>{patient?.gender === 'male' ? 'Nam' : patient?.gender === 'female' ? 'Nữ' : 'Khác'}</span>
+                          <span className="text-slate-300 font-normal mx-1">•</span>
+                          <span className="text-slate-600 font-mono text-[11px]">{patient?.phoneNumber || '---'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Chọn Bác Sĩ */}
               <div className="space-y-1.5">
                 <label className="font-bold text-slate-700 flex items-center gap-1.5">
@@ -1078,6 +1280,88 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                       </option>
                     ))}
                 </select>
+              </div>
+
+              {/* KHỐI XÁC MINH DANH TÍNH TẠI QUẦY (CCCD / BHYT / BỆNH NHI) */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/90 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                    <ShieldCheck className="w-4 h-4 text-teal-600" />
+                    <span>Xác minh danh tính bệnh nhân tại quầy:</span>
+                    <span className="text-rose-500">*</span>
+                  </label>
+                  {isPediatricPatient ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                      <Baby className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Bệnh nhi nhỏ tuổi (&lt; 15 tuổi)</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                      <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Người lớn (CCCD / BHYT)</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Chọn phương thức */}
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-semibold text-slate-600 block">Phương thức đối chiếu:</span>
+                    <select
+                      value={verificationMethod}
+                      onChange={(e) => setVerificationMethod(e.target.value as VerificationMethod)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-medium text-slate-800 text-xs focus:outline-none focus:border-teal-500"
+                    >
+                      <option value="national_id_card">CCCD gắn chip / Thẻ căn cước</option>
+                      <option value="health_insurance_card">Thẻ BHYT (hoặc Thẻ BHYT Trẻ em)</option>
+                      <option value="manual">Giấy khai sinh / Đối chiếu theo phụ huynh</option>
+                      <option value="patient_card">Thẻ khám bệnh viện</option>
+                      <option value="phone_otp">Xác thực qua OTP SMS</option>
+                    </select>
+                  </div>
+
+                  {/* Chọn kết quả */}
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-semibold text-slate-600 block">Kết quả đối chiếu:</span>
+                    <select
+                      value={verificationStatus}
+                      onChange={(e) => setVerificationStatus(e.target.value as VerificationStatus)}
+                      className={`w-full px-3 py-2 bg-white border rounded-xl font-bold text-xs focus:outline-none ${
+                        verificationStatus === 'verified'
+                          ? 'border-emerald-300 text-emerald-800 bg-emerald-50/30'
+                          : 'border-rose-300 text-rose-800 bg-rose-50/30'
+                      }`}
+                    >
+                      <option value="verified">✓ Đã đối chiếu khớp thông tin (Verified)</option>
+                      <option value="failed">✕ Không khớp / Nghi ngờ sai lệch (Failed)</option>
+                      <option value="pending">⏳ Đang chờ xác minh bổ sung (Pending)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Nếu không khớp -> Bắt buộc nhập lý do */}
+                {verificationStatus === 'failed' && (
+                  <div className="pt-1">
+                    <label className="text-[11px] font-bold text-rose-700 block mb-1">
+                      Lý do không khớp / sai lệch giấy tờ: <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={mismatchNotes}
+                      onChange={(e) => setMismatchNotes(e.target.value)}
+                      placeholder="Ví dụ: Khuôn mặt không khớp ảnh CCCD, Số CCCD lệch 1 chữ số..."
+                      className="w-full px-3 py-1.5 bg-white border border-rose-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                      required
+                    />
+                  </div>
+                )}
+
+                {/* Gợi ý nghiệp vụ */}
+                <div className="text-[10px] text-slate-400 italic">
+                  {isPediatricPatient
+                    ? '💡 Bệnh nhi chưa có CCCD: Đối chiếu Thẻ BHYT trẻ em (mã TE) hoặc Giấy khai sinh kèm CCCD của Phụ huynh / Người giám hộ đi cùng.'
+                    : '💡 Kiểm tra ảnh thẻ CCCD với khuôn mặt người đến khám. Sau khi xác nhận, hệ thống tự động gắn cờ "Đã xác minh danh tính" cho hồ sơ bệnh nhân.'}
+                </div>
               </div>
 
               {/* Lý do đến khám (Chief Complaint - reasonForVisit) */}
@@ -1237,6 +1521,18 @@ const ReceptionQueueCallingBoard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL XEM LỊCH SỬ XÁC MINH DANH TÍNH (GET /encounters/:id/identity-verifications) */}
+      <IdentityVerificationHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        encounterId={historyModalEncounterId}
+        patientName={historyModalPatientName}
+        encounterCode={historyModalEncounterCode}
+        onVerificationCreated={() => {
+          fetchTickets(true);
+        }}
+      />
     </div>
   );
 };
