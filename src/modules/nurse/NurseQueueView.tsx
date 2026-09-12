@@ -12,6 +12,7 @@ import { NurseQueueTable } from './components/NurseQueueTable';
 import { NurseVitalModal } from './components/NurseVitalModal';
 import { NurseVitalHistoryModal } from './components/NurseVitalHistoryModal';
 import { EncounterDetailModal } from './components/EncounterDetailModal';
+import { NurseAllergyModal } from './components/NurseAllergyModal';
 
 export const NurseQueueView: React.FC = () => {
   const { user } = useAuth();
@@ -21,6 +22,7 @@ export const NurseQueueView: React.FC = () => {
   const [selectedRow, setSelectedRow] = useState<NursePatientRow | null>(null);
   const [isInputModalOpen, setIsInputModalOpen] = useState<boolean>(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+  const [isAllergyModalOpen, setIsAllergyModalOpen] = useState<boolean>(false);
   const [selectedDetailEncounterId, setSelectedDetailEncounterId] = useState<string | null>(null);
 
   // Toast notification
@@ -174,6 +176,12 @@ export const NurseQueueView: React.FC = () => {
     setIsHistoryModalOpen(true);
   };
 
+  // Xử lý mở Modal Dị ứng
+  const handleOpenAllergy = (row: NursePatientRow) => {
+    setSelectedRow(row);
+    setIsAllergyModalOpen(true);
+  };
+
   return (
     <div className="space-y-6 pb-12">
       {/* Toast Notification */}
@@ -211,6 +219,7 @@ export const NurseQueueView: React.FC = () => {
         onOpenMeasure={handleOpenMeasure}
         onOpenHistory={handleOpenHistory}
         onOpenDetail={handleOpenDetail}
+        onOpenAllergy={handleOpenAllergy}
       />
 
       {/* Modal Chi tiết ca khám (Encounter Detail) */}
@@ -224,6 +233,18 @@ export const NurseQueueView: React.FC = () => {
             handleOpenMeasure(row);
           }
         }}
+      />
+
+      {/* Modal Khai báo & Quản lý dị ứng */}
+      <NurseAllergyModal
+        isOpen={isAllergyModalOpen}
+        onClose={() => {
+          setIsAllergyModalOpen(false);
+          setSelectedRow(null);
+        }}
+        patientRow={selectedRow}
+        onSuccess={(msg) => showToast(msg, 'success')}
+        onError={(err) => showToast(err, 'error')}
       />
 
       {/* Modal Đo / Cập nhật sinh hiệu */}
