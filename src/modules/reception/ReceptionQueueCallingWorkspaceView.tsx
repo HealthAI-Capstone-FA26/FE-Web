@@ -938,7 +938,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 <th className="py-3 px-4">Chuyên Khoa & Bác Sĩ</th>
                 <th className="py-3 px-4">Quầy / Thời Gian</th>
                 <th className="py-3 px-4">Trạng Thái</th>
-                <th className="py-3 px-4 text-right">Thao Tác</th>
+                <th className="py-3 px-4 text-center">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
@@ -1046,8 +1046,8 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="inline-flex items-center gap-2">
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="inline-flex items-center justify-center gap-2">
                           {isWaiting && (
                             <button
                               onClick={() => handleCallSpecificTicket(ticket)}
