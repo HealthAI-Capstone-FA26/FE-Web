@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Sparkles, CheckCircle2, AlertTriangle, FileText, User,
   Activity, Heart, Thermometer, ShieldAlert, CheckSquare, Square,
-  Clock, Play
+  Clock, Play, Loader2
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { BorderBeam } from '../../components/ui/border-beam';
@@ -10,6 +10,12 @@ import {
   encounterService,
   type EncounterItem,
 } from '../../services/encounter/encounter.service';
+import {
+  patientAllergyService,
+  type PatientAllergyItem,
+  type AllergyType,
+  type AllergySeverity,
+} from '../../services/patient/patient-allergy.service';
 
 interface PatientEMR {
   id: string;
@@ -256,6 +262,105 @@ export const DoctorEMRView: React.FC = () => {
     }
   }, [currentPatient.encounterId, selectedPatientId, apiEncounters]);
 
+  // Fetch patient allergies via GET /api/v1/patients/{patientId}/allergies
+  const [patientAllergies, setPatientAllergies] = useState<PatientAllergyItem[]>([]);
+  const [isLoadingAllergies, setIsLoadingAllergies] = useState<boolean>(false);
+
+  const activePatientId = useMemo(() => {
+    return (
+      selectedEncounterDetail?.patientId ||
+      selectedEncounterDetail?.patient?.patientId ||
+      apiEncounters.find(
+        (e) => e.encounterCode === selectedPatientId || e.patient?.patientCode === selectedPatientId
+      )?.patientId ||
+      (currentPatient.id === 'BN-2026-0003' || currentPatient.name === 'Lê Mẫn Nhi'
+        ? 'p3333333-3333-3333-3333-333333333333'
+        : undefined)
+    );
+  }, [selectedEncounterDetail, selectedPatientId, apiEncounters, currentPatient]);
+
+  useEffect(() => {
+    if (activePatientId) {
+      setIsLoadingAllergies(true);
+      patientAllergyService
+        .getAllergies(activePatientId)
+        .then((data) => {
+          setPatientAllergies(Array.isArray(data) ? data : []);
+        })
+        .catch((err) => {
+          console.warn('Lỗi khi tải danh sách dị ứng bệnh nhân EMR:', err);
+          setPatientAllergies([]);
+        })
+        .finally(() => setIsLoadingAllergies(false));
+    } else {
+      setPatientAllergies([]);
+    }
+  }, [activePatientId]);
+
+  const getSeverityBadge = (sev: AllergySeverity) => {
+    switch (sev) {
+      case 'life_threatening':
+        return (
+          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
+            🔥 Nguy hiểm tính mạng
+          </span>
+        );
+      case 'severe':
+        return (
+          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200">
+            ⚠️ Nặng
+          </span>
+        );
+      case 'moderate':
+        return (
+          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+            🟡 Trung bình
+          </span>
+        );
+      case 'mild':
+        return (
+          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
+            <img src="/images/mild_icon.png" alt="Nhẹ" className="w-3 h-3 object-contain shrink-0" />
+            <span>Nhẹ</span>
+          </span>
+        );
+    }
+  };
+
+  const getTypeLabel = (type: AllergyType) => {
+    switch (type) {
+      case 'drug':
+        return (
+          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
+            <img src="/images/drug_icon.png" alt="Thuốc" className="w-4 h-4 object-contain shrink-0 inline-block align-middle" />
+            <span>Thuốc</span>
+          </span>
+        );
+      case 'food':
+        return (
+          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
+            <img src="/images/food_icon.png" alt="Thực phẩm" className="w-4 h-4 object-contain shrink-0 inline-block align-middle" />
+            <span>Thực phẩm</span>
+          </span>
+        );
+      case 'environmental':
+        return (
+          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
+            <img src="/images/environmental_icon.png" alt="Môi trường" className="w-4 h-4 object-contain shrink-0 inline-block align-middle" />
+            <span>Môi trường</span>
+          </span>
+        );
+      case 'other':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
+            <img src="/images/other_icon.png" alt="Khác" className="w-4 h-4 object-contain shrink-0 inline-block align-middle" />
+            <span>Khác</span>
+          </span>
+        );
+    }
+  };
+
   // Extract observations from GET /api/v1/encounters/{id}
   const activeEncounterSession = selectedEncounterDetail?.vitalSignSessions && selectedEncounterDetail.vitalSignSessions.length > 0
     ? selectedEncounterDetail.vitalSignSessions[0]
@@ -406,12 +511,67 @@ export const DoctorEMRView: React.FC = () => {
               </div>
 
               {/* Clinical History & Allergies */}
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Tiền sử & Dị ứng</span>
-                <div className="space-y-1">
-                  <p className="text-rose-600 font-bold"><strong className="text-slate-700">Dị ứng:</strong> {currentPatient.allergies}</p>
-                  <p><strong className="text-slate-700">Tiền sử bệnh:</strong> {currentPatient.history}</p>
-                  <p><strong className="text-slate-700">Triệu chứng khai báo:</strong> {selectedEncounterDetail?.chiefComplaint?.symptoms || selectedEncounterDetail?.chiefComplaint?.reasonForVisit || currentPatient.symptoms}</p>
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Tiền sử & Dị ứng</span>
+                  {isLoadingAllergies && <Loader2 className="w-3.5 h-3.5 text-rose-600 animate-spin" />}
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  {/* Dynamic Allergies section from GET /api/v1/patients/:patientId/allergies */}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      <strong className="text-slate-800 text-[11px]">Dị ứng ghi nhận:</strong>
+                    </div>
+
+                    {isLoadingAllergies ? (
+                      <span className="text-[11px] text-slate-400 italic">Đang tải dị ứng bệnh nhân...</span>
+                    ) : patientAllergies.filter((a) => a.status === 'active').length > 0 ? (
+                      <div className="space-y-1.5 pt-0.5">
+                        {patientAllergies
+                          .filter((a) => a.status === 'active')
+                          .map((item) => (
+                            <div
+                              key={item.allergyId}
+                              className="p-2 rounded-xl bg-white border border-rose-200/80 shadow-2xs space-y-0.5"
+                            >
+                              <div className="flex items-center justify-between gap-1 flex-wrap">
+                                <span className="font-extrabold text-rose-900 text-xs flex items-center gap-1">
+                                  {getTypeLabel(item.allergyType)} {item.allergenName}
+                                </span>
+                                {getSeverityBadge(item.severity)}
+                              </div>
+                              {item.reactionDescription && (
+                                <p className="text-[10px] text-slate-500 font-medium leading-snug">
+                                  Triệu chứng: {item.reactionDescription}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+
+                        {/* Cảnh báo dị ứng thuốc nổi bật cho Bác sĩ trước khi kê đơn */}
+                        {patientAllergies.some((a) => a.status === 'active' && a.allergyType === 'drug') && (
+                          <div className="p-2 bg-rose-50 border border-rose-200 rounded-xl text-[10px] text-rose-800 font-bold flex items-center gap-1.5 animate-pulse">
+                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                            <span>CẢNH BÁO KÊ ĐƠN: Bệnh nhân dị ứng kháng sinh/thuốc!</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : currentPatient.allergies && currentPatient.allergies !== 'Chưa ghi nhận dị ứng' ? (
+                      <p className="text-rose-600 font-bold text-xs">{currentPatient.allergies}</p>
+                    ) : (
+                      <div className="text-[11px] font-bold text-emerald-700 bg-emerald-50/80 px-2 py-0.5 rounded-lg border border-emerald-200/80 inline-flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Chưa ghi nhận dị ứng (An toàn kê đơn)</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-1.5 border-t border-slate-200/60 space-y-1">
+                    <p><strong className="text-slate-700">Tiền sử bệnh:</strong> {currentPatient.history}</p>
+                    <p><strong className="text-slate-700">Triệu chứng khai báo:</strong> {selectedEncounterDetail?.chiefComplaint?.symptoms || selectedEncounterDetail?.chiefComplaint?.reasonForVisit || currentPatient.symptoms}</p>
+                  </div>
                 </div>
               </div>
 

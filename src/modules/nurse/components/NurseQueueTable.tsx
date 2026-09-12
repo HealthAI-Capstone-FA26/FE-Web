@@ -9,6 +9,7 @@ import {
   History,
   Loader2,
   Eye,
+  ShieldAlert,
 } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import { DataTable, type Column } from '../../../components/common/DataTable';
@@ -20,6 +21,7 @@ interface NurseQueueTableProps {
   onOpenMeasure: (row: NursePatientRow) => void;
   onOpenHistory: (row: NursePatientRow) => void;
   onOpenDetail: (row: NursePatientRow) => void;
+  onOpenAllergy: (row: NursePatientRow) => void;
 }
 
 export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
@@ -28,6 +30,7 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
   onOpenMeasure,
   onOpenHistory,
   onOpenDetail,
+  onOpenAllergy,
 }) => {
   const formatTimeAgo = (dateStr?: string) => {
     if (!dateStr) return '---';
@@ -150,13 +153,24 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
             <Eye className="w-3.5 h-3.5" />
           </button>
 
+          {/* Nút Khai báo dị ứng */}
+          <button
+            type="button"
+            onClick={() => onOpenAllergy(row)}
+            title="Khai báo & quản lý dị ứng của bệnh nhân"
+            className="p-1.5 rounded-xl text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer"
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+          </button>
+
           <button
             type="button"
             onClick={() => onOpenMeasure(row)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 shadow-2xs ${row.status === 'Measured'
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 shadow-2xs ${
+              row.status === 'Measured'
                 ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
                 : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600'
-              }`}
+            }`}
           >
             <Activity className="w-3.5 h-3.5" />
             <span>{row.status === 'Measured' ? 'Đo lại' : 'Đo sinh hiệu'}</span>
