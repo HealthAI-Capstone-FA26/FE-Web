@@ -2,8 +2,7 @@
 // Actor: Nhân viên tiếp nhận (Reception)
 
 import React, { useState } from 'react';
-import { UserPlus, Search, Save, CheckCircle2, Zap, Loader2, AlertCircle } from 'lucide-react';
-import { Badge } from '../../components/common/Badge';
+import { UserPlus, Save, CheckCircle2, Zap, Loader2, AlertCircle } from 'lucide-react';
 import { patientService, type CreatePatientData } from '../../services/patient/patient.service';
 import { DobInput } from '../../components/common/DobInput';
 
@@ -93,6 +92,14 @@ export const ReceptionPatientProfileFormView: React.FC = () => {
           </p>
         </div>
 
+        <button
+          type="button"
+          onClick={handleQuickLookup}
+          className="px-3.5 py-2 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+        >
+          <Zap className="w-3.5 h-3.5 text-amber-600" />
+          <span>Điền mẫu demo</span>
+        </button>
       </div>
 
       {errorMessage && (

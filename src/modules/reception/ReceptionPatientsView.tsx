@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Users, CheckCircle2, UserPlus, Search, Download, Eye,
-  MoreVertical, X, ShieldAlert, Heart, FileText,
+  Users, CheckCircle2, UserPlus, Search, Eye,
+  X, ShieldAlert, FileText,
   Calendar, Stethoscope, Clock, Loader2, Edit3, RefreshCw, Mail, Phone, Shield, AlertCircle,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CalendarPlus
 } from 'lucide-react';
@@ -95,7 +95,6 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
   const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
-  const [reloadTrigger, setReloadTrigger] = useState(0);
 
   // Form states
   const [formName, setFormName] = useState('');
@@ -168,7 +167,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
   // Fetch real patient list from Backend API (GET /patients)
   useEffect(() => {
     loadPatients();
-  }, [searchTerm, reloadTrigger]);
+  }, [searchTerm]);
 
   // Filter patients based on search input & selected tab
   const filteredPatients = useMemo(() => {

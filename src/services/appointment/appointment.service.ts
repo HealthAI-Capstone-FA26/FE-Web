@@ -163,6 +163,14 @@ export interface AppointmentItem {
     issuedAt?: string;
     calledAt?: string;
   };
+  encounter?: {
+    encounterId: string;
+    encounterCode: string;
+  };
+  encounters?: Array<{
+    encounterId: string;
+    encounterCode: string;
+  }>;
 }
 
 export interface FindAppointmentsQuery {
