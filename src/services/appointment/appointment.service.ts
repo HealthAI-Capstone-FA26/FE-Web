@@ -112,6 +112,8 @@ export interface AppointmentItem {
     gender?: string;
     identityNumber?: string;
     insuranceNumber?: string;
+    identityVerified?: boolean;
+    identityVerifiedAt?: string;
     status?: 'draft' | 'main';
   };
   suggestedPatient?: {
@@ -123,6 +125,8 @@ export interface AppointmentItem {
     gender?: string;
     identityNumber?: string;
     insuranceNumber?: string;
+    identityVerified?: boolean;
+    identityVerifiedAt?: string;
     status?: 'draft' | 'main';
   };
   doctor?: {

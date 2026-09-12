@@ -19,6 +19,8 @@ import {
   ShieldCheck,
   CreditCard,
   Baby,
+  User,
+  FileCheck2,
 } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { queueTicketService, type QueueTicketItem } from '../../services/queue/queue-ticket.service';
@@ -1163,6 +1165,98 @@ const ReceptionQueueCallingBoard: React.FC = () => {
 
             {/* Modal Body */}
             <div className="p-6 space-y-4 overflow-y-auto text-xs flex-1">
+              {/* THÔNG TIN HỒ SƠ BỆNH NHÂN ĐỂ ĐỐI CHIẾU TẠI QUẦY */}
+              {(() => {
+                const patient = intakeModalTicket.appointment?.patient;
+                const birthYear = patient?.dateOfBirth ? new Date(patient.dateOfBirth).getFullYear() : null;
+                const age = birthYear && !isNaN(birthYear) ? new Date().getFullYear() - birthYear : null;
+
+                return (
+                  <div className="p-3.5 bg-gradient-to-br from-slate-50 to-teal-50/40 rounded-2xl border border-teal-100/90 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs text-teal-950">
+                        <User className="w-3.5 h-3.5 text-teal-600" />
+                        <span>Hồ sơ lưu trữ hệ thống (Dùng để đối chiếu giấy tờ thực tế):</span>
+                      </span>
+                      {patient?.identityVerified ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Đã từng xác minh danh tính</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          <AlertCircle className="w-3 h-3 text-amber-600" />
+                          <span>Chưa từng xác minh danh tính</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {/* Số CCCD / CMND */}
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                        <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                          <CreditCard className="w-3 h-3 text-blue-500" />
+                          <span>Số CCCD / CMND</span>
+                        </div>
+                        <div className="font-mono font-bold text-slate-800 text-xs mt-1">
+                          {patient?.identityNumber || (
+                            <span className="text-slate-400 font-normal italic text-[11px]">Chưa cập nhật CCCD</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Mã số thẻ BHYT */}
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                        <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                          <FileCheck2 className="w-3 h-3 text-emerald-500" />
+                          <span>Mã Thẻ BHYT</span>
+                        </div>
+                        <div className="font-mono font-bold text-emerald-700 text-xs mt-1">
+                          {patient?.insuranceNumber || (
+                            <span className="text-slate-400 font-normal italic text-[11px]">Chưa đăng ký BHYT</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Ngày sinh / Tuổi */}
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                        <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-purple-500" />
+                          <span>Ngày sinh & Tuổi</span>
+                        </div>
+                        <div className="font-semibold text-slate-800 text-xs mt-1">
+                          {patient?.dateOfBirth ? (
+                            <>
+                              <span>{new Date(patient.dateOfBirth).toLocaleDateString('vi-VN')}</span>
+                              {age !== null && (
+                                <span className="text-slate-500 font-normal text-[11px] ml-1">
+                                  ({age} tuổi)
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-slate-400 font-normal italic text-[11px]">Chưa có ngày sinh</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Giới tính & Số điện thoại */}
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                        <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                          <Users className="w-3 h-3 text-amber-500" />
+                          <span>Giới tính / SĐT</span>
+                        </div>
+                        <div className="font-semibold text-slate-800 text-xs mt-1">
+                          <span>{patient?.gender === 'male' ? 'Nam' : patient?.gender === 'female' ? 'Nữ' : 'Khác'}</span>
+                          <span className="text-slate-300 font-normal mx-1">•</span>
+                          <span className="text-slate-600 font-mono text-[11px]">{patient?.phoneNumber || '---'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Chọn Bác Sĩ */}
               <div className="space-y-1.5">
                 <label className="font-bold text-slate-700 flex items-center gap-1.5">
