@@ -141,8 +141,8 @@ export const DoctorEMRView: React.FC = () => {
         aiSourceRef: 'Sinh hiệu Điều dưỡng + Khai báo tiếp đón Lễ tân',
         aiProposedDiag: enc.chiefComplaint?.reasonForVisit || 'Viêm phế quản cấp / Theo dõi lâm sàng',
         aiConfidence: '93.5%',
-        initialClinicalNote: 'Bệnh nhân tỉnh táo, tiếp xúc tốt. Thăm khám lâm sàng bình thường.',
-        initialDoctorDiag: enc.chiefComplaint?.reasonForVisit || 'Khám tổng quát',
+        initialClinicalNote: '',
+        initialDoctorDiag: '',
       };
     });
 
@@ -207,11 +207,28 @@ export const DoctorEMRView: React.FC = () => {
         });
 
       fetchCaseOverview(targetId);
+
+      // Gọi trực tiếp GET /api/v1/doctor-examination/encounters/:encounterId/clinical-examination
+      clinicalExamService
+        .getClinicalExamination(targetId)
+        .then((exam) => {
+          if (exam) {
+            if (exam.examinationFindings) {
+              setClinicalExamNote(exam.examinationFindings);
+            }
+            if (exam.clinicalNotes) {
+              setPreliminaryDiag(exam.clinicalNotes);
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn('Lỗi khi gọi GET clinical-examination:', err);
+        });
     } else {
       setSelectedEncounterDetail(null);
       setCaseOverview(null);
     }
-  }, [currentPatient?.encounterId, selectedPatientId, apiEncounters]);
+  }, [currentPatient?.encounterId, selectedPatientId]);
 
   // Đồng bộ thông tin Appointment tương ứng với ca khám đang chọn
   useEffect(() => {
@@ -515,8 +532,13 @@ export const DoctorEMRView: React.FC = () => {
   };
 
   useEffect(() => {
-    setClinicalExamNote(currentPatient?.initialClinicalNote || '');
-    setPreliminaryDiag(currentPatient?.initialDoctorDiag || '');
+    if (caseOverview?.clinicalExamination) {
+      setClinicalExamNote(caseOverview.clinicalExamination.examinationFindings || '');
+      setPreliminaryDiag(caseOverview.clinicalExamination.clinicalNotes || '');
+    } else {
+      setClinicalExamNote('');
+      setPreliminaryDiag('');
+    }
     setSubmitSuccessMsg(null);
     setSubmitErrorMsg(null);
     setExamWarningMsg(null);
@@ -526,7 +548,7 @@ export const DoctorEMRView: React.FC = () => {
     } else {
       setExistingTestOrders([]);
     }
-  }, [currentPatient, activeEncounterId, selectedPatientId]);
+  }, [currentPatient, activeEncounterId, selectedPatientId, caseOverview?.clinicalExamination]);
 
   // Trạng thái quy trình ca khám hiện tại
   const currentWorkflowState = patientWorkflowStates[selectedPatientId] || 'initial';

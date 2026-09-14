@@ -55,6 +55,12 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
         clinicalNotes: preliminaryDiag.trim() || undefined,
       });
       setSaveSuccessMsg('Đã lưu kết quả khám lâm sàng & chẩn đoán sơ bộ thành công!');
+      // Gọi lại GET để xác thực dữ liệu mới nhất đã được lưu trong DB
+      const reloaded = await clinicalExamService.getClinicalExamination(encounterId);
+      if (reloaded) {
+        if (reloaded.examinationFindings) setClinicalExamNote(reloaded.examinationFindings);
+        if (reloaded.clinicalNotes) setPreliminaryDiag(reloaded.clinicalNotes);
+      }
     } catch (err: any) {
       const msg = err?.data?.message || err?.message || 'Không thể lưu khám lâm sàng';
       setSaveErrorMsg(`Lỗi lưu khám: ${msg}`);
