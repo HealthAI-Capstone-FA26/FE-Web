@@ -1,7 +1,9 @@
 export interface PatientEMR {
   id: string;
   encounterId?: string;
+  appointmentId?: string;
   patientId?: string;
+  status?: string;
   name: string;
   age: number;
   gender: 'Nam' | 'Nữ';

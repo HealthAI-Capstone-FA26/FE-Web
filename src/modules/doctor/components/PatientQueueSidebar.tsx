@@ -66,10 +66,14 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
                 <div className="flex flex-col items-end gap-1">
                   <span
                     className={`text-[9px] font-bold px-2 py-0.5 rounded ${
-                      isSelected ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'
+                      p.status === 'in_progress'
+                        ? 'bg-emerald-600 text-white'
+                        : isSelected
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-200 text-slate-600'
                     }`}
                   >
-                    {isSelected ? 'Đang khám' : 'Chờ vào'}
+                    {p.status === 'in_progress' || isSelected ? 'Đang khám' : 'Chờ vào'}
                   </span>
                   {workflowState === 'ordered' && (
                     <span className="text-[8px] bg-amber-100 text-amber-800 font-bold px-1 rounded">

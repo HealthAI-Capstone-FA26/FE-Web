@@ -298,6 +298,24 @@ export const appointmentService = {
     return res;
   },
 
+  // Bác sĩ bắt đầu phiên khám (checked_in -> in_progress)
+  async startAppointment(id: string): Promise<AppointmentItem> {
+    const res = await apiFetch<AppointmentItem>(`/appointments/${id}/start`, {
+      method: 'PATCH',
+    });
+    this.invalidateCache();
+    return res;
+  },
+
+  // Bác sĩ hoàn tất phiên khám (in_progress -> completed)
+  async completeAppointment(id: string): Promise<AppointmentItem> {
+    const res = await apiFetch<AppointmentItem>(`/appointments/${id}/complete`, {
+      method: 'PATCH',
+    });
+    this.invalidateCache();
+    return res;
+  },
+
   // Đánh dấu bệnh nhân vắng mặt / không đến (-> no_show)
   async markNoShowAppointment(id: string): Promise<AppointmentItem> {
     const res = await apiFetch<AppointmentItem>(`/appointments/${id}/no-show`, {

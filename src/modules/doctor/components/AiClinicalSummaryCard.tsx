@@ -47,19 +47,7 @@ export const AiClinicalSummaryCard: React.FC<AiClinicalSummaryCardProps> = ({
           {summaryText}
         </p>
 
-        <div className="text-[10px] text-slate-400 border-t border-indigo-950/80 pt-2 flex flex-col sm:flex-row justify-between gap-1">
-          <span>
-            <strong>Tham chiếu dữ liệu nguồn:</strong>{' '}
-            {caseOverview?.aiClinicalSummary?.referenceSources?.length
-              ? caseOverview.aiClinicalSummary.referenceSources
-                  .map((r) => r.relevanceNote || r.sourceType)
-                  .join(', ')
-              : 'Hồ sơ Tiếp đón + Sinh hiệu Điều dưỡng + Lịch sử Dị ứng/Bệnh án'}
-          </span>
-          <span className="font-extrabold text-cyan-400 text-[9px] uppercase tracking-wider">
-            Tự động đối chiếu chéo bởi Medical AI Engine
-          </span>
-        </div>
+
       </div>
     </BorderBeam>
   );
