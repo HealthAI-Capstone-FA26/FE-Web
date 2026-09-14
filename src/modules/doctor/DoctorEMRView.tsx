@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { User } from 'lucide-react';
+import { User, Stethoscope, Sparkles, FileText } from 'lucide-react';
 import {
   encounterService,
   type EncounterItem,
@@ -8,6 +8,10 @@ import {
   patientAllergyService,
   type PatientAllergyItem,
 } from '../../services/patient/patient-allergy.service';
+import {
+  appointmentService,
+  type AppointmentItem,
+} from '../../services/appointment/appointment.service';
 import {
   testOrderService,
   clinicalExamService,
@@ -31,6 +35,9 @@ export const DoctorEMRView: React.FC = () => {
   const [selectedPatientId, setSelectedPatientId] = useState<string>(() => {
     return localStorage.getItem('doctor_selected_patient_id') || '';
   });
+
+  // Tab con nội bộ: 'emr_summary' (Hồ sơ EMR & AI01) | 'clinical_orders' (Khám & Chỉ định) | 'ai_imaging' (Phân tích ảnh AI02)
+  const [activeSubTab, setActiveSubTab] = useState<'emr_summary' | 'clinical_orders' | 'ai_imaging'>('emr_summary');
 
   const [apiEncounters, setApiEncounters] = useState<EncounterItem[]>([]);
   const [isLoadingApi, setIsLoadingApi] = useState<boolean>(false);
@@ -107,7 +114,9 @@ export const DoctorEMRView: React.FC = () => {
       map[key] = {
         id: key,
         encounterId: enc.encounterId,
+        appointmentId: enc.appointmentId,
         patientId: enc.patient?.patientId || enc.patientId,
+        status: enc.status,
         name: enc.patient?.fullName || 'Bệnh nhân',
         age: age || 25,
         gender: enc.patient?.gender === 'female' ? 'Nữ' : 'Nam',
@@ -168,6 +177,10 @@ export const DoctorEMRView: React.FC = () => {
   const [isGeneratingAiSummary, setIsGeneratingAiSummary] = useState<boolean>(false);
   const [isGeneratingAiDiagnosis, setIsGeneratingAiDiagnosis] = useState<boolean>(false);
 
+  // 3.1 Appointment State & Start Consultation Handler
+  const [currentAppointment, setCurrentAppointment] = useState<AppointmentItem | null>(null);
+  const [isStartingAppointment, setIsStartingAppointment] = useState<boolean>(false);
+
   const fetchCaseOverview = async (encounterId: string) => {
     setIsLoadingOverview(true);
     try {
@@ -199,6 +212,71 @@ export const DoctorEMRView: React.FC = () => {
       setCaseOverview(null);
     }
   }, [currentPatient?.encounterId, selectedPatientId, apiEncounters]);
+
+  // Đồng bộ thông tin Appointment tương ứng với ca khám đang chọn
+  useEffect(() => {
+    const apptId = selectedEncounterDetail?.appointmentId || currentPatient?.appointmentId;
+    if (apptId) {
+      appointmentService
+        .getAppointmentById(apptId)
+        .then((appt) => {
+          setCurrentAppointment(appt);
+          if (appt.status === 'in_progress') {
+            setApiEncounters((prev) =>
+              prev.map((e) =>
+                e.appointmentId === apptId || (currentPatient && e.encounterId === currentPatient.encounterId)
+                  ? { ...e, status: 'in_progress' }
+                  : e
+              )
+            );
+          }
+        })
+        .catch((err) => {
+          console.warn('Lỗi khi tải thông tin lịch hẹn:', err);
+          setCurrentAppointment(null);
+        });
+    } else {
+      setCurrentAppointment(null);
+    }
+  }, [selectedEncounterDetail?.appointmentId, currentPatient?.appointmentId, currentPatient?.encounterId]);
+
+  // Bác sĩ bấm nút bắt đầu phiên khám (gọi PATCH /appointments/:id/start)
+  const handleStartConsultation = async () => {
+    const apptId = currentAppointment?.appointmentId || selectedEncounterDetail?.appointmentId || currentPatient?.appointmentId;
+    if (!apptId) {
+      alert('Không tìm thấy mã lịch hẹn (Appointment ID) để bắt đầu phiên khám.');
+      return;
+    }
+
+    setIsStartingAppointment(true);
+    try {
+      const updatedAppt = await appointmentService.startAppointment(apptId);
+      setCurrentAppointment(updatedAppt);
+
+      // Cập nhật selectedEncounterDetail sang in_progress
+      setSelectedEncounterDetail((prev) => (prev ? { ...prev, status: 'in_progress' } : null));
+
+      // Cập nhật danh sách ca khám apiEncounters
+      setApiEncounters((prev) =>
+        prev.map((e) =>
+          e.appointmentId === apptId || e.encounterId === currentPatient?.encounterId
+            ? { ...e, status: 'in_progress' }
+            : e
+        )
+      );
+
+      // Tải lại tổng quan ca khám nếu có encounterId
+      const encId = currentPatient?.encounterId || selectedEncounterDetail?.encounterId;
+      if (encId) {
+        await fetchCaseOverview(encId);
+      }
+    } catch (err: any) {
+      const msg = err?.data?.message || err?.message || 'Không thể bắt đầu ca khám.';
+      alert(`Lỗi khi bắt đầu phiên khám: ${msg}`);
+    } finally {
+      setIsStartingAppointment(false);
+    }
+  };
 
   // 4. Fetch patient allergies via GET /api/v1/patients/{patientId}/allergies (Dùng bổ trợ)
   const [patientAllergies, setPatientAllergies] = useState<PatientAllergyItem[]>([]);
@@ -664,74 +742,147 @@ export const DoctorEMRView: React.FC = () => {
             </div>
           ) : (
             <>
-              {/* Component 1: Administrative EMR Profile & Vitals */}
-              <PatientAdministrativeCard
-                currentPatient={currentPatient}
-                caseOverview={caseOverview}
-                selectedEncounterDetail={selectedEncounterDetail}
-                activeAllergies={activeAllergies}
-                isLoadingAllergies={isLoadingAllergies}
-                isLoadingOverview={isLoadingOverview}
-                displayBp={displayBp}
-                displayHr={displayHr}
-                displaySpo2={displaySpo2}
-                displayTemp={displayTemp}
-                hasMeasuredVitals={hasMeasuredVitals}
-              />
+              {/* Sub-tab Navigation Bar */}
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/80">
+                {/* Tab 1: Hồ sơ Bệnh án Điện tử (EMR) & Tóm tắt AI01 */}
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('emr_summary')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeSubTab === 'emr_summary'
+                      ? 'bg-white text-blue-700 shadow-xs border border-slate-200/60'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  <FileText className="w-4 h-4 text-blue-600" />
+                  <span>Hồ sơ EMR & Tóm tắt AI (AI01)</span>
+                </button>
 
-              {/* Component 2: AI01 Smart EMR Summary Widget */}
-              <AiClinicalSummaryCard
-                summaryText={currentAiSummary}
-                caseOverview={caseOverview}
-                isGeneratingAiSummary={isGeneratingAiSummary}
-                onTriggerAiSummary={handleTriggerAiSummary}
-              />
+                {/* Tab 2: Ghi nhận Khám lâm sàng & Chỉ định Cận lâm sàng */}
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('clinical_orders')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeSubTab === 'clinical_orders'
+                      ? 'bg-white text-blue-700 shadow-xs border border-slate-200/60'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  <Stethoscope className="w-4 h-4 text-blue-600" />
+                  <span>Khám & Chỉ định CLS</span>
+                  {existingTestOrders.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-700 font-extrabold">
+                      {existingTestOrders.length}
+                    </span>
+                  )}
+                </button>
 
-              {/* Component 3: AI02 Lab Image Analysis & ROI Simulation */}
-              <AiImagingAnalysisCard
-                currentWorkflowState={currentWorkflowState}
-                onSimulateLabCompletion={handleSimulateLabCompletion}
-                preliminaryDiag={preliminaryDiag}
-                aiConfidence={currentPatient?.aiConfidence}
-                aiProposedDiag={currentPatient?.aiProposedDiag}
-              />
+                {/* Tab 3: Mô-đun AI02 — Kết quả phân tích hình ảnh xét nghiệm */}
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('ai_imaging')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeSubTab === 'ai_imaging'
+                      ? 'bg-white text-purple-700 shadow-xs border border-slate-200/60'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4 text-purple-600" />
+                  <span>Phân tích ảnh AI (AI02)</span>
+                  {currentWorkflowState === 'completed' && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-extrabold animate-pulse">
+                      Đã có KQ
+                    </span>
+                  )}
+                </button>
+              </div>
 
-              {/* Component 4: Doctor Clinical Examination & Preliminary Diagnosis */}
-              <ClinicalExamForm
-                encounterId={activeEncounterId}
-                clinicalExamNote={clinicalExamNote}
-                setClinicalExamNote={setClinicalExamNote}
-                preliminaryDiag={preliminaryDiag}
-                setPreliminaryDiag={setPreliminaryDiag}
-                dynamicAiDiagnosisList={dynamicAiDiagnosisList}
-                isGeneratingAiDiagnosis={isGeneratingAiDiagnosis}
-                onTriggerAiDiagnosis={handleTriggerAiDiagnosis}
-                onQuickDiagnosisSelect={handleQuickDiagnosisSelect}
-                examWarningMsg={examWarningMsg}
-              />
+              {/* Tab 1: Hồ sơ Bệnh án Điện tử (EMR) - Thông tin Hành chính & Sinh hiệu + AI01 Tóm tắt bệnh án */}
+              {activeSubTab === 'emr_summary' && (
+                <div className="space-y-6 animate-in fade-in duration-150">
+                  {/* Component 1: Administrative EMR Profile & Vitals */}
+                  <PatientAdministrativeCard
+                    currentPatient={currentPatient}
+                    caseOverview={caseOverview}
+                    selectedEncounterDetail={selectedEncounterDetail}
+                    currentAppointment={currentAppointment}
+                    isStartingAppointment={isStartingAppointment}
+                    onStartConsultation={handleStartConsultation}
+                    activeAllergies={activeAllergies}
+                    isLoadingAllergies={isLoadingAllergies}
+                    isLoadingOverview={isLoadingOverview}
+                    displayBp={displayBp}
+                    displayHr={displayHr}
+                    displaySpo2={displaySpo2}
+                    displayTemp={displayTemp}
+                    hasMeasuredVitals={hasMeasuredVitals}
+                  />
 
-              {/* Component 5: Test Order Creation Form */}
-              <TestOrderCreationCard
-                selectedTestTypeIds={selectedTestTypeIds}
-                onToggleCatalogItem={handleToggleCatalogItem}
-                aiRecommendedCodes={aiRecommendedCodes}
-                totalEstimatedCost={totalEstimatedCost}
-                orderNotes={orderNotes}
-                setOrderNotes={setOrderNotes}
-                isSubmittingOrder={isSubmittingOrder}
-                submitSuccessMsg={submitSuccessMsg}
-                submitErrorMsg={submitErrorMsg}
-                onSubmitOrder={handleConfirmDiagnosis}
-              />
+                  {/* Component 2: AI01 Smart EMR Summary Widget */}
+                  <AiClinicalSummaryCard
+                    summaryText={currentAiSummary}
+                    caseOverview={caseOverview}
+                    isGeneratingAiSummary={isGeneratingAiSummary}
+                    onTriggerAiSummary={handleTriggerAiSummary}
+                  />
+                </div>
+              )}
 
-              {/* Component 6: Test Order History List */}
-              <TestOrderHistoryList
-                existingTestOrders={existingTestOrders}
-                isLoadingTestOrders={isLoadingTestOrders}
-                onRefreshOrders={() => activeEncounterId && fetchEncounterTestOrders(activeEncounterId)}
-                cancellingItemId={cancellingItemId}
-                onCancelItem={handleCancelTestOrderItem}
-              />
+              {/* Tab 2: Ghi nhận Khám lâm sàng & Chẩn đoán sơ bộ + Chỉ định Cận lâm sàng + Phiếu đã lập */}
+              {activeSubTab === 'clinical_orders' && (
+                <div className="space-y-6 animate-in fade-in duration-150">
+                  {/* Component 4: Doctor Clinical Examination & Preliminary Diagnosis */}
+                  <ClinicalExamForm
+                    encounterId={activeEncounterId}
+                    clinicalExamNote={clinicalExamNote}
+                    setClinicalExamNote={setClinicalExamNote}
+                    preliminaryDiag={preliminaryDiag}
+                    setPreliminaryDiag={setPreliminaryDiag}
+                    dynamicAiDiagnosisList={dynamicAiDiagnosisList}
+                    isGeneratingAiDiagnosis={isGeneratingAiDiagnosis}
+                    onTriggerAiDiagnosis={handleTriggerAiDiagnosis}
+                    onQuickDiagnosisSelect={handleQuickDiagnosisSelect}
+                    examWarningMsg={examWarningMsg}
+                  />
+
+                  {/* Component 5: Test Order Creation Form */}
+                  <TestOrderCreationCard
+                    selectedTestTypeIds={selectedTestTypeIds}
+                    onToggleCatalogItem={handleToggleCatalogItem}
+                    aiRecommendedCodes={aiRecommendedCodes}
+                    totalEstimatedCost={totalEstimatedCost}
+                    orderNotes={orderNotes}
+                    setOrderNotes={setOrderNotes}
+                    isSubmittingOrder={isSubmittingOrder}
+                    submitSuccessMsg={submitSuccessMsg}
+                    submitErrorMsg={submitErrorMsg}
+                    onSubmitOrder={handleConfirmDiagnosis}
+                  />
+
+                  {/* Component 6: Test Order History List */}
+                  <TestOrderHistoryList
+                    existingTestOrders={existingTestOrders}
+                    isLoadingTestOrders={isLoadingTestOrders}
+                    onRefreshOrders={() => activeEncounterId && fetchEncounterTestOrders(activeEncounterId)}
+                    cancellingItemId={cancellingItemId}
+                    onCancelItem={handleCancelTestOrderItem}
+                  />
+                </div>
+              )}
+
+              {/* Tab 3: Mô-đun AI02 — Kết quả phân tích hình ảnh xét nghiệm & Đề xuất AI */}
+              {activeSubTab === 'ai_imaging' && (
+                <div className="space-y-6 animate-in fade-in duration-150">
+                  {/* Component 3: AI02 Lab Image Analysis & ROI Simulation */}
+                  <AiImagingAnalysisCard
+                    currentWorkflowState={currentWorkflowState}
+                    onSimulateLabCompletion={handleSimulateLabCompletion}
+                    preliminaryDiag={preliminaryDiag}
+                    aiConfidence={currentPatient?.aiConfidence}
+                    aiProposedDiag={currentPatient?.aiProposedDiag}
+                  />
+                </div>
+              )}
             </>
           )}
         </div>
