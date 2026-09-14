@@ -4,6 +4,8 @@ import {
   Clipboard, BookOpen, AlertCircle, ArrowRight, User
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
+import { doctorAiService, type PatientIntakeDetail } from '../../services/doctor/doctor-ai.service';
+import { icd10Service } from '../../services/icd10/icd10.service';
 import { BorderBeam } from '../../components/ui/border-beam';
 
 /* 
@@ -214,13 +216,47 @@ export const DoctorDiagnosisView: React.FC = () => {
     setIsSubmitSuccess(false);
   }, [currentPatient]);
 
-  // Search filtered ICD-10 list
-  const filteredIcdList = useMemo(() => {
-    if (!icd10Search) return [];
-    const query = icd10Search.toLowerCase();
-    return ICD10_CATALOG.filter(
-      item => item.code.toLowerCase().includes(query) || item.name.toLowerCase().includes(query)
-    );
+  const [searchResults, setSearchResults] = useState<Array<{ code: string; name: string }>>([]);
+  const [isSearchingIcd, setIsSearchingIcd] = useState(false);
+
+  useEffect(() => {
+    if (!icd10Search.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearchingIcd(true);
+        const apiResults = await icd10Service.searchIcd10({ search: icd10Search.trim(), limit: 20 });
+        if (apiResults && apiResults.length > 0) {
+          setSearchResults(
+            apiResults.map((r) => ({
+              code: r.icd10Code,
+              name: r.icd10NameVi || r.icd10Name,
+            }))
+          );
+        } else {
+          const query = icd10Search.toLowerCase();
+          setSearchResults(
+            ICD10_CATALOG.filter(
+              (item) => item.code.toLowerCase().includes(query) || item.name.toLowerCase().includes(query)
+            )
+          );
+        }
+      } catch (err) {
+        const query = icd10Search.toLowerCase();
+        setSearchResults(
+          ICD10_CATALOG.filter(
+            (item) => item.code.toLowerCase().includes(query) || item.name.toLowerCase().includes(query)
+          )
+        );
+      } finally {
+        setIsSearchingIcd(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
   }, [icd10Search]);
 
   const handleSelectIcd = (item: { code: string; name: string }) => {
@@ -474,11 +510,14 @@ export const DoctorDiagnosisView: React.FC = () => {
                 />
               </div>
 
-              {/* Search dropdown overlay matches */}
               {icd10Search && (
                 <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-48 overflow-y-auto shadow-lg text-xs font-bold divide-y divide-slate-100 z-10 relative animate-in fade-in duration-100">
-                  {filteredIcdList.length > 0 ? (
-                    filteredIcdList.map((item) => (
+                  {isSearchingIcd ? (
+                    <div className="p-3.5 text-center text-slate-400 font-medium">
+                      Đang tra cứu danh mục ICD-10...
+                    </div>
+                  ) : searchResults.length > 0 ? (
+                    searchResults.map((item) => (
                       <div
                         key={item.code}
                         onClick={() => handleSelectIcd(item)}
@@ -494,7 +533,9 @@ export const DoctorDiagnosisView: React.FC = () => {
                       </div>
                     ))
                   ) : (
-                    <div className="p-3.5 text-center text-slate-400 font-medium">Không tìm thấy mã bệnh khớp từ khóa.</div>
+                    <div className="p-3.5 text-center text-slate-400 font-medium">
+                      Không tìm thấy mã bệnh khớp từ khóa "{icd10Search}".
+                    </div>
                   )}
                 </div>
               )}
