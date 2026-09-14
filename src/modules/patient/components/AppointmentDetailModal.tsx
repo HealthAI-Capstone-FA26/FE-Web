@@ -119,7 +119,22 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                   {appointment.appointmentCode}
                 </span>
                 <span className="text-slate-300">•</span>
-                <span>Kênh: <strong className="text-slate-700">{appointment.bookingChannel === 'online' ? 'Trực tuyến (Online)' : 'Tại quầy'}</strong></span>
+                <span>
+                  Kênh:{' '}
+                  <strong className="text-slate-700 inline-flex items-center gap-1 align-middle ml-1">
+                    {appointment.bookingChannel === 'online' ? (
+                      <>
+                        <img src="/images/online_icon.png" alt="Online" className="w-3.5 h-3.5 object-contain" />
+                        <span>Trực tuyến (Online)</span>
+                      </>
+                    ) : (
+                      <>
+                        <img src="/images/counter_icon.png" alt="Tại quầy" className="w-3.5 h-3.5 object-contain" />
+                        <span>Tại quầy</span>
+                      </>
+                    )}
+                  </strong>
+                </span>
               </p>
             )}
           </div>

@@ -22,14 +22,42 @@ import {
 } from 'lucide-react';
 import { rbacService, type RoleItemResponse, type PermissionItem } from '../../services/rbac/rbac.service';
 
+const AdminIcon = ({ className }: { className?: string }) => {
+  const sizeClass = className ? className.replace(/w-[\d.]+/g, 'w-6').replace(/h-[\d.]+/g, 'h-6') : 'w-6 h-6';
+  return <img src="/images/admin_icon.png" alt="Quản trị viên" className={`shrink-0 rounded-full object-cover ${sizeClass}`} />;
+};
+
+const DoctorIcon = ({ className }: { className?: string }) => (
+  <img src="/images/doctor_icon.png" alt="Bác sĩ" className={className || "w-3.5 h-3.5 shrink-0 rounded-full object-cover"} />
+);
+
+const PatientIcon = ({ className }: { className?: string }) => {
+  const sizeClass = className ? className.replace(/w-[\d.]+/g, 'w-5').replace(/h-[\d.]+/g, 'h-5') : 'w-5 h-5';
+  return <img src="/images/patient_icon.png" alt="Bệnh nhân" className={`shrink-0 rounded-full object-cover ${sizeClass}`} />;
+};
+
+const NurseIcon = ({ className }: { className?: string }) => (
+  <img src="/images/nurse_icon.png" alt="Điều dưỡng" className={className || "w-3.5 h-3.5 shrink-0 rounded-full object-cover"} />
+);
+
+const ReceptionistIcon = ({ className }: { className?: string }) => {
+  const sizeClass = className ? className.replace(/w-[\d.]+/g, 'w-5').replace(/h-[\d.]+/g, 'h-5') : 'w-5 h-5';
+  return <img src="/images/receptionist_icon.png" alt="Lễ tân" className={`shrink-0 rounded-full object-cover ${sizeClass}`} />;
+};
+
+const LabIcon = ({ className }: { className?: string }) => {
+  const sizeClass = className ? className.replace(/w-[\d.]+/g, 'w-5').replace(/h-[\d.]+/g, 'h-5') : 'w-5 h-5';
+  return <img src="/images/lab_icon.png" alt="KTV Xét nghiệm" className={`shrink-0 rounded-full object-cover ${sizeClass}`} />;
+};
+
 const ROLE_ICONS: Record<string, { icon: any; color: string; bgColor: string; borderColor: string }> = {
-  ADMIN: { icon: Shield, color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-200' },
-  DOCTOR: { icon: Stethoscope, color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
-  NURSE: { icon: HeartPulse, color: 'text-rose-700', bgColor: 'bg-rose-50', borderColor: 'border-rose-200' },
-  RECEPTIONIST: { icon: Receipt, color: 'text-amber-700', bgColor: 'bg-amber-50', borderColor: 'border-amber-200' },
-  RECEPTION: { icon: Receipt, color: 'text-amber-700', bgColor: 'bg-amber-50', borderColor: 'border-amber-200' },
-  LAB: { icon: FlaskConical, color: 'text-cyan-700', bgColor: 'bg-cyan-50', borderColor: 'border-cyan-200' },
-  PATIENT: { icon: UserCheck, color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },
+  ADMIN: { icon: AdminIcon, color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-200' },
+  DOCTOR: { icon: DoctorIcon, color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
+  NURSE: { icon: NurseIcon, color: 'text-rose-700', bgColor: 'bg-rose-50', borderColor: 'border-rose-200' },
+  RECEPTIONIST: { icon: ReceptionistIcon, color: 'text-amber-700', bgColor: 'bg-amber-50', borderColor: 'border-amber-200' },
+  RECEPTION: { icon: ReceptionistIcon, color: 'text-amber-700', bgColor: 'bg-amber-50', borderColor: 'border-amber-200' },
+  LAB: { icon: LabIcon, color: 'text-cyan-700', bgColor: 'bg-cyan-50', borderColor: 'border-cyan-200' },
+  PATIENT: { icon: PatientIcon, color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },
 };
 
 const RESOURCE_LABELS: Record<string, { title: string; desc: string }> = {

@@ -542,13 +542,23 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                   </div>
 
                   <span
-                    className={`text-xs px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider ${
+                    className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider ${
                       stats.currentServingTicket.ticketPrefix === 'A'
                         ? 'bg-teal-900/60 text-teal-300 border border-teal-600/40'
                         : 'bg-amber-900/60 text-amber-300 border border-amber-600/40'
                     }`}
                   >
-                    {stats.currentServingTicket.ticketPrefix === 'A' ? 'Đặt Online' : 'Tại Quầy'}
+                    {stats.currentServingTicket.ticketPrefix === 'A' ? (
+                      <>
+                        <img src="/images/online_icon.png" alt="Online" className="w-4 h-4 object-contain" />
+                        <span>Đặt Online</span>
+                      </>
+                    ) : (
+                      <>
+                        <img src="/images/counter_icon.png" alt="Tại quầy" className="w-4 h-4 object-contain" />
+                        <span>Tại Quầy</span>
+                      </>
+                    )}
                   </span>
                 </div>
 
@@ -645,13 +655,23 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                   </div>
 
                   <span
-                    className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                    className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded ${
                       stats.nextTicket.ticketPrefix === 'A'
                         ? 'bg-teal-50 text-teal-700'
                         : 'bg-amber-50 text-amber-700'
                     }`}
                   >
-                    {stats.nextTicket.ticketPrefix === 'A' ? 'Online' : 'Tại quầy'}
+                    {stats.nextTicket.ticketPrefix === 'A' ? (
+                      <>
+                        <img src="/images/online_icon.png" alt="Online" className="w-3.5 h-3.5 object-contain" />
+                        <span>Online</span>
+                      </>
+                    ) : (
+                      <>
+                        <img src="/images/counter_icon.png" alt="Tại quầy" className="w-3.5 h-3.5 object-contain" />
+                        <span>Tại quầy</span>
+                      </>
+                    )}
                   </span>
                 </div>
               </div>
@@ -846,13 +866,23 @@ const ReceptionQueueCallingBoard: React.FC = () => {
 
                       <td className="py-3.5 px-4">
                         <span
-                          className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold ${
                             ticket.ticketPrefix === 'A'
                               ? 'bg-sky-50 text-sky-700 border border-sky-200'
                               : 'bg-slate-100 text-slate-700 border border-slate-200'
                           }`}
                         >
-                          {ticket.ticketPrefix === 'A' ? 'Đặt Online' : 'Tại Quầy'}
+                          {ticket.ticketPrefix === 'A' ? (
+                            <>
+                              <img src="/images/online_icon.png" alt="Online" className="w-3.5 h-3.5 object-contain" />
+                              <span>Đặt Online</span>
+                            </>
+                          ) : (
+                            <>
+                              <img src="/images/counter_icon.png" alt="Tại quầy" className="w-3.5 h-3.5 object-contain" />
+                              <span>Tại Quầy</span>
+                            </>
+                          )}
                         </span>
                       </td>
 

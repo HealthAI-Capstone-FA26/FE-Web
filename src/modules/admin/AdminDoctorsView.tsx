@@ -23,6 +23,7 @@ import {
   Filter,
   X,
 } from 'lucide-react';
+import { DepartmentIcon } from '../../components/common/DepartmentIcon';
 import { doctorService, type DoctorResponse, type DepartmentResponse } from '../../services/doctor/doctor.service';
 import { getAvatarUrl } from '../../services/api';
 import { CreateDoctorModal } from './components/CreateDoctorModal';
@@ -252,7 +253,7 @@ export const AdminDoctorsView: React.FC = () => {
           { key: 'ALL', label: 'Tổng bác sĩ', count: doctors.length, icon: Stethoscope, color: 'text-blue-700 bg-blue-50' },
           { key: 'ACTIVE', label: 'Đang hoạt động', count: activeCount, icon: UserCheck, color: 'text-emerald-700 bg-emerald-50' },
           { key: 'INACTIVE', label: 'Tạm ngưng', count: inactiveCount, icon: UserX, color: 'text-rose-700 bg-rose-50' },
-          { key: 'DEPTS', label: 'Tổng số khoa', count: departments.length, icon: Building2, color: 'text-indigo-700 bg-indigo-50' },
+          { key: 'DEPTS', label: 'Tổng số khoa', count: departments.length, icon: DepartmentIcon, color: 'text-indigo-700 bg-indigo-50' },
         ].map((item) => (
           <button
             key={item.key}
@@ -325,7 +326,7 @@ export const AdminDoctorsView: React.FC = () => {
                 }`}
               >
                 <div className="flex items-center gap-2 truncate max-w-[220px]">
-                  <Building2 className={`w-3.5 h-3.5 shrink-0 ${selectedDepartmentTab !== 'ALL' ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <DepartmentIcon className={`w-4 h-4 shrink-0 ${selectedDepartmentTab !== 'ALL' ? 'text-blue-600' : 'text-slate-400'}`} />
                   <span className="truncate">
                     {selectedDepartmentTab === 'ALL'
                       ? 'Tất cả chuyên khoa'
@@ -389,7 +390,7 @@ export const AdminDoctorsView: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                        <DepartmentIcon className="w-4 h-4" />
                         <span>Tất cả chuyên khoa</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -546,7 +547,7 @@ export const AdminDoctorsView: React.FC = () => {
                       {/* Department */}
                       <td className="py-3.5 px-4">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                          <Building2 className="w-3.5 h-3.5 shrink-0" />
+                          <DepartmentIcon className="w-4 h-4 shrink-0" />
                           <span>{deptText}</span>
                         </span>
                       </td>

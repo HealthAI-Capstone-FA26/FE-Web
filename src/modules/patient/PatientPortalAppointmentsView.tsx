@@ -15,6 +15,7 @@ import {
   Eye
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
+import { DepartmentIcon } from '../../components/common/DepartmentIcon';
 import { PatientBookingForm } from './components/PatientBookingForm';
 import { CancelAppointmentModal } from './components/CancelAppointmentModal';
 import { AppointmentDetailModal } from './components/AppointmentDetailModal';
@@ -216,8 +217,18 @@ export const PatientPortalAppointmentsView: React.FC = () => {
                           <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg">
                             {app.appointmentCode}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-medium">
-                            {app.bookingChannel === 'online' ? 'Trực tuyến' : 'Tại quầy'}
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            {app.bookingChannel === 'online' ? (
+                              <span className="inline-flex items-center gap-1">
+                                <img src="/images/online_icon.png" alt="Online" className="w-3.5 h-3.5 object-contain" />
+                                <span>Trực tuyến</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1">
+                                <img src="/images/counter_icon.png" alt="Tại quầy" className="w-3.5 h-3.5 object-contain" />
+                                <span>Tại quầy</span>
+                              </span>
+                            )}
                           </span>
                         </div>
                         {getStatusBadge(app.status)}
@@ -250,7 +261,7 @@ export const PatientPortalAppointmentsView: React.FC = () => {
 
                         {app.department && (
                           <div className="flex items-center gap-2 text-slate-800">
-                            <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+                            <DepartmentIcon className="w-4 h-4 shrink-0" />
                             <span className="text-slate-500">Chuyên khoa:</span>
                             <span className="font-semibold text-slate-800">{app.department.departmentName}</span>
                           </div>
