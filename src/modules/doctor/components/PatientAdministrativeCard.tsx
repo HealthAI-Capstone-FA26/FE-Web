@@ -1,17 +1,21 @@
 import React from 'react';
 import {
   FileText, ShieldAlert, Heart, Thermometer, Activity,
-  AlertTriangle, Loader2
+  AlertTriangle, Loader2, PlayCircle, CheckCircle2
 } from 'lucide-react';
 import type { PatientEMR } from '../types';
 import type { CaseOverviewData } from '../../../services/doctor';
 import type { PatientAllergyItem, AllergyType, AllergySeverity } from '../../../services/patient/patient-allergy.service';
 import type { EncounterItem } from '../../../services/encounter/encounter.service';
+import type { AppointmentItem } from '../../../services/appointment/appointment.service';
 
 interface PatientAdministrativeCardProps {
   currentPatient: PatientEMR | null;
   caseOverview: CaseOverviewData | null;
   selectedEncounterDetail: EncounterItem | null;
+  currentAppointment?: AppointmentItem | null;
+  isStartingAppointment?: boolean;
+  onStartConsultation?: () => void;
   activeAllergies: Array<PatientAllergyItem | {
     allergyId: string;
     allergyType: string;
@@ -33,6 +37,9 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
   currentPatient,
   caseOverview,
   selectedEncounterDetail,
+  currentAppointment,
+  isStartingAppointment,
+  onStartConsultation,
   activeAllergies,
   isLoadingAllergies,
   isLoadingOverview,
@@ -112,10 +119,49 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
 
   return (
     <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-4">
-      <h3 className="text-sm font-extrabold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
-        <FileText className="w-4 h-4 text-blue-700" />
-        <span>Hồ sơ Bệnh án Điện tử (EMR) - Thông tin Hành chính & Sinh hiệu</span>
-      </h3>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+        <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+          <FileText className="w-4 h-4 text-blue-700" />
+          <span>Hồ sơ Bệnh án Điện tử (EMR) - Thông tin Hành chính & Sinh hiệu</span>
+        </h3>
+
+        {/* Action Button: Bắt đầu khám / Trạng thái phiên khám */}
+        {onStartConsultation && (
+          <div className="flex items-center gap-2 shrink-0">
+            {currentAppointment?.status === 'in_progress' || selectedEncounterDetail?.status === 'in_progress' ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Đang khám</span>
+              </span>
+            ) : currentAppointment?.status === 'completed' || selectedEncounterDetail?.status === 'finished' ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
+                <span>Đã hoàn tất khám</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={onStartConsultation}
+                disabled={isStartingAppointment || (!selectedEncounterDetail?.appointmentId && !currentAppointment?.appointmentId)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Bác sĩ bắt đầu phiên khám lâm sàng (PATCH /appointments/:id/start)"
+              >
+                {isStartingAppointment ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Đang kết nối...</span>
+                  </>
+                ) : (
+                  <>
+                    <PlayCircle className="w-3.5 h-3.5" />
+                    <span>Bắt đầu khám</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
         {/* 1. Personal Info */}

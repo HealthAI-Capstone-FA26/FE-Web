@@ -67,6 +67,22 @@ export interface CaseOverviewData {
   aiDiagnosisSuggestions?: AiDiagnosisSuggestionItem[];
 }
 
+export interface ClinicalExaminationData {
+  examinationId: string;
+  encounterId: string;
+  doctorId: string;
+  examinationFindings: string;
+  clinicalNotes?: string;
+  examinedAt: string;
+  createdAt?: string;
+  doctor?: {
+    doctorId: string;
+    fullName: string;
+    title?: string;
+    specialization?: string;
+  };
+}
+
 export const clinicalExamService = {
   // 1. GET /api/v1/doctor-examination/encounters/:encounterId/overview
   async getCaseOverview(encounterId: string): Promise<CaseOverviewData> {
@@ -78,7 +94,30 @@ export const clinicalExamService = {
     );
   },
 
-  // 2. POST /api/v1/doctor-examination/encounters/:encounterId/clinical-examination
+  // 2. GET /api/v1/doctor-examination/encounters/:encounterId/clinical-examination
+  async getClinicalExamination(encounterId: string): Promise<ClinicalExaminationData | null> {
+    try {
+      console.log(`[ClinicalExamService] Đang gọi GET /doctor-examination/encounters/${encounterId}/clinical-examination`);
+      const res = await apiFetch<ClinicalExaminationData>(
+        `/doctor-examination/encounters/${encounterId}/clinical-examination`,
+        {
+          method: 'GET',
+        }
+      );
+      console.log(`[ClinicalExamService] Kết quả GET clinical-examination:`, res);
+      return res;
+    } catch (err: any) {
+      // Nếu ca khám chưa có kết quả khám lâm sàng (404), trả về null an toàn
+      if (err?.status === 404 || err?.statusCode === 404 || err?.data?.statusCode === 404) {
+        console.log(`[ClinicalExamService] Ca khám ${encounterId} chưa có dữ liệu khám (404 Not Found) - trả về null.`);
+        return null;
+      }
+      console.warn('Lỗi khi gọi GET clinical-examination:', err);
+      return null;
+    }
+  },
+
+  // 3. POST /api/v1/doctor-examination/encounters/:encounterId/clinical-examination
   async upsertClinicalExamination(
     encounterId: string,
     payload: UpsertClinicalExamPayload
