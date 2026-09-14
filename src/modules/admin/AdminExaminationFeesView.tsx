@@ -19,6 +19,7 @@ import {
   ToggleLeft,
   ToggleRight
 } from 'lucide-react';
+import { DepartmentIcon } from '../../components/common/DepartmentIcon';
 import {
   examinationFeeService,
   type ExaminationFeeItem,
@@ -310,7 +311,7 @@ export const AdminExaminationFeesView: React.FC = () => {
             <h4 className="text-2xl font-black text-purple-700 mt-0.5">{stats.global}</h4>
           </div>
           <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
-            <Building2 className="w-5 h-5" />
+            <DepartmentIcon className="w-5 h-5" />
           </div>
         </div>
       </div>
@@ -334,7 +335,7 @@ export const AdminExaminationFeesView: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Dept Filter */}
             <div className="flex items-center space-x-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700">
-              <Building2 className="w-3.5 h-3.5 text-slate-400" />
+              <DepartmentIcon className="w-4 h-4" />
               <select
                 value={selectedDeptId}
                 onChange={(e) => setSelectedDeptId(e.target.value)}
@@ -438,7 +439,7 @@ export const AdminExaminationFeesView: React.FC = () => {
                     <td className="py-3 px-4 whitespace-nowrap">
                       {fee.department ? (
                         <div className="flex items-center space-x-1.5 text-slate-800 font-bold">
-                          <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                          <DepartmentIcon className="w-4 h-4" />
                           <span>{fee.department.departmentName}</span>
                         </div>
                       ) : (

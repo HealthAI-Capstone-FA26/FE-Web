@@ -25,6 +25,8 @@ import {
 import { ReceptionAppointmentDetailModal } from './components/ReceptionAppointmentDetailModal';
 import { ReceptionCancelAppointmentModal } from './components/ReceptionCancelAppointmentModal';
 import { SyncPatientModal } from './components/SyncPatientModal';
+import { Badge } from '../../components/common/Badge';
+import { DepartmentIcon } from '../../components/common/DepartmentIcon';
 import { ConfirmMainPatientModal } from './components/ConfirmMainPatientModal';
 
 type DatePreset = 'today' | 'tomorrow' | 'this_week' | 'all' | 'custom';
@@ -602,12 +604,22 @@ export const ReceptionAppointmentsView: React.FC = () => {
                         </div>
                         <div className="mt-0.5">
                           <span
-                            className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md ${app.bookingChannel === 'online'
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${app.bookingChannel === 'online'
                               ? 'bg-sky-50 text-sky-700 border border-sky-200'
                               : 'bg-slate-100 text-slate-700 border border-slate-200'
                               }`}
                           >
-                            {app.bookingChannel === 'online' ? '📱 Online' : '🏥 Tại quầy'}
+                            {app.bookingChannel === 'online' ? (
+                              <>
+                                <img src="/images/online_icon.png" alt="Online" className="w-3.5 h-3.5 object-contain" />
+                                <span>Online</span>
+                              </>
+                            ) : (
+                              <>
+                                <img src="/images/counter_icon.png" alt="Tại quầy" className="w-3.5 h-3.5 object-contain" />
+                                <span>Tại quầy</span>
+                              </>
+                            )}
                           </span>
                         </div>
                       </td>
@@ -667,7 +679,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
                       {/* Department & Doctor */}
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-800 flex items-center gap-1">
-                          <Building2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                          <DepartmentIcon className="w-4 h-4 shrink-0" />
                           <span>{app.department?.departmentName || 'Khoa khám'}</span>
                         </div>
                         <div className="text-[11px] text-slate-500 mt-0.5">

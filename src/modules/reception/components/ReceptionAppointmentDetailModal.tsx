@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { type AppointmentItem } from '../../../services/appointment/appointment.service';
 import { Badge } from '../../../components/common/Badge';
+import { DepartmentIcon } from '../../../components/common/DepartmentIcon';
 import {
   encounterService,
   type EncounterItem,
@@ -219,8 +220,18 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-extrabold text-white">Chi Tiết Lịch Hẹn Khám</h3>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/30 text-blue-200 font-bold border border-blue-400/30">
-                  {appointment.bookingChannel === 'online' ? '📱 Đặt Online' : '🏥 Tại quầy'}
+                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-500/30 text-blue-200 font-bold border border-blue-400/30">
+                  {appointment.bookingChannel === 'online' ? (
+                    <>
+                      <img src="/images/online_icon.png" alt="Online" className="w-3.5 h-3.5 object-contain" />
+                      <span>Đặt Online</span>
+                    </>
+                  ) : (
+                    <>
+                      <img src="/images/counter_icon.png" alt="Tại quầy" className="w-3.5 h-3.5 object-contain" />
+                      <span>Tại quầy</span>
+                    </>
+                  )}
                 </span>
               </div>
               <p className="text-xs text-blue-200 font-mono mt-0.5">
@@ -342,7 +353,7 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
           {/* Block 2: Department & Doctor */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-900 border-b border-slate-100 pb-2">
-              <Building2 className="w-4 h-4 text-indigo-600" />
+              <DepartmentIcon className="w-4 h-4" />
               <span>Chuyên Khoa & Bác Sĩ Phụ Trách</span>
             </div>
 

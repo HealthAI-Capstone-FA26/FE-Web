@@ -26,38 +26,66 @@ import { rbacService } from '../../services/rbac/rbac.service';
 import { getAvatarUrl } from '../../services/api';
 import { EditUserModal } from './components/EditUserModal';
 
+const AdminIcon = ({ className }: { className?: string }) => {
+  const sizeClass = className ? className.replace(/w-[\d.]+/g, 'w-5').replace(/h-[\d.]+/g, 'h-5') : 'w-5 h-5';
+  return <img src="/images/admin_icon.png" alt="Quản trị viên" className={`shrink-0 rounded-full object-cover ${sizeClass}`} />;
+};
+
+const DoctorIcon = ({ className }: { className?: string }) => (
+  <img src="/images/doctor_icon.png" alt="Bác sĩ" className={className || "w-3.5 h-3.5 shrink-0 rounded-full object-cover"} />
+);
+
+const PatientIcon = ({ className }: { className?: string }) => {
+  const sizeClass = className ? className.replace(/w-[\d.]+/g, 'w-5').replace(/h-[\d.]+/g, 'h-5') : 'w-5 h-5';
+  return <img src="/images/patient_icon.png" alt="Bệnh nhân" className={`shrink-0 rounded-full object-cover ${sizeClass}`} />;
+};
+
+const NurseIcon = ({ className }: { className?: string }) => (
+  <img src="/images/nurse_icon.png" alt="Điều dưỡng" className={className || "w-3.5 h-3.5 shrink-0 rounded-full object-cover"} />
+);
+
+const ReceptionistIcon = ({ className }: { className?: string }) => {
+  const sizeClass = className ? className.replace(/w-[\d.]+/g, 'w-5').replace(/h-[\d.]+/g, 'h-5') : 'w-5 h-5';
+  return <img src="/images/receptionist_icon.png" alt="Lễ tân" className={`shrink-0 rounded-full object-cover ${sizeClass}`} />;
+};
+
+const LabIcon = ({ className }: { className?: string }) => {
+  const sizeClass = className ? className.replace(/w-[\d.]+/g, 'w-5').replace(/h-[\d.]+/g, 'h-5') : 'w-5 h-5';
+  return <img src="/images/lab_icon.png" alt="KTV Xét nghiệm" className={`shrink-0 rounded-full object-cover ${sizeClass}`} />;
+};
+
 const ROLE_CONFIG: Record<
   string,
   { label: string; icon: any; className: string }
 > = {
   ADMIN: {
     label: 'Quản trị viên',
-    icon: Shield,
+    icon: AdminIcon,
     className: 'bg-purple-50 text-purple-700 border-purple-200/90 shadow-2xs',
   },
   DOCTOR: {
     label: 'Bác sĩ',
-    icon: Stethoscope,
+    icon: DoctorIcon,
     className: 'bg-blue-50 text-blue-700 border-blue-200/90 shadow-2xs',
   },
   NURSE: {
     label: 'Điều dưỡng',
-    icon: HeartPulse,
+    icon: NurseIcon,
     className: 'bg-rose-50 text-rose-700 border-rose-200/90 shadow-2xs',
   },
   RECEPTIONIST: {
     label: 'Lễ tân',
-    icon: Receipt,
+    icon: ReceptionistIcon,
     className: 'bg-amber-50 text-amber-700 border-amber-200/90 shadow-2xs',
   },
   LAB: {
     label: 'KTV Xét nghiệm',
-    icon: FlaskConical,
+    icon: LabIcon,
     className: 'bg-cyan-50 text-cyan-700 border-cyan-200/90 shadow-2xs',
   },
   PATIENT: {
     label: 'Bệnh nhân',
-    icon: UserCheck,
+    icon: PatientIcon,
     className: 'bg-emerald-50 text-emerald-700 border-emerald-200/90 shadow-2xs',
   },
 };
@@ -104,7 +132,7 @@ export const AdminUsersView: React.FC = () => {
   useEffect(() => {
     fetchData();
     // Prefetch roles in background for 0ms instant modal opening
-    rbacService.getRoles().catch(() => {});
+    rbacService.getRoles().catch(() => { });
   }, []);
 
   // Reset page when filter changes
@@ -202,11 +230,11 @@ export const AdminUsersView: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { key: 'ALL', label: 'Tổng tài khoản', count: roleCounts.ALL, icon: Users, color: 'text-blue-700 bg-blue-50' },
-          { key: 'DOCTOR', label: 'Bác sĩ', count: roleCounts.DOCTOR, icon: Stethoscope, color: 'text-indigo-700 bg-indigo-50' },
-          { key: 'NURSE', label: 'Điều dưỡng', count: roleCounts.NURSE, icon: HeartPulse, color: 'text-rose-700 bg-rose-50' },
-          { key: 'RECEPTIONIST', label: 'Lễ tân / Thu ngân', count: roleCounts.RECEPTIONIST, icon: Receipt, color: 'text-amber-700 bg-amber-50' },
-          { key: 'LAB', label: 'KTV Xét nghiệm', count: roleCounts.LAB, icon: FlaskConical, color: 'text-cyan-700 bg-cyan-50' },
-          { key: 'PATIENT', label: 'Bệnh nhân', count: roleCounts.PATIENT, icon: UserCheck, color: 'text-emerald-700 bg-emerald-50' },
+          { key: 'DOCTOR', label: 'Bác sĩ', count: roleCounts.DOCTOR, icon: DoctorIcon, color: 'text-indigo-700 bg-indigo-50' },
+          { key: 'NURSE', label: 'Điều dưỡng', count: roleCounts.NURSE, icon: NurseIcon, color: 'text-rose-700 bg-rose-50' },
+          { key: 'RECEPTIONIST', label: 'Lễ tân / Thu ngân', count: roleCounts.RECEPTIONIST, icon: ReceptionistIcon, color: 'text-amber-700 bg-amber-50' },
+          { key: 'LAB', label: 'KTV Xét nghiệm', count: roleCounts.LAB, icon: LabIcon, color: 'text-cyan-700 bg-cyan-50' },
+          { key: 'PATIENT', label: 'Bệnh nhân', count: roleCounts.PATIENT, icon: PatientIcon, color: 'text-emerald-700 bg-emerald-50' },
         ].map((item) => (
           <button
             key={item.key}
@@ -346,9 +374,8 @@ export const AdminUsersView: React.FC = () => {
                       {/* Role */}
                       <td className="py-3.5 px-4 text-center">
                         <div
-                          className={`inline-flex items-center justify-center gap-1.5 w-36 py-1.5 px-3 rounded-full text-xs font-bold border transition-all ${
-                            roleCfg?.className || 'bg-slate-50 text-slate-700 border-slate-200 shadow-2xs'
-                          }`}
+                          className={`inline-flex items-center justify-center gap-1.5 w-36 py-1.5 px-3 rounded-full text-xs font-bold border transition-all ${roleCfg?.className || 'bg-slate-50 text-slate-700 border-slate-200 shadow-2xs'
+                            }`}
                         >
                           <roleCfg.icon className="w-3.5 h-3.5 shrink-0" />
                           <span className="whitespace-nowrap">{roleCfg.label}</span>
@@ -451,11 +478,10 @@ export const AdminUsersView: React.FC = () => {
                         {hasGap && <span className="px-1 text-slate-400 text-xs">...</span>}
                         <button
                           onClick={() => setCurrentPage(page)}
-                          className={`w-7 h-7 text-xs font-bold rounded-lg transition-colors border cursor-pointer ${
-                            currentPage === page
-                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                          }`}
+                          className={`w-7 h-7 text-xs font-bold rounded-lg transition-colors border cursor-pointer ${currentPage === page
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                            }`}
                         >
                           {page}
                         </button>

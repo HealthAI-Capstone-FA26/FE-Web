@@ -18,6 +18,7 @@ import {
   type DepartmentResponse,
   type DoctorDepartmentRelation,
 } from '../../../services/doctor/doctor.service';
+import { DepartmentIcon } from '../../../components/common/DepartmentIcon';
 
 interface AssignDepartmentModalProps {
   isOpen: boolean;
@@ -209,7 +210,7 @@ export const AssignDepartmentModal: React.FC<AssignDepartmentModalProps> = ({
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
             <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-blue-700" />
+              <DepartmentIcon className="w-5 h-5" />
               <span>Phân Công & Quản Lý Khoa Phòng</span>
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5">
