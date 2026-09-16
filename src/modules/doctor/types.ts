@@ -30,4 +30,4 @@ export interface PatientEMR {
   initialDoctorDiag: string;
 }
 
-export type PatientWorkflowState = 'initial' | 'ordered' | 'completed';
+export type PatientWorkflowState = 'initial' | 'ordered' | 'paid' | 'completed';
