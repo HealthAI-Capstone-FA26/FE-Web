@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, Stethoscope, Sparkles, FileText } from 'lucide-react';
+import { Mascot } from 'page-mascot';
 import {
   encounterService,
   type EncounterItem,
@@ -732,13 +733,21 @@ export const DoctorEMRView: React.FC = () => {
     <div className="space-y-6 max-w-7xl mx-auto text-slate-800 animate-in fade-in duration-200">
       {/* Module Title Banner */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">
-            Hồ Sơ EMR & Phân Tích AI
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Xem hồ sơ bệnh án EMR, tóm tắt AI tự động (AI01) và khoanh vùng bất thường (AI02).
-          </p>
+        <div className="flex items-center gap-3">
+          <Mascot
+            directions="/mascots/kamran-directions.webp"
+            reactions="/mascots/kamran-reactions.webp"
+            size={120}
+            className="shrink-0"
+          />
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">
+              Hồ Sơ EMR & Phân Tích AI
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Xem hồ sơ bệnh án EMR, tóm tắt AI tự động (AI01) và khoanh vùng bất thường (AI02).
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-1.5 text-xs font-bold text-blue-900">
@@ -770,11 +779,10 @@ export const DoctorEMRView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('emr_summary')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeSubTab === 'emr_summary'
+                  className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeSubTab === 'emr_summary'
                       ? 'bg-white text-blue-700 shadow-xs border border-slate-200/60'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                  }`}
+                    }`}
                 >
                   <FileText className="w-4 h-4 text-blue-600" />
                   <span>Hồ sơ EMR & Tóm tắt AI (AI01)</span>
@@ -784,11 +792,10 @@ export const DoctorEMRView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('clinical_orders')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeSubTab === 'clinical_orders'
+                  className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeSubTab === 'clinical_orders'
                       ? 'bg-white text-blue-700 shadow-xs border border-slate-200/60'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                  }`}
+                    }`}
                 >
                   <Stethoscope className="w-4 h-4 text-blue-600" />
                   <span>Khám & Chỉ định CLS</span>
@@ -803,11 +810,10 @@ export const DoctorEMRView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('ai_imaging')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeSubTab === 'ai_imaging'
+                  className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeSubTab === 'ai_imaging'
                       ? 'bg-white text-purple-700 shadow-xs border border-slate-200/60'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                  }`}
+                    }`}
                 >
                   <Sparkles className="w-4 h-4 text-purple-600" />
                   <span>Phân tích ảnh AI (AI02)</span>

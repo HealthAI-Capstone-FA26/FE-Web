@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { UserPlus, Save, CheckCircle2, Zap, Loader2, AlertCircle } from 'lucide-react';
 import { patientService, type CreatePatientData } from '../../services/patient/patient.service';
 import { DobInput } from '../../components/common/DobInput';
+import { Mascot } from 'page-mascot';
 
 export const ReceptionPatientProfileFormView: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -83,13 +84,21 @@ export const ReceptionPatientProfileFormView: React.FC = () => {
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Header Banner */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">
-            Tiếp Nhận & Nhập Hộ Hồ Sơ Bệnh Nhân
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Mẫu nhập liệu tối ưu hóa tốc độ cao cho Lễ tân tiếp nhận bệnh nhân vãng lai hoặc đăng ký tại quầy.
-          </p>
+        <div className="flex items-center gap-3">
+          <Mascot
+            directions="/mascots/glasses-directions.webp"
+            reactions="/mascots/glasses-reactions.webp"
+            size={120}
+            className="shrink-0"
+          />
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">
+              Tiếp Nhận & Nhập Hộ Hồ Sơ Bệnh Nhân
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Mẫu nhập liệu tối ưu hóa tốc độ cao cho Lễ tân tiếp nhận bệnh nhân vãng lai hoặc đăng ký tại quầy.
+            </p>
+          </div>
         </div>
 
         <button
