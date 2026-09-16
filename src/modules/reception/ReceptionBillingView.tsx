@@ -82,6 +82,7 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
 
   // Danh sách lượt khám gợi ý khi lập hóa đơn
   const [recentEncounters, setRecentEncounters] = useState<EncounterItem[]>([]);
+  const [allInvoicesForLookup, setAllInvoicesForLookup] = useState<InvoiceData[]>([]);
   const [isLoadingEncounters, setIsLoadingEncounters] = useState(false);
   const [encounterSearch, setEncounterSearch] = useState('');
 
@@ -105,18 +106,63 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
     fetchInvoices();
   }, [fetchInvoices]);
 
-  // Tải danh sách lượt khám gần đây khi mở modal lập hóa đơn
+  // Tải danh sách lượt khám gần đây kèm toàn bộ hóa đơn để kiểm tra trạng thái
   const fetchRecentEncounters = useCallback(async () => {
     setIsLoadingEncounters(true);
     try {
-      const data = await encounterService.getEncounters();
-      setRecentEncounters(data || []);
+      const [encData, invData] = await Promise.all([
+        encounterService.getEncounters(),
+        invoiceService.findMany({}),
+      ]);
+      setRecentEncounters(encData || []);
+      setAllInvoicesForLookup(invData || []);
     } catch {
       setRecentEncounters([]);
+      setAllInvoicesForLookup([]);
     } finally {
       setIsLoadingEncounters(false);
     }
   }, []);
+
+  // Tra cứu trạng thái hóa đơn của từng ca khám
+  const getEncounterBillingInfo = useCallback(
+    (encounterId: string) => {
+      const invs = allInvoicesForLookup.filter((i) => i.encounterId === encounterId);
+      if (invs.length === 0) {
+        return {
+          status: 'none' as const,
+          label: 'Chưa lập hóa đơn',
+          badgeClass: 'bg-blue-50 text-blue-700 border border-blue-200',
+          invoice: null,
+        };
+      }
+      const pendingInv = invs.find((i) => i.status === 'pending');
+      if (pendingInv) {
+        return {
+          status: 'pending' as const,
+          label: `Chờ thanh toán (${pendingInv.invoiceCode})`,
+          badgeClass: 'bg-amber-50 text-amber-700 border border-amber-200',
+          invoice: pendingInv,
+        };
+      }
+      const paidInvs = invs.filter((i) => i.status === 'paid');
+      if (paidInvs.length > 0) {
+        return {
+          status: 'paid' as const,
+          label: `Đã thanh toán (${paidInvs[0].invoiceCode})`,
+          badgeClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+          invoice: paidInvs[0],
+        };
+      }
+      return {
+        status: 'cancelled' as const,
+        label: 'Hóa đơn đã hủy',
+        badgeClass: 'bg-slate-100 text-slate-600 border border-slate-200',
+        invoice: null,
+      };
+    },
+    [allInvoicesForLookup]
+  );
 
   useEffect(() => {
     if (isGenerateModalOpen) {
@@ -911,42 +957,43 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
             Lập Hóa Đơn Cho Lượt Khám
           </span>
         }
-        subtitle="Hệ thống sẽ tự động tổng hợp phí khám và các xét nghiệm (Test Orders) chưa thanh toán."
-        maxWidth="lg"
+        subtitle="Chỉ hiển thị các lượt khám chưa lập hóa đơn hoặc chưa thanh toán viện phí."
+        maxWidth="4xl"
         footer={
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setIsGenerateModalOpen(false)}
-              disabled={isGenerating}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border-none transition-colors"
-            >
-              Hủy
-            </button>
-            <button
-              type="button"
-              onClick={handleGenerateInvoice}
-              disabled={!generateEncounterId.trim() || isGenerating}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl cursor-pointer border-none flex items-center gap-1.5 disabled:opacity-50 transition-colors"
-            >
-              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
-              <span>{isGenerating ? 'Đang lập hóa đơn...' : 'Tạo Hóa Đơn & Thanh Toán'}</span>
-            </button>
+          <div className="flex flex-col sm:flex-row justify-between items-center w-full gap-3">
+            <div className="text-xs text-slate-500">
+              {generateEncounterId ? (
+                <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  Đã chọn: {recentEncounters.find((e) => e.encounterId === generateEncounterId)?.patient?.fullName || 'Bệnh nhân'} ({recentEncounters.find((e) => e.encounterId === generateEncounterId)?.encounterCode})
+                </span>
+              ) : (
+                <span>Vui lòng chọn một ca khám chưa lập hóa đơn từ danh sách trên.</span>
+              )}
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsGenerateModalOpen(false)}
+                disabled={isGenerating}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border-none transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleGenerateInvoice}
+                disabled={!generateEncounterId.trim() || isGenerating}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl cursor-pointer border-none flex items-center gap-1.5 disabled:opacity-50 transition-colors shadow-xs"
+              >
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
+                <span>{isGenerating ? 'Đang lập hóa đơn...' : 'Tạo Hóa Đơn & Thanh Toán'}</span>
+              </button>
+            </div>
           </div>
         }
       >
         <div className="space-y-4 text-xs">
-          {/* Thông báo hướng dẫn */}
-          <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3 text-blue-800 flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-            <div className="space-y-0.5">
-              <p className="font-bold">Quy trình lập hóa đơn</p>
-              <p className="text-slate-600 leading-relaxed">
-                Sau khi bác sĩ tạo chỉ định xét nghiệm (Test Order), tiếp tân chọn lượt khám dưới đây để hệ thống tính tổng chi phí và sinh mã hóa đơn trước khi thu tiền mặt hoặc quét mã QR PayOS.
-              </p>
-            </div>
-          </div>
-
           {/* Lỗi nếu có */}
           {generateError && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-center gap-2">
@@ -955,131 +1002,219 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
             </div>
           )}
 
-          {/* Nhập hoặc dán trực tiếp Encounter ID */}
-          <div>
-            <label className="block font-bold text-slate-700 mb-1.5">
-              Mã lượt khám (Encounter ID) <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={generateEncounterId}
-              onChange={(e) => setGenerateEncounterId(e.target.value)}
-              placeholder="Nhập hoặc dán UUID lượt khám (vd: f300bf15-dec3-4a18-b54...)"
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-300 font-mono"
-            />
-          </div>
-
-          {/* Danh sách gợi ý ca khám gần đây */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="font-bold text-slate-700">
-                Hoặc chọn nhanh từ danh sách lượt khám gần đây:
-              </label>
-              <button
-                type="button"
-                onClick={fetchRecentEncounters}
-                disabled={isLoadingEncounters}
-                className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer bg-transparent border-none p-0"
-              >
-                <RefreshCw className={`w-3 h-3 ${isLoadingEncounters ? 'animate-spin' : ''}`} />
-                Làm mới danh sách
-              </button>
-            </div>
-
-            {/* Tìm kiếm nhanh ca khám */}
-            <div className="relative mb-2">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          {/* Thanh tìm kiếm & Làm mới */}
+          <div className="flex items-center justify-between gap-3 bg-slate-50/80 p-3 rounded-2xl border border-slate-200/70">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Tìm bệnh nhân hoặc mã ca..."
+                placeholder="Tìm kiếm theo tên bệnh nhân, mã lượt khám, mã bệnh nhân..."
                 value={encounterSearch}
                 onChange={(e) => setEncounterSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-blue-400"
+                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-300"
               />
             </div>
+            <button
+              type="button"
+              onClick={fetchRecentEncounters}
+              disabled={isLoadingEncounters}
+              className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingEncounters ? 'animate-spin text-blue-600' : ''}`} />
+              <span>Làm mới</span>
+            </button>
+          </div>
 
-            <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-slate-50/50">
+          {/* Danh sách lượt khám (Chỉ hiện ca chưa tạo HĐ hoặc đang chờ thanh toán) */}
+          <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
+            <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 font-bold text-slate-600 text-[11px] grid grid-cols-12 gap-2">
+              <div className="col-span-4">BỆNH NHÂN / MÃ CA</div>
+              <div className="col-span-3">KHOA KHÁM / BÁC SĨ</div>
+              <div className="col-span-2">TIẾP NHẬN</div>
+              <div className="col-span-3 text-right">TRẠNG THÁI / THAO TÁC</div>
+            </div>
+
+            <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
               {isLoadingEncounters ? (
-                <div className="py-6 flex flex-col items-center justify-center text-slate-400 gap-1.5">
-                  <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-                  <span className="text-[11px]">Đang tải danh sách ca khám...</span>
+                <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  <span className="text-xs font-medium">Đang tải danh sách ca khám chưa thanh toán...</span>
                 </div>
-              ) : recentEncounters.length === 0 ? (
-                <div className="py-4 text-center text-slate-400 text-xs">
-                  Không tìm thấy lượt khám nào. Bạn có thể dán trực tiếp mã Encounter ID ở ô trên.
-                </div>
-              ) : (
-                recentEncounters
-                  .filter((enc) => {
-                    if (!encounterSearch) return true;
-                    const q = encounterSearch.toLowerCase();
+              ) : (() => {
+                  const unpaidEncounters = recentEncounters.filter((enc) => {
+                    const info = getEncounterBillingInfo(enc.encounterId);
+                    return info.status === 'none' || info.status === 'pending';
+                  });
+                  const filtered = unpaidEncounters.filter((enc) => {
+                    if (!encounterSearch.trim()) return true;
+                    const q = encounterSearch.trim().toLowerCase();
                     return (
                       enc.encounterCode?.toLowerCase().includes(q) ||
-                      enc.encounterId?.toLowerCase().includes(q) ||
                       enc.patient?.fullName?.toLowerCase().includes(q) ||
-                      enc.patient?.patientCode?.toLowerCase().includes(q)
+                      enc.patient?.patientCode?.toLowerCase().includes(q) ||
+                      enc.department?.departmentName?.toLowerCase().includes(q)
                     );
-                  })
-                  .slice(0, 8)
-                  .map((enc) => {
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="py-12 text-center text-slate-400 text-xs space-y-1">
+                        <p className="font-semibold text-slate-600">Không có ca khám nào cần lập hóa đơn</p>
+                        <p className="text-[11px] text-slate-400">
+                          Tất cả ca khám đã được thanh toán hoặc không khớp với từ khóa tìm kiếm.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((enc) => {
                     const isSelected = generateEncounterId === enc.encounterId;
+                    const billingInfo = getEncounterBillingInfo(enc.encounterId);
+
                     return (
                       <div
                         key={enc.encounterId}
-                        onClick={() => setGenerateEncounterId(enc.encounterId)}
-                        className={`p-2.5 flex items-center justify-between cursor-pointer transition-colors ${
+                        onClick={() => {
+                          if (billingInfo.status === 'none') {
+                            setGenerateEncounterId(enc.encounterId);
+                          }
+                        }}
+                        className={`px-4 py-3 grid grid-cols-12 gap-2 items-center transition-colors ${
                           isSelected
-                            ? 'bg-blue-50 border-l-4 border-blue-600'
-                            : 'hover:bg-white bg-transparent'
+                            ? 'bg-blue-50/90 border-l-4 border-blue-600'
+                            : billingInfo.status === 'pending'
+                            ? 'hover:bg-amber-50/40 bg-white'
+                            : 'hover:bg-slate-50/80 bg-white cursor-pointer'
                         }`}
                       >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-800">
-                              {enc.patient?.fullName || 'Bệnh nhân chưa có tên'}
-                            </span>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded">
+                        {/* Bệnh nhân */}
+                        <div className="col-span-4 space-y-0.5">
+                          <div className="font-bold text-slate-900 text-xs">
+                            {enc.patient?.fullName || 'Bệnh nhân chưa có tên'}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                            <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px]">
                               {enc.encounterCode}
                             </span>
+                            {enc.patient?.patientCode && (
+                              <span>• Mã BN: {enc.patient.patientCode}</span>
+                            )}
                           </div>
-                          <p className="text-[11px] text-slate-500">
-                            Khoa: {enc.department?.departmentName || '---'} • Đến lúc: {fmtDate(enc.arrivedAt)}
-                          </p>
                         </div>
-                        <button
-                          type="button"
-                          className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-colors cursor-pointer ${
-                            isSelected
-                              ? 'bg-blue-600 text-white border-blue-600'
-                              : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          {isSelected ? 'Đã chọn' : 'Chọn'}
-                        </button>
+
+                        {/* Khoa khám / Bác sĩ */}
+                        <div className="col-span-3 space-y-0.5 text-[11px]">
+                          <div className="text-slate-800 font-medium truncate">
+                            {enc.department?.departmentName || '---'}
+                          </div>
+                          <div className="text-slate-500 text-[10px] truncate">
+                            {enc.doctor?.fullName ? `BS: ${enc.doctor.fullName}` : 'Chưa chỉ định BS'}
+                          </div>
+                        </div>
+
+                        {/* Tiếp nhận */}
+                        <div className="col-span-2 text-[11px] text-slate-500">
+                          {fmtDate(enc.arrivedAt)}
+                        </div>
+
+                        {/* Trạng thái & Thao tác */}
+                        <div className="col-span-3 flex items-center justify-end gap-2">
+                          {billingInfo.status === 'pending' && billingInfo.invoice ? (
+                            <>
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                                Chờ thanh toán
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsGenerateModalOpen(false);
+                                  openPaymentModal(billingInfo.invoice!);
+                                }}
+                                className="text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold border-none transition-colors cursor-pointer flex items-center gap-1 shrink-0 shadow-xs"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                                <span>Thanh toán</span>
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+                                Chưa lập HĐ
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setGenerateEncounterId(enc.encounterId);
+                                }}
+                                className={`text-xs px-3 py-1.5 rounded-xl font-bold border transition-colors cursor-pointer shrink-0 ${
+                                  isSelected
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                    : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:text-blue-600'
+                                }`}
+                              >
+                                {isSelected ? '✓ Đã chọn' : 'Chọn lập HĐ'}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     );
-                  })
-              )}
+                  });
+                })()}
             </div>
           </div>
 
-          {/* Giảm trừ / BHYT (tùy chọn) */}
-          <div>
-            <label className="block font-bold text-slate-700 mb-1.5">
-              Giảm trừ / Chiết khấu (VNĐ - tùy chọn)
-            </label>
-            <input
-              type="number"
-              min={0}
-              step={1000}
-              value={generateDiscount}
-              onChange={(e) =>
-                setGenerateDiscount(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))
-              }
-              placeholder="0"
-              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-300"
-            />
-          </div>
+          {/* Chi tiết ca được chọn & Ô giảm trừ */}
+          {generateEncounterId && (
+            <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 space-y-3 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-blue-900 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                  Thông tin lượt khám được chọn để lập hóa đơn
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setGenerateEncounterId('')}
+                  className="text-[11px] text-slate-500 hover:text-red-600 font-semibold cursor-pointer bg-transparent border-none"
+                >
+                  Bỏ chọn
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-white p-3 rounded-xl border border-blue-100">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">BỆNH NHÂN</p>
+                  <p className="font-bold text-slate-800 text-xs mt-0.5">
+                    {recentEncounters.find((e) => e.encounterId === generateEncounterId)?.patient?.fullName || '---'}
+                  </p>
+                </div>
+                <div className="bg-white p-3 rounded-xl border border-blue-100">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">MÃ LƯỢT KHÁM</p>
+                  <p className="font-bold font-mono text-indigo-700 text-xs mt-0.5">
+                    {recentEncounters.find((e) => e.encounterId === generateEncounterId)?.encounterCode || '---'}
+                  </p>
+                </div>
+                <div className="bg-white p-3 rounded-xl border border-blue-100">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">GIẢM TRỪ CHI PHÍ (VNĐ - TÙY CHỌN)</p>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1000}
+                    value={generateDiscount}
+                    onChange={(e) =>
+                      setGenerateDiscount(
+                        e.target.value === '' ? '' : Math.max(0, Number(e.target.value))
+                      )
+                    }
+                    placeholder="0"
+                    className="w-full mt-0.5 px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 font-bold text-slate-800"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
     </div>
