@@ -76,12 +76,17 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
                     {p.status === 'in_progress' || isSelected ? 'Đang khám' : 'Chờ vào'}
                   </span>
                   {workflowState === 'ordered' && (
-                    <span className="text-[8px] bg-amber-100 text-amber-800 font-bold px-1 rounded">
-                      Chờ đóng phí/Lab
+                    <span className="text-[8px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded border border-amber-200">
+                      Chờ đóng phí
+                    </span>
+                  )}
+                  {workflowState === 'paid' && (
+                    <span className="text-[8px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded border border-blue-200">
+                      Đã đóng phí • Chờ Lab
                     </span>
                   )}
                   {workflowState === 'completed' && (
-                    <span className="text-[8px] bg-emerald-100 text-emerald-800 font-bold px-1 rounded">
+                    <span className="text-[8px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded border border-emerald-200">
                       Đã có kết quả Lab
                     </span>
                   )}

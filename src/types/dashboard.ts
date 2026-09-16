@@ -23,6 +23,12 @@ const receptionNavGroups: NavGroup[] = [
       { id: 'rec_workspace_registration', label: 'Đăng ký khám bệnh', path: '/tiep-nhan/benh-nhan', iconName: 'CalendarPlus', requiredPermission: 'patient:read:all' },
       { id: 'rec_workspace_queue_call', label: 'Gọi số hồ sơ', path: '/tiep-nhan/goi-so', iconName: 'Megaphone', badge: 'Live', requiredPermission: 'queue-ticket:read:all' }
     ]
+  },
+  {
+    groupName: 'Thu Phí & Hóa Đơn',
+    items: [
+      { id: 'rec_workspace_billing', label: 'Thu Phí & Thanh Toán', path: '/tiep-nhan/thu-phi', iconName: 'CreditCard', requiredPermission: 'appointment:read:all' }
+    ]
   }
 ];
 
