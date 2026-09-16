@@ -98,8 +98,8 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
       }
       return {
         status: 'cancelled' as const,
-        label: 'Hóa đơn đã hủy',
-        badgeClass: 'bg-slate-100 text-slate-600 border border-slate-200',
+        label: 'HĐ cũ đã hủy',
+        badgeClass: 'bg-purple-50 text-purple-700 border border-purple-200',
         invoice: null,
       };
     },
@@ -136,10 +136,10 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
     }
   };
 
-  // Lọc chỉ lấy các ca chưa tạo HĐ hoặc đang chờ thanh toán
+  // Lọc chỉ lấy các ca chưa tạo HĐ, đang chờ thanh toán, hoặc đã hủy HĐ cũ cần lập lại
   const unpaidEncounters = recentEncounters.filter((enc) => {
     const info = getEncounterBillingInfo(enc.encounterId);
-    return info.status === 'none' || info.status === 'pending';
+    return info.status === 'none' || info.status === 'pending' || info.status === 'cancelled';
   });
 
   const filteredEncounters = unpaidEncounters.filter((enc) => {
@@ -166,7 +166,7 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
         </span>
       }
       subtitle="Chỉ hiển thị các lượt khám chưa lập hóa đơn hoặc chưa thanh toán viện phí."
-      maxWidth="4xl"
+      maxWidth="6xl"
       footer={
         <div className="flex flex-col sm:flex-row justify-between items-center w-full gap-3">
           <div className="text-xs text-slate-500">
@@ -235,7 +235,7 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
 
         {/* Danh sách lượt khám */}
         <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
-          <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 font-bold text-slate-600 text-[11px] grid grid-cols-12 gap-2">
+          <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 font-bold text-slate-600 text-[11px] grid grid-cols-12 gap-3 items-center">
             <div className="col-span-4">BỆNH NHÂN / MÃ CA</div>
             <div className="col-span-3">KHOA KHÁM / BÁC SĨ</div>
             <div className="col-span-2">TIẾP NHẬN</div>
@@ -264,11 +264,11 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
                   <div
                     key={enc.encounterId}
                     onClick={() => {
-                      if (billingInfo.status === 'none') {
+                      if (billingInfo.status === 'none' || billingInfo.status === 'cancelled') {
                         setSelectedEncounterId(enc.encounterId);
                       }
                     }}
-                    className={`px-4 py-3 grid grid-cols-12 gap-2 items-center transition-colors ${
+                    className={`px-4 py-3 grid grid-cols-12 gap-3 items-center transition-colors ${
                       isSelected
                         ? 'bg-blue-50/90 border-l-4 border-blue-600'
                         : billingInfo.status === 'pending'
@@ -302,12 +302,23 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
                     </div>
 
                     {/* Tiếp nhận */}
-                    <div className="col-span-2 text-[11px] text-slate-500">
-                      {fmtDate(enc.arrivedAt)}
+                    <div className="col-span-2 text-[11px]">
+                      {enc.arrivedAt ? (
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-700">
+                            {new Date(enc.arrivedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {new Date(enc.arrivedAt).toLocaleDateString('vi-VN')}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </div>
 
                     {/* Trạng thái & Thao tác */}
-                    <div className="col-span-3 flex items-center justify-end gap-2">
+                    <div className="col-span-3 flex items-center justify-end gap-2 shrink-0">
                       {billingInfo.status === 'pending' && billingInfo.invoice ? (
                         <>
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
@@ -328,8 +339,8 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
                         </>
                       ) : (
                         <>
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
-                            Chưa lập HĐ
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${billingInfo.badgeClass}`}>
+                            {billingInfo.label}
                           </span>
                           <button
                             type="button"
