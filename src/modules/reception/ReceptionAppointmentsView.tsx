@@ -23,6 +23,7 @@ import {
   type AppointmentItem,
 } from '../../services/appointment/appointment.service';
 import { ReceptionAppointmentDetailModal } from './components/ReceptionAppointmentDetailModal';
+import { Mascot } from 'page-mascot';
 import { ReceptionCancelAppointmentModal } from './components/ReceptionCancelAppointmentModal';
 import { SyncPatientModal } from './components/SyncPatientModal';
 import { Badge } from '../../components/common/Badge';
@@ -357,16 +358,24 @@ export const ReceptionAppointmentsView: React.FC = () => {
     <div className="space-y-5">
       {/* Top Banner & Header */}
       <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-black text-slate-900">Danh Sách Lịch Hẹn & Tiếp Nhận</h2>
-            <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">
-              Quầy Lễ Tân
-            </span>
+        <div className="flex items-center gap-3">
+          <Mascot
+            directions="/mascots/glasses-directions.webp"
+            reactions="/mascots/glasses-reactions.webp"
+            size={120}
+            className="shrink-0"
+          />
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-black text-slate-900">Danh Sách Lịch Hẹn & Tiếp Nhận</h2>
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">
+                Quầy Lễ Tân
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1 font-medium">
+              Theo dõi danh sách bệnh nhân đặt khám online & tại quầy, xác nhận lịch hẹn và check-in phát số thứ tự khám tự động.
+            </p>
           </div>
-          <p className="text-xs text-slate-500 mt-1 font-medium">
-            Theo dõi danh sách bệnh nhân đặt khám online & tại quầy, xác nhận lịch hẹn và check-in phát số thứ tự khám tự động.
-          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -731,8 +740,8 @@ export const ReceptionAppointmentsView: React.FC = () => {
                             return (
                               <span
                                 className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black font-mono shadow-2xs border ${isPrefixA
-                                    ? 'bg-teal-50 text-teal-800 border-teal-300'
-                                    : 'bg-amber-50 text-amber-900 border-amber-300'
+                                  ? 'bg-teal-50 text-teal-800 border-teal-300'
+                                  : 'bg-amber-50 text-amber-900 border-amber-300'
                                   }`}
                                 title={
                                   isPrefixA

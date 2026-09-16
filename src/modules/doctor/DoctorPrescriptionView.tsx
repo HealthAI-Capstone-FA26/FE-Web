@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Pill, CheckCircle2, AlertTriangle, FileCheck, Printer, 
-  Download, Calendar, Search, Plus, Trash2, ShieldAlert, 
+import {
+  Pill, CheckCircle2, AlertTriangle, FileCheck, Printer,
+  Download, Calendar, Search, Plus, Trash2, ShieldAlert,
   Award, Check
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { BorderBeam } from '../../components/ui/border-beam';
+import { Mascot } from 'page-mascot';
 
 /* 
  * DESIGN READ:
@@ -523,13 +524,21 @@ export const DoctorPrescriptionView: React.FC = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">
-            Kê Đơn Thuốc & Ký Số Điện Tử
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Lập đơn thuốc điện tử, tự động kiểm tra tương tác thuốc, cảnh báo dị ứng và ký số pháp lý.
-          </p>
+        <div className="flex items-center gap-3">
+          <Mascot
+            directions="/mascots/kamran-directions.webp"
+            reactions="/mascots/kamran-reactions.webp"
+            size={120}
+            className="shrink-0"
+          />
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">
+              Kê Đơn Thuốc & Ký Số Điện Tử
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Lập đơn thuốc điện tử, tự động kiểm tra tương tác thuốc, cảnh báo dị ứng và ký số pháp lý.
+            </p>
+          </div>
         </div>
         <Badge variant="ai" size="sm">
           CA Digital Signature
@@ -537,24 +546,23 @@ export const DoctorPrescriptionView: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* Left Column: Patient selector and allergy record (4 cols) */}
         <div className="lg:col-span-4 space-y-6">
-          
+
           {/* Patient queue card */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
             <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Bệnh nhân đang chờ đơn thuốc</h3>
-            
+
             <div className="grid grid-cols-1 gap-2">
               {Object.values(mockPatientsDiagnosisData).map((p) => (
                 <div
                   key={p.id}
                   onClick={() => handleSelectPatient(p.id)}
-                  className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all flex justify-between items-center ${
-                    selectedPatientId === p.id
+                  className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all flex justify-between items-center ${selectedPatientId === p.id
                       ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300'
                       : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'
-                  }`}
+                    }`}
                 >
                   <div>
                     <div className="text-xs font-extrabold text-slate-800">{p.name}</div>
@@ -608,18 +616,17 @@ export const DoctorPrescriptionView: React.FC = () => {
 
         {/* Right Column: Prescription editor, directory selector, safety checks, follow-up, signing (8 cols) */}
         <div className="lg:col-span-8 space-y-6">
-          
+
           {/* Drug Safety Checks Alerts */}
           {safetyWarnings.length > 0 ? (
             <div className="space-y-2">
               {safetyWarnings.map((w, idx) => (
-                <div 
+                <div
                   key={idx}
-                  className={`p-4 rounded-2xl border text-xs font-bold flex items-start gap-2.5 animate-in slide-in-from-top-2 duration-200 ${
-                    w.type === 'danger'
+                  className={`p-4 rounded-2xl border text-xs font-bold flex items-start gap-2.5 animate-in slide-in-from-top-2 duration-200 ${w.type === 'danger'
                       ? 'bg-rose-50 border-rose-200 text-rose-900 shadow-xs'
                       : 'bg-amber-50 border-amber-200 text-amber-900 shadow-xs'
-                  }`}
+                    }`}
                 >
                   {w.type === 'danger' ? (
                     <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
@@ -653,7 +660,7 @@ export const DoctorPrescriptionView: React.FC = () => {
             </h3>
 
             <form onSubmit={handleAddDrug} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              
+
               <div className="space-y-1">
                 <label className="block font-bold text-slate-700">1. Chọn thuốc kê đơn (*):</label>
                 <select
@@ -842,11 +849,10 @@ export const DoctorPrescriptionView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleSyncFollowUp}
-                className={`px-4 py-2 text-xs font-extrabold rounded-xl border-none cursor-pointer flex items-center gap-1.5 shadow-xs transition-all ${
-                  isFollowUpSynced
+                className={`px-4 py-2 text-xs font-extrabold rounded-xl border-none cursor-pointer flex items-center gap-1.5 shadow-xs transition-all ${isFollowUpSynced
                     ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
                     : 'bg-slate-800 hover:bg-slate-900 text-white'
-                }`}
+                  }`}
               >
                 {isFollowUpSynced ? (
                   <>
@@ -927,7 +933,7 @@ export const DoctorPrescriptionView: React.FC = () => {
             <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            
+
             <div className="space-y-1">
               <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">Ký Số Đơn Thuốc Thành Công!</h4>
               <p className="text-xs text-slate-500 font-semibold max-w-sm mx-auto leading-normal">
@@ -955,16 +961,16 @@ export const DoctorPrescriptionView: React.FC = () => {
             </div>
 
             <div className="flex gap-2 justify-center pt-2">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => alert('Đang in đơn thuốc kết nối máy in...')}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer border-none shadow-xs"
               >
                 <Printer className="w-4 h-4 text-cyan-300" />
                 <span>In Đơn Thuốc</span>
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => {
                   alert('Tải tập tin EMR_Prescription_Report.pdf thành công.');
                 }}

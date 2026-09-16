@@ -1,5 +1,6 @@
 import React from 'react';
 import { RefreshCw, Activity, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { Mascot } from 'page-mascot';
 import { Badge } from '../../../components/common/Badge';
 
 interface NurseStatsHeaderProps {
@@ -23,19 +24,26 @@ export const NurseStatsHeader: React.FC<NurseStatsHeaderProps> = ({
     <div className="space-y-4">
       {/* Header Banner */}
       <div className="bg-white p-5 lg:p-6 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
-              <Activity className="w-6 h-6 text-blue-600" />
-              Trạm Điều Dưỡng — Tiếp Nhận & Đo Sinh Hiệu
-            </h2>
-            <Badge variant="warning" size="sm">
-              Mô-đun 4
-            </Badge>
+        <div className="flex items-start sm:items-center gap-3">
+          <Mascot
+            directions="/mascots/nurse-directions.webp"
+            reactions="/mascots/nurse-reactions.webp"
+            size={120}
+            className="shrink-0"
+          />
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl font-extrabold text-slate-900">
+                Trạm Điều Dưỡng — Tiếp Nhận & Đo Sinh Hiệu
+              </h2>
+              <Badge variant="warning" size="sm">
+                Mô-đun 4
+              </Badge>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Bệnh nhân sau khi được Lễ tân tiếp nhận sẽ hiển thị tại trạm đo sinh hiệu (Huyết áp, Mạch, Nhiệt độ, SpO2, Chiều cao, Cân nặng, BMI) trước khi chuyển vào khám Bác sĩ.
+            </p>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Bệnh nhân sau khi được Lễ tân tiếp nhận sẽ hiển thị tại trạm đo sinh hiệu (Huyết áp, Mạch, Nhiệt độ, SpO2, Chiều cao, Cân nặng, BMI) trước khi chuyển vào khám Bác sĩ.
-          </p>
         </div>
 
         <button

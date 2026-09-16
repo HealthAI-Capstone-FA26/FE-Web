@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Search, CheckCircle2, XCircle, Sparkles, Clock, FileText, 
+import {
+  Search, CheckCircle2, XCircle, Sparkles, Clock, FileText,
   Clipboard, BookOpen, AlertCircle, ArrowRight, User
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
-import { doctorAiService, type PatientIntakeDetail } from '../../services/doctor/doctor-ai.service';
+import { doctorAiService } from '../../services/doctor/doctor-ai.service';
 import { icd10Service } from '../../services/icd10/icd10.service';
 import { BorderBeam } from '../../components/ui/border-beam';
+import { Mascot } from 'page-mascot';
 
 /* 
  * DESIGN READ:
@@ -188,12 +189,12 @@ export const DoctorDiagnosisView: React.FC = () => {
   const [selectedIcd, setSelectedIcd] = useState({ code: 'J18.1', name: 'Viêm phổi thùy, không xác định' });
   const [aiDecision, setAiDecision] = useState<'ACCEPT' | 'REJECT'>('ACCEPT');
   const [rejectReason, setRejectReason] = useState('');
-  
+
   // Consultation form states
   const [expNote, setExpNote] = useState('');
   const [planNote, setPlanNote] = useState('');
   const [lifeNote, setLifeNote] = useState('');
-  
+
   const [isSubmitSuccess, setIsSubmitSuccess] = useState(false);
 
   // Active Patient Details
@@ -274,24 +275,32 @@ export const DoctorDiagnosisView: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto text-slate-800 animate-in fade-in duration-200">
-      
+
       {/* Module Title Banner */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-              Mô-đun 8: Chẩn đoán hậu xét nghiệm & Tư vấn điều trị
-            </span>
-            <Badge variant="ai" size="sm">
-              ICD-10 Standardized
-            </Badge>
+        <div className="flex items-center gap-3">
+          <Mascot
+            directions="/mascots/kamran-directions.webp"
+            reactions="/mascots/kamran-reactions.webp"
+            size={120}
+            className="shrink-0"
+          />
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                Mô-đun 8: Chẩn đoán hậu xét nghiệm & Tư vấn điều trị
+              </span>
+              <Badge variant="ai" size="sm">
+                ICD-10 Standardized
+              </Badge>
+            </div>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">
+              Kết luận Chẩn đoán Lâm sàng & Lập Hồ sơ Tư vấn
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Tổng hợp timeline y khoa, phê duyệt đề xuất từ mô-đun AI tổng hợp, chọn mã bệnh quốc tế ICD-10 và hoàn tất ghi chú tư vấn điều trị.
+            </p>
           </div>
-          <h2 className="text-xl font-black text-slate-900 tracking-tight">
-            Kết luận Chẩn đoán Lâm sàng & Lập Hồ sơ Tư vấn
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Tổng hợp timeline y khoa, phê duyệt đề xuất từ mô-đun AI tổng hợp, chọn mã bệnh quốc tế ICD-10 và hoàn tất ghi chú tư vấn điều trị.
-          </p>
         </div>
 
         <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-2 text-xs font-extrabold text-indigo-950">
@@ -301,24 +310,23 @@ export const DoctorDiagnosisView: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* Left column: Patient Queue & EMR Timeline (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
-          
+
           {/* Patient Selector */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
             <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Danh sách bệnh nhân hậu xét nghiệm</h3>
-            
+
             <div className="grid grid-cols-1 gap-2">
               {Object.values(mockPatientsDiagnosisData).map((p) => (
                 <div
                   key={p.id}
                   onClick={() => handleSelectPatientId(p.id)}
-                  className={`p-3 rounded-2xl border text-left cursor-pointer transition-all flex justify-between items-center ${
-                    selectedPatientId === p.id
+                  className={`p-3 rounded-2xl border text-left cursor-pointer transition-all flex justify-between items-center ${selectedPatientId === p.id
                       ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300'
                       : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'
-                  }`}
+                    }`}
                 >
                   <div>
                     <div className="text-xs font-extrabold text-slate-800">{p.name}</div>
@@ -395,7 +403,7 @@ export const DoctorDiagnosisView: React.FC = () => {
 
         {/* Right column: AI recommendations, Decision inputs and ICD10 lookup (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
-          
+
           {/* AI diagnosis recommendations with details */}
           <BorderBeam size="md" colorVariant="colorful">
             <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 border border-indigo-500/30 shadow-xl shadow-indigo-950/40 p-6 rounded-3xl text-white space-y-4">
@@ -419,7 +427,7 @@ export const DoctorDiagnosisView: React.FC = () => {
                   </span>
                   {currentPatient.aiSuggestedIcd.name}
                 </div>
-                
+
                 <div className="text-xs text-slate-200 leading-relaxed font-semibold pt-1.5 border-t border-indigo-950/80">
                   <strong>Lập luận giải trình của AI:</strong> {currentPatient.aiSuggestedIcd.reasoning}
                 </div>
@@ -442,7 +450,7 @@ export const DoctorDiagnosisView: React.FC = () => {
             {/* Doctor Decision: Accept or Reject AI proposal */}
             <div className="space-y-3">
               <label className="block text-xs font-extrabold text-slate-700">Quyết định phê duyệt đề xuất từ AI (*):</label>
-              
+
               <div className="flex gap-3">
                 <button
                   type="button"
@@ -453,11 +461,10 @@ export const DoctorDiagnosisView: React.FC = () => {
                       name: currentPatient.aiSuggestedIcd.name
                     });
                   }}
-                  className={`flex-1 p-3.5 rounded-2xl border font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    aiDecision === 'ACCEPT' 
-                      ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-300 shadow-xs' 
+                  className={`flex-1 p-3.5 rounded-2xl border font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${aiDecision === 'ACCEPT'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-300 shadow-xs'
                       : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
+                    }`}
                 >
                   <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />
                   <span>Đồng ý & Chấp nhận gợi ý AI</span>
@@ -466,11 +473,10 @@ export const DoctorDiagnosisView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setAiDecision('REJECT')}
-                  className={`flex-1 p-3.5 rounded-2xl border font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    aiDecision === 'REJECT' 
-                      ? 'bg-rose-50 border-rose-500 text-rose-800 ring-2 ring-rose-300 shadow-xs' 
+                  className={`flex-1 p-3.5 rounded-2xl border font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${aiDecision === 'REJECT'
+                      ? 'bg-rose-50 border-rose-500 text-rose-800 ring-2 ring-rose-300 shadow-xs'
                       : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
+                    }`}
                 >
                   <XCircle className="w-4.5 h-4.5 text-rose-600" />
                   <span>Phủ quyết gợi ý AI (Nhập chẩn đoán khác)</span>
@@ -498,7 +504,7 @@ export const DoctorDiagnosisView: React.FC = () => {
             {/* ICD-10 Search & Official Disease selection */}
             <div className="space-y-2">
               <label className="block text-xs font-extrabold text-slate-700">Mã bệnh lý chính thức chuẩn hóa ICD-10 (*):</label>
-              
+
               <div className="relative">
                 <Search className="w-4.5 h-4.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input

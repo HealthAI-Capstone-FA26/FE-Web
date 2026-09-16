@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { patientService } from '../../services/patient/patient.service';
 import { EditPatientModal } from './EditPatientModal';
+import { Mascot } from 'page-mascot';
 
 /* 
  * DESIGN READ:
@@ -302,14 +303,21 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* 1. Header Card */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Users className="w-5 h-5 text-blue-700" />
-            <span>Quản Lý Hồ Sơ Bệnh Nhân & Bệnh Án</span>
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Quản trị danh sách bệnh nhân, tra cứu thông tin hành chính, số CCCD/BHYT và lịch sử khám bệnh
-          </p>
+        <div className="flex items-center gap-3">
+          <Mascot
+            directions="/mascots/glasses-directions.webp"
+            reactions="/mascots/glasses-reactions.webp"
+            size={120}
+            className="shrink-0"
+          />
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">
+              Quản Lý Hồ Sơ Bệnh Nhân & Bệnh Án
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Quản trị danh sách bệnh nhân, tra cứu thông tin hành chính, số CCCD/BHYT và lịch sử khám bệnh
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2.5 self-start md:self-auto">
@@ -344,8 +352,8 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
             key={item.key}
             onClick={() => setSelectedFilterTab(item.key)}
             className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${selectedFilterTab === item.key
-                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/10'
-                : 'bg-white text-slate-800 border-slate-200/90 hover:border-blue-200 hover:bg-slate-50/50'
+              ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/10'
+              : 'bg-white text-slate-800 border-slate-200/90 hover:border-blue-200 hover:bg-slate-50/50'
               }`}
           >
             <div className="flex items-center justify-between">
@@ -391,8 +399,8 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
                 key={tab.id}
                 onClick={() => setSelectedFilterTab(tab.id)}
                 className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all shrink-0 border cursor-pointer ${selectedFilterTab === tab.id
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                   }`}
               >
                 {tab.label}
@@ -602,8 +610,8 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
                         <button
                           onClick={() => setCurrentPage(page)}
                           className={`w-7 h-7 text-xs font-bold rounded-lg transition-colors border cursor-pointer ${currentPage === page
-                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                             }`}
                         >
                           {page}
@@ -1065,7 +1073,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
             setPatients((prev) =>
               prev.map((p) =>
                 (p.patientId && p.patientId === editingPatient.patientId) ||
-                (p.mrn && p.mrn === editingPatient.mrn)
+                  (p.mrn && p.mrn === editingPatient.mrn)
                   ? { ...p, ...updatedData }
                   : p
               )
