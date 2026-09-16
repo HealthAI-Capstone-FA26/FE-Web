@@ -1,32 +1,37 @@
 import React from 'react';
-import { CreditCard, FileText } from 'lucide-react';
+import { CreditCard, FileText, XCircle } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { ReceptionBillingView } from './ReceptionBillingView';
 
 export const ReceptionBillingWorkspaceView: React.FC = () => {
   const tabs: WorkspaceTab[] = [
     {
-      id: 'billing-qr',
-      label: 'Thu phí & Thanh toán VietQR',
+      id: 'billing-pending',
+      label: 'Thu Phí & Thanh Toán',
       icon: CreditCard,
-      badge: '05 Chờ',
-      component: <ReceptionBillingView />
+      component: <ReceptionBillingView filterStatus="pending" />,
     },
     {
-      id: 'invoices',
-      label: 'Xuất Hóa đơn & Biên nhận PDF',
+      id: 'invoices-paid',
+      label: 'Hóa Đơn Đã Thanh Toán',
       icon: FileText,
-      component: <ReceptionBillingView />
-    }
+      component: <ReceptionBillingView filterStatus="paid" />,
+    },
+    {
+      id: 'invoices-cancelled',
+      label: 'Hóa Đơn Đã Hủy',
+      icon: XCircle,
+      component: <ReceptionBillingView filterStatus="cancelled" />,
+    },
   ];
 
   return (
     <WorkspaceContainer
-      title="Quản Lý Thu Phí & Hóa Đơn Bệnh Viện"
-      subtitle="Xử lý thu phí khám/xét nghiệm, thanh toán mã VietQR động và xuất hóa đơn PDF tiêu chuẩn"
+      title="Quản Lý Thu Phí & Hóa Đơn"
+      subtitle="Xử lý thu phí khám/xét nghiệm, thanh toán mã QR PayOS và xuất hóa đơn PDF"
       icon={CreditCard}
       tabs={tabs}
-      defaultTabId="billing-qr"
+      defaultTabId="billing-pending"
     />
   );
 };

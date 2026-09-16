@@ -149,10 +149,16 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                 )}
                 <div className="text-left hidden sm:block">
                   <div className="text-xs font-extrabold text-slate-800 leading-tight whitespace-nowrap">
-                    {user?.role === 'ADMIN' ? 'Quản trị viên' : user?.name}
+                    {user?.name}
                   </div>
                   <div className="text-[10px] text-blue-700 font-bold whitespace-nowrap">
-                    {user?.role === 'ADMIN' ? 'System admin' : user?.roleTitle}
+                    {user?.role === 'DOCTOR' ? 'Bác sĩ'
+                      : user?.role === 'NURSE' ? 'Điều dưỡng'
+                      : user?.role === 'LAB' ? 'KTV Phòng Lab'
+                      : user?.role === 'ADMIN' ? 'Quản trị viên'
+                      : user?.role === 'RECEPTIONIST' ? 'Lễ tân / Thu ngân'
+                      : user?.role === 'PATIENT' ? 'Bệnh nhân'
+                      : user?.roleTitle}
                   </div>
                 </div>
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400" />

@@ -122,15 +122,27 @@ export const AiImagingAnalysisCard: React.FC<AiImagingAnalysisCardProps> = ({
               </p>
             </div>
           </>
-        ) : (
+        ) : currentWorkflowState === 'ordered' ? (
           <>
-            <Clock className="w-10 h-10 text-indigo-500 animate-spin-slow" />
+            <Clock className="w-10 h-10 text-amber-500 animate-spin-slow" />
             <div className="space-y-1">
-              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-tight">
-                AI02 — Đang chờ thanh toán & Xét nghiệm phòng Lab
+              <h4 className="text-xs font-bold text-amber-300 uppercase tracking-tight">
+                AI02 — Đang chờ bệnh nhân đóng viện phí tại Quầy Thu Phí
               </h4>
               <p className="text-[11px] text-slate-400 max-w-lg leading-relaxed">
-                Chỉ định cận lâm sàng đã được chuyển đi. Bệnh nhân cần hoàn tất thanh toán viện phí tại quầy thu phí (Mô-đun 6) và thực hiện chụp chiếu xét nghiệm tại phòng Lab (Mô-đun 7).
+                Chỉ định cận lâm sàng đã được chuyển sang Quầy Thu phí (Mô-đun 6). Bệnh nhân cần hoàn tất thanh toán viện phí trước khi sang phòng Lab.
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <Clock className="w-10 h-10 text-blue-400 animate-spin-slow" />
+            <div className="space-y-1">
+              <h4 className="text-xs font-bold text-blue-300 uppercase tracking-tight">
+                AI02 — Đã đóng phí • Đang chờ xét nghiệm tại phòng Lab
+              </h4>
+              <p className="text-[11px] text-slate-400 max-w-lg leading-relaxed">
+                Bệnh nhân đã hoàn tất đóng viện phí. Đang chờ phòng Lab (Mô-đun 7) thực hiện lấy mẫu, chụp chiếu và tải kết quả xét nghiệm lên hệ thống.
               </p>
             </div>
           </>

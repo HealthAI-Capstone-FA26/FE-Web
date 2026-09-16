@@ -21,6 +21,7 @@ import {
   type TestOrderDetail,
   type CaseOverviewData,
 } from '../../services/doctor';
+import { invoiceService } from '../../services/payment/invoice.service';
 
 // Modular Sub-Components
 import type { PatientEMR, PatientWorkflowState } from './types';
@@ -58,6 +59,50 @@ export const DoctorEMRView: React.FC = () => {
       })
       .finally(() => setIsLoadingApi(false));
   }, []);
+
+  // Đồng bộ trạng thái quy trình (Chờ đóng phí / Đã đóng phí • Chờ Lab / Đã có kết quả Lab) cho các ca trong hàng chờ
+  useEffect(() => {
+    if (apiEncounters.length === 0) return;
+    apiEncounters.forEach(async (enc) => {
+      const key = enc.patient?.patientCode || enc.encounterCode || enc.patientId;
+      try {
+        const [orders, invoices] = await Promise.all([
+          testOrderService.getTestOrdersByEncounter(enc.encounterId),
+          invoiceService.findMany({ encounterId: enc.encounterId }).catch(() => []),
+        ]);
+        const activeItems = orders
+          .flatMap((o) => o.items || [])
+          .filter((i) => i.status !== 'cancelled');
+
+        if (activeItems.length > 0) {
+          const allCompleted = activeItems.every((i) => i.labTask?.status === 'completed');
+          const isPaid =
+            invoices.some((inv) => inv.status === 'paid') ||
+            activeItems.some(
+              (i) =>
+                i.labTask?.paymentVerified === true ||
+                i.labTask?.status === 'ready' ||
+                i.labTask?.status === 'in_progress' ||
+                i.labTask?.status === 'completed'
+            );
+
+          let state: PatientWorkflowState = 'ordered';
+          if (allCompleted) {
+            state = 'completed';
+          } else if (isPaid) {
+            state = 'paid';
+          }
+
+          setPatientWorkflowStates((prev) => ({
+            ...prev,
+            [key]: prev[key] === 'completed' ? 'completed' : state,
+          }));
+        }
+      } catch {
+        // ignore
+      }
+    });
+  }, [apiEncounters]);
 
   const handleSelectPatientId = (id: string) => {
     setSelectedPatientId(id);
@@ -508,20 +553,43 @@ export const DoctorEMRView: React.FC = () => {
     ];
   }, [caseOverview?.aiDiagnosisSuggestions, caseOverview?.chiefComplaint?.symptoms, selectedEncounterDetail?.chiefComplaint?.symptoms, currentPatient?.symptoms, activeTemp, currentPatient?.vitals?.temp]);
 
-  // Tải danh sách các phiếu chỉ định đã lập của ca khám từ API
+  // Tải danh sách các phiếu chỉ định đã lập của ca khám từ API và kiểm tra trạng thái đóng phí
   const fetchEncounterTestOrders = async (encounterId: string) => {
     try {
       setIsLoadingTestOrders(true);
-      const orders = await testOrderService.getTestOrdersByEncounter(encounterId);
+      const [orders, invoices] = await Promise.all([
+        testOrderService.getTestOrdersByEncounter(encounterId),
+        invoiceService.findMany({ encounterId }).catch(() => []),
+      ]);
+
       if (Array.isArray(orders)) {
         setExistingTestOrders(orders);
-        const hasActiveOrder = orders.some(
-          (o) => o.items && o.items.some((i) => i.status !== 'cancelled')
-        );
-        if (hasActiveOrder) {
+        const activeItems = orders
+          .flatMap((o) => o.items || [])
+          .filter((i) => i.status !== 'cancelled');
+
+        if (activeItems.length > 0) {
+          const allCompleted = activeItems.every((i) => i.labTask?.status === 'completed');
+          const isPaid =
+            invoices.some((inv) => inv.status === 'paid') ||
+            activeItems.some(
+              (i) =>
+                i.labTask?.paymentVerified === true ||
+                i.labTask?.status === 'ready' ||
+                i.labTask?.status === 'in_progress' ||
+                i.labTask?.status === 'completed'
+            );
+
+          let nextState: PatientWorkflowState = 'ordered';
+          if (allCompleted) {
+            nextState = 'completed';
+          } else if (isPaid) {
+            nextState = 'paid';
+          }
+
           setPatientWorkflowStates((prev) => ({
             ...prev,
-            [selectedPatientId]: prev[selectedPatientId] === 'completed' ? 'completed' : 'ordered',
+            [selectedPatientId]: prev[selectedPatientId] === 'completed' ? 'completed' : nextState,
           }));
         }
       }
