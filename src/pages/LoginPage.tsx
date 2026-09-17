@@ -57,7 +57,10 @@ export const LoginPage = () => {
       loginWithTokens(res.accessToken, res.refreshToken, res.user);
 
       // 3. Chuyển hướng theo đúng role từ backend trả về
-      const mappedRole = (res.user.actorRole || 'PATIENT').toUpperCase().trim() as UserRole;
+      let rawRole = (res.user.actorRole || 'PATIENT').toUpperCase().trim();
+      if (rawRole === 'LAB_STAFF') rawRole = 'LAB';
+      if (rawRole === 'RECEPTION') rawRole = 'RECEPTIONIST';
+      const mappedRole = rawRole as UserRole;
       const targetPath = ROLE_DEFAULT_PATHS[mappedRole] || '/dashboard';
 
       setTimeout(() => {

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_NAV_CONFIG, ROLE_DEFAULT_PATHS } from '../../types/dashboard';
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { getAvatarUrl } from '../../services/api';
 import {
   LayoutDashboard,
@@ -16,6 +16,8 @@ import {
   Bell,
   LogOut,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Sparkles,
   CreditCard,
   Pill,
@@ -43,6 +45,35 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Inactivity timer for auto-collapsing sidebar
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isHoveringSidebarRef = useRef<boolean>(false);
+
+  const clearInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+  }, []);
+
+  const resetInactivityTimer = useCallback(() => {
+    clearInactivityTimer();
+    inactivityTimerRef.current = setTimeout(() => {
+      setIsSidebarOpen(false);
+    }, 3000);
+  }, [clearInactivityTimer]);
+
+  // Initial load & route change: start 3s countdown if sidebar is open and user isn't hovering
+  useEffect(() => {
+    if (isSidebarOpen && !isHoveringSidebarRef.current) {
+      resetInactivityTimer();
+    }
+    return () => {
+      clearInactivityTimer();
+    };
+  }, [location.pathname, isSidebarOpen, resetInactivityTimer, clearInactivityTimer]);
 
   const rawNavGroups = ROLE_NAV_CONFIG[currentRole] || ROLE_NAV_CONFIG.DOCTOR;
   const navGroups = rawNavGroups
@@ -98,7 +129,17 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
           <div className="flex items-center space-x-3">
             {/* Sidebar Toggle Button (Desktop & Mobile) */}
             <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              onClick={() => {
+                setIsSidebarOpen((prev) => {
+                  const next = !prev;
+                  if (next) {
+                    resetInactivityTimer();
+                  } else {
+                    clearInactivityTimer();
+                  }
+                  return next;
+                });
+              }}
               className="p-2 text-slate-600 hover:text-blue-900 hover:bg-slate-100 rounded-xl transition-all border border-slate-200/80 cursor-pointer bg-white"
             >
               {isSidebarOpen ? <PanelLeftClose className="w-5 h-5 text-slate-700" /> : <PanelLeft className="w-5 h-5 text-blue-700" />}
@@ -244,26 +285,78 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
       {/* Main Screen Container with Flush Left Sidebar */}
       <div className="flex-1 flex w-full relative">
+        {/* Floating Arrow Tab on Left Edge when sidebar is collapsed (Vertically Centered) */}
+        {!isSidebarOpen && (
+          <button
+            onClick={() => {
+              setIsSidebarOpen(true);
+              resetInactivityTimer();
+            }}
+            onMouseEnter={() => {
+              isHoveringSidebarRef.current = true;
+              setIsSidebarOpen(true);
+              resetInactivityTimer();
+            }}
+            title="Mở menu điều hướng (Hover hoặc Click)"
+            className="fixed left-0 top-1/2 -translate-y-1/2 z-30 flex items-center justify-center w-6 sm:w-7 h-14 bg-white hover:bg-blue-600 text-slate-400 hover:text-white border border-l-0 border-slate-200/90 hover:border-blue-600 shadow-md hover:shadow-lg rounded-r-xl transition-all cursor-pointer group"
+          >
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        )}
+
         {/* Sidebar Sticky & Flush Left */}
         <aside
-          className={`fixed lg:sticky top-[78px] left-0 z-20 h-[calc(100vh-78px)] bg-white border-r border-slate-200/90 transition-all duration-300 ease-in-out shrink-0 overflow-y-auto ${isSidebarOpen
-            ? 'w-52 translate-x-0 p-3'
-            : '-translate-x-full lg:translate-x-0 lg:w-16 p-2'
+          onMouseEnter={() => {
+            isHoveringSidebarRef.current = true;
+            setIsSidebarOpen(true);
+            resetInactivityTimer();
+          }}
+          onMouseMove={() => {
+            isHoveringSidebarRef.current = true;
+            if (!isSidebarOpen) {
+              setIsSidebarOpen(true);
+            }
+            resetInactivityTimer();
+          }}
+          onMouseLeave={() => {
+            isHoveringSidebarRef.current = false;
+            resetInactivityTimer();
+          }}
+          onClick={() => {
+            resetInactivityTimer();
+          }}
+          className={`fixed lg:sticky top-[78px] left-0 z-20 h-[calc(100vh-78px)] bg-white transition-all duration-300 ease-in-out shrink-0 overflow-y-auto overflow-x-hidden ${isSidebarOpen
+            ? 'w-56 translate-x-0 p-3 border-r border-slate-200/90 shadow-lg lg:shadow-none'
+            : 'w-0 p-0 border-r-0 -translate-x-full lg:translate-x-0'
             }`}
         >
           <div className="flex flex-col justify-between h-full space-y-4">
-            <div className="space-y-4">
+            <div className="space-y-3">
+              {/* Header inside Sidebar with quick collapse button */}
+              <div className="flex items-center justify-between px-1 pb-2 border-b border-slate-100">
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                  Menu điều hướng
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsSidebarOpen(false);
+                    clearInactivityTimer();
+                  }}
+                  title="Thu gọn menu"
+                  className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer border-none bg-transparent flex items-center justify-center"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              </div>
+
               {/* Categorized Tab Groups inside Sidebar */}
               <div className="space-y-4">
                 {navGroups.map((group, gIdx) => (
                   <div key={gIdx} className="space-y-1">
-                    {isSidebarOpen ? (
-                      <div className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                        {group.groupName}
-                      </div>
-                    ) : (
-                      <div className="h-px bg-slate-200/80 my-2 mx-1" title={group.groupName} />
-                    )}
+                    <div className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                      {group.groupName}
+                    </div>
 
                     {group.items.map((item) => {
                       const Icon = getIconComponent(item.iconName);
@@ -274,10 +367,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                           to={item.path}
                           title={item.label}
                           className={({ isActive }) =>
-                            `flex items-center transition-all cursor-pointer border ${isSidebarOpen
-                              ? 'w-full justify-between px-2.5 py-2 rounded-xl text-xs text-left'
-                              : 'w-10 h-10 mx-auto justify-center rounded-xl'
-                            } ${isActive
+                            `flex items-center w-full justify-between px-2.5 py-2 rounded-xl text-xs text-left transition-all cursor-pointer border ${isActive
                               ? 'bg-blue-600 text-white border-blue-600 font-black shadow-sm'
                               : 'bg-transparent border-transparent text-slate-700 hover:bg-slate-100 hover:text-blue-900 font-bold'
                             }`
@@ -285,28 +375,17 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                         >
                           {({ isActive }) => (
                             <>
-                              {isSidebarOpen ? (
-                                <>
-                                  <div className="flex items-center space-x-2 min-w-0 flex-1">
-                                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                                    <span className="text-xs font-bold leading-tight truncate">{item.label}</span>
-                                  </div>
-                                  {item.badge && (
-                                    <span
-                                      className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ml-1 ${isActive ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
-                                        }`}
-                                    >
-                                      {item.badge}
-                                    </span>
-                                  )}
-                                </>
-                              ) : (
-                                <div className="relative flex items-center justify-center">
-                                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-600'}`} />
-                                  {item.badge && (
-                                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-ping" />
-                                  )}
-                                </div>
+                              <div className="flex items-center space-x-2 min-w-0 flex-1">
+                                <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                                <span className="text-xs font-bold leading-tight truncate">{item.label}</span>
+                              </div>
+                              {item.badge && (
+                                <span
+                                  className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ml-1 ${isActive ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
+                                    }`}
+                                >
+                                  {item.badge}
+                                </span>
                               )}
                             </>
                           )}
@@ -320,27 +399,21 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
             {/* Sidebar Footer Info */}
             <div className="pt-3 border-t border-slate-100">
-              {isSidebarOpen ? (
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 text-xs text-slate-600 space-y-1">
-                  <div className="flex items-center justify-between font-bold text-slate-800">
-                    <span className="text-[11px] whitespace-nowrap">Tiêu chuẩn HL7 FHIR</span>
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-normal">
-                    Dữ liệu y tế liên thông toàn diện & tích hợp Mô-đun AI.
-                  </p>
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 text-xs text-slate-600 space-y-1">
+                <div className="flex items-center justify-between font-bold text-slate-800">
+                  <span className="text-[11px] whitespace-nowrap">Tiêu chuẩn HL7 FHIR</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                 </div>
-              ) : (
-                <div className="flex justify-center" title="Tiêu chuẩn HL7 FHIR - Hoạt động">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-100" />
-                </div>
-              )}
+                <p className="text-[10px] text-slate-500 leading-normal">
+                  Dữ liệu y tế liên thông toàn diện & tích hợp Mô-đun AI.
+                </p>
+              </div>
             </div>
           </div>
         </aside>
 
         {/* Content Outlet */}
-        <main className="flex-1 p-3 sm:p-5 lg:p-6 overflow-x-hidden min-w-0">
+        <main className={`flex-1 p-3 sm:p-5 lg:p-6 overflow-x-hidden min-w-0 transition-all duration-300 ${!isSidebarOpen ? 'pl-8 sm:pl-10 lg:pl-12' : ''}`}>
           {children || <Outlet />}
         </main>
       </div>

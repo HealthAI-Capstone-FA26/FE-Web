@@ -6,6 +6,7 @@ export interface LabRoomItem {
   labRoomName: string;
   description?: string | null;
   location?: string | null;
+  roomLocation?: string | null;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -74,6 +75,16 @@ export const labRoomService = {
   async removeStaffFromLabRoom(labRoomId: string, userId: string): Promise<void> {
     return apiFetch<void>(`/lab-rooms/${labRoomId}/staff/${userId}`, {
       method: 'DELETE',
+    });
+  },
+
+  /**
+   * GET /api/v1/lab-rooms/my-assignments
+   * Trả về danh sách phòng Lab mà KTV hiện tại được phân công
+   */
+  async getMyAssignments(): Promise<LabStaffRoomAssignment[]> {
+    return apiFetch<LabStaffRoomAssignment[]>('/lab-rooms/my-assignments', {
+      method: 'GET',
     });
   },
 };
