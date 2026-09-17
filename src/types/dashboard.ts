@@ -63,7 +63,7 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
     {
       groupName: 'Không gian Chẩn đoán',
       items: [
-        { id: 'lab_workspace_diagnostic', label: 'Xét nghiệm & Chẩn đoán AI', path: '/xet-nghiem/hang-cho-xet-nghiem', iconName: 'FlaskConical', badge: '09 Ca', requiredPermission: 'imaging-study:read:all' }
+        { id: 'lab_workspace_diagnostic', label: 'Xét nghiệm', path: '/xet-nghiem/hang-cho-xet-nghiem', iconName: 'FlaskConical', requiredPermission: 'imaging-study:read:all' }
       ]
     }
   ],

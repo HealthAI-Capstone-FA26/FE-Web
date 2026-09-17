@@ -7,9 +7,8 @@ export const LabWorkspaceView: React.FC = () => {
   const tabs: WorkspaceTab[] = [
     {
       id: 'lab-orders',
-      label: 'Hàng chờ & Chỉ định Xét nghiệm',
+      label: 'Yêu cầu xét nghiệm',
       icon: FlaskConical,
-      badge: '09 Ca',
       component: <LabOrdersView />
     },
     {
