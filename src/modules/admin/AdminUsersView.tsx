@@ -54,6 +54,13 @@ const LabIcon = ({ className }: { className?: string }) => {
   return <img src="/images/lab_icon.png" alt="KTV Xét nghiệm" className={`shrink-0 rounded-full object-cover ${sizeClass}`} />;
 };
 
+export const normalizeRoleKey = (role?: string): string => {
+  const r = (role || 'PATIENT').toUpperCase().trim();
+  if (r === 'LAB_STAFF') return 'LAB';
+  if (r === 'RECEPTION') return 'RECEPTIONIST';
+  return r;
+};
+
 const ROLE_CONFIG: Record<
   string,
   { label: string; icon: any; className: string }
@@ -79,6 +86,11 @@ const ROLE_CONFIG: Record<
     className: 'bg-amber-50 text-amber-700 border-amber-200/90 shadow-2xs',
   },
   LAB: {
+    label: 'KTV Xét nghiệm',
+    icon: LabIcon,
+    className: 'bg-cyan-50 text-cyan-700 border-cyan-200/90 shadow-2xs',
+  },
+  LAB_STAFF: {
     label: 'KTV Xét nghiệm',
     icon: LabIcon,
     className: 'bg-cyan-50 text-cyan-700 border-cyan-200/90 shadow-2xs',
@@ -160,7 +172,7 @@ export const AdminUsersView: React.FC = () => {
       ADMIN: 0,
     };
     users.forEach((u) => {
-      const role = (u.actorRole || 'PATIENT').toUpperCase();
+      const role = normalizeRoleKey(u.actorRole);
       if (counts[role] !== undefined) {
         counts[role]++;
       }
@@ -178,7 +190,7 @@ export const AdminUsersView: React.FC = () => {
         (u.phoneNumber && u.phoneNumber.includes(searchQuery)) ||
         u.userId.toLowerCase().includes(searchQuery.toLowerCase());
 
-      const userRole = (u.actorRole || 'PATIENT').toUpperCase();
+      const userRole = normalizeRoleKey(u.actorRole);
       const matchesRole = selectedRoleTab === 'ALL' || userRole === selectedRoleTab;
 
       return matchesSearch && matchesRole;
@@ -331,7 +343,7 @@ export const AdminUsersView: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginatedUsers.map((u) => {
-                  const roleKey = (u.actorRole || 'PATIENT').toUpperCase();
+                  const roleKey = normalizeRoleKey(u.actorRole);
                   const roleCfg = ROLE_CONFIG[roleKey] || ROLE_CONFIG.PATIENT;
                   const avatarSrc = u.avatarUrl ? getAvatarUrl(u.avatarUrl) : null;
 
