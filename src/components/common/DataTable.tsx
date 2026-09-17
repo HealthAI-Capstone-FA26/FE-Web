@@ -88,7 +88,7 @@ export function DataTable<T extends Record<string, any>>({
                   className="hover:bg-blue-50/40 transition-colors group"
                 >
                   {columns.map((col, cIdx) => (
-                    <td key={cIdx} className={`py-3 px-4 ${col.className || ''}`}>
+                    <td key={cIdx} className={`py-3.5 px-4 align-middle ${col.className || ''}`}>
                       {col.cell ? col.cell(row, rIdx) : String(row[col.accessorKey!] ?? '-')}
                     </td>
                   ))}

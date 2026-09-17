@@ -20,8 +20,8 @@ export const LabOrdersView: React.FC = () => {
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [isLoadingRooms, setIsLoadingRooms] = useState<boolean>(true);
 
-  // Tasks List State
-  const [tasks, setTasks] = useState<LabTaskItem[]>([]);
+  // Tasks List State (Tải 1 lần tất cả ca để chuyển phòng tức thì 0ms không phải load lại)
+  const [allTasks, setAllTasks] = useState<LabTaskItem[]>([]);
   const [isLoadingTasks, setIsLoadingTasks] = useState<boolean>(false);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -93,17 +93,15 @@ export const LabOrdersView: React.FC = () => {
     };
   }, []);
 
-  // 2. Load Tasks khi chọn phòng hoặc đổi filter
-  const fetchTasks = useCallback(async (roomId: string, silent = false) => {
-    if (!roomId) return;
+  // 2. Load toàn bộ Tasks (1 request duy nhất, không cần reload lại khi đổi phòng)
+  const fetchTasks = useCallback(async (silent = false) => {
     if (!silent) setIsLoadingTasks(true);
     setTaskError(null);
     try {
       const data = await labTaskService.getLabTasks({
-        labRoomId: roomId,
         status: statusFilter !== 'ALL' ? statusFilter : undefined,
       });
-      setTasks(Array.isArray(data) ? data : []);
+      setAllTasks(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error('Lỗi tải danh sách chỉ định xét nghiệm:', err);
       setTaskError(err?.message || 'Không thể kết nối máy chủ để tải danh sách xét nghiệm.');
@@ -113,22 +111,22 @@ export const LabOrdersView: React.FC = () => {
   }, [statusFilter]);
 
   useEffect(() => {
-    if (selectedRoomId) {
-      fetchTasks(selectedRoomId);
-    }
-  }, [selectedRoomId, fetchTasks]);
+    fetchTasks();
+  }, [fetchTasks]);
 
-  // Kiểm tra KTV hiện tại có thuộc phòng đang chọn hay không
-  const isCurrentUserAssignedToSelectedRoom = useMemo(() => {
-    if (!myAssignments.length) return true; // Nếu chưa phân công chặt thì tạm cho thao tác
-    return myAssignments.some((a) => a.labRoomId === selectedRoomId);
-  }, [myAssignments, selectedRoomId]);
+  // Lọc tức thì trong RAM theo phòng Lab đang chọn (0ms, không tốn request mạng)
+  const tasksForRoom = useMemo(() => {
+    if (!selectedRoomId || selectedRoomId === 'ALL') {
+      return allTasks;
+    }
+    return allTasks.filter((t) => t.labRoomId === selectedRoomId);
+  }, [allTasks, selectedRoomId]);
 
   // Lọc theo search box
   const filteredTasks = useMemo(() => {
-    if (!searchQuery.trim()) return tasks;
+    if (!searchQuery.trim()) return tasksForRoom;
     const term = searchQuery.toLowerCase().trim();
-    return tasks.filter((t) => {
+    return tasksForRoom.filter((t) => {
       const patientName = t.orderItem?.order?.encounter?.patient?.fullName?.toLowerCase() || '';
       const patientCode = t.orderItem?.order?.encounter?.patient?.patientCode?.toLowerCase() || '';
       const testName = t.orderItem?.testType?.testName?.toLowerCase() || '';
@@ -142,7 +140,7 @@ export const LabOrdersView: React.FC = () => {
         doctorName.includes(term)
       );
     });
-  }, [tasks, searchQuery]);
+  }, [tasksForRoom, searchQuery]);
 
   // Thao tác: KTV tiếp nhận mẫu xét nghiệm
   const handleReceiveTask = async (task: LabTaskItem) => {
@@ -150,7 +148,7 @@ export const LabOrdersView: React.FC = () => {
     try {
       await labTaskService.receiveLabTask(task.labTaskId);
       showToast(`Đã tiếp nhận mẫu xét nghiệm thành công cho bệnh nhân ${task.orderItem?.order?.encounter?.patient?.fullName || ''}!`, 'success');
-      fetchTasks(selectedRoomId, true);
+      fetchTasks(true);
     } catch (err: any) {
       showToast(err?.message || 'Tiếp nhận mẫu thất bại. Vui lòng kiểm tra phân công phòng.', 'error');
     } finally {
@@ -238,7 +236,7 @@ export const LabOrdersView: React.FC = () => {
 
       showToast(`Đã lưu và hoàn tất kết quả EMR cho ca ${selectedTask.orderItem?.testType?.testName || ''}!`, 'success');
       setIsInputModalOpen(false);
-      fetchTasks(selectedRoomId, true);
+      fetchTasks(true);
     } catch (err: any) {
       showToast(err?.message || 'Không thể lưu kết quả xét nghiệm. Vui lòng thử lại.', 'error');
     } finally {
@@ -268,9 +266,9 @@ export const LabOrdersView: React.FC = () => {
       cell: (row) => {
         const p = row.orderItem?.order?.encounter?.patient;
         return (
-          <div className="min-w-36">
-            <div className="font-bold text-slate-900 text-xs truncate">{p?.fullName || 'Khách vãng lai'}</div>
-            <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+          <div className="min-w-40 whitespace-nowrap">
+            <div className="font-bold text-slate-900 text-xs truncate max-w-[200px]">{p?.fullName || 'Khách vãng lai'}</div>
+            <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5 whitespace-nowrap">
               <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-600">
                 {p?.patientCode || 'BN-N/A'}
               </span>
@@ -292,25 +290,40 @@ export const LabOrdersView: React.FC = () => {
       cell: (row) => {
         const t = row.orderItem?.testType;
         return (
-          <div className="max-w-xs">
-            <div className="font-bold text-slate-800 text-xs leading-tight">{t?.testName || 'Xét nghiệm'}</div>
-            <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1.5">
-              <span className="uppercase px-1.5 py-0.2 bg-blue-50 text-blue-700 font-bold rounded">
+          <div className="min-w-48 max-w-sm">
+            <div className="font-bold text-slate-800 text-xs leading-tight whitespace-nowrap truncate max-w-[240px]" title={t?.testName}>
+              {t?.testName || 'Xét nghiệm'}
+            </div>
+            <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1.5 whitespace-nowrap">
+              <span className="uppercase px-1.5 py-0.2 bg-blue-50 text-blue-700 font-bold rounded shrink-0">
                 {t?.category || 'Lab'}
               </span>
-              {t?.specimenType && <span>Mẫu: {t.specimenType}</span>}
+              {t?.specimenType && (
+                <span className="truncate max-w-[200px]" title={`Mẫu: ${t.specimenType}`}>
+                  Mẫu: {t.specimenType}
+                </span>
+              )}
             </div>
           </div>
         );
       },
     },
     {
-      header: 'Bác Sĩ Chỉ Định',
+      header: 'Bác Sĩ & Khoa Khám',
       cell: (row) => {
         const doc = row.orderItem?.order?.orderedByUser;
+        const dept = row.orderItem?.order?.encounter?.department;
         return (
-          <div className="text-slate-700 font-semibold text-xs whitespace-nowrap">
-            {doc?.profile?.fullName || doc?.email || 'Bác sĩ phụ trách'}
+          <div className="text-xs whitespace-nowrap min-w-40">
+            <div className="font-bold text-slate-800 truncate max-w-[180px]">
+              {doc?.profile?.fullName || doc?.email || 'Bác sĩ phụ trách'}
+            </div>
+            {dept?.departmentName && (
+              <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1 mt-0.5 whitespace-nowrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
+                <span className="truncate max-w-[170px]" title={dept.departmentName}>{dept.departmentName}</span>
+              </div>
+            )}
           </div>
         );
       },
@@ -318,9 +331,11 @@ export const LabOrdersView: React.FC = () => {
     {
       header: 'Thanh Toán',
       cell: (row) => (
-        <Badge variant={row.paymentVerified ? 'normal' : 'critical'} size="sm">
-          {row.paymentVerified ? 'Đã thanh toán' : 'Chưa thanh toán'}
-        </Badge>
+        <div className="whitespace-nowrap">
+          <Badge variant={row.paymentVerified ? 'normal' : 'critical'} size="sm" className="whitespace-nowrap">
+            {row.paymentVerified ? 'Đã thanh toán' : 'Chưa thanh toán'}
+          </Badge>
+        </div>
       ),
     },
     {
@@ -328,30 +343,30 @@ export const LabOrdersView: React.FC = () => {
       cell: (row) => {
         if (row.status === 'ready') {
           return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-              Chờ lấy mẫu
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+              <span>Chờ lấy mẫu</span>
             </span>
           );
         }
         if (row.status === 'in_progress') {
           return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-spin"></span>
-              Đang xét nghiệm
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-spin shrink-0"></span>
+              <span>Đang xét nghiệm</span>
             </span>
           );
         }
         if (row.status === 'completed') {
           return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              Đã có kết quả
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 whitespace-nowrap shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>Đã có kết quả</span>
             </span>
           );
         }
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 whitespace-nowrap shrink-0">
             {row.status === 'payment_pending' ? 'Chờ thanh toán' : row.status}
           </span>
         );
@@ -367,9 +382,9 @@ export const LabOrdersView: React.FC = () => {
           return (
             <button
               disabled
-              className="px-3 py-1.5 font-bold text-xs rounded-xl bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed flex items-center gap-1.5"
+              className="px-3 py-1.5 font-bold text-xs rounded-xl bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap shrink-0"
             >
-              <Lock className="w-3.5 h-3.5" />
+              <Lock className="w-3.5 h-3.5 shrink-0" />
               <span>Chờ thu ngân</span>
             </button>
           );
@@ -377,20 +392,22 @@ export const LabOrdersView: React.FC = () => {
 
         // 2. Chờ lấy mẫu (ready) -> Nút Tiếp nhận mẫu
         if (row.status === 'ready') {
+          const isTaskExecutable = !myAssignments.length || myAssignments.some((a) => a.labRoomId === row.labRoomId);
           return (
             <button
               onClick={() => handleReceiveTask(row)}
-              disabled={isReceiving || !isCurrentUserAssignedToSelectedRoom}
-              className="px-3 py-1.5 font-bold text-xs rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer border-none disabled:opacity-50"
+              disabled={isReceiving || !isTaskExecutable}
+              title={!isTaskExecutable ? 'Bạn không được phân công phụ trách phòng xét nghiệm này' : 'Tiếp nhận mẫu bệnh phẩm'}
+              className="px-3.5 py-1.5 font-bold text-xs rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer border-none disabled:opacity-50 whitespace-nowrap shrink-0"
             >
               {isReceiving ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                   <span>Đang nhận...</span>
                 </>
               ) : (
                 <>
-                  <FlaskConical className="w-3.5 h-3.5" />
+                  <FlaskConical className="w-3.5 h-3.5 shrink-0" />
                   <span>Tiếp nhận mẫu</span>
                 </>
               )}
@@ -403,9 +420,9 @@ export const LabOrdersView: React.FC = () => {
           return (
             <button
               onClick={() => handleOpenInputModal(row)}
-              className="px-3 py-1.5 font-bold text-xs rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer border-none"
+              className="px-3.5 py-1.5 font-bold text-xs rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer border-none whitespace-nowrap shrink-0"
             >
-              <FileText className="w-3.5 h-3.5" />
+              <FileText className="w-3.5 h-3.5 shrink-0" />
               <span>Nhập kết quả & AI</span>
             </button>
           );
@@ -416,9 +433,9 @@ export const LabOrdersView: React.FC = () => {
           return (
             <button
               onClick={() => handleViewResult(row)}
-              className="px-3 py-1.5 font-bold text-xs rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-1.5 font-bold text-xs rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Eye className="w-3.5 h-3.5" />
+              <Eye className="w-3.5 h-3.5 shrink-0" />
               <span>Xem kết quả EMR</span>
             </button>
           );
@@ -432,7 +449,7 @@ export const LabOrdersView: React.FC = () => {
   const currentRoomInfo = labRooms.find((r) => r.labRoomId === selectedRoomId);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto text-slate-800 animate-in fade-in duration-200">
+    <div className="w-full space-y-6 text-slate-800 animate-in fade-in duration-200">
       
       {/* Toast Notification */}
       {toast && (
@@ -461,7 +478,7 @@ export const LabOrdersView: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => fetchTasks(selectedRoomId)}
+              onClick={() => fetchTasks(false)}
               disabled={isLoadingTasks}
               className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border-none"
             >
@@ -487,13 +504,14 @@ export const LabOrdersView: React.FC = () => {
             ) : labRooms.length === 0 ? (
               <span className="text-xs text-slate-400 font-medium">Chưa có phòng Lab nào</span>
             ) : (
-              <div className="relative min-w-[260px] sm:min-w-[320px]">
+              <div className="relative min-w-[260px] sm:min-w-[340px]">
                 <select
                   id="lab-room-dropdown"
                   value={selectedRoomId}
                   onChange={(e) => setSelectedRoomId(e.target.value)}
                   className="w-full appearance-none bg-white hover:bg-slate-50 border border-slate-300 hover:border-blue-400 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100 rounded-xl pl-3.5 pr-9 py-2 text-xs font-bold text-slate-800 transition-all cursor-pointer shadow-xs outline-none"
                 >
+                  <option value="ALL">🌐 Tất cả phòng xét nghiệm ({allTasks.length} ca)</option>
                   {myAssignments.length > 0 ? (
                     <>
                       <optgroup label="⭐ Phòng bạn được phân công">
@@ -501,9 +519,10 @@ export const LabOrdersView: React.FC = () => {
                           .filter((r) => myAssignments.some((a) => a.labRoomId === r.labRoomId))
                           .map((room) => {
                             const isPrimary = myAssignments.find((a) => a.labRoomId === room.labRoomId)?.isPrimary;
+                            const count = allTasks.filter((t) => t.labRoomId === room.labRoomId).length;
                             return (
                               <option key={room.labRoomId} value={room.labRoomId}>
-                                {room.labRoomName} {isPrimary ? '— (Phòng chính)' : '— (Phân công)'}
+                                {room.labRoomName} {isPrimary ? '— (Phòng chính)' : '— (Phân công)'} ({count} ca)
                               </option>
                             );
                           })}
@@ -512,20 +531,26 @@ export const LabOrdersView: React.FC = () => {
                         <optgroup label="🏢 Các phòng xét nghiệm khác">
                           {labRooms
                             .filter((r) => !myAssignments.some((a) => a.labRoomId === r.labRoomId))
-                            .map((room) => (
-                              <option key={room.labRoomId} value={room.labRoomId}>
-                                {room.labRoomName}
-                              </option>
-                            ))}
+                            .map((room) => {
+                              const count = allTasks.filter((t) => t.labRoomId === room.labRoomId).length;
+                              return (
+                                <option key={room.labRoomId} value={room.labRoomId}>
+                                  {room.labRoomName} ({count} ca)
+                                </option>
+                              );
+                            })}
                         </optgroup>
                       )}
                     </>
                   ) : (
-                    labRooms.map((room) => (
-                      <option key={room.labRoomId} value={room.labRoomId}>
-                        {room.labRoomName}
-                      </option>
-                    ))
+                    labRooms.map((room) => {
+                      const count = allTasks.filter((t) => t.labRoomId === room.labRoomId).length;
+                      return (
+                        <option key={room.labRoomId} value={room.labRoomId}>
+                          {room.labRoomName} ({count} ca)
+                        </option>
+                      );
+                    })
                   )}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-500">
@@ -536,6 +561,14 @@ export const LabOrdersView: React.FC = () => {
 
             {/* Status badge for the selected room */}
             {(() => {
+              if (selectedRoomId === 'ALL') {
+                return (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+                    <Building2 className="w-3 h-3 text-indigo-600" />
+                    Toàn viện
+                  </span>
+                );
+              }
               const currentAssignment = myAssignments.find((a) => a.labRoomId === selectedRoomId);
               if (currentAssignment?.isPrimary) {
                 return (
@@ -563,13 +596,13 @@ export const LabOrdersView: React.FC = () => {
             })()}
           </div>
 
-          {currentRoomInfo && (
-            <div className="text-xs text-slate-500 flex items-center gap-1.5 shrink-0">
-              <MapPin className="w-3.5 h-3.5 text-slate-400" />
-              <span>Vị trí:</span>
-              <span className="font-semibold text-slate-700">{currentRoomInfo.location || 'Khu xét nghiệm tập trung'}</span>
-            </div>
-          )}
+          <div className="text-xs text-slate-500 flex items-center gap-1.5 shrink-0">
+            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+            <span>Vị trí:</span>
+            <span className="font-semibold text-slate-700">
+              {selectedRoomId === 'ALL' ? 'Tất cả các phòng chuyên môn' : (currentRoomInfo?.location || 'Khu xét nghiệm tập trung')}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -615,7 +648,7 @@ export const LabOrdersView: React.FC = () => {
           <AlertCircle className="w-8 h-8 text-rose-500 mx-auto" />
           <div className="text-xs font-bold text-rose-700">{taskError}</div>
           <button
-            onClick={() => fetchTasks(selectedRoomId)}
+            onClick={() => fetchTasks(false)}
             className="mt-2 px-4 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold border-none cursor-pointer"
           >
             Thử lại
@@ -637,7 +670,11 @@ export const LabOrdersView: React.FC = () => {
           title={`Nhập kết quả xét nghiệm: ${selectedTask.orderItem?.testType?.testName || 'Xét nghiệm'}`}
           subtitle={`Bệnh nhân: ${selectedTask.orderItem?.order?.encounter?.patient?.fullName || 'N/A'} (Mã BN: ${
             selectedTask.orderItem?.order?.encounter?.patient?.patientCode || 'N/A'
-          }) • Bác sĩ: ${selectedTask.orderItem?.order?.orderedByUser?.profile?.fullName || 'N/A'}`}
+          }) • Bác sĩ: ${selectedTask.orderItem?.order?.orderedByUser?.profile?.fullName || 'N/A'}${
+            selectedTask.orderItem?.order?.encounter?.department?.departmentName
+              ? ` — ${selectedTask.orderItem.order.encounter.department.departmentName}`
+              : ''
+          }`}
           maxWidth="4xl"
           footer={
             <>
@@ -767,7 +804,7 @@ export const LabOrdersView: React.FC = () => {
                   rows={3}
                   value={overallConclusion}
                   onChange={(e) => setOverallConclusion(e.target.value)}
-                  placeholder="Ví dụ: Các chỉ số huyết học nằm trong giới hạn an toàn, không phát hiện dấu hiệu viêm cấp tính..."
+                  placeholder="Ghi chú kết luận hoặc nhận xét chuyên môn của kỹ thuật viên..."
                   className="w-full p-3 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:border-blue-600 bg-white"
                 />
               </div>
@@ -775,7 +812,9 @@ export const LabOrdersView: React.FC = () => {
               {/* Tải tệp hình ảnh đính kèm */}
               <div className="space-y-2">
                 <label className="block font-extrabold text-slate-800 text-xs">
-                  Tệp đính kèm (Ảnh chụp X-quang, PDF kết quả máy...):
+                  {selectedTask.orderItem?.testType?.category === 'imaging'
+                    ? 'Ảnh chụp phim X-quang / Siêu âm / DICOM:'
+                    : 'Tệp đính kèm / Phiếu in kết quả máy (Tùy chọn):'}
                 </label>
                 <label className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-4 text-center cursor-pointer transition-all bg-slate-50 flex flex-col items-center justify-center gap-1 block">
                   <input

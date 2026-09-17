@@ -82,6 +82,11 @@ export interface LabTaskItem {
         encounterId: string;
         encounterCode: string;
         patient?: LabTaskPatient;
+        department?: {
+          departmentId: string;
+          departmentName: string;
+          departmentCode?: string;
+        };
       };
     };
   };
@@ -89,7 +94,7 @@ export interface LabTaskItem {
 }
 
 export interface ListLabTasksQuery {
-  labRoomId: string;
+  labRoomId?: string;
   status?: string;
   assignedLabStaffId?: string;
   limit?: number;
@@ -98,18 +103,20 @@ export interface ListLabTasksQuery {
 export const labTaskService = {
   /**
    * GET /api/v1/lab-tasks?labRoomId=...&status=...
-   * Lấy worklist nhiệm vụ xét nghiệm của phòng Lab
+   * Lấy worklist nhiệm vụ xét nghiệm (có thể lấy toàn bộ hoặc lọc theo phòng Lab)
    */
-  async getLabTasks(query: ListLabTasksQuery): Promise<LabTaskItem[]> {
+  async getLabTasks(query?: ListLabTasksQuery): Promise<LabTaskItem[]> {
     const searchParams = new URLSearchParams();
-    searchParams.append('labRoomId', query.labRoomId);
-    if (query.status && query.status !== 'ALL') {
+    if (query?.labRoomId) {
+      searchParams.append('labRoomId', query.labRoomId);
+    }
+    if (query?.status && query.status !== 'ALL') {
       searchParams.append('status', query.status);
     }
-    if (query.assignedLabStaffId) {
+    if (query?.assignedLabStaffId) {
       searchParams.append('assignedLabStaffId', query.assignedLabStaffId);
     }
-    if (query.limit) {
+    if (query?.limit) {
       searchParams.append('limit', String(query.limit));
     }
 
