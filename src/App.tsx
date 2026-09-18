@@ -102,7 +102,6 @@ function App() {
             {/* XÉT NGHIỆM WORKSPACE */}
             <Route element={<ProtectedRoute requiredRole="LAB" />}>
               <Route path="/xet-nghiem/hang-cho-xet-nghiem" element={<LabWorkspaceView />} />
-              <Route path="/xet-nghiem/phong-lab" element={<LabWorkspaceView />} />
               <Route path="/xet-nghiem/upload-dicom" element={<LabWorkspaceView />} />
               <Route path="/xet-nghiem/canh-bao" element={<LabWorkspaceView />} />
             </Route>
@@ -110,6 +109,7 @@ function App() {
             {/* QUẢN TRỊ WORKSPACES */}
             <Route element={<ProtectedRoute requiredRole="ADMIN" />}>
               <Route path="/quan-tri/tong-quan" element={<AdminRealtimeWorkspaceView />} />
+              <Route path="/quan-tri/phong-lab" element={<AdminRealtimeWorkspaceView />} />
               <Route path="/quan-tri/bac-si" element={<AdminRealtimeWorkspaceView />} />
               <Route path="/quan-tri/bao-cao" element={<AdminRealtimeWorkspaceView />} />
               <Route path="/quan-tri/nhat-ky-he-thong" element={<AdminSecurityWorkspaceView />} />
