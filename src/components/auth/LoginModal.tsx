@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { authService } from '../../services/auth/auth.service';
-import { LoginForm, DEMO_STAFF_ACCOUNTS } from './LoginForm';
+import { LoginForm } from './LoginForm';
 import { RegisterForm } from './RegisterForm';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
 import { OtpVerificationStep } from './OtpVerificationStep';
@@ -68,27 +68,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const switchMode = (mode: 'login' | 'register' | 'forgot-password') => {
     setAuthMode(mode);
     resetFormState();
-  };
-
-  // Quick staff login for offline/demo testing
-  const handleQuickStaffLogin = (staff: typeof DEMO_STAFF_ACCOUNTS[0]) => {
-    setIsSubmitting(true);
-    setError('');
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setIsSuccess(true);
-      switchRole(staff.role);
-      authLogin(staff.email, staff.role);
-
-      setTimeout(() => {
-        setIsSuccess(false);
-        if (onLoginSuccess) {
-          onLoginSuccess(staff.name);
-        }
-        onClose();
-        navigate('/dashboard');
-      }, 1000);
-    }, 500);
   };
 
   // Resend OTP handler
@@ -403,7 +382,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 onSubmit={handleSubmit}
                 onSwitchToRegister={() => switchMode('register')}
                 onSwitchToForgotPassword={() => switchMode('forgot-password')}
-                onQuickStaffLogin={handleQuickStaffLogin}
               />
             )}
           </motion.div>

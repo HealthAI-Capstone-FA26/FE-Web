@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { X, Eye, EyeOff, ShieldAlert, Check, Shield, Stethoscope, Activity, FlaskConical, Users, UserCheck } from 'lucide-react';
+import { X, Eye, EyeOff, ShieldAlert, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/auth/auth.service';
 import { ROLE_DEFAULT_PATHS } from '../types/dashboard';
@@ -15,7 +15,7 @@ import type { UserRole } from '../types/auth';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
-  const { loginWithTokens, switchRole } = useAuth();
+  const { loginWithTokens } = useAuth();
 
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -71,16 +71,6 @@ export const LoginPage = () => {
       const msg = err?.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email/mật khẩu.';
       setError(msg);
     }
-  };
-
-  // Nút đăng nhập nhanh giả lập (dành cho Demo & Test UI)
-  const handleQuickRoleLogin = (role: UserRole) => {
-    switchRole(role);
-    setIsSuccess(true);
-    const targetPath = ROLE_DEFAULT_PATHS[role] || '/dashboard';
-    setTimeout(() => {
-      navigate(targetPath);
-    }, 800);
   };
 
   return (
@@ -195,66 +185,9 @@ export const LoginPage = () => {
                 {isSubmitting ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
-                  <span>Đăng nhập Backend API</span>
+                  <span>Đăng nhập</span>
                 )}
               </button>
-            </div>
-
-            {/* Quick Demo Switcher Section */}
-            <div className="pt-3 border-t border-slate-100 text-center">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                Đăng nhập nhanh theo Vai trò (Demo)
-              </span>
-              <div className="grid grid-cols-3 gap-1.5 text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => handleQuickRoleLogin('ADMIN')}
-                  className="p-2 rounded-lg bg-slate-900 text-white font-semibold flex items-center justify-center gap-1 hover:bg-slate-800 transition-colors cursor-pointer"
-                >
-                  <Shield className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Admin</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickRoleLogin('RECEPTIONIST')}
-                  className="p-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-semibold flex items-center justify-center gap-1 hover:bg-blue-100 transition-colors cursor-pointer"
-                >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  <span>Lễ tân</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickRoleLogin('DOCTOR')}
-                  className="p-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold flex items-center justify-center gap-1 hover:bg-emerald-100 transition-colors cursor-pointer"
-                >
-                  <Stethoscope className="w-3.5 h-3.5" />
-                  <span>Bác sĩ</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickRoleLogin('NURSE')}
-                  className="p-2 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-semibold flex items-center justify-center gap-1 hover:bg-rose-100 transition-colors cursor-pointer"
-                >
-                  <Activity className="w-3.5 h-3.5" />
-                  <span>Điều dưỡng</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickRoleLogin('LAB')}
-                  className="p-2 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 font-semibold flex items-center justify-center gap-1 hover:bg-purple-100 transition-colors cursor-pointer"
-                >
-                  <FlaskConical className="w-3.5 h-3.5" />
-                  <span>Lab AI</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickRoleLogin('PATIENT')}
-                  className="p-2 rounded-lg bg-cyan-50 text-cyan-700 border border-cyan-200 font-semibold flex items-center justify-center gap-1 hover:bg-cyan-100 transition-colors cursor-pointer"
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>Bệnh nhân</span>
-                </button>
-              </div>
             </div>
           </form>
         )}

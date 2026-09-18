@@ -1,56 +1,5 @@
 import React from 'react';
-import { Eye, EyeOff, ShieldAlert, Sparkles, Stethoscope, Activity, UserCheck, FlaskConical, ShieldCheck } from 'lucide-react';
-import type { UserRole } from '../../types/auth';
-
-export const DEMO_STAFF_ACCOUNTS: Array<{
-  role: UserRole;
-  label: string;
-  name: string;
-  email: string;
-  badge: string;
-  icon: any;
-}> = [
-  {
-    role: 'DOCTOR',
-    label: 'Bác sĩ khám',
-    name: 'BS. CKII. Nguyễn Quang Huy',
-    email: 'huy.doctor@tamanh.vn',
-    badge: 'Mô-đun 5, 8, 9',
-    icon: Stethoscope
-  },
-  {
-    role: 'NURSE',
-    label: 'Điều dưỡng',
-    name: 'Trần Thị Mai',
-    email: 'mai.nurse@tamanh.vn',
-    badge: 'Mô-đun 4 (Sinh hiệu)',
-    icon: Activity
-  },
-  {
-    role: 'RECEPTIONIST',
-    label: 'Lễ tân / Thu ngân',
-    name: 'Nguyễn Văn Minh',
-    email: 'minh.reception@tamanh.vn',
-    badge: 'Mô-đun 2, 3, 6',
-    icon: UserCheck
-  },
-  {
-    role: 'LAB',
-    label: 'KTV Phòng Lab',
-    name: 'KTV. Trương Lê Danh Thái',
-    email: 'thai.lab@tamanh.vn',
-    badge: 'Mô-đun 7 (Lab & AI)',
-    icon: FlaskConical
-  },
-  {
-    role: 'ADMIN',
-    label: 'Quản trị viên',
-    name: 'Nguyễn Bá Anh Nguyên',
-    email: 'nguyen.admin@tamanh.vn',
-    badge: 'Mô-đun 10 & 11',
-    icon: ShieldCheck
-  }
-];
+import { Eye, EyeOff, ShieldAlert } from 'lucide-react';
 
 interface LoginFormProps {
   emailOrPhone: string;
@@ -64,7 +13,6 @@ interface LoginFormProps {
   onSubmit: (e: React.FormEvent) => void;
   onSwitchToRegister: () => void;
   onSwitchToForgotPassword: () => void;
-  onQuickStaffLogin: (staff: typeof DEMO_STAFF_ACCOUNTS[0]) => void;
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({
@@ -79,45 +27,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   onSubmit,
   onSwitchToRegister,
   onSwitchToForgotPassword,
-  onQuickStaffLogin,
 }) => {
   return (
     <div className="space-y-4">
-      {/* Quick Staff Roles Panel */}
-      <div className="mb-5 bg-gradient-to-br from-blue-900 to-indigo-950 rounded-2xl p-4 text-white shadow-md">
-        <div className="flex items-center justify-between mb-2.5">
-          <span className="text-xs font-bold uppercase tracking-wider text-blue-200 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Đăng nhập nhanh Vai trò Nội bộ</span>
-          </span>
-          <span className="text-[10px] bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full font-bold">
-            Demo Mode
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {DEMO_STAFF_ACCOUNTS.map((staff) => {
-            const Icon = staff.icon;
-            return (
-              <button
-                key={staff.role}
-                type="button"
-                onClick={() => onQuickStaffLogin(staff)}
-                className="flex flex-col p-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-left transition-all cursor-pointer group hover:scale-[1.02]"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <Icon className="w-4 h-4 text-blue-300 group-hover:text-white" />
-                  <span className="text-[9px] bg-blue-500/40 text-blue-100 px-1.5 py-0.5 rounded font-medium">
-                    {staff.role}
-                  </span>
-                </div>
-                <span className="text-xs font-bold text-white line-clamp-1">{staff.label}</span>
-                <span className="text-[10px] text-blue-200/80 line-clamp-1">{staff.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
 
       {/* Form */}
       <form onSubmit={onSubmit} className="space-y-4">
