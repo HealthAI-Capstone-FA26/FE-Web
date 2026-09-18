@@ -70,11 +70,21 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
   }, [fetchInvoices]);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Modal openers
+  // Modal openers (Mở tức thì 0ms + Tải ngầm chi tiết)
   // ─────────────────────────────────────────────────────────────────────────
   const openPaymentModal = (invoice: InvoiceData) => {
+    // 1. Mở modal ngay lập tức bằng dữ liệu sẵn có (0ms - siêu mượt)
     setSelectedInvoiceForPayment(invoice);
     setIsPaymentModalOpen(true);
+
+    // 2. Chạy ngầm API GET /api/v1/invoices/{id} để đồng bộ dữ liệu mới nhất (nếu có)
+    invoiceService.findById(invoice.invoiceId)
+      .then((freshInvoice) => {
+        setSelectedInvoiceForPayment(freshInvoice);
+      })
+      .catch((err) => {
+        console.warn('Sử dụng dữ liệu hóa đơn hiện tại:', err);
+      });
   };
 
   const openCancelModal = (invoice: InvoiceData) => {
