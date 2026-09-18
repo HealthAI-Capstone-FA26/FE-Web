@@ -41,6 +41,11 @@ export interface CreateBankTransferPayload {
 export interface BankTransferResult {
   paymentId: string;
   checkoutUrl: string;
+  qrCode?: string;
+  accountNumber?: string;
+  accountName?: string;
+  bin?: string;
+  description?: string;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────

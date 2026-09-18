@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   CreditCard, RefreshCw, XCircle, AlertCircle,
-  Loader2, Plus, Printer, CheckCircle2, Clock
+  Loader2, Plus, Eye, CheckCircle2, Clock
 } from 'lucide-react';
 import { Badge, type BadgeVariant } from '../../components/common/Badge';
 import { DataTable, type Column } from '../../components/common/DataTable';
@@ -190,8 +190,8 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
               onClick={() => openPaymentModal(row)}
               className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl flex items-center gap-1 border border-emerald-200 cursor-pointer transition-colors"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Xem / In PDF</span>
+              <Eye className="w-3.5 h-3.5" />
+              <span>Xem chi tiết</span>
             </button>
           )}
         </div>
