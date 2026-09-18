@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { userService, type UserItemResponse } from '../../services/user/user.service';
 import { rbacService } from '../../services/rbac/rbac.service';
+import { Mascot } from 'page-mascot';
 import { getAvatarUrl } from '../../services/api';
 import { EditUserModal } from './components/EditUserModal';
 
@@ -206,14 +207,21 @@ export const AdminUsersView: React.FC = () => {
 
       {/* Header Banner */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Users className="w-5 h-5 text-blue-700" />
-            <span>Quản Lý Tài Khoản Người Dùng & Phân Vai Trò</span>
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Quản trị toàn bộ tài khoản nhân sự y tế, bác sĩ và bệnh nhân đã đăng ký trong hệ thống
-          </p>
+        <div className="flex items-center gap-3">
+          <Mascot
+            directions="/mascots/admin-directions.png"
+            reactions="/mascots/admin-reactions.png"
+            size={120}
+            className="shrink-0"
+          />
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">
+              Quản Lý Tài Khoản Người Dùng & Phân Vai Trò
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Quản trị toàn bộ tài khoản nhân sự y tế, bác sĩ và bệnh nhân đã đăng ký trong hệ thống
+            </p>
+          </div>
         </div>
 
         <button

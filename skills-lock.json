@@ -67,6 +67,12 @@
       "skillPath": "skills/minimalist-skill/SKILL.md",
       "computedHash": "7e88897e0371184e97a82b8d9ef080323c13f21eb067b58ef71eb05173a08ac2"
     },
+    "page-mascot": {
+      "source": "nilbuild/page-mascot",
+      "sourceType": "github",
+      "skillPath": "skills/page-mascot/SKILL.md",
+      "computedHash": "b4216dda19786d5997c452a30221df733ad3e76fd410cf41d7a35fd36a501bb1"
+    },
     "redesign-existing-projects": {
       "source": "Leonxlnx/taste-skill",
       "sourceType": "github",

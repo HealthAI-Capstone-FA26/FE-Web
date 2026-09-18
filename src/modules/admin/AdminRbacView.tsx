@@ -21,6 +21,7 @@ import {
   ChevronsRight,
 } from 'lucide-react';
 import { rbacService, type RoleItemResponse, type PermissionItem } from '../../services/rbac/rbac.service';
+import { Mascot } from 'page-mascot';
 
 const AdminIcon = ({ className }: { className?: string }) => {
   const sizeClass = className ? className.replace(/w-[\d.]+/g, 'w-6').replace(/h-[\d.]+/g, 'h-6') : 'w-6 h-6';
@@ -283,14 +284,21 @@ export const AdminRbacView: React.FC = () => {
 
       {/* Header Banner */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-blue-700" />
-            <span>Vai trò của các tài khoản</span>
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Cấu hình quyền hạn truy cập chi tiết (Tạo, Xem, Sửa, Xóa) cho từng vai trò trong hệ thống bệnh viện
-          </p>
+        <div className="flex items-center gap-3">
+          <Mascot
+            directions="/mascots/admin-directions.png"
+            reactions="/mascots/admin-reactions.png"
+            size={120}
+            className="shrink-0"
+          />
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">
+              Vai trò của các tài khoản
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Cấu hình quyền hạn truy cập chi tiết (Tạo, Xem, Sửa, Xóa) cho từng vai trò trong hệ thống bệnh viện
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2.5">
