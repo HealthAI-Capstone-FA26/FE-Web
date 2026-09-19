@@ -26,7 +26,8 @@ export interface PaymentData {
 export interface InvoiceData {
   invoiceId: string;
   invoiceCode: string;
-  encounterId: string;
+  encounterId?: string | null;    // nullable: invoice phí khám được tạo trước khi có Encounter
+  appointmentId?: string | null;  // có giá trị khi là invoice phí khám (consultation)
   patientId: string;
   invoiceType: 'consultation' | 'tests' | 'combined' | string;
   subtotalAmount: number | string;
@@ -42,11 +43,15 @@ export interface InvoiceData {
 }
 
 export interface GenerateInvoicePayload {
-  encounterId: string;
+  /** Dùng để tạo invoice phí khám (consultation) TRƯỚC khi có Encounter */
+  appointmentId?: string;
+  /** Dùng để tạo invoice xét nghiệm (tests) sau khi đã có Encounter */
+  encounterId?: string;
   discountAmount?: number;
 }
 
 export interface ListInvoicesQuery {
+  appointmentId?: string;
   patientId?: string;
   encounterId?: string;
   status?: 'pending' | 'paid' | 'cancelled' | 'refunded';
@@ -76,6 +81,7 @@ export const invoiceService = {
    */
   async findMany(query?: ListInvoicesQuery): Promise<InvoiceData[]> {
     const params = new URLSearchParams();
+    if (query?.appointmentId) params.append('appointmentId', query.appointmentId);
     if (query?.patientId) params.append('patientId', query.patientId);
     if (query?.encounterId) params.append('encounterId', query.encounterId);
     if (query?.status) params.append('status', query.status);

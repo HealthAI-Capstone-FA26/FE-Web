@@ -18,8 +18,10 @@ import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/W
 import { queueTicketService, type QueueTicketItem } from '../../services/queue/queue-ticket.service';
 import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { encounterService } from '../../services/encounter/encounter.service';
+import { invoiceService, type InvoiceData } from '../../services/payment/invoice.service';
 import { IdentityVerificationHistoryModal } from './components/IdentityVerificationHistoryModal';
 import { ReceptionIntakeModal } from './components/ReceptionIntakeModal';
+import { ReceptionPaymentModal } from './components/ReceptionPaymentModal';
 
 // Helper phát tiếng chuông phát thanh bệnh viện (3 nốt nhạc) dùng Web Audio API
 const playQueueChime = (): Promise<void> => {
@@ -178,6 +180,16 @@ const ReceptionQueueCallingBoard: React.FC = () => {
 
   // State Modal Tiếp Đón & Khai Báo Lâm Sàng Ban Đầu (Chief Complaint & Intake)
   const [intakeModalTicket, setIntakeModalTicket] = useState<QueueTicketItem | null>(null);
+
+  // ── State luồng thanh toán phí khám trước khi tạo Encounter ──────────────
+  // Ticket đang chờ xử lý thanh toán
+  const [pendingPaymentTicket, setPendingPaymentTicket] = useState<QueueTicketItem | null>(null);
+  // Invoice phí khám (consultation) của ticket đó — null nếu chưa tạo
+  const [consultationInvoice, setConsultationInvoice] = useState<InvoiceData | null>(null);
+  // true khi đang gọi API kiểm tra / tạo invoice
+  const [isCheckingInvoice, setIsCheckingInvoice] = useState<string | null>(null);
+  // Modal thanh toán
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   // State Modal Xem Lịch Sử Xác Minh Danh Tính (Chức năng 6 GET)
   const [historyModalEncounterId, setHistoryModalEncounterId] = useState<string | null>(null);
@@ -349,8 +361,64 @@ const ReceptionQueueCallingBoard: React.FC = () => {
     }
   };
 
-  const handleOpenCompleteModalOrServe = (ticket: QueueTicketItem) => {
-    setIntakeModalTicket(ticket);
+  /**
+   * Điểm vào chính khi lễ tân bấm "Tiếp nhận xong" trên một ticket đang ở 'called'.
+   *
+   * Luồng:
+   * 1. Kiểm tra invoice phí khám (consultation) của appointmentId.
+   * 2. Nếu chưa có invoice → gọi API tạo invoice (generate với appointmentId).
+   * 3. Nếu invoice đã 'paid' → mở thẳng ReceptionIntakeModal.
+   * 4. Nếu invoice còn 'pending' → mở ReceptionPaymentModal để thu tiền trước.
+   */
+  const handleServeTicket = async (ticket: QueueTicketItem) => {
+    const appointmentId = ticket.appointmentId;
+    if (!appointmentId) {
+      showToast('Không tìm thấy thông tin lịch hẹn', 'error');
+      return;
+    }
+
+    setIsCheckingInvoice(ticket.ticketId);
+    try {
+      // 1. Tìm invoice consultation của appointment này
+      let invoice: InvoiceData | null = null;
+      const invoices = await invoiceService.findMany({ appointmentId });
+      const consultInv = invoices.find(
+        (inv) => inv.invoiceType === 'consultation' && inv.status !== 'cancelled'
+      );
+
+      if (!consultInv) {
+        // 2. Chưa có invoice → tạo mới
+        invoice = await invoiceService.generate({ appointmentId });
+      } else {
+        invoice = consultInv;
+      }
+
+      // 3. Đã paid → mở thẳng intake modal
+      if (invoice.status === 'paid') {
+        setIntakeModalTicket(ticket);
+        return;
+      }
+
+      // 4. Còn pending → mở modal thanh toán trước
+      setPendingPaymentTicket(ticket);
+      setConsultationInvoice(invoice);
+      setIsPaymentModalOpen(true);
+    } catch (err: any) {
+      showToast(err?.message || 'Lỗi khi kiểm tra hóa đơn phí khám', 'error');
+    } finally {
+      setIsCheckingInvoice(null);
+    }
+  };
+
+  /** Sau khi thanh toán thành công → đóng payment modal, mở intake modal */
+  const handlePaymentSuccess = () => {
+    setIsPaymentModalOpen(false);
+    const ticket = pendingPaymentTicket;
+    setPendingPaymentTicket(null);
+    setConsultationInvoice(null);
+    if (ticket) {
+      setIntakeModalTicket(ticket);
+    }
   };
 
   return (
@@ -608,12 +676,21 @@ const ReceptionQueueCallingBoard: React.FC = () => {
               </button>
 
               <button
-                onClick={() => handleOpenCompleteModalOrServe(stats.currentServingTicket!)}
-                disabled={actionLoadingId === stats.currentServingTicket.ticketId}
-                className="flex-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-teal-500/25 cursor-pointer"
+                onClick={() => handleServeTicket(stats.currentServingTicket!)}
+                disabled={actionLoadingId === stats.currentServingTicket.ticketId || isCheckingInvoice === stats.currentServingTicket.ticketId}
+                className="flex-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-teal-500/25 cursor-pointer disabled:opacity-60"
               >
-                <Check className="w-4 h-4" />
-                <span>Hoàn Tất Tiếp Nhận & Chuyển Khám</span>
+                {isCheckingInvoice === stats.currentServingTicket.ticketId ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Đang kiểm tra...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Hoàn Tất Tiếp Nhận & Chuyển Khám</span>
+                  </>
+                )}
               </button>
             </div>
           )}
@@ -953,12 +1030,21 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                                 <Volume2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => handleOpenCompleteModalOrServe(ticket)}
-                                disabled={actionLoadingId === ticket.ticketId}
+                                onClick={() => handleServeTicket(ticket)}
+                                disabled={actionLoadingId === ticket.ticketId || isCheckingInvoice === ticket.ticketId}
                                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
                               >
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Tiếp nhận xong</span>
+                                {isCheckingInvoice === ticket.ticketId ? (
+                                  <>
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Đang kiểm tra...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Tiếp nhận xong</span>
+                                  </>
+                                )}
                               </button>
                             </>
                           )}
@@ -1027,6 +1113,18 @@ const ReceptionQueueCallingBoard: React.FC = () => {
         doctors={doctors}
         onSuccess={() => fetchTickets(true)}
         showToast={showToast}
+      />
+
+      {/* MODAL THANH TOÁN PHÍ KHÁM (CONSULTATION INVOICE) — hiện ra TRƯỚC ReceptionIntakeModal */}
+      <ReceptionPaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          setPendingPaymentTicket(null);
+          setConsultationInvoice(null);
+        }}
+        invoice={consultationInvoice}
+        onPaymentSuccess={handlePaymentSuccess}
       />
 
       {/* MODAL XEM LỊCH SỬ XÁC MINH DANH TÍNH (GET /encounters/:id/identity-verifications) */}
