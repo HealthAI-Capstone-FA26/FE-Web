@@ -26,6 +26,7 @@ import {
 import { DepartmentIcon } from '../../components/common/DepartmentIcon';
 import { doctorService, type DoctorResponse, type DepartmentResponse } from '../../services/doctor/doctor.service';
 import { getAvatarUrl } from '../../services/api';
+import { Mascot } from 'page-mascot';
 import { CreateDoctorModal } from './components/CreateDoctorModal';
 import { EditDoctorModal } from './components/EditDoctorModal';
 import { DetailDoctorModal } from './components/DetailDoctorModal';
@@ -207,14 +208,21 @@ export const AdminDoctorsView: React.FC = () => {
 
       {/* Header Banner */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Stethoscope className="w-5 h-5 text-blue-700" />
-            <span>Quản Lý Bác Sĩ & Chuyên Khoa Hệ Thống</span>
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Quản trị toàn bộ danh sách bác sĩ, chứng chỉ hành nghề, học vị chuyên khoa và phân công khoa phòng
-          </p>
+        <div className="flex items-center gap-3">
+          <Mascot
+            directions="/mascots/admin-directions.png"
+            reactions="/mascots/admin-reactions.png"
+            size={120}
+            className="shrink-0"
+          />
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">
+              Quản Lý Bác Sĩ & Chuyên Khoa Hệ Thống
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Quản trị toàn bộ danh sách bác sĩ, chứng chỉ hành nghề, học vị chuyên khoa và phân công khoa phòng
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2.5 self-start md:self-auto">

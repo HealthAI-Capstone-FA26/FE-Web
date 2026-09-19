@@ -803,8 +803,8 @@ export const DoctorEMRView: React.FC = () => {
       <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-3">
           <Mascot
-            directions="/mascots/kamran-directions.webp"
-            reactions="/mascots/kamran-reactions.webp"
+            directions="/mascots/mydoctor-directions.png"
+            reactions="/mascots/mydoctor-reactions.png"
             size={120}
             className="shrink-0"
           />

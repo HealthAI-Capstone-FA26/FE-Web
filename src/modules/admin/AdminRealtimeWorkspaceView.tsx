@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { Users, Stethoscope, HeartPulse, CalendarDays, Coins, Building2 } from 'lucide-react';
+import { Users, Stethoscope, HeartPulse, CalendarDays, Coins, Building2, GitFork } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { AdminDoctorsView } from './AdminDoctorsView';
 import { AdminDoctorSchedulesView } from './AdminDoctorSchedulesView';
@@ -8,6 +8,7 @@ import { AdminUsersView } from './AdminUsersView';
 import { ReceptionPatientsView } from '../reception/ReceptionPatientsView';
 import { AdminExaminationFeesView } from './AdminExaminationFeesView';
 import { LabRoomsView } from '../lab/LabRoomsView';
+import { AdminStaffDepartmentsView } from './AdminStaffDepartmentsView';
 
 export const AdminRealtimeWorkspaceView: React.FC = () => {
   const location = useLocation();
@@ -18,6 +19,12 @@ export const AdminRealtimeWorkspaceView: React.FC = () => {
       label: 'Quản Lý Tài Khoản',
       icon: Users,
       component: <AdminUsersView />
+    },
+    {
+      id: 'staff-departments',
+      label: 'Phân Bổ Khoa Điều Dưỡng',
+      icon: GitFork,
+      component: <AdminStaffDepartmentsView />
     },
     {
       id: 'lab-rooms',
