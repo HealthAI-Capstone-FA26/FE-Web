@@ -15,6 +15,7 @@ interface DataTableProps<T> {
   searchKey?: keyof T;
   emptyMessage?: string;
   pageSize?: number;
+  extraFilters?: React.ReactNode;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -23,7 +24,8 @@ export function DataTable<T extends Record<string, any>>({
   searchPlaceholder = 'Tìm kiếm dữ liệu...',
   searchKey,
   emptyMessage = 'Không tìm thấy dữ liệu phù hợp.',
-  pageSize = 5
+  pageSize = 5,
+  extraFilters,
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -49,21 +51,24 @@ export function DataTable<T extends Record<string, any>>({
   return (
     <div className="w-full bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col">
       {/* Search Header */}
-      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-3">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder={searchPlaceholder}
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full pl-9 pr-4 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-700 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
-          />
+      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 flex-1">
+          <div className="relative w-full sm:w-72 shrink-0">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder={searchPlaceholder}
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-9 pr-4 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-700 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all"
+            />
+          </div>
+          {extraFilters}
         </div>
-        <div className="text-xs text-slate-500 font-medium">
+        <div className="text-xs text-slate-500 font-medium shrink-0">
           Hiển thị <span className="font-bold text-slate-800">{filteredData.length}</span> kết quả
         </div>
       </div>

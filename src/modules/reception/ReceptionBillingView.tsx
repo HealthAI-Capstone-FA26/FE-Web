@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   CreditCard, RefreshCw, XCircle, AlertCircle,
-  Loader2, Plus, Eye, CheckCircle2, Clock
+  Loader2, Plus, Eye, CheckCircle2, Clock,
+  Stethoscope, Layers, Receipt, FlaskConical
 } from 'lucide-react';
 import { Badge, type BadgeVariant } from '../../components/common/Badge';
 import { DataTable, type Column } from '../../components/common/DataTable';
@@ -40,6 +41,14 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
   const [isLoadingList, setIsLoadingList] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
 
+  // ── State: phân loại hóa đơn (Tổng, Phí khám, Khám + XN, Xét nghiệm) ────
+  const [selectedType, setSelectedType] = useState<'all' | 'consultation' | 'combined' | 'tests'>('all');
+
+  // Reset filter khi đổi tab
+  useEffect(() => {
+    setSelectedType('all');
+  }, [filterStatus]);
+
   // ── State: các modal ──────────────────────────────────────────────────────
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
 
@@ -68,6 +77,30 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
   useEffect(() => {
     fetchInvoices();
   }, [fetchInvoices]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Thống kê & lọc theo loại hóa đơn (Khám, Khám + XN, Tổng)
+  // ─────────────────────────────────────────────────────────────────────────
+  const stats = useMemo(() => {
+    const consultationList = invoices.filter((i) => i.invoiceType === 'consultation');
+    const combinedList = invoices.filter((i) => i.invoiceType === 'combined');
+    const testsList = invoices.filter((i) => i.invoiceType === 'tests');
+
+    const sumAmount = (list: InvoiceData[]) =>
+      list.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
+
+    return {
+      all: { count: invoices.length, amount: sumAmount(invoices) },
+      consultation: { count: consultationList.length, amount: sumAmount(consultationList) },
+      combined: { count: combinedList.length, amount: sumAmount(combinedList) },
+      tests: { count: testsList.length, amount: sumAmount(testsList) },
+    };
+  }, [invoices]);
+
+  const filteredInvoices = useMemo(() => {
+    if (filterStatus !== 'paid' || selectedType === 'all') return invoices;
+    return invoices.filter((inv) => inv.invoiceType === selectedType);
+  }, [invoices, selectedType, filterStatus]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Modal openers (Mở tức thì 0ms + Tải ngầm chi tiết)
@@ -270,6 +303,125 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
         </div>
       )}
 
+      {/* Overview Stat Cards - Chỉ hiển thị ở tab Hóa đơn đã thanh toán */}
+      {filterStatus === 'paid' && !isLoadingList && !listError && invoices.length > 0 && (
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${stats.tests.count > 0 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-3.5`}>
+          {/* Card 1: Tổng */}
+          <button
+            type="button"
+            onClick={() => setSelectedType('all')}
+            className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+              selectedType === 'all'
+                ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/20 shadow-xs'
+                : 'bg-white border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/60'
+            }`}
+          >
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-600">Tổng Tất Cả</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                  selectedType === 'all' ? 'bg-blue-200 text-blue-800' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {stats.all.count}
+                </span>
+              </div>
+              <p className="text-lg font-black text-slate-900">{fmtVND(stats.all.amount)}</p>
+            </div>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+              selectedType === 'all' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600'
+            }`}>
+              <Receipt className="w-5 h-5" />
+            </div>
+          </button>
+
+          {/* Card 2: Phí khám chung */}
+          <button
+            type="button"
+            onClick={() => setSelectedType('consultation')}
+            className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+              selectedType === 'consultation'
+                ? 'bg-sky-50/80 border-sky-400 ring-2 ring-sky-500/20 shadow-xs'
+                : 'bg-white border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/60'
+            }`}
+          >
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-600">Phí Khám Chung</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                  selectedType === 'consultation' ? 'bg-sky-200 text-sky-800' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {stats.consultation.count}
+                </span>
+              </div>
+              <p className="text-lg font-black text-sky-900">{fmtVND(stats.consultation.amount)}</p>
+            </div>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+              selectedType === 'consultation' ? 'bg-sky-600 text-white' : 'bg-sky-50 text-sky-600'
+            }`}>
+              <Stethoscope className="w-5 h-5" />
+            </div>
+          </button>
+
+          {/* Card 3: Khám + Xét nghiệm */}
+          <button
+            type="button"
+            onClick={() => setSelectedType('combined')}
+            className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+              selectedType === 'combined'
+                ? 'bg-purple-50/80 border-purple-400 ring-2 ring-purple-500/20 shadow-xs'
+                : 'bg-white border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/60'
+            }`}
+          >
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-600">Khám + Xét Nghiệm</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                  selectedType === 'combined' ? 'bg-purple-200 text-purple-800' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {stats.combined.count}
+                </span>
+              </div>
+              <p className="text-lg font-black text-purple-900">{fmtVND(stats.combined.amount)}</p>
+            </div>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+              selectedType === 'combined' ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600'
+            }`}>
+              <Layers className="w-5 h-5" />
+            </div>
+          </button>
+
+          {/* Card 4: Xét nghiệm (nếu có) */}
+          {stats.tests.count > 0 && (
+            <button
+              type="button"
+              onClick={() => setSelectedType('tests')}
+              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                selectedType === 'tests'
+                  ? 'bg-amber-50/80 border-amber-400 ring-2 ring-amber-500/20 shadow-xs'
+                  : 'bg-white border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/60'
+              }`}
+            >
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-600">Xét Nghiệm Riêng</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                    selectedType === 'tests' ? 'bg-amber-200 text-amber-800' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {stats.tests.count}
+                  </span>
+                </div>
+                <p className="text-lg font-black text-amber-900">{fmtVND(stats.tests.amount)}</p>
+              </div>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                selectedType === 'tests' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-600'
+              }`}>
+                <FlaskConical className="w-5 h-5" />
+              </div>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Loading state / DataTable */}
       {isLoadingList ? (
         <div className="flex flex-col items-center justify-center py-16 space-y-3 text-slate-400">
@@ -279,10 +431,55 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
       ) : (
         <DataTable
           columns={columns}
-          data={invoices}
+          data={filteredInvoices}
+          extraFilters={
+            filterStatus === 'paid' ? (
+              <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+                {[
+                  { id: 'all' as const, label: 'Tất cả (Tổng)', count: stats.all.count },
+                  { id: 'consultation' as const, label: 'Phí khám chung', count: stats.consultation.count },
+                  { id: 'combined' as const, label: 'Khám + XN', count: stats.combined.count },
+                  ...(stats.tests.count > 0
+                    ? [{ id: 'tests' as const, label: 'Xét nghiệm', count: stats.tests.count }]
+                    : []),
+                ].map((tab) => {
+                  const active = selectedType === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setSelectedType(tab.id)}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all shrink-0 border cursor-pointer flex items-center gap-1.5 ${
+                        active
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                          active ? 'bg-blue-700/80 text-white' : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {tab.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : undefined
+          }
           searchPlaceholder="Tìm theo mã hóa đơn, mã encounter..."
           emptyMessage={
-            filterStatus === 'pending'
+            filterStatus === 'paid' && selectedType !== 'all'
+              ? `Không có hóa đơn nào thuộc loại "${
+                  selectedType === 'consultation'
+                    ? 'Phí khám chung'
+                    : selectedType === 'combined'
+                    ? 'Khám + XN'
+                    : 'Xét nghiệm'
+                }".`
+              : filterStatus === 'pending'
               ? 'Không có hóa đơn nào đang chờ thanh toán.'
               : 'Không có hóa đơn nào.'
           }
