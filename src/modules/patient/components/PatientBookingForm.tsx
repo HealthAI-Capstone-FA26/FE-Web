@@ -19,7 +19,7 @@ import {
   Plus
 } from 'lucide-react';
 import { patientService, type PatientResponse } from '../../../services/patient/patient.service';
-import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../../services/doctor/doctor.service';
+import { doctorService, type DepartmentResponse, type DoctorResponse, type DepartmentSuggestionResult } from '../../../services/doctor/doctor.service';
 import { appointmentService, type AppointmentSlotResponse, type AppointmentItem } from '../../../services/appointment/appointment.service';
 
 interface PatientBookingFormProps {
@@ -46,6 +46,33 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
   const [reasonForVisit, setReasonForVisit] = useState<string>('');
   const [priority, setPriority] = useState<'normal' | 'urgent'>('normal');
   const [serviceLevel, setServiceLevel] = useState<'tieu-chuan' | 'vip'>('tieu-chuan');
+
+  // AI Department Suggestion State
+  const [suggestions, setSuggestions] = useState<DepartmentSuggestionResult[]>([]);
+  const [isSuggesting, setIsSuggesting] = useState<boolean>(false);
+
+  // Auto AI Suggestion when user types symptoms
+  useEffect(() => {
+    if (!reasonForVisit || reasonForVisit.trim().length < 3) {
+      setSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSuggesting(true);
+        const res = await doctorService.suggestDepartment(reasonForVisit.trim());
+        setSuggestions(res || []);
+      } catch (err) {
+        console.error('Lỗi khi gợi ý khoa:', err);
+        setSuggestions([]);
+      } finally {
+        setIsSuggesting(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [reasonForVisit]);
 
   // Loading & error states
   const [loadingInitial, setLoadingInitial] = useState(true);
@@ -355,8 +382,72 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
               )}
             </div>
 
-            {/* KHUNG 2: THÔNG TIN CHUYÊN KHOA & BÁC SĨ */}
+            {/* KHUNG 2: VẤN ĐỀ SỨC KHỎE CẦN KHÁM */}
+            <div className="bg-white/5 p-4.5 rounded-xl border border-white/10 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
+                  * 2. Vấn đề sức khỏe cần khám
+                </span>
+                {isSuggesting && (
+                  <span className="text-[10px] text-yellow-300 flex items-center gap-1 font-medium">
+                    <Loader2 className="w-3 h-3 animate-spin text-yellow-300" /> AI đang phân tích triệu chứng...
+                  </span>
+                )}
+              </div>
+              <textarea
+                placeholder="Mô tả ngắn gọn triệu chứng hoặc nhu cầu khám bệnh của bạn (ví dụ: đau bụng dữ dội, ho sốt kéo dài...)..."
+                rows={2.5}
+                value={reasonForVisit}
+                onChange={(e) => setReasonForVisit(e.target.value)}
+                className="w-full bg-white text-slate-800 font-semibold p-3.5 rounded-lg border border-transparent focus:ring-2 focus:ring-yellow-400 outline-none resize-none text-xs md:text-[13px]"
+              />
+
+              {/* AI Suggestion Banner */}
+              {suggestions.length > 0 && (
+                <div className="p-2.5 bg-yellow-400/15 border border-yellow-400/35 rounded-xl space-y-1.5 animate-in fade-in">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Sparkles className="w-4 h-4 text-yellow-300 shrink-0" />
+                      <span className="text-xs text-blue-50 font-medium truncate">
+                        AI Gợi ý khoa phù hợp:{' '}
+                        <strong className="text-yellow-300 font-bold">{suggestions[0].departmentName}</strong>
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDeptId(suggestions[0].departmentId)}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg cursor-pointer transition-all border shrink-0 ${
+                        selectedDeptId === suggestions[0].departmentId
+                          ? 'bg-yellow-400 text-blue-950 border-yellow-400 shadow-xs'
+                          : 'bg-white/20 text-yellow-300 border-yellow-400/50 hover:bg-yellow-400 hover:text-blue-950'
+                      }`}
+                    >
+                      {selectedDeptId === suggestions[0].departmentId ? '✓ Đã chọn khoa này' : 'Áp dụng khoa này'}
+                    </button>
+                  </div>
+
+                  {suggestions[0].matchedKeywords && suggestions[0].matchedKeywords.length > 0 && (
+                    <div className="text-[10px] text-blue-100/80 flex items-center gap-1 pl-5">
+                      <span>Từ khóa khớp:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {suggestions[0].matchedKeywords.map((kw, idx) => (
+                          <span key={idx} className="bg-yellow-400/20 px-1.5 py-0.2 rounded font-mono text-yellow-200">
+                            #{kw}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* KHUNG 3: CHỌN LOẠI HÌNH & CHUYÊN KHOA KHÁM */}
             <div className="bg-white/5 p-4.5 rounded-xl border border-white/10 space-y-4 font-sans">
+              <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
+                * 3. Chọn loại hình & chuyên khoa khám
+              </span>
+
               {/* Chọn loại hình khám (Tiêu chuẩn / VIP) */}
               <div className="space-y-2">
                 <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
@@ -398,20 +489,30 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
 
               {/* Chọn chuyên khoa */}
               <div className="space-y-2">
-                <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                  * Chọn chuyên khoa
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
+                    * Chọn chuyên khoa
+                  </span>
+                  {suggestions.length > 0 && (
+                    <span className="text-[10px] text-yellow-300 font-bold flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Gợi ý AI: {suggestions[0].departmentName}
+                    </span>
+                  )}
+                </div>
                 <div className="relative">
                   <select
                     value={selectedDeptId}
                     onChange={(e) => setSelectedDeptId(e.target.value)}
                     className="w-full bg-white text-slate-800 font-semibold py-2.5 pl-4 pr-10 rounded-lg border border-transparent focus:ring-2 focus:ring-yellow-400 outline-none appearance-none cursor-pointer text-xs md:text-[13px]"
                   >
-                    {departments.map((d) => (
-                      <option key={d.departmentId} value={d.departmentId} className="text-slate-800">
-                        {d.departmentName} ({d.departmentCode})
-                      </option>
-                    ))}
+                    {departments.map((d) => {
+                      const isTopSuggested = suggestions[0]?.departmentId === d.departmentId;
+                      return (
+                        <option key={d.departmentId} value={d.departmentId} className="text-slate-800">
+                          {isTopSuggested ? `✨ [AI Gợi ý] ${d.departmentName} (${d.departmentCode})` : `${d.departmentName} (${d.departmentCode})`}
+                        </option>
+                      );
+                    })}
                   </select>
                   <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
@@ -497,20 +598,6 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                 </div>
               </div>
 
-            </div>
-
-            {/* KHUNG 3: LÝ DO KHÁM */}
-            <div className="bg-white/5 p-4.5 rounded-xl border border-white/10 space-y-2">
-              <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                * Nhập vấn đề sức khỏe cần khám
-              </span>
-              <textarea
-                placeholder="Mô tả ngắn gọn triệu chứng hoặc nhu cầu khám bệnh của bạn..."
-                rows={2.5}
-                value={reasonForVisit}
-                onChange={(e) => setReasonForVisit(e.target.value)}
-                className="w-full bg-white text-slate-800 font-semibold p-3.5 rounded-lg border border-transparent focus:ring-2 focus:ring-yellow-400 outline-none resize-none text-xs md:text-[13px]"
-              />
             </div>
 
             {/* SUBMIT BUTTON */}
