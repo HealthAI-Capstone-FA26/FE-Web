@@ -58,29 +58,10 @@ export interface AssignDepartmentData {
   isPrimary?: boolean;
 }
 
-export interface DepartmentSuggestionResult {
-  departmentId: string;
-  departmentCode: string;
-  departmentName: string;
-  score: number;
-  keywordScore: number;
-  semanticScore: number;
-  matchedKeywords: string[];
-  method: 'keyword' | 'semantic' | 'hybrid' | 'fallback';
-}
-
 let cachedDepartments: DepartmentResponse[] | null = null;
 let departmentsFetchPromise: Promise<DepartmentResponse[]> | null = null;
 
 export const doctorService = {
-  // POST /department-suggestion — Gợi ý chuyên khoa dựa trên mô tả triệu chứng
-  async suggestDepartment(symptoms: string): Promise<DepartmentSuggestionResult[]> {
-    return apiFetch<DepartmentSuggestionResult[]>('/department-suggestion', {
-      method: 'POST',
-      body: JSON.stringify({ symptoms }),
-    });
-  },
-
   // GET /departments — Danh sách khoa phòng (có memory cache)
   async getDepartments(forceRefresh = false): Promise<DepartmentResponse[]> {
     if (!forceRefresh && cachedDepartments) {
