@@ -1,13 +1,20 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   UserPlus, CheckCircle2, Search, Building2, Printer,
   RotateCcw, Sparkles, Phone, Shield, FileText, Loader2, ArrowRight,
-  UserCheck, AlertCircle, Info, Clock
+  UserCheck, AlertCircle, Info, Clock, Wand2, ShieldAlert, X, ChevronDown, ChevronUp,
+  Baby,
 } from 'lucide-react';
 import { patientService } from '../../services/patient/patient.service';
 import { doctorService, type DepartmentResponse } from '../../services/doctor/doctor.service';
 import { appointmentService } from '../../services/appointment/appointment.service';
+import {
+  departmentSuggestionService,
+  calcPatientAgeYears,
+  confidenceLabel,
+  type DepartmentSuggestionResult,
+} from '../../services/department/department-suggestion.service';
 
 export interface PatientOption {
   patientId: string;
@@ -58,6 +65,14 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
   // Reason & Priority
   const [reasonForVisit, setReasonForVisit] = useState('');
   const [priority, setPriority] = useState<'normal' | 'urgent' | 'emergency'>('normal');
+
+  // AI Department Suggestion State
+  const [aiSuggestions, setAiSuggestions] = useState<DepartmentSuggestionResult[]>([]);
+  const [isAISuggesting, setIsAISuggesting] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [showEmergencyAlert, setShowEmergencyAlert] = useState(false);
+  const [emergencyAdvice, setEmergencyAdvice] = useState<string>('');
+  const [showAIPanel, setShowAIPanel] = useState(false);
 
   // Submission & Result States
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -143,6 +158,8 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
     'Tái khám theo hẹn',
     'Đau nhức xương khớp',
     'Kiểm tra huyết áp',
+    'Trẻ sơ sinh (≤ 28 ngày)',
+    'Bé sốt ho (< 16 tuổi)',
   ];
 
   const handleSelectPatient = (p: PatientOption) => {
@@ -218,6 +235,44 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
     const year = new Date(selectedPatient.dateOfBirth).getFullYear();
     return isNaN(year) ? null : new Date().getFullYear() - year;
   }, [selectedPatient]);
+
+  // AI Department Suggestion
+  const handleAISuggest = useCallback(async () => {
+    const symptomText = reasonForVisit.trim();
+    if (symptomText.length < 3) {
+      setAiError('Vui lòng nhập ít nhất 3 ký tự mô tả triệu chứng để AI gợi ý chuyên khoa.');
+      return;
+    }
+    setIsAISuggesting(true);
+    setAiError(null);
+    setAiSuggestions([]);
+    setShowAIPanel(true);
+    try {
+      const patientAgeYears = calcPatientAgeYears(selectedPatient?.dateOfBirth);
+      const results = await departmentSuggestionService.suggest({ symptoms: symptomText, patientAgeYears });
+      setAiSuggestions(results ?? []);
+
+      // Kiểm tra cảnh báo cấp cứu
+      const emergency = results?.find((r) => r.isEmergency);
+      if (emergency) {
+        setEmergencyAdvice(emergency.advice ?? 'Vui lòng hướng dẫn bệnh nhân đến ngay Khoa Cấp Cứu hoặc gọi 115.');
+        setShowEmergencyAlert(true);
+        // Tự động chọn khoa cấp cứu
+        if (emergency.departmentId) setSelectedDepartmentId(emergency.departmentId);
+        return;
+      }
+
+      // Tự động chọn khoa có điểm cao nhất nếu confidence >= medium
+      const best = results?.[0];
+      if (best && (best.confidence === 'high' || best.confidence === 'medium')) {
+        setSelectedDepartmentId(best.departmentId);
+      }
+    } catch (err: any) {
+      setAiError(err?.message ?? 'Không thể kết nối dịch vụ gợi ý AI. Vui lòng chọn chuyên khoa thủ công.');
+    } finally {
+      setIsAISuggesting(false);
+    }
+  }, [reasonForVisit, selectedPatient?.dateOfBirth]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -535,23 +590,167 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
             )}
           </div>
 
-          {/* STEP 2: CHOOSE DEPARTMENT */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-7 shadow-xs space-y-4">
+          {/* STEP 2: LÝ DO KHÁM + AI GỢI Ý + CHỌN CHUYÊN KHOA */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-7 shadow-xs space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 font-black text-xs flex items-center justify-center border border-blue-200">
                   2
                 </div>
                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">
-                  Chọn Chuyên Khoa Khám
+                  Triệu Chứng & Chọn Chuyên Khoa
                 </h3>
               </div>
-
               <span className="text-[11px] text-slate-400">
                 {departments.length} chuyên khoa đang hoạt động
               </span>
             </div>
 
+            {/* ── Nhập triệu chứng + AI suggest ── */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-700">
+                  Lý do đến khám / Triệu chứng ban đầu:
+                </label>
+                {reasonForVisit.trim().length >= 3 && (
+                  <span className="text-[10px] text-slate-400">{reasonForVisit.trim().length}/500 ký tự</span>
+                )}
+              </div>
+
+              <div className="relative">
+                <textarea
+                  rows={3}
+                  value={reasonForVisit}
+                  onChange={(e) => { setReasonForVisit(e.target.value); setAiSuggestions([]); setAiError(null); }}
+                  placeholder="Ví dụ: Đau đầu 2 ngày nay, hoặc 'bé 3 tuổi sốt cao', 'trẻ sơ sinh 10 ngày bú kém'... AI sẽ gợi ý chuyên khoa phù hợp."
+                  className="w-full p-3 pr-4 text-xs rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium leading-relaxed resize-none"
+                  maxLength={500}
+                />
+              </div>
+
+              {/* Hint Box: Hướng dẫn phân khoa Trẻ em & Sơ sinh */}
+              <div className="flex items-start gap-2 text-xs text-slate-600 bg-amber-50/80 rounded-2xl p-3 border border-amber-200/80 leading-relaxed">
+                <Baby className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-amber-900">Gợi ý phân khoa trẻ em: </span>
+                  <span>
+                    Nhập <strong className="text-slate-900">&quot;trẻ sơ sinh&quot;</strong> + lý do (ưu tiên <strong className="text-blue-700">Khoa Sơ sinh</strong>); nhập <strong className="text-slate-900">&quot;bé&quot; + lý do</strong> hoặc <strong className="text-slate-900">số tuổi</strong> (ưu tiên <strong className="text-blue-700">Khoa Nhi</strong>).
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick tags */}
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {quickSymptoms.map((sym) => (
+                  <button
+                    key={sym}
+                    type="button"
+                    onClick={() => {
+                      setReasonForVisit((prev) => prev ? `${prev}, ${sym.toLowerCase()}` : sym);
+                      setAiSuggestions([]);
+                    }}
+                    className="text-[11px] font-semibold bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 px-2.5 py-1 rounded-xl transition-colors border border-slate-200/80 cursor-pointer"
+                  >
+                    + {sym}
+                  </button>
+                ))}
+              </div>
+
+              {/* AI Suggest Button */}
+              <button
+                type="button"
+                onClick={handleAISuggest}
+                disabled={isAISuggesting || reasonForVisit.trim().length < 3}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-xs font-bold transition-all border cursor-pointer
+                  bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700
+                  disabled:from-slate-300 disabled:to-slate-300 disabled:cursor-not-allowed
+                  text-white shadow-md shadow-violet-500/20 disabled:shadow-none"
+              >
+                {isAISuggesting ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /><span>AI đang phân tích triệu chứng...</span></>
+                ) : (
+                  <><Wand2 className="w-4 h-4" /><span>✨ Gợi ý Chuyên khoa bằng AI</span></>
+                )}
+              </button>
+
+              {/* AI Error */}
+              {aiError && (
+                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                  <span>{aiError}</span>
+                </div>
+              )}
+            </div>
+
+            {/* ── AI Results Panel ── */}
+            {showAIPanel && aiSuggestions.length > 0 && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wand2 className="w-3.5 h-3.5 text-violet-600" />
+                    <span className="text-xs font-bold text-violet-800">Gợi ý chuyên khoa từ AI</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAIPanel(false)}
+                    className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer border-none bg-transparent"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {aiSuggestions.slice(0, 3).map((s, idx) => {
+                    const isAutoSelected = selectedDepartmentId === s.departmentId;
+                    const confidenceColor =
+                      s.confidence === 'high'
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                        : s.confidence === 'medium'
+                        ? 'bg-blue-100 text-blue-800 border-blue-200'
+                        : 'bg-slate-100 text-slate-600 border-slate-200';
+                    return (
+                      <button
+                        key={s.departmentId}
+                        type="button"
+                        onClick={() => setSelectedDepartmentId(s.departmentId)}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                          isAutoSelected
+                            ? 'bg-violet-50 border-violet-500 ring-2 ring-violet-500/20'
+                            : 'bg-white border-slate-200 hover:border-violet-300 hover:bg-violet-50/30'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <span className={`text-xs font-black ${ isAutoSelected ? 'text-violet-900' : 'text-slate-800'}`}>
+                            {idx === 0 && <span className="mr-1">🏆</span>}
+                            {s.departmentName}
+                          </span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border whitespace-nowrap shrink-0 ${confidenceColor}`}>
+                            {confidenceLabel(s.confidence)}
+                          </span>
+                        </div>
+                        {s.matchedKeywords.length > 0 && (
+                          <p className="text-[10px] text-slate-500 line-clamp-2">
+                            Khớp: {s.matchedKeywords.slice(0, 3).map((k) => `"${k}"`).join(', ')}
+                          </p>
+                        )}
+                        <div className="mt-1.5 flex items-center justify-between">
+                          <span className="text-[10px] text-slate-400">Điểm: {(s.score * 100).toFixed(0)}%</span>
+                          {isAutoSelected && (
+                            <span className="text-[10px] font-bold text-violet-700 flex items-center gap-0.5">
+                              <CheckCircle2 className="w-3 h-3" /> Đã chọn
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-slate-400 italic pl-1">
+                  * Đây là gợi ý tham khảo từ AI. Lễ tân có thể chọn khoa khác bên dưới nếu cần.
+                </p>
+              </div>
+            )}
+
+            {/* ── Lưới chọn chuyên khoa ── */}
             {isLoadingDepartments ? (
               <div className="py-8 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs">
                 <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
@@ -565,6 +764,7 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {departments.map((dep) => {
                   const isSelected = selectedDepartmentId === dep.departmentId;
+                  const aiMatch = aiSuggestions.findIndex((s) => s.departmentId === dep.departmentId);
                   return (
                     <button
                       key={dep.departmentId}
@@ -573,9 +773,16 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
                       className={`p-4 rounded-2xl border text-left transition-all cursor-pointer relative ${
                         isSelected
                           ? 'bg-blue-50/80 border-blue-600 ring-2 ring-blue-600/20 shadow-xs'
+                          : aiMatch === 0
+                          ? 'bg-violet-50/50 border-violet-300 hover:border-violet-400'
                           : 'bg-white border-slate-200 hover:border-blue-300 hover:bg-slate-50/50'
                       }`}
                     >
+                      {aiMatch >= 0 && !isSelected && (
+                        <div className="absolute -top-2 -right-2 w-5 h-5 bg-violet-600 text-white rounded-full text-[10px] font-black flex items-center justify-center shadow-sm">
+                          {aiMatch + 1}
+                        </div>
+                      )}
                       <div className="flex items-start justify-between gap-2">
                         <div className="space-y-1 min-w-0">
                           <div className={`font-bold text-xs ${isSelected ? 'text-blue-900' : 'text-slate-800'}`}>
@@ -588,7 +795,6 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
                             </div>
                           )}
                         </div>
-
                         <div
                           className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
                             isSelected
@@ -606,106 +812,51 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
             )}
           </div>
 
-          {/* STEP 3: REASON FOR VISIT & PRIORITY */}
+          {/* STEP 3: PRIORITY */}
           <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-7 shadow-xs space-y-4">
             <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
               <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 font-black text-xs flex items-center justify-center border border-blue-200">
                 3
               </div>
               <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">
-                Lý Do Khám, Triệu Chứng & Mức Độ Ưu Tiên
+                Mức Độ Ưu Tiên
               </h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
-              {/* Reason for visit */}
-              <div className="md:col-span-2 space-y-2">
-                <label className="block font-bold text-slate-700">
-                  Lý do đến khám / Triệu chứng ban đầu:
-                </label>
-                <textarea
-                  rows={3}
-                  value={reasonForVisit}
-                  onChange={(e) => setReasonForVisit(e.target.value)}
-                  placeholder="Ví dụ: Đau đầu 2 ngày nay, sốt nhẹ về chiều, người mệt mỏi..."
-                  className="w-full p-3 text-xs rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium leading-relaxed"
-                />
-
-                {/* Quick tags */}
-                <div className="space-y-1">
-                  <span className="text-[11px] text-slate-400 font-medium">Gợi ý nhanh triệu chứng:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {quickSymptoms.map((sym) => (
-                      <button
-                        key={sym}
-                        type="button"
-                        onClick={() => {
-                          setReasonForVisit((prev) =>
-                            prev ? `${prev}, ${sym.toLowerCase()}` : sym
-                          );
-                        }}
-                        className="text-[11px] font-semibold bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 px-2.5 py-1 rounded-xl transition-colors border border-slate-200/80 cursor-pointer"
-                      >
-                        + {sym}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Priority Selection */}
-              <div className="space-y-2">
-                <label className="block font-bold text-slate-700">
-                  Mức độ ưu tiên (*):
-                </label>
-                <div className="space-y-2">
-                  {[
-                    {
-                      id: 'normal',
-                      label: 'Khám thường (Normal)',
-                      desc: 'Bệnh nhân khám định kỳ, triệu chứng nhẹ',
-                    },
-                    {
-                      id: 'urgent',
-                      label: 'Ưu tiên (Urgent)',
-                      desc: 'Người cao tuổi (>75t), trẻ nhỏ (<6t), thai phụ',
-                    },
-                    {
-                      id: 'emergency',
-                      label: 'Khẩn cấp (Emergency)',
-                      desc: 'Cần bác sĩ xử trí ngay lập tức',
-                    },
-                  ].map((p) => {
-                    const isSelected = priority === p.id;
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setPriority(p.id as any)}
-                        className={`w-full p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-blue-50/80 border-blue-600 ring-2 ring-blue-600/20 shadow-xs'
-                            : 'bg-white border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-xs text-slate-900">{p.label}</span>
-                          <div
-                            className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                              isSelected
-                                ? 'bg-blue-600 border-blue-600 text-white'
-                                : 'border-slate-300'
-                            }`}
-                          >
-                            {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                          </div>
-                        </div>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{p.desc}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              {[
+                { id: 'normal', label: 'Khám thường', desc: 'Triệu chứng nhẹ, không cấp bách', color: 'emerald' },
+                { id: 'urgent', label: 'Ưu tiên', desc: 'Cao tuổi >75t, trẻ <6t, thai phụ', color: 'amber' },
+                { id: 'emergency', label: 'Khẩn cấp', desc: 'Cần bác sĩ xử trí ngay', color: 'rose' },
+              ].map((p) => {
+                const isSelected = priority === p.id;
+                const colors: Record<string, string> = {
+                  emerald: isSelected ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20' : 'bg-white border-slate-200 hover:border-emerald-300',
+                  amber: isSelected ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-500/20' : 'bg-white border-slate-200 hover:border-amber-300',
+                  rose: isSelected ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-500/20' : 'bg-white border-slate-200 hover:border-rose-300',
+                };
+                const dotColors: Record<string, string> = {
+                  emerald: isSelected ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300',
+                  amber: isSelected ? 'bg-amber-500 border-amber-500' : 'border-slate-300',
+                  rose: isSelected ? 'bg-rose-600 border-rose-600' : 'border-slate-300',
+                };
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPriority(p.id as any)}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${colors[p.color]}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900">{p.label}</span>
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${dotColors[p.color]}`}>
+                        {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{p.desc}</p>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -748,6 +899,62 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
             </div>
           </div>
         </form>
+      )}
+
+      {/* ── Emergency Alert Modal ── */}
+      {showEmergencyAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden border border-rose-200">
+            {/* Red header */}
+            <div className="bg-gradient-to-r from-rose-600 to-red-700 px-6 py-5 text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+                  <ShieldAlert className="w-7 h-7 text-white" />
+                </div>
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-rose-200">Cảnh báo khẩn cấp</div>
+                  <h3 className="text-lg font-black text-white">Phát hiện dấu hiệu nguy kịch!</h3>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <p className="text-sm font-bold text-rose-800 leading-relaxed">
+                🚨 AI phát hiện triệu chứng của bệnh nhân có thể là tình trạng cấp cứu nguy hiểm tính mạng.
+              </p>
+              {emergencyAdvice && (
+                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-sm text-rose-900 leading-relaxed font-medium">
+                  {emergencyAdvice}
+                </div>
+              )}
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-800 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                <span>
+                  Nếu bệnh nhân đang trong tình trạng nguy kịch, vui lòng <strong>hướng dẫn đến ngay Khoa Cấp Cứu</strong> hoặc gọi <strong>115</strong> thay vì tiếp tục đặt lịch khám thường.
+                </span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-6 flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => setShowEmergencyAlert(false)}
+                className="flex-1 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm transition-all cursor-pointer border-none shadow-lg shadow-rose-600/30"
+              >
+                Đã hiểu — Hướng dẫn bệnh nhân tới Khoa Cấp Cứu
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowEmergencyAlert(false)}
+                className="flex-1 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition-all cursor-pointer border border-slate-200"
+              >
+                Bỏ qua — Tiếp tục đăng ký thường
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
