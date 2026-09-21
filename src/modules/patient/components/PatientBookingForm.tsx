@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Calendar as CalendarIcon,
   User,
@@ -16,11 +16,20 @@ import {
   Activity,
   Award,
   ShieldAlert,
-  Plus
+  Plus,
+  Wand2,
+  X,
+  Baby,
 } from 'lucide-react';
 import { patientService, type PatientResponse } from '../../../services/patient/patient.service';
 import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../../services/doctor/doctor.service';
 import { appointmentService, type AppointmentSlotResponse, type AppointmentItem } from '../../../services/appointment/appointment.service';
+import {
+  departmentSuggestionService,
+  calcPatientAgeYears,
+  confidenceLabel,
+  type DepartmentSuggestionResult,
+} from '../../../services/department/department-suggestion.service';
 
 interface PatientBookingFormProps {
   onSuccess?: (newAppointment: AppointmentItem) => void;
@@ -53,6 +62,13 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successBooking, setSuccessBooking] = useState<AppointmentItem | null>(null);
+
+  // AI Department Suggestion
+  const [aiSuggestions, setAiSuggestions] = useState<DepartmentSuggestionResult[]>([]);
+  const [isAISuggesting, setIsAISuggesting] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [emergencyMsg, setEmergencyMsg] = useState<string | null>(null);
 
   // Load initial patients, departments, doctors
   useEffect(() => {
@@ -194,7 +210,46 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
     setSuccessBooking(null);
     setReasonForVisit('');
     setSelectedSlotId('');
+    setAiSuggestions([]);
+    setShowAIPanel(false);
+    setEmergencyMsg(null);
   };
+
+  // AI Department Suggestion
+  const currentPatientObj = patients.find((p) => p.patientId === selectedPatientId);
+  const handleAISuggest = useCallback(async () => {
+    const symptomText = reasonForVisit.trim();
+    if (symptomText.length < 3) {
+      setAiError('Vui lòng nhập ít nhất 3 ký tự mô tả triệu chứng.');
+      return;
+    }
+    setIsAISuggesting(true);
+    setAiError(null);
+    setAiSuggestions([]);
+    setEmergencyMsg(null);
+    setShowAIPanel(true);
+    try {
+      const patientAgeYears = calcPatientAgeYears(currentPatientObj?.dateOfBirth);
+      const results = await departmentSuggestionService.suggest({ symptoms: symptomText, patientAgeYears });
+      setAiSuggestions(results ?? []);
+
+      const emergency = results?.find((r) => r.isEmergency);
+      if (emergency) {
+        setEmergencyMsg(emergency.advice ?? 'Vui lòng đến ngay Khoa Cấp Cứu hoặc gọi 115.');
+        if (emergency.departmentId) setSelectedDeptId(emergency.departmentId);
+        return;
+      }
+
+      const best = results?.[0];
+      if (best && (best.confidence === 'high' || best.confidence === 'medium')) {
+        setSelectedDeptId(best.departmentId);
+      }
+    } catch (err: any) {
+      setAiError(err?.message ?? 'Không thể kết nối dịch vụ gợi ý AI.');
+    } finally {
+      setIsAISuggesting(false);
+    }
+  }, [reasonForVisit, currentPatientObj?.dateOfBirth]);
 
   if (loadingInitial) {
     return (
@@ -401,6 +456,98 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                 <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
                   * Chọn chuyên khoa
                 </span>
+
+                {/* AI Suggest: symptom input + button */}
+                <div className="space-y-1.5">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={reasonForVisit}
+                      onChange={(e) => { setReasonForVisit(e.target.value); setAiSuggestions([]); setAiError(null); setEmergencyMsg(null); }}
+                      placeholder="VD: Bé 3 tuổi sốt cao, hoặc trẻ sơ sinh 10 ngày bú kém..."
+                      className="flex-1 bg-white/10 text-white placeholder-blue-200/60 font-medium py-2 px-3 rounded-lg border border-white/20 focus:ring-2 focus:ring-yellow-400 outline-none text-xs"
+                      maxLength={500}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAISuggest}
+                      disabled={isAISuggesting || reasonForVisit.trim().length < 3}
+                      className="px-3 py-2 rounded-lg bg-violet-500 hover:bg-violet-600 disabled:bg-white/20 disabled:cursor-not-allowed text-white font-bold text-xs transition-all flex items-center gap-1.5 shrink-0 cursor-pointer border-none shadow-sm"
+                    >
+                      {isAISuggesting
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <Wand2 className="w-3.5 h-3.5" />}
+                      <span className="hidden sm:inline">{isAISuggesting ? 'Đang phân tích...' : 'AI Gợi ý'}</span>
+                    </button>
+                  </div>
+
+                  {/* Hint note for pediatric & neonate */}
+                  <div className="flex items-start gap-1.5 text-[10.5px] text-blue-100/90 bg-blue-950/40 rounded-lg px-2.5 py-1.5 border border-blue-400/20 leading-relaxed">
+                    <Baby className="w-3.5 h-3.5 text-amber-300 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-amber-300">Gợi ý cho trẻ: </span>
+                      Nhập <span className="font-semibold text-white">&quot;trẻ sơ sinh&quot;</span> + lý do (vào Khoa Sơ sinh) hoặc <span className="font-semibold text-white">&quot;bé&quot; + lý do</span> hoặc <span className="font-semibold text-white">số tuổi</span> (vào Khoa Nhi).
+                    </div>
+                  </div>
+
+                  {/* AI Error */}
+                  {aiError && (
+                    <p className="text-yellow-300 text-[11px] flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> {aiError}
+                    </p>
+                  )}
+
+                  {/* Emergency inline banner */}
+                  {emergencyMsg && (
+                    <div className="bg-rose-600/90 border border-rose-400 rounded-xl p-3 text-xs text-white font-bold flex items-start gap-2">
+                      <ShieldAlert className="w-4 h-4 shrink-0 text-rose-200 mt-0.5" />
+                      <div>
+                        <div className="font-black text-rose-100 mb-0.5">🚨 Phát hiện dấu hiệu cấp cứu!</div>
+                        <p className="font-medium leading-relaxed text-rose-100">{emergencyMsg}</p>
+                      </div>
+                      <button type="button" onClick={() => setEmergencyMsg(null)} className="ml-auto shrink-0 text-rose-300 hover:text-white cursor-pointer border-none bg-transparent">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* AI Results */}
+                  {showAIPanel && aiSuggestions.length > 0 && !emergencyMsg && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-violet-300 uppercase">Gợi ý từ AI</span>
+                        <button type="button" onClick={() => setShowAIPanel(false)} className="text-blue-300 hover:text-white cursor-pointer border-none bg-transparent">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 gap-1.5">
+                        {aiSuggestions.slice(0, 3).map((s, idx) => {
+                          const isActive = selectedDeptId === s.departmentId;
+                          return (
+                            <button
+                              key={s.departmentId}
+                              type="button"
+                              onClick={() => setSelectedDeptId(s.departmentId)}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs font-semibold transition-all cursor-pointer border ${
+                                isActive
+                                  ? 'bg-violet-500/30 border-violet-400 text-white'
+                                  : 'bg-white/10 border-white/20 text-blue-100 hover:bg-white/20'
+                              }`}
+                            >
+                              <span>{idx === 0 && '🏆 '}{s.departmentName}</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                s.confidence === 'high' ? 'bg-emerald-500/30 text-emerald-200'
+                                : s.confidence === 'medium' ? 'bg-blue-400/30 text-blue-200'
+                                : 'bg-white/10 text-blue-300'
+                              }`}>{confidenceLabel(s.confidence)}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="relative">
                   <select
                     value={selectedDeptId}
