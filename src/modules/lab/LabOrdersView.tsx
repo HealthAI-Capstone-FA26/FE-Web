@@ -3,7 +3,7 @@ import {
   FlaskConical, CheckCircle2, Sparkles, Upload, 
   Lock, FileText, Loader2,
   Building2, RefreshCw, Search, AlertCircle, Eye,
-  ChevronDown, MapPin
+  ChevronDown, MapPin, Pencil
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { DataTable, type Column } from '../../components/common/DataTable';
@@ -30,7 +30,7 @@ export const LabOrdersView: React.FC = () => {
   // Action Loading States
   const [receivingTaskId, setReceivingTaskId] = useState<string | null>(null);
 
-  // Modal: Nhập kết quả
+  // Modal 1: Nhập kết quả lần đầu (in_progress)
   const [selectedTask, setSelectedTask] = useState<LabTaskItem | null>(null);
   const [isInputModalOpen, setIsInputModalOpen] = useState<boolean>(false);
   const [paramValues, setParamValues] = useState<Record<string, { valueNumeric?: number; valueText?: string }>>({});
@@ -39,10 +39,14 @@ export const LabOrdersView: React.FC = () => {
   const [attachedFileName, setAttachedFileName] = useState<string>('');
   const [isSubmittingResult, setIsSubmittingResult] = useState<boolean>(false);
 
-  // Modal: Xem kết quả chi tiết đã hoàn tất
+  // Modal 2: Xem & Bổ sung / Chỉnh sửa kết quả EMR (completed)
   const [viewingResult, setViewingResult] = useState<LabResultDetail | null>(null);
   const [isViewResultModalOpen, setIsViewResultModalOpen] = useState<boolean>(false);
   const [isLoadingResultDetail, setIsLoadingResultDetail] = useState<boolean>(false);
+  const [isEditingInViewModal, setIsEditingInViewModal] = useState<boolean>(false);
+  const [editParamValues, setEditParamValues] = useState<Record<string, { valueNumeric?: number; valueText?: string }>>({});
+  const [editConclusion, setEditConclusion] = useState<string>('');
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
 
   // AI analysis states
   const [isAIScanning, setIsAIScanning] = useState<boolean>(false);
@@ -156,7 +160,7 @@ export const LabOrdersView: React.FC = () => {
     }
   };
 
-  // Mở modal nhập kết quả
+  // Mở modal nhập kết quả ban đầu (khi ca đang in_progress)
   const handleOpenInputModal = (task: LabTaskItem) => {
     setSelectedTask(task);
     const initialParams: Record<string, { valueNumeric?: number; valueText?: string }> = {};
@@ -176,18 +180,85 @@ export const LabOrdersView: React.FC = () => {
     setIsInputModalOpen(true);
   };
 
-  // Xem kết quả đã hoàn tất
-  const handleViewResult = async (task: LabTaskItem) => {
+  // Nạp dữ liệu vào form chỉnh sửa / bổ sung trong Modal Xem kết quả
+  const populateEditData = (task: LabTaskItem, result: LabResultDetail) => {
+    const initialParams: Record<string, { valueNumeric?: number; valueText?: string }> = {};
+    const parameters = task.orderItem?.testType?.labResultParameters || [];
+    parameters.forEach((p) => {
+      initialParams[p.parameterId] = {
+        valueNumeric: undefined,
+        valueText: '',
+      };
+    });
+
+    if (result.values && result.values.length > 0) {
+      result.values.forEach((v) => {
+        if (v.parameterId) {
+          initialParams[v.parameterId] = {
+            valueNumeric: v.valueNumeric !== null && v.valueNumeric !== undefined ? Number(v.valueNumeric) : undefined,
+            valueText: v.valueText || '',
+          };
+        }
+      });
+    }
+
+    setEditParamValues(initialParams);
+    setEditConclusion(result.overallConclusion || '');
+  };
+
+  // Mở modal xem kết quả (có thể mở ở chế độ xem hoặc chế độ bổ sung ngay)
+  const handleViewResult = async (task: LabTaskItem, startInEditMode = false) => {
+    setSelectedTask(task);
     setIsLoadingResultDetail(true);
+    setIsEditingInViewModal(startInEditMode);
     setIsViewResultModalOpen(true);
     try {
       const result = await labResultService.getLabResultByTaskId(task.labTaskId);
       setViewingResult(result);
+      populateEditData(task, result);
     } catch (err: any) {
       showToast(err?.message || 'Không thể tải chi tiết kết quả xét nghiệm', 'error');
       setIsViewResultModalOpen(false);
     } finally {
       setIsLoadingResultDetail(false);
+    }
+  };
+
+  // Lưu chỉnh sửa / bổ sung trực tiếp trong Modal Xem kết quả
+  const handleSaveEditInViewModal = async () => {
+    if (!selectedTask || !viewingResult) return;
+
+    const parameters = selectedTask.orderItem?.testType?.labResultParameters || [];
+    const valuesPayload = parameters.map((p) => {
+      const val = editParamValues[p.parameterId];
+      return {
+        parameterId: p.parameterId,
+        valueNumeric: val?.valueNumeric !== undefined ? Number(val.valueNumeric) : undefined,
+        valueText: val?.valueText || undefined,
+      };
+    });
+
+    if (parameters.length > 0 && valuesPayload.every((v) => v.valueNumeric === undefined && !v.valueText)) {
+      showToast('Vui lòng nhập ít nhất một chỉ số đo đạc', 'error');
+      return;
+    }
+
+    setIsSavingEdit(true);
+    try {
+      const updated = await labResultService.updateLabResult(viewingResult.labResultId, {
+        values: valuesPayload.filter((v) => v.valueNumeric !== undefined || (v.valueText && v.valueText.trim() !== '')),
+        overallConclusion: editConclusion.trim() || undefined,
+      });
+
+      setViewingResult(updated);
+      populateEditData(selectedTask, updated);
+      setIsEditingInViewModal(false);
+      showToast('Đã cập nhật và bổ sung kết quả xét nghiệm EMR thành công!', 'success');
+      fetchTasks(true);
+    } catch (err: any) {
+      showToast(err?.message || 'Không thể cập nhật kết quả xét nghiệm. Vui lòng thử lại.', 'error');
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -201,7 +272,7 @@ export const LabOrdersView: React.FC = () => {
     }, 1800);
   };
 
-  // Lưu và xác nhận kết quả xét nghiệm
+  // Lưu và xác nhận kết quả xét nghiệm lần đầu (khi ca đang in_progress)
   const handleSubmitResult = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTask) return;
@@ -224,7 +295,7 @@ export const LabOrdersView: React.FC = () => {
     setIsSubmittingResult(true);
     try {
       const result = await labResultService.submitLabResult(selectedTask.labTaskId, {
-        values: valuesPayload.filter((v) => v.valueNumeric !== undefined || v.valueText),
+        values: valuesPayload.filter((v) => v.valueNumeric !== undefined || (v.valueText && v.valueText.trim() !== '')),
         overallConclusion: overallConclusion.trim() || undefined,
         resultStatus: 'final',
       });
@@ -432,7 +503,7 @@ export const LabOrdersView: React.FC = () => {
         if (row.status === 'completed') {
           return (
             <button
-              onClick={() => handleViewResult(row)}
+              onClick={() => handleViewResult(row, false)}
               className="px-3.5 py-1.5 font-bold text-xs rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
             >
               <Eye className="w-3.5 h-3.5 shrink-0" />
@@ -662,7 +733,7 @@ export const LabOrdersView: React.FC = () => {
         />
       )}
 
-      {/* MODAL 1: NHẬP KẾT QUẢ XÉT NGHIỆM & AI SCAN */}
+      {/* MODAL 1: NHẬP KẾT QUẢ XÉT NGHIỆM LẦN ĐẦU (CHO CA IN_PROGRESS) */}
       {selectedTask && (
         <Modal
           isOpen={isInputModalOpen}
@@ -895,20 +966,84 @@ export const LabOrdersView: React.FC = () => {
         </Modal>
       )}
 
-      {/* MODAL 2: XEM KẾT QUẢ EMR ĐÃ HOÀN TẤT */}
+      {/* MODAL 2: XEM VÀ CHỈNH SỬA / BỔ SUNG KẾT QUẢ EMR TẠI CHỖ */}
       <Modal
         isOpen={isViewResultModalOpen}
-        onClose={() => setIsViewResultModalOpen(false)}
-        title="Chi tiết kết quả xét nghiệm EMR"
-        subtitle="Hồ sơ kết quả chính thức đã lưu trên hệ thống"
-        maxWidth="2xl"
+        onClose={() => {
+          setIsViewResultModalOpen(false);
+          setIsEditingInViewModal(false);
+        }}
+        title={
+          isEditingInViewModal
+            ? `Chỉnh sửa & Bổ sung kết quả: ${selectedTask?.orderItem?.testType?.testName || 'Xét nghiệm'}`
+            : 'Chi tiết kết quả xét nghiệm EMR'
+        }
+        subtitle={
+          isEditingInViewModal
+            ? `Bệnh nhân: ${selectedTask?.orderItem?.order?.encounter?.patient?.fullName || 'N/A'} (Mã BN: ${
+                selectedTask?.orderItem?.order?.encounter?.patient?.patientCode || 'N/A'
+              }) • Chế độ đính chính / bổ sung EMR`
+            : 'Hồ sơ kết quả chính thức đã lưu trên hệ thống'
+        }
+        maxWidth={isEditingInViewModal ? '4xl' : '2xl'}
         footer={
-          <button
-            onClick={() => setIsViewResultModalOpen(false)}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer border-none"
-          >
-            Đóng
-          </button>
+          isEditingInViewModal ? (
+            <div className="flex items-center justify-end gap-2 w-full">
+              <button
+                type="button"
+                onClick={() => setIsEditingInViewModal(false)}
+                disabled={isSavingEdit}
+                className="px-4 py-2 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-50 cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEditInViewModal}
+                disabled={isSavingEdit}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5 cursor-pointer border-none disabled:opacity-50"
+              >
+                {isSavingEdit ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang cập nhật EMR...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Lưu & Cập Nhật Kết Quả EMR</span>
+                  </>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between w-full">
+              <div className="text-slate-400 text-[11px] italic">
+                {viewingResult?.resultStatus === 'final'
+                  ? 'Hồ sơ đã phát hành (FINAL).'
+                  : viewingResult?.resultStatus === 'corrected'
+                  ? 'Hồ sơ đã được đính chính/bổ sung (CORRECTED).'
+                  : ''}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsViewResultModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer border-none"
+                >
+                  Đóng
+                </button>
+                {selectedTask && viewingResult && (
+                  <button
+                    onClick={() => setIsEditingInViewModal(true)}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs cursor-pointer border-none flex items-center gap-1.5 shadow-xs"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Chỉnh sửa / Bổ sung kết quả</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )
         }
       >
         {isLoadingResultDetail ? (
@@ -918,51 +1053,172 @@ export const LabOrdersView: React.FC = () => {
           </div>
         ) : viewingResult ? (
           <div className="space-y-4 text-xs">
+            {/* Thanh thông tin trạng thái & thời gian */}
             <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
               <div>
                 <span className="text-slate-400 text-[10px] block">Trạng thái kết quả</span>
-                <span className="font-bold text-emerald-700 uppercase">{viewingResult.resultStatus}</span>
+                <span className={`font-bold uppercase ${
+                  viewingResult.resultStatus === 'corrected' ? 'text-indigo-700' : 'text-emerald-700'
+                }`}>
+                  {viewingResult.resultStatus === 'corrected' ? 'CORRECTED (Đã bổ sung)' : viewingResult.resultStatus}
+                </span>
               </div>
               <div className="text-right">
-                <span className="text-slate-400 text-[10px] block">Thời gian có kết quả</span>
+                <span className="text-slate-400 text-[10px] block">Thời gian cập nhật</span>
                 <span className="font-bold text-slate-800">
                   {new Date(viewingResult.resultedAt).toLocaleString('vi-VN')}
                 </span>
               </div>
             </div>
 
-            {/* Bảng chỉ số đã nhập */}
-            {viewingResult.values && viewingResult.values.length > 0 && (
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                    <tr>
-                      <th className="p-2.5">Chỉ số xét nghiệm</th>
-                      <th className="p-2.5">Giá trị đo</th>
-                      <th className="p-2.5">Đơn vị</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {viewingResult.values.map((v) => (
-                      <tr key={v.resultValueId}>
-                        <td className="p-2.5 font-bold text-slate-800">
-                          {v.parameter?.parameterName || v.parameter?.parameterCode || 'Chỉ số'}
-                        </td>
-                        <td className="p-2.5 font-mono font-bold text-blue-900">
-                          {v.valueNumeric !== null && v.valueNumeric !== undefined ? v.valueNumeric : v.valueText || '-'}
-                        </td>
-                        <td className="p-2.5 text-slate-500 font-mono text-[11px]">{v.parameter?.unit || '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {/* CHẾ ĐỘ 1: ĐANG CHỈNH SỬA / BỔ SUNG TRỰC TIẾP TRONG MODAL NÀY */}
+            {isEditingInViewModal ? (
+              <div className="space-y-4">
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-[11px] font-semibold text-amber-900">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    Chế độ hiệu chỉnh/bổ sung: Nhập bổ sung các chỉ số đo đạc còn thiếu hoặc sửa giá trị và ghi chú. Khi lưu, hệ thống tự động ghi nhận đính chính (CORRECTED) theo chuẩn EMR.
+                  </span>
+                </div>
 
-            {viewingResult.overallConclusion && (
-              <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl">
-                <span className="text-[10px] font-extrabold text-blue-800 uppercase block mb-1">Kết luận tổng quát:</span>
-                <p className="text-slate-800 font-medium">{viewingResult.overallConclusion}</p>
+                {/* Bảng nhập toàn bộ danh mục chỉ số */}
+                <div className="space-y-2">
+                  <label className="block font-extrabold text-slate-800 text-xs">
+                    Danh mục chỉ số đo đạc kỹ thuật (*):
+                  </label>
+
+                  {selectedTask?.orderItem?.testType?.labResultParameters &&
+                  selectedTask.orderItem.testType.labResultParameters.length > 0 ? (
+                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                          <tr>
+                            <th className="p-2.5">Chỉ số</th>
+                            <th className="p-2.5 w-36">Giá trị đo</th>
+                            <th className="p-2.5">Đơn vị</th>
+                            <th className="p-2.5">Khoảng chuẩn</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium">
+                          {selectedTask.orderItem.testType.labResultParameters.map((param) => {
+                            const val = editParamValues[param.parameterId];
+                            const threshold = param.labParameterThresholds?.[0];
+                            const min = threshold?.rangeMin !== undefined && threshold?.rangeMin !== null ? Number(threshold.rangeMin) : undefined;
+                            const max = threshold?.rangeMax !== undefined && threshold?.rangeMax !== null ? Number(threshold.rangeMax) : undefined;
+                            const numVal = val?.valueNumeric;
+                            const isOutOfRange = numVal !== undefined && (
+                              (min !== undefined && numVal < min) ||
+                              (max !== undefined && numVal > max)
+                            );
+
+                            return (
+                              <tr key={param.parameterId} className={isOutOfRange ? 'bg-rose-50/50' : ''}>
+                                <td className="p-2.5">
+                                  <div className="font-bold text-slate-900">{param.parameterName || param.parameterCode}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono">{param.parameterCode}</div>
+                                </td>
+                                <td className="p-2.5">
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    value={val?.valueNumeric !== undefined ? val.valueNumeric : ''}
+                                    onChange={(e) => {
+                                      const v = e.target.value === '' ? undefined : Number(e.target.value);
+                                      setEditParamValues((prev) => ({
+                                        ...prev,
+                                        [param.parameterId]: { ...prev[param.parameterId], valueNumeric: v },
+                                      }));
+                                    }}
+                                    placeholder="Nhập số..."
+                                    className={`w-full px-2.5 py-1 text-xs font-bold rounded-lg border outline-none focus:border-indigo-600 ${
+                                      isOutOfRange ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white text-slate-900'
+                                    }`}
+                                  />
+                                </td>
+                                <td className="p-2.5 text-slate-500 font-mono text-[11px]">{param.unit || '-'}</td>
+                                <td className="p-2.5 text-slate-500 text-[11px]">
+                                  {min !== undefined && max !== undefined ? (
+                                    <span>{min} - {max}</span>
+                                  ) : (
+                                    <span>Bình thường</span>
+                                  )}
+                                  {isOutOfRange && (
+                                    <span className="ml-1 text-rose-600 font-bold text-[10px] block">⚠️ Vượt ngưỡng!</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic">
+                      Xét nghiệm này không có danh mục chỉ số cố định. Hãy ghi kết luận mô tả vào ô bên dưới.
+                    </p>
+                  )}
+                </div>
+
+                {/* Ô kết luận tổng quát / nhận xét */}
+                <div className="space-y-1.5">
+                  <label className="block font-extrabold text-slate-800 text-xs">
+                    Kết luận tổng quát / Nhận xét của KTV:
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editConclusion}
+                    onChange={(e) => setEditConclusion(e.target.value)}
+                    placeholder="Ghi chú kết luận hoặc nhận xét chuyên môn của kỹ thuật viên..."
+                    className="w-full p-3 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:border-indigo-600 bg-white"
+                  />
+                </div>
+              </div>
+            ) : (
+              /* CHẾ ĐỘ 2: XEM KẾT QUẢ CHÍNH THỨC */
+              <div className="space-y-4">
+                {/* Bảng chỉ số đã nhập */}
+                {viewingResult.values && viewingResult.values.length > 0 ? (
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                        <tr>
+                          <th className="p-2.5">Chỉ số xét nghiệm</th>
+                          <th className="p-2.5">Giá trị đo</th>
+                          <th className="p-2.5">Đơn vị</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {viewingResult.values.map((v) => (
+                          <tr key={v.resultValueId}>
+                            <td className="p-2.5 font-bold text-slate-800">
+                              {v.parameter?.parameterName || v.parameter?.parameterCode || 'Chỉ số'}
+                            </td>
+                            <td className="p-2.5 font-mono font-bold text-blue-900">
+                              {v.valueNumeric !== null && v.valueNumeric !== undefined ? v.valueNumeric : v.valueText || '-'}
+                            </td>
+                            <td className="p-2.5 text-slate-500 font-mono text-[11px]">{v.parameter?.unit || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-400 italic text-center">
+                    Chưa có chỉ số đo đạc nào được lưu
+                  </div>
+                )}
+
+                {/* Kết luận tổng quát */}
+                {viewingResult.overallConclusion ? (
+                  <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl">
+                    <span className="text-[10px] font-extrabold text-blue-800 uppercase block mb-1">Kết luận tổng quát / Ghi chú:</span>
+                    <p className="text-slate-800 font-medium">{viewingResult.overallConclusion}</p>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-slate-400 italic text-[11px]">
+                    Chưa có ghi chú / kết luận tổng quát của KTV
+                  </div>
+                )}
               </div>
             )}
           </div>
