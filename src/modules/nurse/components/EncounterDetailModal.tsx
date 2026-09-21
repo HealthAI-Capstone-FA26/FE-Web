@@ -10,6 +10,7 @@ import {
   Building2,
   CheckCircle2,
   XCircle,
+  GitFork,
 } from 'lucide-react';
 import { Modal } from '../../../components/common/Modal';
 import { Badge } from '../../../components/common/Badge';
@@ -19,6 +20,7 @@ import {
   type EncounterVitalSession,
 } from '../../../services/encounter/encounter.service';
 import { IdentityVerificationHistoryModal } from '../../reception/components/IdentityVerificationHistoryModal';
+import { ChangeEncounterDepartmentModal } from './ChangeEncounterDepartmentModal';
 
 interface EncounterDetailModalProps {
   isOpen: boolean;
@@ -37,6 +39,7 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+  const [isChangeDeptModalOpen, setIsChangeDeptModalOpen] = useState<boolean>(false);
 
   const loadEncounter = () => {
     if (!encounterId) return;
@@ -284,11 +287,24 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
 
           {/* KHỐI 2: Khoa phòng & Bác sĩ */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-teal-600" />
-                <span>Khoa phụ trách:</span>
-              </span>
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1 relative">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Khoa phụ trách:</span>
+                </span>
+                {hasVitals && (
+                  <button
+                    type="button"
+                    onClick={() => setIsChangeDeptModalOpen(true)}
+                    className="px-2 py-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                    title="Đổi khoa khám & tự động chọn bác sĩ rảnh nhất"
+                  >
+                    <GitFork className="w-3 h-3 text-blue-600" />
+                    <span>Đổi khoa</span>
+                  </button>
+                )}
+              </div>
               <p className="font-bold text-slate-900 text-xs">
                 {encounter.department?.departmentName || '---'}
               </p>
@@ -464,6 +480,19 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
         patientName={encounter?.patient?.fullName}
         encounterCode={encounter?.encounterCode}
         onVerificationCreated={loadEncounter}
+      />
+
+      {/* MODAL ĐỔI KHOA KHÁM & PHÂN BỔ BÁC SĨ (PATCH /api/v1/encounters/:id/department) */}
+      <ChangeEncounterDepartmentModal
+        isOpen={isChangeDeptModalOpen}
+        onClose={() => setIsChangeDeptModalOpen(false)}
+        encounterId={encounter?.encounterId || null}
+        patientName={encounter?.patient?.fullName}
+        currentDepartmentName={encounter?.department?.departmentName}
+        currentDepartmentId={encounter?.departmentId}
+        onSuccess={() => {
+          loadEncounter();
+        }}
       />
     </Modal>
   );
