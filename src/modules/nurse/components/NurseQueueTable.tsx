@@ -10,6 +10,7 @@ import {
   Loader2,
   Eye,
   ShieldAlert,
+  GitFork,
 } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import { DataTable, type Column } from '../../../components/common/DataTable';
@@ -22,6 +23,7 @@ interface NurseQueueTableProps {
   onOpenHistory: (row: NursePatientRow) => void;
   onOpenDetail: (row: NursePatientRow) => void;
   onOpenAllergy: (row: NursePatientRow) => void;
+  onOpenChangeDept?: (row: NursePatientRow) => void;
 }
 
 export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
@@ -31,6 +33,7 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
   onOpenHistory,
   onOpenDetail,
   onOpenAllergy,
+  onOpenChangeDept,
 }) => {
   const formatTimeAgo = (dateStr?: string) => {
     if (!dateStr) return '---';
@@ -177,14 +180,26 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
           </button>
 
           {row.status === 'Measured' && (
-            <button
-              type="button"
-              onClick={() => onOpenHistory(row)}
-              title="Xem lịch sử các lần đo"
-              className="p-1.5 rounded-xl text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
-            >
-              <History className="w-3.5 h-3.5" />
-            </button>
+            <>
+              {onOpenChangeDept && (
+                <button
+                  type="button"
+                  onClick={() => onOpenChangeDept(row)}
+                  title="Đổi khoa khám & tự động chọn bác sĩ rảnh nhất"
+                  className="p-1.5 rounded-xl text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer"
+                >
+                  <GitFork className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => onOpenHistory(row)}
+                title="Xem lịch sử các lần đo"
+                className="p-1.5 rounded-xl text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+              >
+                <History className="w-3.5 h-3.5" />
+              </button>
+            </>
           )}
         </div>
       ),

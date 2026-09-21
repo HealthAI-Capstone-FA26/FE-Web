@@ -191,5 +191,32 @@ export const encounterService = {
       method: 'GET',
     });
   },
+
+  // Đổi khoa cho lượt khám sau khi đo sinh hiệu (PATCH /api/v1/encounters/:id/department)
+  async changeEncounterDepartment(
+    encounterId: string,
+    departmentId: string
+  ): Promise<{
+    encounterId: string;
+    previous: { departmentId: string; doctorId?: string; encounterStatus: string };
+    current: {
+      departmentId: string;
+      departmentName: string;
+      doctor: { doctorId: string; doctorCode: string; fullName: string; title?: string };
+      encounterStatus: string;
+    };
+    queueEntry: any;
+    assignment: {
+      strategy: string;
+      queueLoadBefore: number;
+      tiedCandidates: number;
+      candidates: Array<{ doctorId: string; load: number }>;
+    };
+  }> {
+    return apiFetch(`/encounters/${encounterId}/department`, {
+      method: 'PATCH',
+      body: JSON.stringify({ departmentId }),
+    });
+  },
 };
 

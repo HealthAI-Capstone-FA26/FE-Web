@@ -13,6 +13,7 @@ import { NurseVitalModal } from './components/NurseVitalModal';
 import { NurseVitalHistoryModal } from './components/NurseVitalHistoryModal';
 import { EncounterDetailModal } from './components/EncounterDetailModal';
 import { NurseAllergyModal } from './components/NurseAllergyModal';
+import { ChangeEncounterDepartmentModal } from './components/ChangeEncounterDepartmentModal';
 
 export const NurseQueueView: React.FC = () => {
   const { user } = useAuth();
@@ -23,6 +24,7 @@ export const NurseQueueView: React.FC = () => {
   const [isInputModalOpen, setIsInputModalOpen] = useState<boolean>(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
   const [isAllergyModalOpen, setIsAllergyModalOpen] = useState<boolean>(false);
+  const [isChangeDeptModalOpen, setIsChangeDeptModalOpen] = useState<boolean>(false);
   const [selectedDetailEncounterId, setSelectedDetailEncounterId] = useState<string | null>(null);
 
   // Toast notification
@@ -182,6 +184,12 @@ export const NurseQueueView: React.FC = () => {
     setIsAllergyModalOpen(true);
   };
 
+  // Xử lý mở Modal Đổi khoa khám
+  const handleOpenChangeDept = (row: NursePatientRow) => {
+    setSelectedRow(row);
+    setIsChangeDeptModalOpen(true);
+  };
+
   return (
     <div className="space-y-6 pb-12">
       {/* Toast Notification */}
@@ -220,6 +228,7 @@ export const NurseQueueView: React.FC = () => {
         onOpenHistory={handleOpenHistory}
         onOpenDetail={handleOpenDetail}
         onOpenAllergy={handleOpenAllergy}
+        onOpenChangeDept={handleOpenChangeDept}
       />
 
       {/* Modal Chi tiết ca khám (Encounter Detail) */}
@@ -271,6 +280,22 @@ export const NurseQueueView: React.FC = () => {
           setSelectedRow(null);
         }}
         patientRow={selectedRow}
+      />
+
+      {/* Modal Đổi khoa khám & Tự động xếp bác sĩ (PATCH /api/v1/encounters/:id/department) */}
+      <ChangeEncounterDepartmentModal
+        isOpen={isChangeDeptModalOpen}
+        onClose={() => {
+          setIsChangeDeptModalOpen(false);
+          setSelectedRow(null);
+        }}
+        encounterId={selectedRow?.encounterId || null}
+        patientName={selectedRow?.name}
+        currentDepartmentName={selectedRow?.departmentName}
+        onSuccess={(msg) => {
+          showToast(msg, 'success');
+          fetchEncounters(true);
+        }}
       />
     </div>
   );
