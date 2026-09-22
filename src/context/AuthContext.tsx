@@ -266,6 +266,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       patientService.getAllPatients(undefined, true).catch(() => {});
       appointmentService.getAppointments().catch(() => {});
     }
+
+    // Nếu là Bác sĩ → tự động tra doctorId từ userId và lưu vào profile
+    if (mappedRole === 'DOCTOR') {
+      doctorService.getDoctorIdByUserId(backendUser.userId).then((doctorId) => {
+        if (doctorId) {
+          const updatedProfile = { ...userProfile, doctorId };
+          setUser(updatedProfile);
+          localStorage.setItem('4am_user_data', JSON.stringify(updatedProfile));
+        }
+      }).catch(() => {});
+    }
   };
 
   const logout = () => {

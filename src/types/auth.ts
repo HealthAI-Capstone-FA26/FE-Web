@@ -11,6 +11,7 @@ export type UserProfile = {
   staffCode?: string;
   phone?: string;
   permissions?: string[];
+  doctorId?: string; // doctorId trong bảng Doctor (chỉ có khi role = DOCTOR)
 };
 
 export type RoleNavigationItem = {

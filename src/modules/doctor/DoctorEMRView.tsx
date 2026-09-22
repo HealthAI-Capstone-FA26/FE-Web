@@ -33,7 +33,10 @@ import { ClinicalExamForm, type DynamicAiDiagnosis } from './components/Clinical
 import { TestOrderCreationCard } from './components/TestOrderCreationCard';
 import { TestOrderHistoryList } from './components/TestOrderHistoryList';
 
+import { useAuth } from '../../context/AuthContext';
+
 export const DoctorEMRView: React.FC = () => {
+  const { user } = useAuth();
   const [selectedPatientId, setSelectedPatientId] = useState<string>(() => {
     return localStorage.getItem('doctor_selected_patient_id') || '';
   });
@@ -44,11 +47,12 @@ export const DoctorEMRView: React.FC = () => {
   const [apiEncounters, setApiEncounters] = useState<EncounterItem[]>([]);
   const [isLoadingApi, setIsLoadingApi] = useState<boolean>(false);
 
-  // 1. Fetch encounters from GET /api/v1/encounters
+  // 1. Fetch encounters từ GET /api/v1/encounters, lọc theo doctorId nếu bác sĩ đã đăng nhập thực
   useEffect(() => {
     setIsLoadingApi(true);
+    const doctorId = user?.doctorId;
     encounterService
-      .getEncounters()
+      .getEncounters(doctorId ? { doctorId } : undefined)
       .then((data) => {
         if (Array.isArray(data)) {
           setApiEncounters(data);
@@ -58,13 +62,13 @@ export const DoctorEMRView: React.FC = () => {
         console.warn('Lỗi khi tải ca khám bác sĩ từ API:', err);
       })
       .finally(() => setIsLoadingApi(false));
-  }, []);
+  }, [user?.doctorId]);
 
   // Đồng bộ trạng thái quy trình (Chờ đóng phí / Đã đóng phí • Chờ Lab / Đã có kết quả Lab) cho các ca trong hàng chờ
   useEffect(() => {
     if (apiEncounters.length === 0) return;
     apiEncounters.forEach(async (enc) => {
-      const key = enc.patient?.patientCode || enc.encounterCode || enc.patientId;
+      const key = enc.encounterId;
       try {
         const [orders, invoices] = await Promise.all([
           testOrderService.getTestOrdersByEncounter(enc.encounterId),
@@ -132,7 +136,7 @@ export const DoctorEMRView: React.FC = () => {
     const map: Record<string, PatientEMR> = {};
 
     apiEncounters.forEach((enc) => {
-      const key = enc.patient?.patientCode || enc.encounterCode || enc.patientId;
+      const key = enc.encounterId;
       const latestVitalSession = enc.vitalSignSessions && enc.vitalSignSessions.length > 0 ? enc.vitalSignSessions[0] : undefined;
 
       const getObs = (...codes: string[]) => {
@@ -160,6 +164,9 @@ export const DoctorEMRView: React.FC = () => {
       map[key] = {
         id: key,
         encounterId: enc.encounterId,
+        encounterCode: enc.encounterCode,
+        patientCode: enc.patient?.patientCode,
+        arrivedAt: enc.arrivedAt,
         appointmentId: enc.appointmentId,
         patientId: enc.patient?.patientId || enc.patientId,
         status: enc.status,
@@ -207,7 +214,13 @@ export const DoctorEMRView: React.FC = () => {
     const keys = Object.keys(combinedPatientsMap);
     if (keys.length > 0) {
       if (!selectedPatientId || !combinedPatientsMap[selectedPatientId]) {
-        const firstKey = keys[0];
+        const matchedKey = keys.find(
+          (k) =>
+            combinedPatientsMap[k]?.patientCode === selectedPatientId ||
+            combinedPatientsMap[k]?.encounterCode === selectedPatientId ||
+            combinedPatientsMap[k]?.encounterId === selectedPatientId
+        );
+        const firstKey = matchedKey || keys[0];
         setSelectedPatientId(firstKey);
         localStorage.setItem('doctor_selected_patient_id', firstKey);
       }
@@ -240,7 +253,14 @@ export const DoctorEMRView: React.FC = () => {
   };
 
   useEffect(() => {
-    const targetId = currentPatient?.encounterId || (apiEncounters.find((e) => e.encounterCode === selectedPatientId || e.patient?.patientCode === selectedPatientId)?.encounterId);
+    const targetId =
+      currentPatient?.encounterId ||
+      (apiEncounters.find(
+        (e) =>
+          e.encounterId === selectedPatientId ||
+          e.encounterCode === selectedPatientId ||
+          e.patient?.patientCode === selectedPatientId
+      )?.encounterId);
     if (targetId) {
       encounterService
         .getEncounterById(targetId)
@@ -352,7 +372,10 @@ export const DoctorEMRView: React.FC = () => {
       selectedEncounterDetail?.patientId ||
       selectedEncounterDetail?.patient?.patientId ||
       apiEncounters.find(
-        (e) => e.encounterCode === selectedPatientId || e.patient?.patientCode === selectedPatientId
+        (e) =>
+          e.encounterId === selectedPatientId ||
+          e.encounterCode === selectedPatientId ||
+          e.patient?.patientCode === selectedPatientId
       )?.patientId
     );
   }, [caseOverview, currentPatient, selectedEncounterDetail, selectedPatientId, apiEncounters]);
@@ -822,7 +845,13 @@ export const DoctorEMRView: React.FC = () => {
           <User className="w-4 h-4 text-blue-700" />
           <span>
             {currentPatient
-              ? `Bệnh nhân: ${selectedEncounterDetail?.patient?.fullName || currentPatient.name} (${currentPatient.id})`
+              ? (() => {
+                  const name = selectedEncounterDetail?.patient?.fullName || currentPatient.name;
+                  const pCode = selectedEncounterDetail?.patient?.patientCode || currentPatient.patientCode;
+                  const encCode = selectedEncounterDetail?.encounterCode || currentPatient.encounterCode;
+                  const codeDetails = [pCode, encCode].filter(Boolean).join(' • ');
+                  return `Bệnh nhân: ${name}${codeDetails ? ` (${codeDetails})` : ''}`;
+                })()
               : 'Chưa chọn bệnh nhân'}
           </span>
         </div>

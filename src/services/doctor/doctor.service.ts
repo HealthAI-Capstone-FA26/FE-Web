@@ -42,6 +42,7 @@ export interface CreateDoctorData {
 export interface SearchDoctorQuery {
   search?: string;
   departmentId?: string;
+  userId?: string;
 }
 
 export interface DepartmentResponse {
@@ -99,15 +100,29 @@ export const doctorService = {
     });
   },
 
-  // GET /doctors — Danh sách bác sĩ
+  // GET /doctors — Danh sách bác sĩ (hỗ trợ tìm theo userId)
   async getDoctors(query?: SearchDoctorQuery): Promise<DoctorResponse[]> {
     const params = new URLSearchParams();
     if (query?.search) params.append('search', query.search);
     if (query?.departmentId) params.append('departmentId', query.departmentId);
+    if (query?.userId) params.append('userId', query.userId);
 
     const queryString = params.toString();
     const url = `/doctors${queryString ? `?${queryString}` : ''}`;
     return apiFetch<DoctorResponse[]>(url, { method: 'GET' });
+  },
+
+  // Tra doctorId từ userId (gọi sau khi bác sĩ đăng nhập)
+  async getDoctorIdByUserId(userId: string): Promise<string | null> {
+    try {
+      const doctors = await this.getDoctors({ userId });
+      if (Array.isArray(doctors) && doctors.length > 0) {
+        return doctors[0].doctorId;
+      }
+      return null;
+    } catch {
+      return null;
+    }
   },
 
   // GET /doctors/:id — Xem chi tiết bác sĩ

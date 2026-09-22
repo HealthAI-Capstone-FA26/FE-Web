@@ -1,6 +1,9 @@
 export interface PatientEMR {
   id: string;
   encounterId?: string;
+  encounterCode?: string;
+  patientCode?: string;
+  arrivedAt?: string;
   appointmentId?: string;
   patientId?: string;
   status?: string;
