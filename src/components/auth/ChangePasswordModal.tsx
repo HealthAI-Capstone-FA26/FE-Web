@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Eye, EyeOff, ShieldAlert, Check, Lock } from 'lucide-react';
 import { authService } from '../../services/auth/auth.service';
@@ -67,16 +68,18 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
     }
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={handleClose}
-            className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-0"
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-0"
           />
 
           <motion.div
@@ -84,7 +87,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 w-full max-w-[480px] bg-white rounded-3xl shadow-2xl p-6 md:p-8 border border-slate-100 flex flex-col text-slate-800 my-auto"
+            className="relative z-10 w-full max-w-[480px] bg-white rounded-3xl shadow-2xl p-6 md:p-8 border border-slate-100 flex flex-col text-slate-800 m-auto"
           >
             <button
               onClick={handleClose}
@@ -200,6 +203,8 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
+

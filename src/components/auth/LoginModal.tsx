@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Check } from 'lucide-react';
@@ -259,43 +260,49 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-0"
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-0"
           />
 
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 w-full max-w-[560px] bg-white rounded-3xl shadow-2xl p-6 md:p-8 border border-slate-100 flex flex-col text-slate-800 my-auto max-h-[90vh] overflow-y-auto"
+            className="relative z-10 w-full max-w-[500px] bg-white/90 backdrop-blur-2xl rounded-[32px] shadow-[0_25px_60px_-15px_rgba(15,23,42,0.35),inset_0_1px_2px_rgba(255,255,255,0.9)] border border-white/90 p-5 md:p-6 flex flex-col text-slate-800 m-auto max-h-[90vh] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
           >
+            {/* Ambient Soft Glow Spheres */}
+            <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-blue-400/20 blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-12 -left-12 w-48 h-48 rounded-full bg-indigo-400/20 blur-3xl pointer-events-none" />
+
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-all cursor-pointer border-none bg-transparent"
+              className="absolute top-4 right-4 z-20 text-slate-400 hover:text-slate-800 p-1.5 rounded-full bg-white/60 hover:bg-white border border-white/80 shadow-2xs transition-all cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
 
             {/* Modal Header */}
-            <div className="flex flex-col items-center justify-center mb-5 pt-2">
-              <div className="flex items-center gap-3 border-b border-slate-100 pb-4 w-full justify-center">
-                <div className="w-12 h-12 rounded-2xl border border-slate-200 p-1 bg-white flex items-center justify-center shrink-0 shadow-xs">
+            <div className="flex flex-col items-center justify-center mb-3.5 pt-0.5 relative z-10">
+              <div className="flex items-center gap-3 border-b border-slate-200/60 pb-3 w-full justify-center">
+                <div className="w-11 h-11 rounded-2xl border border-white/90 p-1 bg-white/90 flex items-center justify-center shrink-0 shadow-md">
                   <img src="/images/logo.png" alt="Logo" className="w-full h-full object-contain" />
                 </div>
                 <div className="flex flex-col text-left">
-                  <span className="font-extrabold text-sm md:text-base text-[#0b3c8f] uppercase leading-tight tracking-wide">
+                  <span className="font-black text-xs md:text-sm text-[#0b3c8f] uppercase leading-tight tracking-wide">
                     BỆNH VIỆN ĐA KHOA 4AM
                   </span>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                  <span className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider mt-0.5">
                     FHIR & Medical AI Healthcare System
                   </span>
                 </div>
@@ -387,6 +394,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
+
