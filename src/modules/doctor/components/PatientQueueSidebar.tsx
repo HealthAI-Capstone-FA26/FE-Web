@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Loader2 } from 'lucide-react';
+import { User, Loader2, Clock } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import type { PatientEMR, PatientWorkflowState } from '../types';
 
@@ -20,6 +20,16 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
 }) => {
   const patientList = Object.values(patients);
 
+  const formatTime = (dateStr?: string) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  };
+
   return (
     <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -27,7 +37,7 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
           Hàng chờ Khám của Bác sĩ
         </h3>
         <Badge variant="info" size="sm">
-          {String(patientList.length).padStart(2, '0')} Bệnh nhân
+          {String(patientList.length).padStart(2, '0')} Ca khám
         </Badge>
       </div>
 
@@ -47,6 +57,7 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
           patientList.map((p) => {
             const workflowState = patientWorkflowStates[p.id] || 'initial';
             const isSelected = selectedPatientId === p.id;
+            const timeStr = formatTime(p.arrivedAt);
 
             return (
               <div
@@ -60,7 +71,20 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
               >
                 <div className="space-y-1">
                   <div className="text-xs font-extrabold text-slate-800">{p.name}</div>
-                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{p.id}</div>
+                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    {p.encounterCode ? (
+                      <span className="text-blue-700 font-extrabold font-mono">{p.encounterCode}</span>
+                    ) : (
+                      <span className="text-blue-700 font-extrabold font-mono">{p.id}</span>
+                    )}
+                    {p.patientCode && <span className="text-slate-400 font-normal">({p.patientCode})</span>}
+                  </div>
+                  {timeStr && (
+                    <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      <span>Tiếp nhận: {timeStr}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col items-end gap-1">
