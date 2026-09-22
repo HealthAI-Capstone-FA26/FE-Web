@@ -33,7 +33,10 @@ import { ClinicalExamForm, type DynamicAiDiagnosis } from './components/Clinical
 import { TestOrderCreationCard } from './components/TestOrderCreationCard';
 import { TestOrderHistoryList } from './components/TestOrderHistoryList';
 
+import { useAuth } from '../../context/AuthContext';
+
 export const DoctorEMRView: React.FC = () => {
+  const { user } = useAuth();
   const [selectedPatientId, setSelectedPatientId] = useState<string>(() => {
     return localStorage.getItem('doctor_selected_patient_id') || '';
   });
@@ -44,11 +47,12 @@ export const DoctorEMRView: React.FC = () => {
   const [apiEncounters, setApiEncounters] = useState<EncounterItem[]>([]);
   const [isLoadingApi, setIsLoadingApi] = useState<boolean>(false);
 
-  // 1. Fetch encounters from GET /api/v1/encounters
+  // 1. Fetch encounters từ GET /api/v1/encounters, lọc theo doctorId nếu bác sĩ đã đăng nhập thực
   useEffect(() => {
     setIsLoadingApi(true);
+    const doctorId = user?.doctorId;
     encounterService
-      .getEncounters()
+      .getEncounters(doctorId ? { doctorId } : undefined)
       .then((data) => {
         if (Array.isArray(data)) {
           setApiEncounters(data);
@@ -58,7 +62,7 @@ export const DoctorEMRView: React.FC = () => {
         console.warn('Lỗi khi tải ca khám bác sĩ từ API:', err);
       })
       .finally(() => setIsLoadingApi(false));
-  }, []);
+  }, [user?.doctorId]);
 
   // Đồng bộ trạng thái quy trình (Chờ đóng phí / Đã đóng phí • Chờ Lab / Đã có kết quả Lab) cho các ca trong hàng chờ
   useEffect(() => {
