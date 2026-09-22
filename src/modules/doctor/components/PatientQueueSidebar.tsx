@@ -1,5 +1,5 @@
-import React from 'react';
-import { User, Loader2, Clock } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { User, Loader2, Clock, Search, X } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import type { PatientEMR, PatientWorkflowState } from '../types';
 
@@ -18,7 +18,21 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
   isLoading,
   patientWorkflowStates,
 }) => {
+  const [searchTerm, setSearchTerm] = useState('');
   const patientList = Object.values(patients);
+
+  const filteredPatients = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return patientList;
+    return patientList.filter((p) => {
+      const nameMatch = p.name?.toLowerCase().includes(term);
+      const encCodeMatch = p.encounterCode?.toLowerCase().includes(term);
+      const patCodeMatch = p.patientCode?.toLowerCase().includes(term);
+      const phoneMatch = p.phone?.toLowerCase().includes(term);
+      const idMatch = p.id?.toLowerCase().includes(term);
+      return Boolean(nameMatch || encCodeMatch || patCodeMatch || phoneMatch || idMatch);
+    });
+  }, [patientList, searchTerm]);
 
   const formatTime = (dateStr?: string) => {
     if (!dateStr) return '';
@@ -37,8 +51,32 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
           Hàng chờ Khám của Bác sĩ
         </h3>
         <Badge variant="info" size="sm">
-          {String(patientList.length).padStart(2, '0')} Ca khám
+          {searchTerm
+            ? `${filteredPatients.length}/${patientList.length} Ca`
+            : `${String(patientList.length).padStart(2, '0')} Ca khám`}
         </Badge>
+      </div>
+
+      {/* Ô tìm kiếm bệnh nhân nhanh */}
+      <div className="relative">
+        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Tìm tên, mã LK, mã BN, SĐT..."
+          className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
+        />
+        {searchTerm && (
+          <button
+            type="button"
+            onClick={() => setSearchTerm('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200 transition-all cursor-pointer"
+            title="Xóa tìm kiếm"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
       </div>
 
       <div className="space-y-2.5">
@@ -53,8 +91,23 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
             <p className="font-semibold text-slate-500">Chưa có bệnh nhân trong hàng chờ</p>
             <p className="text-[10px]">Các ca khám tiếp nhận tại Lễ tân sẽ tự động hiển thị tại đây.</p>
           </div>
+        ) : filteredPatients.length === 0 ? (
+          <div className="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs space-y-2">
+            <Search className="w-5 h-5 mx-auto text-slate-300" />
+            <p className="font-semibold text-slate-600">Không tìm thấy ca khám nào</p>
+            <p className="text-[11px] text-slate-400">
+              Không có kết quả khớp với từ khóa &ldquo;<span className="text-slate-600 font-medium">{searchTerm}</span>&rdquo;
+            </p>
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="text-[11px] text-blue-600 hover:text-blue-700 font-bold hover:underline cursor-pointer"
+            >
+              Xóa bộ lọc tìm kiếm
+            </button>
+          </div>
         ) : (
-          patientList.map((p) => {
+          filteredPatients.map((p) => {
             const workflowState = patientWorkflowStates[p.id] || 'initial';
             const isSelected = selectedPatientId === p.id;
             const timeStr = formatTime(p.arrivedAt);
