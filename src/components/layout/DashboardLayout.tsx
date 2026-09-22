@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { AccountInfoView } from '../../modules/patient/AccountInfoView';
+import { UserProfilePill } from '../common/UserProfilePill';
 
 interface DashboardLayoutProps {
   children?: React.ReactNode;
@@ -173,37 +174,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
             {/* User Profile Card */}
             <div className="relative">
-              <button
+              <UserProfilePill
+                user={user}
+                isOpen={isRoleDropdownOpen}
                 onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
-                className="flex items-center space-x-2.5 p-1.5 pl-2.5 rounded-xl hover:bg-slate-100 transition-all border border-slate-200/80 cursor-pointer bg-white"
-              >
-                {user?.avatar ? (
-                  <img
-                    src={getAvatarUrl(user.avatar)}
-                    alt={user?.name || 'User'}
-                    className="w-7 h-7 rounded-full object-cover border border-blue-200 shrink-0"
-                  />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center border border-slate-200 shrink-0">
-                    <User className="w-4 h-4 text-slate-400" />
-                  </div>
-                )}
-                <div className="text-left hidden sm:block">
-                  <div className="text-xs font-extrabold text-slate-800 leading-tight whitespace-nowrap">
-                    {user?.name}
-                  </div>
-                  <div className="text-[10px] text-blue-700 font-bold whitespace-nowrap">
-                    {user?.role === 'DOCTOR' ? 'Bác sĩ'
-                      : user?.role === 'NURSE' ? 'Điều dưỡng'
-                      : user?.role === 'LAB' ? 'KTV Phòng Lab'
-                      : user?.role === 'ADMIN' ? 'Quản trị viên'
-                      : user?.role === 'RECEPTIONIST' ? 'Lễ tân / Thu ngân'
-                      : user?.role === 'PATIENT' ? 'Bệnh nhân'
-                      : user?.roleTitle}
-                  </div>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-              </button>
+              />
 
               {/* Dropdown Menu */}
               {isRoleDropdownOpen && (

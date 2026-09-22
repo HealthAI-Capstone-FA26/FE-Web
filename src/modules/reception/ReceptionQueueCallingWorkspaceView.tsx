@@ -76,7 +76,7 @@ const getVietnameseVoice = (selectedVoiceURI?: string): SpeechSynthesisVoice | n
   const voices = window.speechSynthesis.getVoices();
   if (voices.length === 0) return null;
 
-  if (selectedVoiceURI) {
+  if (selectedVoiceURI && selectedVoiceURI !== 'google_tts_vi') {
     const found = voices.find((v) => v.voiceURI === selectedVoiceURI);
     if (found) return found;
   }
@@ -91,21 +91,16 @@ const getVietnameseVoice = (selectedVoiceURI?: string): SpeechSynthesisVoice | n
       v.name.toLowerCase().includes('an')
   );
 
-  return viVoice || voices[0] || null;
+  return viVoice || null;
 };
 
-// Helper đọc loa phát thanh gọi số bằng tiếng Việt (Web Speech API)
+// Helper đọc loa phát thanh gọi số bằng tiếng Việt (Web Speech API + Google TTS Fallback)
 const speakQueueAnnouncement = (
   ticketCode: string,
   patientName?: string,
   counterName?: string,
   selectedVoiceURI?: string
 ) => {
-  if (!('speechSynthesis' in window)) return;
-
-  // Dừng các câu đang đọc dở trước đó
-  window.speechSynthesis.cancel();
-
   // Đọc mã số tách rời ký tự để rõ ràng hơn (VD: "B001" -> "B 0 0 1")
   const formattedCode = ticketCode.split('').join(' ');
   const counterStr = counterName || 'Quầy tiếp nhận';
@@ -114,19 +109,44 @@ const speakQueueAnnouncement = (
   // Câu phát thanh chuẩn bệnh viện: "Xin mời bệnh nhân Nguyễn Văn A, số thứ tự B 0 0 1, đến Quầy 01"
   const textToSpeak = `Xin mời ${nameStr}, số thứ tự ${formattedCode}, đến ${counterStr}.`;
 
-  const utterance = new SpeechSynthesisUtterance(textToSpeak);
-  utterance.lang = 'vi-VN';
-  utterance.rate = 0.88; // Tốc độ đọc vừa phải, chuẩn loa thông báo
-  utterance.pitch = 1.0;
+  const nativeViVoice = getVietnameseVoice(selectedVoiceURI);
 
-  const viVoice = getVietnameseVoice(selectedVoiceURI);
-  if (viVoice) {
-    utterance.voice = viVoice;
-  }
+  const playSpeech = () => {
+    // Trường hợp chọn giọng đọc Tiếng Việt chuẩn của Trình duyệt (nếu máy có cài)
+    if (nativeViVoice && selectedVoiceURI !== 'google_tts_vi') {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = 'vi-VN';
+        utterance.rate = 0.88; // Tốc độ đọc vừa phải, chuẩn loa thông báo
+        utterance.pitch = 1.0;
+        utterance.voice = nativeViVoice;
+        window.speechSynthesis.speak(utterance);
+      }
+    } else {
+      // Trường hợp máy tính chưa cài giọng Tiếng Việt trong Windows/Chrome -> Dùng Google TTS Audio Tiếng Việt chuẩn
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      const encodedText = encodeURIComponent(textToSpeak);
+      const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=vi&client=tw-ob`;
+      const audio = new Audio(audioUrl);
+      audio.play().catch((err) => {
+        console.warn('Lỗi phát Google TTS fallback, dùng giọng trình duyệt:', err);
+        if ('speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(textToSpeak);
+          utterance.lang = 'vi-VN';
+          const sysVoices = window.speechSynthesis.getVoices();
+          if (sysVoices.length > 0) utterance.voice = sysVoices[0];
+          window.speechSynthesis.speak(utterance);
+        }
+      });
+    }
+  };
 
   // Phát nhạc chuông trước, sau đó phát câu đọc
   playQueueChime().then(() => {
-    window.speechSynthesis.speak(utterance);
+    playSpeech();
   });
 };
 
@@ -146,7 +166,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   const [searchKeyword, setSearchKeyword] = useState<string>('');
   const [isAudioEnabled, setIsAudioEnabled] = useState<boolean>(true);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>('');
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>('google_tts_vi');
 
   useEffect(() => {
     const updateVoices = () => {
@@ -161,7 +181,11 @@ const ReceptionQueueCallingBoard: React.FC = () => {
         );
         if (defaultVi) {
           setSelectedVoiceURI(defaultVi.voiceURI);
+        } else {
+          setSelectedVoiceURI('google_tts_vi');
         }
+      } else {
+        setSelectedVoiceURI('google_tts_vi');
       }
     };
 
@@ -508,26 +532,28 @@ const ReceptionQueueCallingBoard: React.FC = () => {
               />
             </div>
 
-            {availableVoices.length > 0 && (
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider hidden sm:inline">Giọng:</span>
-                <select
-                  value={selectedVoiceURI}
-                  onChange={(e) => {
-                    setSelectedVoiceURI(e.target.value);
-                    speakQueueAnnouncement('TEST', 'Thử Giọng Đọc', selectedCounter, e.target.value);
-                  }}
-                  aria-label="Chọn giọng đọc phát thanh"
-                  className="bg-transparent text-xs font-bold text-teal-700 outline-none cursor-pointer max-w-[140px] sm:max-w-[180px] truncate"
-                >
-                  {availableVoices.map((v) => (
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider hidden sm:inline">Giọng:</span>
+              <select
+                value={selectedVoiceURI}
+                onChange={(e) => {
+                  setSelectedVoiceURI(e.target.value);
+                  speakQueueAnnouncement('TEST', 'Thử Giọng Đọc', selectedCounter, e.target.value);
+                }}
+                aria-label="Chọn giọng đọc phát thanh"
+                className="bg-transparent text-xs font-bold text-teal-700 outline-none cursor-pointer max-w-[150px] sm:max-w-[200px] truncate"
+              >
+                <option value="google_tts_vi">🔊 Tiếng Việt Chuẩn (AI Voice)</option>
+                {availableVoices.map((v) => {
+                  const isVi = v.lang.toLowerCase().includes('vi') || v.name.toLowerCase().includes('vietnamese') || v.name.toLowerCase().includes('tiếng việt');
+                  return (
                     <option key={v.voiceURI} value={v.voiceURI}>
-                      {v.name.replace(/Microsoft |Google /g, '')} ({v.lang})
+                      {isVi ? '⭐ ' : ''}{v.name.replace(/Microsoft |Google /g, '')} ({v.lang})
                     </option>
-                  ))}
-                </select>
-              </div>
-            )}
+                  );
+                })}
+              </select>
+            </div>
 
             <button
               onClick={() => {

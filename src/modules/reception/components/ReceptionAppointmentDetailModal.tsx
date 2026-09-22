@@ -71,8 +71,8 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
           .getEncounters({ patientId: appointment.patientId })
           .then((list) => {
             if (Array.isArray(list) && list.length > 0) {
-              const match = list.find((e) => e.appointmentId === appointment.appointmentId) || list[0];
-              setEncounter(match);
+              const match = list.find((e) => e.appointmentId === appointment.appointmentId);
+              setEncounter(match || null);
             } else {
               setEncounter(null);
             }

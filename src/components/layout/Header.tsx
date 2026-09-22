@@ -6,6 +6,7 @@ import { LoginModal } from '../auth/LoginModal';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_DEFAULT_PATHS } from '../../types/dashboard';
+import { UserProfilePill } from '../common/UserProfilePill';
 
 export const Header = () => {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -61,32 +62,12 @@ export const Header = () => {
 
                 {isLoggedIn && user ? (
                   <div className="flex items-center space-x-2 ml-2">
-                    <Link
-                      to={ROLE_DEFAULT_PATHS[currentRole] || '/benh-nhan/ho-so'}
-                      className="flex items-center space-x-2 p-1 px-2 rounded-xl hover:bg-slate-200/60 transition-all border border-slate-200 bg-white"
-                      title="Đi tới trang quản lý tài khoản / bàn làm việc"
-                    >
-                      {user.avatar ? (
-                        <img
-                          src={getAvatarUrl(user.avatar)}
-                          alt={user.name}
-                          className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
-                        />
-                      ) : (
-                        <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0 shadow-xs">
-                          <User className="w-4 h-4 text-slate-400" />
-                        </div>
-                      )}
-                      <div className="flex flex-col text-left">
-                        <span className="text-[11px] text-slate-800 font-extrabold uppercase tracking-wider leading-tight">
-                          {user.name}
-                        </span>
-                        <span className="text-[9px] text-blue-600 font-bold flex items-center gap-0.5">
-                          <LayoutDashboard className="w-2.5 h-2.5" />
-                          {currentRole === 'PATIENT' ? 'Cổng Bệnh Nhân →' : 'Trang Nội Bộ →'}
-                        </span>
-                      </div>
-                    </Link>
+                    <UserProfilePill
+                      user={user}
+                      roleLabel={currentRole === 'PATIENT' ? 'Cổng Bệnh Nhân' : undefined}
+                      onClick={() => navigate(ROLE_DEFAULT_PATHS[currentRole] || '/benh-nhan/ho-so')}
+                      showChevron={false}
+                    />
                     <button
                       onClick={() => setIsChangePasswordOpen(true)}
                       className="text-[10px] text-slate-400 hover:text-blue-700 font-bold uppercase tracking-wider ml-1 cursor-pointer bg-transparent border-none outline-none"
