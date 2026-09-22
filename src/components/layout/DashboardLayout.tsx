@@ -279,7 +279,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
           </button>
         )}
 
-        {/* Sidebar Sticky & Flush Left */}
+        {/* Sidebar Sticky & Flush Left - Liquid Glass Rail */}
         <aside
           onMouseEnter={() => {
             isHoveringSidebarRef.current = true;
@@ -300,18 +300,29 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
           onClick={() => {
             resetInactivityTimer();
           }}
-          className={`fixed lg:sticky top-[78px] left-0 z-20 h-[calc(100vh-78px)] bg-white transition-all duration-300 ease-in-out shrink-0 overflow-y-auto overflow-x-hidden ${isSidebarOpen
-            ? 'w-56 translate-x-0 p-3 border-r border-slate-200/90 shadow-lg lg:shadow-none'
-            : 'w-0 p-0 border-r-0 -translate-x-full lg:translate-x-0'
-            }`}
+          className={`fixed lg:sticky top-[78px] left-0 z-20 h-[calc(100vh-78px)] transition-all duration-300 ease-in-out shrink-0 overflow-y-auto overflow-x-hidden ${
+            isSidebarOpen
+              ? 'w-60 translate-x-0 p-3.5'
+              : 'w-0 p-0 border-r-0 -translate-x-full lg:translate-x-0'
+          }`}
         >
-          <div className="flex flex-col justify-between h-full space-y-4">
-            <div className="space-y-3">
+          {/* Light Liquid Glass Rail Container Card */}
+          <div className="relative h-full rounded-3xl bg-white/70 backdrop-blur-2xl border border-white/80 shadow-[0_20px_50px_rgba(15,23,42,0.08),inset_0_1px_2px_rgba(255,255,255,0.9)] p-3.5 flex flex-col justify-between text-slate-800 overflow-hidden">
+            {/* Ambient Soft Glow Spheres */}
+            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-blue-400/20 blur-2xl pointer-events-none" />
+            <div className="absolute bottom-10 -left-10 w-40 h-40 rounded-full bg-indigo-400/15 blur-2xl pointer-events-none" />
+
+            <div className="space-y-4 relative z-10">
               {/* Header inside Sidebar with quick collapse button */}
-              <div className="flex items-center justify-between px-1 pb-2 border-b border-slate-100">
-                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                  Menu điều hướng
-                </span>
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200/60">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded-xl bg-white border border-slate-200/80 flex items-center justify-center shadow-2xs shrink-0">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
+                  </div>
+                  <span className="text-xs font-black uppercase text-slate-800 tracking-wide">
+                    Menu điều hướng
+                  </span>
+                </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -319,7 +330,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                     clearInactivityTimer();
                   }}
                   title="Thu gọn menu"
-                  className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer border-none bg-transparent flex items-center justify-center"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-white/80 rounded-xl transition-all cursor-pointer border border-transparent hover:border-slate-200 bg-transparent flex items-center justify-center"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -328,9 +339,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               {/* Categorized Tab Groups inside Sidebar */}
               <div className="space-y-4">
                 {navGroups.map((group, gIdx) => (
-                  <div key={gIdx} className="space-y-1">
-                    <div className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                      {group.groupName}
+                  <div key={gIdx} className="space-y-2">
+                    <div className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center justify-between">
+                      <span>{group.groupName}</span>
                     </div>
 
                     {group.items.map((item) => {
@@ -342,22 +353,37 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                           to={item.path}
                           title={item.label}
                           className={({ isActive }) =>
-                            `flex items-center w-full justify-between px-2.5 py-2 rounded-xl text-xs text-left transition-all cursor-pointer border ${isActive
-                              ? 'bg-blue-600 text-white border-blue-600 font-black shadow-sm'
-                              : 'bg-transparent border-transparent text-slate-700 hover:bg-slate-100 hover:text-blue-900 font-bold'
+                            `group relative flex items-center w-full justify-between px-3.5 py-3 rounded-2xl text-xs text-left transition-all duration-200 cursor-pointer ${
+                              isActive
+                                ? 'bg-white text-blue-950 font-black shadow-[0_10px_25px_-5px_rgba(59,130,246,0.25)] border border-blue-200/80 scale-[1.03]'
+                                : 'bg-white/40 hover:bg-white/80 text-slate-700 hover:text-blue-900 font-bold border border-white/60 hover:border-blue-200/60 hover:scale-[1.02] hover:translate-x-0.5 shadow-2xs'
                             }`
                           }
                         >
                           {({ isActive }) => (
                             <>
-                              <div className="flex items-center space-x-2 min-w-0 flex-1">
-                                <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                                <span className="text-xs font-bold leading-tight truncate">{item.label}</span>
+                              <div className="flex items-center space-x-2.5 min-w-0 flex-1 relative z-10">
+                                <div
+                                  className={`p-1.5 rounded-xl transition-colors shrink-0 ${
+                                    isActive
+                                      ? 'bg-blue-600 text-white shadow-2xs'
+                                      : 'bg-white/80 text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600 border border-slate-200/50'
+                                  }`}
+                                >
+                                  <Icon className="w-4 h-4" />
+                                </div>
+                                <span className="text-xs font-black leading-tight truncate tracking-tight">
+                                  {item.label}
+                                </span>
                               </div>
+
                               {item.badge && (
                                 <span
-                                  className={`text-[9px] font-black px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap ml-1 ${isActive ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
-                                    }`}
+                                  className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap ml-1 relative z-10 ${
+                                    isActive
+                                      ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                      : 'bg-blue-50 text-blue-700 border border-blue-200/60'
+                                  }`}
                                 >
                                   {item.badge}
                                 </span>
@@ -372,16 +398,16 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               </div>
             </div>
 
-            {/* Sidebar Footer Info */}
-            <div className="pt-3 border-t border-slate-100">
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 text-xs text-slate-600 space-y-1">
-                <div className="flex items-center justify-between font-bold text-slate-800">
-                  <span className="text-[11px] whitespace-nowrap">Tiêu chuẩn HL7 FHIR</span>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            {/* Sidebar Footer Info - Light Liquid Capsule Button */}
+            <div className="pt-3 border-t border-slate-200/60 relative z-10">
+              <div className="w-full bg-white hover:bg-blue-50/60 text-slate-900 rounded-full px-4 py-2.5 border border-slate-200/80 shadow-md flex items-center justify-between cursor-pointer transition-all duration-200 hover:scale-[1.03] active:scale-[0.98]">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"></span>
+                  <span className="text-xs font-black tracking-tight text-slate-800">HL7 FHIR R4</span>
                 </div>
-                <p className="text-[10px] text-slate-500 leading-normal">
-                  Dữ liệu y tế liên thông toàn diện & tích hợp Mô-đun AI.
-                </p>
+                <span className="text-[11px] font-bold text-blue-600 flex items-center gap-1">
+                  Đã kết nối →
+                </span>
               </div>
             </div>
           </div>
