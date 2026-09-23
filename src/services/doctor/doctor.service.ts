@@ -114,10 +114,16 @@ export const doctorService = {
 
   // Tra doctorId từ userId (gọi sau khi bác sĩ đăng nhập)
   async getDoctorIdByUserId(userId: string): Promise<string | null> {
+    const doc = await this.getDoctorByUserId(userId);
+    return doc?.doctorId || null;
+  },
+
+  // Lấy toàn bộ thông tin hồ sơ bác sĩ từ userId (kèm chuyên khoa, chức danh)
+  async getDoctorByUserId(userId: string): Promise<DoctorResponse | null> {
     try {
       const doctors = await this.getDoctors({ userId });
       if (Array.isArray(doctors) && doctors.length > 0) {
-        return doctors[0].doctorId;
+        return doctors[0];
       }
       return null;
     } catch {

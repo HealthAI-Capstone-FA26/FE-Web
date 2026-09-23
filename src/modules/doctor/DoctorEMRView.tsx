@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { User, Stethoscope, Sparkles, FileText } from 'lucide-react';
 import { Mascot } from 'page-mascot';
 import {
@@ -28,6 +28,20 @@ import type { PatientEMR, PatientWorkflowState } from './types';
 import { PatientQueueSidebar } from './components/PatientQueueSidebar';
 import { PatientAdministrativeCard } from './components/PatientAdministrativeCard';
 import { AiClinicalSummaryCard } from './components/AiClinicalSummaryCard';
+
+interface PatientEncounterCache {
+  caseOverview: CaseOverviewData | null;
+  encounterDetail: EncounterItem | null;
+  allergies?: PatientAllergyItem[];
+  clinicalExam?: { examinationFindings?: string; clinicalNotes?: string } | null;
+}
+
+// Bộ nhớ đệm cấp Module duy trì xuyên suốt phiên làm việc ngay cả khi component unmount do chuyển Route Sidebar
+const globalEncounterCache: Record<string, PatientEncounterCache> = {};
+let globalApiEncounters: EncounterItem[] = [];
+let globalPatientWorkflowStates: Record<string, PatientWorkflowState> = {};
+let globalLastSelectedPatientId: string = '';
+
 import { AiImagingAnalysisCard } from './components/AiImagingAnalysisCard';
 import { ClinicalExamForm, type DynamicAiDiagnosis } from './components/ClinicalExamForm';
 import { TestOrderCreationCard } from './components/TestOrderCreationCard';
@@ -38,23 +52,26 @@ import { useAuth } from '../../context/AuthContext';
 export const DoctorEMRView: React.FC = () => {
   const { user } = useAuth();
   const [selectedPatientId, setSelectedPatientId] = useState<string>(() => {
-    return localStorage.getItem('doctor_selected_patient_id') || '';
+    return globalLastSelectedPatientId || localStorage.getItem('doctor_selected_patient_id') || '';
   });
 
   // Tab con nội bộ: 'emr_summary' (Hồ sơ EMR & AI01) | 'clinical_orders' (Khám & Chỉ định) | 'ai_imaging' (Phân tích ảnh AI02)
   const [activeSubTab, setActiveSubTab] = useState<'emr_summary' | 'clinical_orders' | 'ai_imaging'>('emr_summary');
 
-  const [apiEncounters, setApiEncounters] = useState<EncounterItem[]>([]);
-  const [isLoadingApi, setIsLoadingApi] = useState<boolean>(false);
+  const [apiEncounters, setApiEncounters] = useState<EncounterItem[]>(() => globalApiEncounters);
+  const [isLoadingApi, setIsLoadingApi] = useState<boolean>(() => globalApiEncounters.length === 0);
 
   // 1. Fetch encounters từ GET /api/v1/encounters, lọc theo doctorId nếu bác sĩ đã đăng nhập thực
-  useEffect(() => {
-    setIsLoadingApi(true);
+  const fetchEncounters = useCallback(() => {
+    if (globalApiEncounters.length === 0) {
+      setIsLoadingApi(true);
+    }
     const doctorId = user?.doctorId;
     encounterService
       .getEncounters(doctorId ? { doctorId } : undefined)
       .then((data) => {
         if (Array.isArray(data)) {
+          globalApiEncounters = data;
           setApiEncounters(data);
         }
       })
@@ -63,6 +80,16 @@ export const DoctorEMRView: React.FC = () => {
       })
       .finally(() => setIsLoadingApi(false));
   }, [user?.doctorId]);
+
+  useEffect(() => {
+    fetchEncounters();
+    const interval = setInterval(fetchEncounters, 10000); // Tự động đồng bộ ca mới mỗi 10 giây
+    window.addEventListener('focus', fetchEncounters);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', fetchEncounters);
+    };
+  }, [fetchEncounters]);
 
   // Đồng bộ trạng thái quy trình (Chờ đóng phí / Đã đóng phí • Chờ Lab / Đã có kết quả Lab) cho các ca trong hàng chờ
   useEffect(() => {
@@ -97,10 +124,14 @@ export const DoctorEMRView: React.FC = () => {
             state = 'paid';
           }
 
-          setPatientWorkflowStates((prev) => ({
-            ...prev,
-            [key]: prev[key] === 'completed' ? 'completed' : state,
-          }));
+          setPatientWorkflowStates((prev) => {
+            const next = {
+              ...prev,
+              [key]: prev[key] === 'completed' ? 'completed' : state,
+            };
+            globalPatientWorkflowStates = next;
+            return next;
+          });
         }
       } catch {
         // ignore
@@ -108,16 +139,103 @@ export const DoctorEMRView: React.FC = () => {
     });
   }, [apiEncounters]);
 
-  const handleSelectPatientId = (id: string) => {
+  const [reloadCounter, setReloadCounter] = useState<number>(0);
+
+  // Bộ nhớ đệm (Cache) lưu trữ dữ liệu ca khám của các bệnh nhân đã mở (Method B)
+  const encounterCacheRef = useRef<Record<string, PatientEncounterCache>>(globalEncounterCache);
+
+  // Tải trước ngầm (Pre-fetch / Preload) toàn bộ ca khám & dị ứng trong hàng chờ để khi chuyển ca là hiển thị 0ms tức thì
+  useEffect(() => {
+    if (apiEncounters.length === 0) return;
+    apiEncounters.forEach(async (enc) => {
+      const encId = enc.encounterId;
+      const patId = enc.patient?.patientId || enc.patientId;
+      const patCode = enc.patient?.patientCode;
+
+      // 1. Tải trước CaseOverview nếu chưa có
+      if (!encounterCacheRef.current[encId]?.caseOverview) {
+        try {
+          const overview = await clinicalExamService.getCaseOverview(encId);
+          encounterCacheRef.current[encId] = {
+            ...encounterCacheRef.current[encId],
+            caseOverview: overview,
+          };
+          if (patCode) encounterCacheRef.current[patCode] = encounterCacheRef.current[encId];
+          if (enc.encounterCode) encounterCacheRef.current[enc.encounterCode] = encounterCacheRef.current[encId];
+          globalEncounterCache[encId] = encounterCacheRef.current[encId];
+          if (patCode) globalEncounterCache[patCode] = encounterCacheRef.current[encId];
+          if (enc.encounterCode) globalEncounterCache[enc.encounterCode] = encounterCacheRef.current[encId];
+        } catch {
+          // ignore
+        }
+      }
+
+      // 2. Tải trước Dị ứng nếu chưa có
+      if (patId && encounterCacheRef.current[encId]?.allergies === undefined) {
+        try {
+          const allergies = await patientAllergyService.getAllergies(patId);
+          const list = Array.isArray(allergies) ? allergies : [];
+          encounterCacheRef.current[encId] = {
+            ...encounterCacheRef.current[encId],
+            allergies: list,
+          };
+          if (patCode) encounterCacheRef.current[patCode] = encounterCacheRef.current[encId];
+          if (enc.encounterCode) encounterCacheRef.current[enc.encounterCode] = encounterCacheRef.current[encId];
+          globalEncounterCache[encId] = encounterCacheRef.current[encId];
+          if (patCode) globalEncounterCache[patCode] = encounterCacheRef.current[encId];
+          if (enc.encounterCode) globalEncounterCache[enc.encounterCode] = encounterCacheRef.current[encId];
+        } catch {
+          // ignore
+        }
+      }
+    });
+  }, [apiEncounters]);
+
+  const handleSelectPatientId = (id: string, forceRefresh = false) => {
     setSelectedPatientId(id);
+    globalLastSelectedPatientId = id;
     localStorage.setItem('doctor_selected_patient_id', id);
+
+    // Kiểm tra xem ca khám này đã có trong Cache chưa
+    const cached = !forceRefresh
+      ? (encounterCacheRef.current[id] || globalEncounterCache[id] || Object.values(globalEncounterCache).find(
+          (c) =>
+            c.encounterDetail?.encounterId === id ||
+            c.encounterDetail?.encounterCode === id ||
+            c.encounterDetail?.patient?.patientCode === id
+        ))
+      : undefined;
+
+    if (cached) {
+      // ✅ 0ms TỨC THÌ: Lấy ngay từ bộ nhớ đệm, không cần hiển thị loading
+      setCaseOverview(cached.caseOverview);
+      setSelectedEncounterDetail(cached.encounterDetail);
+      const patId = cached.encounterDetail?.patientId || cached.encounterDetail?.patient?.patientId || cached.caseOverview?.patient?.patientId || combinedPatientsMap[id]?.patientId;
+      setPatientAllergiesState(cached.allergies ? { patientId: patId || '', list: cached.allergies } : { patientId: patId || '', list: [] });
+      setClinicalExamNote(cached.clinicalExam?.examinationFindings || '');
+      setPreliminaryDiag(cached.clinicalExam?.clinicalNotes || '');
+      setIsLoadingOverview(false);
+      setIsLoadingAllergies(false);
+    } else {
+      // Ca mới chưa lưu cache hoặc người dùng chủ động bấm Làm mới
+      setCaseOverview(null);
+      setSelectedEncounterDetail(null);
+      setCurrentAppointment(null);
+      setPatientAllergiesState(null);
+      setExistingTestOrders([]);
+      setClinicalExamNote('');
+      setPreliminaryDiag('');
+      setIsLoadingOverview(true);
+    }
+
+    setReloadCounter((prev) => prev + 1);
   };
 
   useEffect(() => {
     const handleStorage = () => {
       const val = localStorage.getItem('doctor_selected_patient_id');
       if (val && val !== selectedPatientId) {
-        setSelectedPatientId(val);
+        handleSelectPatientId(val);
       }
     };
     window.addEventListener('storage', handleStorage);
@@ -128,8 +246,22 @@ export const DoctorEMRView: React.FC = () => {
     };
   }, [selectedPatientId]);
 
+  // Lắng nghe sự kiện Làm mới từ thanh công cụ Workspace để re-fetch ca khám hiện tại
+  useEffect(() => {
+    const handleWorkspaceRefresh = () => {
+      fetchEncounters();
+      if (selectedPatientId) {
+        handleSelectPatientId(selectedPatientId, true);
+      }
+    };
+    window.addEventListener('workspace-refresh', handleWorkspaceRefresh);
+    return () => {
+      window.removeEventListener('workspace-refresh', handleWorkspaceRefresh);
+    };
+  }, [selectedPatientId, fetchEncounters]);
+
   // Patient process states simulation: 'initial' | 'ordered' | 'completed'
-  const [patientWorkflowStates, setPatientWorkflowStates] = useState<Record<string, PatientWorkflowState>>({});
+  const [patientWorkflowStates, setPatientWorkflowStates] = useState<Record<string, PatientWorkflowState>>(() => globalPatientWorkflowStates);
 
   // Map API Encounters to PatientEMR format
   const combinedPatientsMap = useMemo(() => {
@@ -227,18 +359,45 @@ export const DoctorEMRView: React.FC = () => {
     }
   }, [combinedPatientsMap, selectedPatientId]);
 
+  // Kiểm tra cache hiện có cho bệnh nhân đang chọn
+  const initPatientId = globalLastSelectedPatientId || localStorage.getItem('doctor_selected_patient_id') || '';
+  const initCached = initPatientId
+    ? (globalEncounterCache[initPatientId] ||
+      Object.values(globalEncounterCache).find(
+        (c) =>
+          c.encounterDetail?.encounterId === initPatientId ||
+          c.encounterDetail?.encounterCode === initPatientId ||
+          c.encounterDetail?.patient?.patientCode === initPatientId
+      ))
+    : undefined;
+
   // 2. Fetch full Encounter Detail payload via GET /api/v1/encounters/{id}
-  const [selectedEncounterDetail, setSelectedEncounterDetail] = useState<EncounterItem | null>(null);
+  const [selectedEncounterDetail, setSelectedEncounterDetail] = useState<EncounterItem | null>(() => initCached?.encounterDetail || null);
 
   // 3. Fetch full Case Overview payload via GET /api/v1/doctor-examination/encounters/{id}/overview
-  const [caseOverview, setCaseOverview] = useState<CaseOverviewData | null>(null);
-  const [isLoadingOverview, setIsLoadingOverview] = useState<boolean>(false);
+  const [caseOverview, setCaseOverview] = useState<CaseOverviewData | null>(() => initCached?.caseOverview || null);
+  const [isLoadingOverview, setIsLoadingOverview] = useState<boolean>(() => !initCached?.caseOverview);
   const [isGeneratingAiSummary, setIsGeneratingAiSummary] = useState<boolean>(false);
   const [isGeneratingAiDiagnosis, setIsGeneratingAiDiagnosis] = useState<boolean>(false);
 
   // 3.1 Appointment State & Start Consultation Handler
   const [currentAppointment, setCurrentAppointment] = useState<AppointmentItem | null>(null);
   const [isStartingAppointment, setIsStartingAppointment] = useState<boolean>(false);
+
+  // Khóa an toàn dữ liệu: Chỉ coi caseOverview và selectedEncounterDetail là hợp lệ nếu trùng khớp với bệnh nhân đang chọn
+  const verifiedCaseOverview = useMemo(() => {
+    if (!caseOverview || !currentPatient) return null;
+    const isEncounterMatch = Boolean(caseOverview.encounter?.encounterId && caseOverview.encounter.encounterId === currentPatient.encounterId);
+    const isPatientMatch = Boolean(caseOverview.patient?.patientId && caseOverview.patient.patientId === currentPatient.patientId);
+    return (isEncounterMatch || isPatientMatch) ? caseOverview : null;
+  }, [caseOverview, currentPatient]);
+
+  const verifiedEncounterDetail = useMemo(() => {
+    if (!selectedEncounterDetail || !currentPatient) return null;
+    const isEncounterMatch = Boolean(selectedEncounterDetail.encounterId && selectedEncounterDetail.encounterId === currentPatient.encounterId);
+    const isPatientMatch = Boolean(selectedEncounterDetail.patientId && selectedEncounterDetail.patientId === currentPatient.patientId);
+    return (isEncounterMatch || isPatientMatch) ? selectedEncounterDetail : null;
+  }, [selectedEncounterDetail, currentPatient]);
 
   const fetchCaseOverview = async (encounterId: string) => {
     setIsLoadingOverview(true);
@@ -247,12 +406,14 @@ export const DoctorEMRView: React.FC = () => {
       setCaseOverview(data);
     } catch (err) {
       console.warn('Lỗi khi gọi GET /doctor-examination/encounters/:id/overview:', err);
+      setCaseOverview(null);
     } finally {
       setIsLoadingOverview(false);
     }
   };
 
   useEffect(() => {
+    let isCancelled = false;
     const targetId =
       currentPatient?.encounterId ||
       (apiEncounters.find(
@@ -261,44 +422,81 @@ export const DoctorEMRView: React.FC = () => {
           e.encounterCode === selectedPatientId ||
           e.patient?.patientCode === selectedPatientId
       )?.encounterId);
+
     if (targetId) {
-      encounterService
-        .getEncounterById(targetId)
-        .then((data) => {
-          setSelectedEncounterDetail(data);
-        })
-        .catch((err) => {
-          console.warn('Lỗi khi gọi GET /api/v1/encounters/{id}:', err);
-          setSelectedEncounterDetail(null);
-        });
+      const cached = encounterCacheRef.current[targetId] || encounterCacheRef.current[selectedPatientId] || globalEncounterCache[targetId] || globalEncounterCache[selectedPatientId];
+      if (!cached) {
+        // Chưa có trong cache: hiển thị trạng thái tải sạch sẽ
+        setIsLoadingOverview(true);
+        setCaseOverview(null);
+        setSelectedEncounterDetail(null);
+        setCurrentAppointment(null);
+        setPatientAllergiesState(null);
+        setExistingTestOrders([]);
+        setClinicalExamNote('');
+        setPreliminaryDiag('');
+      } else {
+        // Đã có trong cache: nạp ngay vào state nếu chưa có để không bị nháy rỗng
+        if (cached.caseOverview && !caseOverview) setCaseOverview(cached.caseOverview);
+        if (cached.encounterDetail && !selectedEncounterDetail) setSelectedEncounterDetail(cached.encounterDetail);
+        if (cached.allergies !== undefined && !patientAllergiesState) {
+          const patId = cached.encounterDetail?.patientId || cached.caseOverview?.patient?.patientId || targetId;
+          setPatientAllergiesState({ patientId: patId, list: cached.allergies });
+        }
+      }
 
-      fetchCaseOverview(targetId);
+      // Revalidation ngầm (SWR): Tải dữ liệu mới nhất từ backend mà không làm giật màn hình
+      Promise.allSettled([
+        encounterService.getEncounterById(targetId),
+        clinicalExamService.getCaseOverview(targetId),
+        clinicalExamService.getClinicalExamination(targetId),
+      ]).then(([encRes, overviewRes, examRes]) => {
+        if (isCancelled) return;
 
-      // Gọi trực tiếp GET /api/v1/doctor-examination/encounters/:encounterId/clinical-examination
-      clinicalExamService
-        .getClinicalExamination(targetId)
-        .then((exam) => {
-          if (exam) {
-            if (exam.examinationFindings) {
-              setClinicalExamNote(exam.examinationFindings);
-            }
-            if (exam.clinicalNotes) {
-              setPreliminaryDiag(exam.clinicalNotes);
-            }
-          }
-        })
-        .catch((err) => {
-          console.warn('Lỗi khi gọi GET clinical-examination:', err);
-        });
+        const newDetail = encRes.status === 'fulfilled' ? encRes.value : null;
+        const newOverview = overviewRes.status === 'fulfilled' ? overviewRes.value : null;
+        const newExam = examRes.status === 'fulfilled' ? examRes.value : null;
+
+        // Cập nhật Cache trong RAM
+        const updatedCache: PatientEncounterCache = {
+          ...encounterCacheRef.current[targetId],
+          encounterDetail: newDetail || encounterCacheRef.current[targetId]?.encounterDetail || null,
+          caseOverview: newOverview || encounterCacheRef.current[targetId]?.caseOverview || null,
+          clinicalExam: newExam
+            ? {
+                examinationFindings: newExam.examinationFindings,
+                clinicalNotes: newExam.clinicalNotes,
+              }
+            : encounterCacheRef.current[targetId]?.clinicalExam || null,
+        };
+        encounterCacheRef.current[targetId] = updatedCache;
+        encounterCacheRef.current[selectedPatientId] = updatedCache;
+        globalEncounterCache[targetId] = updatedCache;
+        globalEncounterCache[selectedPatientId] = updatedCache;
+
+        // Cập nhật state nếu Bác sĩ vẫn đang mở ca này
+        if (newDetail) setSelectedEncounterDetail(newDetail);
+        if (newOverview) setCaseOverview(newOverview);
+        if (newExam) {
+          if (newExam.examinationFindings) setClinicalExamNote(newExam.examinationFindings);
+          if (newExam.clinicalNotes) setPreliminaryDiag(newExam.clinicalNotes);
+        }
+        setIsLoadingOverview(false);
+      });
     } else {
+      setIsLoadingOverview(false);
       setSelectedEncounterDetail(null);
       setCaseOverview(null);
     }
-  }, [currentPatient?.encounterId, selectedPatientId]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentPatient?.encounterId, selectedPatientId, reloadCounter]);
 
   // Đồng bộ thông tin Appointment tương ứng với ca khám đang chọn
   useEffect(() => {
-    const apptId = selectedEncounterDetail?.appointmentId || currentPatient?.appointmentId;
+    const apptId = verifiedEncounterDetail?.appointmentId || currentPatient?.appointmentId;
     if (apptId) {
       appointmentService
         .getAppointmentById(apptId)
@@ -321,7 +519,7 @@ export const DoctorEMRView: React.FC = () => {
     } else {
       setCurrentAppointment(null);
     }
-  }, [selectedEncounterDetail?.appointmentId, currentPatient?.appointmentId, currentPatient?.encounterId]);
+  }, [verifiedEncounterDetail?.appointmentId, currentPatient?.appointmentId, currentPatient?.encounterId]);
 
   // Bác sĩ bấm nút bắt đầu phiên khám (gọi PATCH /appointments/:id/start)
   const handleStartConsultation = async () => {
@@ -362,15 +560,21 @@ export const DoctorEMRView: React.FC = () => {
   };
 
   // 4. Fetch patient allergies via GET /api/v1/patients/{patientId}/allergies (Dùng bổ trợ)
-  const [patientAllergies, setPatientAllergies] = useState<PatientAllergyItem[]>([]);
-  const [isLoadingAllergies, setIsLoadingAllergies] = useState<boolean>(false);
+  const [patientAllergiesState, setPatientAllergiesState] = useState<{ patientId: string; list: PatientAllergyItem[] } | null>(() => {
+    if (initCached && initCached.allergies !== undefined) {
+      const patId = initCached.encounterDetail?.patientId || initCached.caseOverview?.patient?.patientId || initPatientId;
+      return { patientId: patId, list: initCached.allergies };
+    }
+    return null;
+  });
+  const [isLoadingAllergies, setIsLoadingAllergies] = useState<boolean>(() => !initCached || initCached.allergies === undefined);
 
   const activePatientId = useMemo(() => {
     return (
-      caseOverview?.patient?.patientId ||
       currentPatient?.patientId ||
-      selectedEncounterDetail?.patientId ||
-      selectedEncounterDetail?.patient?.patientId ||
+      verifiedEncounterDetail?.patientId ||
+      verifiedEncounterDetail?.patient?.patientId ||
+      verifiedCaseOverview?.patient?.patientId ||
       apiEncounters.find(
         (e) =>
           e.encounterId === selectedPatientId ||
@@ -378,36 +582,56 @@ export const DoctorEMRView: React.FC = () => {
           e.patient?.patientCode === selectedPatientId
       )?.patientId
     );
-  }, [caseOverview, currentPatient, selectedEncounterDetail, selectedPatientId, apiEncounters]);
+  }, [currentPatient, verifiedEncounterDetail, verifiedCaseOverview, selectedPatientId, apiEncounters]);
 
   useEffect(() => {
     if (activePatientId) {
-      setIsLoadingAllergies(true);
+      const targetEncId = currentPatient?.encounterId;
+      const cached = (targetEncId && encounterCacheRef.current[targetEncId]) || encounterCacheRef.current[selectedPatientId] || (targetEncId && globalEncounterCache[targetEncId]) || globalEncounterCache[selectedPatientId];
+      if (cached && cached.allergies !== undefined) {
+        setIsLoadingAllergies(false);
+        setPatientAllergiesState({ patientId: activePatientId, list: cached.allergies });
+      } else {
+        setIsLoadingAllergies(true);
+      }
+
       patientAllergyService
         .getAllergies(activePatientId)
         .then((data) => {
-          setPatientAllergies(Array.isArray(data) ? data : []);
+          const list = Array.isArray(data) ? data : [];
+          setPatientAllergiesState({ patientId: activePatientId, list });
+          if (targetEncId) {
+            encounterCacheRef.current[targetEncId] = {
+              ...encounterCacheRef.current[targetEncId],
+              allergies: list,
+            };
+            globalEncounterCache[targetEncId] = encounterCacheRef.current[targetEncId];
+          }
         })
         .catch((err) => {
           console.warn('Lỗi khi tải danh sách dị ứng bệnh nhân EMR:', err);
-          setPatientAllergies([]);
+          setPatientAllergiesState({ patientId: activePatientId, list: [] });
         })
         .finally(() => setIsLoadingAllergies(false));
     } else {
-      setPatientAllergies([]);
+      setPatientAllergiesState(null);
+      setIsLoadingAllergies(false);
     }
-  }, [activePatientId]);
+  }, [activePatientId, currentPatient?.encounterId, selectedPatientId]);
 
   const activeAllergies = useMemo(() => {
-    if (caseOverview?.allergies && caseOverview.allergies.length > 0) {
-      return caseOverview.allergies;
+    if (verifiedCaseOverview?.allergies && verifiedCaseOverview.allergies.length > 0) {
+      return verifiedCaseOverview.allergies;
     }
-    return patientAllergies;
-  }, [caseOverview?.allergies, patientAllergies]);
+    if (patientAllergiesState && currentPatient && patientAllergiesState.patientId === currentPatient.patientId) {
+      return patientAllergiesState.list;
+    }
+    return [];
+  }, [verifiedCaseOverview?.allergies, patientAllergiesState, currentPatient]);
 
   // Observations from CaseOverview or Encounter
-  const activeEncounterSession = caseOverview?.latestVitalSession || (selectedEncounterDetail?.vitalSignSessions && selectedEncounterDetail.vitalSignSessions.length > 0
-    ? selectedEncounterDetail.vitalSignSessions[0]
+  const activeEncounterSession = verifiedCaseOverview?.latestVitalSession || (verifiedEncounterDetail?.vitalSignSessions && verifiedEncounterDetail.vitalSignSessions.length > 0
+    ? verifiedEncounterDetail.vitalSignSessions[0]
     : undefined);
 
   const getActiveEncounterObs = (...codes: string[]): string | number | undefined => {
@@ -454,8 +678,8 @@ export const DoctorEMRView: React.FC = () => {
       : undefined;
 
   // Form & Test Order States
-  const [clinicalExamNote, setClinicalExamNote] = useState('');
-  const [preliminaryDiag, setPreliminaryDiag] = useState('');
+  const [clinicalExamNote, setClinicalExamNote] = useState<string>(() => initCached?.clinicalExam?.examinationFindings || '');
+  const [preliminaryDiag, setPreliminaryDiag] = useState<string>(() => initCached?.clinicalExam?.clinicalNotes || '');
   const [selectedTestTypeIds, setSelectedTestTypeIds] = useState<string[]>([]);
   const [orderNotes, setOrderNotes] = useState('');
   const [existingTestOrders, setExistingTestOrders] = useState<TestOrderDetail[]>([]);
@@ -498,24 +722,24 @@ export const DoctorEMRView: React.FC = () => {
 
   // Bản tóm tắt diễn tiến lâm sàng do AI biên soạn (AI01)
   const currentAiSummary = useMemo(() => {
-    if (caseOverview?.aiClinicalSummary?.summaryText) {
-      return caseOverview.aiClinicalSummary.summaryText;
+    if (verifiedCaseOverview?.aiClinicalSummary?.summaryText) {
+      return verifiedCaseOverview.aiClinicalSummary.summaryText;
     }
-    const patName = caseOverview?.patient?.fullName || selectedEncounterDetail?.patient?.fullName || currentPatient?.name || 'Bệnh nhân';
+    const patName = verifiedCaseOverview?.patient?.fullName || verifiedEncounterDetail?.patient?.fullName || currentPatient?.name || 'Bệnh nhân';
     const patAge = currentPatient?.age || 30;
-    const patGender = (caseOverview?.patient?.gender === 'female' || selectedEncounterDetail?.patient?.gender === 'female') ? 'Nữ' : 'Nam';
-    const symp = caseOverview?.chiefComplaint?.symptoms || selectedEncounterDetail?.chiefComplaint?.symptoms || currentPatient?.symptoms || 'Bình thường';
+    const patGender = (verifiedCaseOverview?.patient?.gender === 'female' || verifiedEncounterDetail?.patient?.gender === 'female') ? 'Nữ' : 'Nam';
+    const symp = verifiedCaseOverview?.chiefComplaint?.symptoms || verifiedEncounterDetail?.chiefComplaint?.symptoms || currentPatient?.symptoms || 'Bình thường';
     const allgs = activeAllergies.filter((a) => a.status === 'active');
     const allgStr = allgs.length > 0 ? allgs.map((a) => `${a.allergenName} (${a.severity})`).join(', ') : 'Chưa ghi nhận dị ứng';
-    const histStr = caseOverview?.medicalHistories?.length ? caseOverview.medicalHistories.map((h) => h.conditionName).join(', ') : (currentPatient?.history || 'Chưa ghi nhận');
+    const histStr = verifiedCaseOverview?.medicalHistories?.length ? verifiedCaseOverview.medicalHistories.map((h) => h.conditionName).join(', ') : (currentPatient?.history || 'Chưa ghi nhận');
 
     return `Bệnh nhân ${patName} (${patGender}, ${patAge} tuổi). Tiếp nhận tại phòng khám với lý do/triệu chứng: "${symp}". Chỉ số sinh hiệu lúc tiếp đón: Huyết áp ${displayBp || '---'}, nhịp tim ${displayHr || '---'}, SpO2 ${displaySpo2 || '---'}, thân nhiệt ${displayTemp || '---'}. Tiền sử bệnh lý: ${histStr}. Ghi nhận dị ứng: ${allgStr}. Đề xuất Bác sĩ thăm khám hô hấp/toàn thân và chỉ định cận lâm sàng đánh giá chuyên sâu.`;
-  }, [caseOverview, selectedEncounterDetail, currentPatient, activeAllergies, displayBp, displayHr, displaySpo2, displayTemp]);
+  }, [verifiedCaseOverview, verifiedEncounterDetail, currentPatient, activeAllergies, displayBp, displayHr, displaySpo2, displayTemp]);
 
   // Top chẩn đoán sơ bộ do AI đề xuất (kèm độ tin cậy và lập luận y khoa)
   const dynamicAiDiagnosisList: DynamicAiDiagnosis[] = useMemo(() => {
-    if (caseOverview?.aiDiagnosisSuggestions && caseOverview.aiDiagnosisSuggestions.length > 0) {
-      return caseOverview.aiDiagnosisSuggestions.map((s, idx) => ({
+    if (verifiedCaseOverview?.aiDiagnosisSuggestions && verifiedCaseOverview.aiDiagnosisSuggestions.length > 0) {
+      return verifiedCaseOverview.aiDiagnosisSuggestions.map((s, idx) => ({
         id: s.suggestionId || `ai-diag-${idx}`,
         icd10Code: s.icd10Code || s.icd10?.icd10Code || '---',
         diseaseName: s.icd10?.descriptionVi || s.icd10?.descriptionEn || s.icd10Code,
@@ -524,7 +748,7 @@ export const DoctorEMRView: React.FC = () => {
       }));
     }
 
-    const symp = (caseOverview?.chiefComplaint?.symptoms || selectedEncounterDetail?.chiefComplaint?.symptoms || currentPatient?.symptoms || '').toLowerCase();
+    const symp = (verifiedCaseOverview?.chiefComplaint?.symptoms || verifiedEncounterDetail?.chiefComplaint?.symptoms || currentPatient?.symptoms || '').toLowerCase();
     const tempVal = Number(activeTemp) || currentPatient?.vitals?.temp || 0;
 
     if (symp.includes('ho') || symp.includes('sốt') || symp.includes('thở') || symp.includes('phổi') || tempVal >= 38.5) {
@@ -574,7 +798,7 @@ export const DoctorEMRView: React.FC = () => {
         rationale: 'Triệu chứng sốt cấp tính, đề xuất làm xét nghiệm máu CBC và sinh hóa máu cơ bản.',
       },
     ];
-  }, [caseOverview?.aiDiagnosisSuggestions, caseOverview?.chiefComplaint?.symptoms, selectedEncounterDetail?.chiefComplaint?.symptoms, currentPatient?.symptoms, activeTemp, currentPatient?.vitals?.temp]);
+  }, [verifiedCaseOverview?.aiDiagnosisSuggestions, verifiedCaseOverview?.chiefComplaint?.symptoms, verifiedEncounterDetail?.chiefComplaint?.symptoms, currentPatient?.symptoms, activeTemp, currentPatient?.vitals?.temp]);
 
   // Tải danh sách các phiếu chỉ định đã lập của ca khám từ API và kiểm tra trạng thái đóng phí
   const fetchEncounterTestOrders = async (encounterId: string) => {
@@ -624,12 +848,19 @@ export const DoctorEMRView: React.FC = () => {
   };
 
   useEffect(() => {
-    if (caseOverview?.clinicalExamination) {
-      setClinicalExamNote(caseOverview.clinicalExamination.examinationFindings || '');
-      setPreliminaryDiag(caseOverview.clinicalExamination.clinicalNotes || '');
+    if (verifiedCaseOverview?.clinicalExamination) {
+      setClinicalExamNote(verifiedCaseOverview.clinicalExamination.examinationFindings || '');
+      setPreliminaryDiag(verifiedCaseOverview.clinicalExamination.clinicalNotes || '');
     } else {
-      setClinicalExamNote('');
-      setPreliminaryDiag('');
+      const targetId = currentPatient?.encounterId;
+      const cached = (targetId && globalEncounterCache[targetId]) || (selectedPatientId && globalEncounterCache[selectedPatientId]);
+      if (cached?.clinicalExam) {
+        setClinicalExamNote(cached.clinicalExam.examinationFindings || '');
+        setPreliminaryDiag(cached.clinicalExam.clinicalNotes || '');
+      } else {
+        setClinicalExamNote('');
+        setPreliminaryDiag('');
+      }
     }
     setSubmitSuccessMsg(null);
     setSubmitErrorMsg(null);
@@ -640,7 +871,7 @@ export const DoctorEMRView: React.FC = () => {
     } else {
       setExistingTestOrders([]);
     }
-  }, [currentPatient, activeEncounterId, selectedPatientId, caseOverview?.clinicalExamination]);
+  }, [currentPatient, activeEncounterId, selectedPatientId, verifiedCaseOverview?.clinicalExamination]);
 
   // Trạng thái quy trình ca khám hiện tại
   const currentWorkflowState = patientWorkflowStates[selectedPatientId] || 'initial';
@@ -846,9 +1077,9 @@ export const DoctorEMRView: React.FC = () => {
           <span>
             {currentPatient
               ? (() => {
-                  const name = selectedEncounterDetail?.patient?.fullName || currentPatient.name;
-                  const pCode = selectedEncounterDetail?.patient?.patientCode || currentPatient.patientCode;
-                  const encCode = selectedEncounterDetail?.encounterCode || currentPatient.encounterCode;
+                  const name = verifiedEncounterDetail?.patient?.fullName || currentPatient.name;
+                  const pCode = verifiedEncounterDetail?.patient?.patientCode || currentPatient.patientCode;
+                  const encCode = verifiedEncounterDetail?.encounterCode || currentPatient.encounterCode;
                   const codeDetails = [pCode, encCode].filter(Boolean).join(' • ');
                   return `Bệnh nhân: ${name}${codeDetails ? ` (${codeDetails})` : ''}`;
                 })()
@@ -928,11 +1159,12 @@ export const DoctorEMRView: React.FC = () => {
                   {/* Component 1: Administrative EMR Profile & Vitals */}
                   <PatientAdministrativeCard
                     currentPatient={currentPatient}
-                    caseOverview={caseOverview}
-                    selectedEncounterDetail={selectedEncounterDetail}
+                    caseOverview={verifiedCaseOverview}
+                    selectedEncounterDetail={verifiedEncounterDetail}
                     currentAppointment={currentAppointment}
                     isStartingAppointment={isStartingAppointment}
                     onStartConsultation={handleStartConsultation}
+                    onRefreshEncounter={() => handleSelectPatientId(selectedPatientId, true)}
                     activeAllergies={activeAllergies}
                     isLoadingAllergies={isLoadingAllergies}
                     isLoadingOverview={isLoadingOverview}
@@ -946,7 +1178,7 @@ export const DoctorEMRView: React.FC = () => {
                   {/* Component 2: AI01 Smart EMR Summary Widget */}
                   <AiClinicalSummaryCard
                     summaryText={currentAiSummary}
-                    caseOverview={caseOverview}
+                    caseOverview={verifiedCaseOverview}
                     isGeneratingAiSummary={isGeneratingAiSummary}
                     onTriggerAiSummary={handleTriggerAiSummary}
                   />

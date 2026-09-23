@@ -14,6 +14,7 @@ import { ExpertsPage } from './pages/ExpertsPage';
 
 // Consolidated Workspaces
 import { DoctorWorkspaceView } from './modules/doctor/DoctorWorkspaceView';
+import { DoctorScheduleWorkspaceView } from './modules/doctor/DoctorScheduleWorkspaceView';
 import { ReceptionIntakeWorkspaceView } from './modules/reception/ReceptionIntakeWorkspaceView';
 import { ReceptionPatientManageWorkspaceView } from './modules/reception/ReceptionPatientManageWorkspaceView';
 import { ReceptionQueueCallingWorkspaceView } from './modules/reception/ReceptionQueueCallingWorkspaceView';
@@ -97,6 +98,7 @@ function App() {
               <Route path="/bac-si/hang-cho-kham" element={<DoctorWorkspaceView />} />
               <Route path="/bac-si/kham-benh" element={<DoctorWorkspaceView />} />
               <Route path="/bac-si/ke-don" element={<DoctorWorkspaceView />} />
+              <Route path="/bac-si/lich-truc" element={<DoctorScheduleWorkspaceView />} />
             </Route>
 
             {/* XÉT NGHIỆM WORKSPACE */}
