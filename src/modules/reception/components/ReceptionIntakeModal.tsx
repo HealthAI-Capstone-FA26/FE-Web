@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Stethoscope,
   ShieldCheck,
@@ -15,6 +15,8 @@ import {
   Flame,
   Check,
   RefreshCw,
+  PenTool,
+  Eraser,
 } from 'lucide-react';
 import { type QueueTicketItem, queueTicketService } from '../../../services/queue/queue-ticket.service';
 import { type DoctorResponse } from '../../../services/doctor/doctor.service';
@@ -24,7 +26,7 @@ import {
   type VerificationMethod,
   type VerificationStatus,
 } from '../../../services/encounter/encounter.service';
-import { consentService } from '../../../services/consent/consent.service';
+import { consentService, type ConsentPolicyItem, type ConsentItem } from '../../../services/consent/consent.service';
 
 const QUICK_SYMPTOM_TAGS = [
   'Đau đầu / Chóng mặt',
@@ -68,6 +70,16 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
   const [isPediatricPatient, setIsPediatricPatient] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
+  // State Cam Kết Đồng Ý Y Tế (Consent)
+  const [policies, setPolicies] = useState<ConsentPolicyItem[]>([]);
+  const [activeConsents, setActiveConsents] = useState<ConsentItem[]>([]);
+  const [selectedPolicyIds, setSelectedPolicyIds] = useState<string[]>([]);
+  const [signatureType, setSignatureType] = useState<'checkbox_click' | 'e_signature_draw'>('checkbox_click');
+  const [witnessedAtCounter, setWitnessedAtCounter] = useState<boolean>(true);
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string>('');
+  const [isDrawing, setIsDrawing] = useState<boolean>(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
   useEffect(() => {
     if (isOpen && ticket) {
       const deptDocs = doctors.filter((d) =>
@@ -78,6 +90,9 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
       setSymptoms('');
       setSymptomOnsetDate(new Date().toISOString().slice(0, 10));
       setPainLevel(0);
+      setSignatureType('checkbox_click');
+      setWitnessedAtCounter(true);
+      setSignatureDataUrl('');
 
       // Tính tuổi bệnh nhân để tự động nhận diện Bệnh Nhi nhỏ tuổi (< 15 tuổi)
       const dob = ticket.appointment?.patient?.dateOfBirth;
@@ -93,8 +108,80 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
       setVerificationMethod(isChild ? 'health_insurance_card' : 'national_id_card');
       setVerificationStatus('verified');
       setMismatchNotes('');
+
+      // Nạp danh sách chính sách Consent & Consent active của bệnh nhân
+      const patientId = ticket.appointment?.patientId;
+      if (patientId) {
+        consentService.getEffectivePolicies()
+          .then((fetchedPolicies) => {
+            setPolicies(fetchedPolicies);
+            setSelectedPolicyIds(fetchedPolicies.map((p) => p.policyId));
+          })
+          .catch((err) => console.warn('Lỗi tải danh sách policy:', err));
+
+        consentService.getConsents({ patientId, status: 'active' })
+          .then((fetchedConsents) => {
+            setActiveConsents(fetchedConsents);
+          })
+          .catch((err) => console.warn('Lỗi tải active consent:', err));
+      }
     }
   }, [isOpen, ticket, doctors]);
+
+  // Xử lý vẽ chữ ký điện tử trên Canvas
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    setIsDrawing(true);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    ctx.beginPath();
+    ctx.moveTo(clientX - rect.left, clientY - rect.top);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#0f766e';
+    ctx.lineTo(clientX - rect.left, clientY - rect.top);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+    const canvas = canvasRef.current;
+    if (canvas) {
+      setSignatureDataUrl(canvas.toDataURL('image/png'));
+    }
+  };
+
+  const handleClearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    setSignatureDataUrl('');
+  };
 
   if (!isOpen || !ticket) return null;
 
@@ -119,13 +206,41 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
 
   const handleConfirmIntakeAndServe = async () => {
     if (!ticket) return;
+
+    // 1. Kiểm tra Bác sĩ khám
     if (!selectedDoctorId) {
       showToast('Vui lòng chọn bác sĩ khám trước khi hoàn tất tiếp nhận', 'error');
       return;
     }
 
-    if (verificationStatus === 'failed' && !mismatchNotes.trim()) {
-      showToast('Vui lòng nhập lý do không khớp khi kết quả xác minh thất bại', 'error');
+    // 2. Kiểm tra Lý do khám (Chief Complaint)
+    const finalReason = reasonForVisit.trim() || ticket.appointment?.reasonForVisit?.trim();
+    if (!finalReason) {
+      showToast('Vui lòng nhập lý do khám / triệu chứng ban đầu của bệnh nhân trước khi tiếp nhận', 'error');
+      return;
+    }
+
+    // 3. Kiểm tra Xác minh danh tính
+    const patientVerified = ticket.appointment?.patient?.identityVerified;
+    if (verificationStatus === 'failed') {
+      if (!mismatchNotes.trim()) {
+        showToast('Vui lòng nhập lý do không khớp khi kết quả xác minh thất bại', 'error');
+        return;
+      }
+      if (!patientVerified) {
+        showToast('Xác minh danh tính thất bại và bệnh nhân chưa có lịch sử xác minh. Không thể chuyển ca sang Điều dưỡng.', 'error');
+        return;
+      }
+    }
+
+    // 4. Kiểm tra Cam kết đồng ý y tế (Consent)
+    if (policies.length > 0 && selectedPolicyIds.length === 0) {
+      showToast('Vui lòng tích chọn đồng ý các chính sách y tế bắt buộc trước khi tiếp nhận', 'error');
+      return;
+    }
+
+    if (signatureType === 'e_signature_draw' && !signatureDataUrl) {
+      showToast('Vui lòng yêu cầu bệnh nhân/người nhà vẽ chữ ký xác nhận trên bảng vẽ chữ ký', 'error');
       return;
     }
 
@@ -162,8 +277,6 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
 
         // 3. Ghi nhận Chief Complaint vào lượt khám Encounter
         try {
-          const finalReason =
-            reasonForVisit.trim() || ticket.appointment?.reasonForVisit?.trim() || 'Khám bệnh';
           await chiefComplaintService.upsert(encounterId, {
             reasonForVisit: finalReason,
             symptoms: symptoms.trim() || undefined,
@@ -175,32 +288,62 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
           console.warn('Lưu Chief Complaint thất bại:', ccErr);
         }
 
-        // 4. Ký cam kết đồng ý xử lý dữ liệu và điều trị bắt buộc (data_processing, treatment_consent)
+        // 4. Ký cam kết đồng ý xử lý dữ liệu và điều trị (data_processing, treatment_consent, ...)
         const patientId = ticket.appointment?.patientId;
         if (patientId) {
           try {
-            await consentService.ensureMandatoryConsents(patientId, encounterId);
+            if (selectedPolicyIds.length > 0) {
+              for (const policyId of selectedPolicyIds) {
+                try {
+                  await consentService.createConsent({
+                    patientId,
+                    encounterId,
+                    policyId,
+                    signatureType,
+                    signatureDataUrl: signatureType === 'e_signature_draw' ? signatureDataUrl : undefined,
+                    witnessedAtCounter,
+                  });
+                } catch (cErr) {
+                  console.warn(`Lỗi tạo consent cho policy ${policyId}:`, cErr);
+                  throw cErr;
+                }
+              }
+            } else {
+              await consentService.ensureMandatoryConsents(patientId, encounterId);
+            }
           } catch (consentErr) {
-            console.warn('Ghi nhận cam kết bắt buộc thất bại:', consentErr);
+            console.warn('Ghi nhận cam kết đồng ý y tế thất bại:', consentErr);
+            throw consentErr;
           }
         }
 
-        // 5. Hoàn tất đăng ký tiếp đón để xếp vào Hàng đợi Triage của Điều dưỡng
-        try {
-          await encounterService.completeRegistration(encounterId);
-        } catch (regErr: any) {
-          console.warn('Hoàn tất đăng ký vào hàng đợi Triage thất bại:', regErr);
-        }
+        // 5. Hoàn tất đăng ký tiếp đón để xếp vào Hàng đợi Triage của Điều dưỡng (Cấp STT chính thức)
+        await encounterService.completeRegistration(encounterId);
       }
 
       showToast(
-        `Đã tiếp nhận thành công số ${code}, lưu xác minh danh tính & chuyển hàng đợi điều dưỡng!`,
+        `Đã tiếp nhận thành công số ${code}, ghi nhận cam kết y tế & chuyển hàng đợi điều dưỡng!`,
         'success'
       );
       onSuccess();
       onClose();
     } catch (err: any) {
-      showToast(err.message || 'Lỗi khi hoàn tất tiếp nhận', 'error');
+      console.error('Lỗi khi hoàn tất tiếp nhận:', err);
+
+      // Nếu tiếp nhận/đăng ký triage thất bại, lập tức hoàn tác đưa ticket về trạng thái 'called'
+      if (ticket?.ticketId) {
+        try {
+          await queueTicketService.callTicket(ticket.ticketId, ticket.counterNumber || '01');
+        } catch (callErr) {
+          console.warn('Không thể hoàn tác ticket về trạng thái called:', callErr);
+        }
+      }
+
+      const missingArr = err?.data?.missing || err?.response?.data?.missing;
+      const errorMsg = Array.isArray(missingArr) && missingArr.length > 0
+        ? `Thiếu thông tin: ${missingArr.join('; ')}`
+        : (err.message || 'Lỗi khi hoàn tất tiếp nhận');
+      showToast(errorMsg, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -426,6 +569,166 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
               {isPediatricPatient
                 ? '💡 Bệnh nhi chưa có CCCD: Đối chiếu Thẻ BHYT trẻ em (mã TE) hoặc Giấy khai sinh kèm CCCD của Phụ huynh / Người giám hộ đi cùng.'
                 : '💡 Kiểm tra ảnh thẻ CCCD với khuôn mặt người đến khám. Sau khi xác nhận, hệ thống tự động gắn cờ "Đã xác minh danh tính" cho hồ sơ bệnh nhân.'}
+            </div>
+          </div>
+
+          {/* KHỐI CAM KẾT ĐỒNG Ý Y TẾ & CHỮ KÝ ĐIỆN TỬ (CONSENT) */}
+          <div className="p-3.5 bg-gradient-to-br from-teal-50/60 to-emerald-50/40 rounded-2xl border border-teal-200/90 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <FileCheck2 className="w-4 h-4 text-teal-700" />
+                <span className="font-bold text-slate-800 text-xs">
+                  Giấy Cam Kết Đồng Ý Y Tế & Chữ Ký Điện Tử (Consent):
+                </span>
+                <span className="text-rose-500">*</span>
+              </div>
+              {activeConsents.length > 0 ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>Đã có {activeConsents.length} cam kết còn hiệu lực</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                  <AlertCircle className="w-3 h-3 text-amber-600" />
+                  <span>Cần xác nhận ký tại quầy</span>
+                </span>
+              )}
+            </div>
+
+            {/* Danh sách các khoản cam kết */}
+            <div className="space-y-1.5 bg-white p-3 rounded-xl border border-slate-200/80">
+              <span className="text-[11px] font-semibold text-slate-700 block mb-1">
+                Chọn các khoản cam kết bệnh nhân đồng ý chấp thuận:
+              </span>
+              {policies.length === 0 ? (
+                <div className="text-[11px] text-slate-400 italic py-1">Đang tải danh sách điều khoản y tế...</div>
+              ) : (
+                policies.map((p) => {
+                  const isChecked = selectedPolicyIds.includes(p.policyId);
+                  const hasActive = activeConsents.some(
+                    (ac) => ac.policyId === p.policyId || ac.policy?.policyType === p.policyType
+                  );
+
+                  let labelText =
+                    p.policyType === 'data_processing'
+                      ? '1. Đồng ý thu thập, xử lý & bảo lưu dữ liệu cá nhân y tế (HL7 FHIR R4)'
+                      : p.policyType === 'treatment_consent'
+                      ? '2. Đồng ý chẩn đoán, xét nghiệm & thực hiện thủ thuật y tế tại viện'
+                      : p.policyType === 'financial_responsibility'
+                      ? '3. Cam kết nghĩa vụ tài chính & chi phí dịch vụ khám chữa bệnh'
+                      : `${p.policyCode} (${p.version})`;
+
+                  return (
+                    <label key={p.policyId} className="flex items-start gap-2.5 cursor-pointer text-xs py-1">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedPolicyIds((prev) => [...prev, p.policyId]);
+                          } else {
+                            setSelectedPolicyIds((prev) => prev.filter((id) => id !== p.policyId));
+                          }
+                        }}
+                        className="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                      />
+                      <div className="flex-1 flex items-center justify-between">
+                        <span className={`font-semibold ${isChecked ? 'text-slate-800' : 'text-slate-500'}`}>
+                          {labelText}
+                        </span>
+                        {hasActive && (
+                          <span className="ml-2 text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 shrink-0">
+                            ✓ Đã ký
+                          </span>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Lựa chọn hình thức ký */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                <span>Phương thức ký xác nhận:</span>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="signatureType"
+                      checked={signatureType === 'checkbox_click'}
+                      onChange={() => setSignatureType('checkbox_click')}
+                      className="text-teal-600 focus:ring-teal-500"
+                    />
+                    <span>Xác nhận tại quầy (Counter Witness)</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="signatureType"
+                      checked={signatureType === 'e_signature_draw'}
+                      onChange={() => setSignatureType('e_signature_draw')}
+                      className="text-teal-600 focus:ring-teal-500"
+                    />
+                    <span className="flex items-center gap-1">
+                      <PenTool className="w-3 h-3 text-teal-600" />
+                      <span>Ký chữ ký vẽ (Pad)</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {signatureType === 'checkbox_click' ? (
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={witnessedAtCounter}
+                      onChange={(e) => setWitnessedAtCounter(e.target.checked)}
+                      className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                    />
+                    <span>Lễ tân xác nhận bệnh nhân / người giám hộ đã được phổ biến & đồng ý ký tại quầy.</span>
+                  </label>
+                  <span className="text-[10px] text-teal-700 font-bold px-2 py-0.5 rounded bg-teal-50 border border-teal-200 shrink-0">
+                    Witnessed
+                  </span>
+                </div>
+              ) : (
+                <div className="bg-white p-3 rounded-xl border border-slate-200/80 space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-600 font-semibold">Bệnh nhân ký tên bên dưới bằng chuột hoặc cảm ứng:</span>
+                    <button
+                      type="button"
+                      onClick={handleClearCanvas}
+                      className="text-slate-500 hover:text-rose-600 flex items-center gap-1 text-[11px] font-semibold cursor-pointer"
+                    >
+                      <Eraser className="w-3 h-3" />
+                      <span>Xóa chữ ký</span>
+                    </button>
+                  </div>
+                  <div className="border-2 border-dashed border-slate-300 rounded-xl bg-slate-50/50 p-1 flex justify-center">
+                    <canvas
+                      ref={canvasRef}
+                      width={460}
+                      height={100}
+                      onMouseDown={startDrawing}
+                      onMouseMove={draw}
+                      onMouseUp={stopDrawing}
+                      onMouseLeave={stopDrawing}
+                      onTouchStart={startDrawing}
+                      onTouchMove={draw}
+                      onTouchEnd={stopDrawing}
+                      className="bg-white rounded-lg cursor-crosshair shadow-2xs touch-none border border-slate-200"
+                    />
+                  </div>
+                  {signatureDataUrl && (
+                    <div className="text-[10px] text-emerald-600 font-bold text-right">
+                      ✓ Đã ghi nhận bản vẽ chữ ký điện tử
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

@@ -387,9 +387,8 @@ export const BookingForm = () => {
                         placeholder="Nguyễn Văn A"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
-                        className={`w-full bg-white text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs outline-none border ${
-                          errors.fullName ? 'border-yellow-400' : 'border-transparent'
-                        }`}
+                        className={`w-full bg-white text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs outline-none border ${errors.fullName ? 'border-yellow-400' : 'border-transparent'
+                          }`}
                       />
                       {errors.fullName && <span className="text-[10px] text-yellow-300 block mt-0.5">{errors.fullName}</span>}
                     </div>
@@ -401,9 +400,8 @@ export const BookingForm = () => {
                         placeholder="0901234567"
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value)}
-                        className={`w-full bg-white text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs outline-none border ${
-                          errors.phoneNumber ? 'border-yellow-400' : 'border-transparent'
-                        }`}
+                        className={`w-full bg-white text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs outline-none border ${errors.phoneNumber ? 'border-yellow-400' : 'border-transparent'
+                          }`}
                       />
                       {errors.phoneNumber && <span className="text-[10px] text-yellow-300 block mt-0.5">{errors.phoneNumber}</span>}
                     </div>
@@ -415,9 +413,8 @@ export const BookingForm = () => {
                         placeholder="079090001234"
                         value={identityNumber}
                         onChange={(e) => setIdentityNumber(e.target.value)}
-                        className={`w-full bg-white text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs outline-none border ${
-                          errors.identityNumber ? 'border-yellow-400' : 'border-transparent'
-                        }`}
+                        className={`w-full bg-white text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs outline-none border ${errors.identityNumber ? 'border-yellow-400' : 'border-transparent'
+                          }`}
                       />
                       {errors.identityNumber && <span className="text-[10px] text-yellow-300 block mt-0.5">{errors.identityNumber}</span>}
                     </div>
@@ -429,9 +426,8 @@ export const BookingForm = () => {
                         placeholder="guest@example.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className={`w-full bg-white text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs outline-none border ${
-                          errors.email ? 'border-yellow-400' : 'border-transparent'
-                        }`}
+                        className={`w-full bg-white text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs outline-none border ${errors.email ? 'border-yellow-400' : 'border-transparent'
+                          }`}
                       />
                       {errors.email && <span className="text-[10px] text-yellow-300 block mt-0.5">{errors.email}</span>}
                     </div>
@@ -467,18 +463,16 @@ export const BookingForm = () => {
                       <button
                         type="button"
                         onClick={() => setVerifyMethod('email')}
-                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer transition-colors ${
-                          verifyMethod === 'email' ? 'bg-[#0b3c8f] text-white shadow-xs' : 'text-slate-700'
-                        }`}
+                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer transition-colors ${verifyMethod === 'email' ? 'bg-[#0b3c8f] text-white shadow-xs' : 'text-slate-700'
+                          }`}
                       >
                         <Mail className="w-3.5 h-3.5" /> Email
                       </button>
                       <button
                         type="button"
                         onClick={() => setVerifyMethod('sms')}
-                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer transition-colors ${
-                          verifyMethod === 'sms' ? 'bg-[#0b3c8f] text-white shadow-xs' : 'text-slate-700'
-                        }`}
+                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer transition-colors ${verifyMethod === 'sms' ? 'bg-[#0b3c8f] text-white shadow-xs' : 'text-slate-700'
+                          }`}
                       >
                         <Phone className="w-3.5 h-3.5" /> SMS / SĐT
                       </button>
@@ -560,18 +554,16 @@ export const BookingForm = () => {
                               key={s.departmentId}
                               type="button"
                               onClick={() => setSelectedDeptId(s.departmentId)}
-                              className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left text-xs font-semibold transition-all cursor-pointer border ${
-                                isActive
+                              className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left text-xs font-semibold transition-all cursor-pointer border ${isActive
                                   ? 'bg-violet-500/30 border-violet-400 text-white shadow-xs'
                                   : 'bg-white/10 border-white/20 text-blue-100 hover:bg-white/20'
-                              }`}
+                                }`}
                             >
                               <span>{idx === 0 && '🏆 '}{s.departmentName}</span>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                s.confidence === 'high' ? 'bg-emerald-500/30 text-emerald-200'
-                                : s.confidence === 'medium' ? 'bg-blue-400/30 text-blue-200'
-                                : 'bg-white/10 text-blue-300'
-                              }`}>{confidenceLabel(s.confidence)}</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.confidence === 'high' ? 'bg-emerald-500/30 text-emerald-200'
+                                  : s.confidence === 'medium' ? 'bg-blue-400/30 text-blue-200'
+                                    : 'bg-white/10 text-blue-300'
+                                }`}>{confidenceLabel(s.confidence)}</span>
                             </button>
                           );
                         })}
@@ -591,18 +583,16 @@ export const BookingForm = () => {
                       <button
                         type="button"
                         onClick={() => setServiceLevel('tieu-chuan')}
-                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer ${
-                          serviceLevel === 'tieu-chuan' ? 'bg-[#0b3c8f] text-white' : 'text-slate-700'
-                        }`}
+                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer ${serviceLevel === 'tieu-chuan' ? 'bg-[#0b3c8f] text-white' : 'text-slate-700'
+                          }`}
                       >
                         <Activity className="w-3.5 h-3.5" /> Khám Tiêu Chuẩn
                       </button>
                       <button
                         type="button"
                         onClick={() => setServiceLevel('vip')}
-                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer ${
-                          serviceLevel === 'vip' ? 'bg-[#0b3c8f] text-white' : 'text-slate-700'
-                        }`}
+                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer ${serviceLevel === 'vip' ? 'bg-[#0b3c8f] text-white' : 'text-slate-700'
+                          }`}
                       >
                         <Award className="w-3.5 h-3.5" /> Khám VIP
                       </button>
@@ -683,11 +673,10 @@ export const BookingForm = () => {
                                   key={s.slotId}
                                   type="button"
                                   onClick={() => setSelectedSlotId(s.slotId)}
-                                  className={`py-1 px-2 rounded text-[11px] font-bold transition-all flex items-center justify-between border cursor-pointer ${
-                                    isSelected
+                                  className={`py-1 px-2 rounded text-[11px] font-bold transition-all flex items-center justify-between border cursor-pointer ${isSelected
                                       ? 'bg-white text-[#0b3c8f] border-white shadow-xs'
                                       : 'bg-white/20 text-white border-white/20 hover:bg-white/30'
-                                  }`}
+                                    }`}
                                 >
                                   <span>{startTime}-{endTime}</span>
                                   <span className="text-[9px] opacity-80 font-normal">({s.capacity - s.bookedCount})</span>

@@ -209,38 +209,8 @@ export const NurseQueueView: React.FC = () => {
       };
     });
 
-    const triageEncIds = new Set(triageEntries.map((t) => t.encounterId));
-    const extraEncounters: NursePatientRow[] = encounters
-      .filter((e) => !triageEncIds.has(e.encounterId))
-      .map((enc) => {
-        const { vitals, vitalSessionId } = parseSessionVitals(enc);
-        const isMeasured = !!vitals || enc.status === 'registered' || enc.status === 'waiting_for_doctor';
-        return {
-          encounterId: enc.encounterId,
-          encounterCode: enc.encounterCode || enc.encounterId.slice(0, 8),
-          patientId: enc.patientId,
-          name: enc.patient?.fullName || 'Bệnh nhân',
-          age: calculateAge(enc.patient?.dateOfBirth),
-          gender:
-            enc.patient?.gender === 'male'
-              ? 'Nam'
-              : enc.patient?.gender === 'female'
-              ? 'Nữ'
-              : enc.patient?.gender || '---',
-          phone: enc.patient?.phoneNumber || 'Chưa cập nhật',
-          departmentName: enc.department?.departmentName || 'Khoa khám bệnh',
-          doctorName: enc.doctor?.fullName
-            ? `${enc.doctor.title ? `${enc.doctor.title} ` : ''}${enc.doctor.fullName}`
-            : 'Bác sĩ trực',
-          arrivedAt: enc.arrivedAt,
-          status: isMeasured ? 'Measured' : 'Pending',
-          vitalSessionId,
-          vitals,
-          chiefComplaint: enc.chiefComplaint,
-        };
-      });
-
-    const all = [...rowsFromTriage, ...extraEncounters];
+    // Chỉ hiển thị các bệnh nhân ĐÃ ĐƯỢC LỄ TÂN HOÀN TẤT ĐĂNG KÝ (có TriageQueueEntry & STT chính thức)
+    const all = rowsFromTriage;
 
     return all.sort((a, b) => {
       // 1. Chưa đo xếp trước đã đo
@@ -360,8 +330,8 @@ export const NurseQueueView: React.FC = () => {
 
   // Mở modal đo sinh hiệu từ nút trên dòng bảng
   const handleOpenMeasure = async (row: NursePatientRow) => {
-    // Nếu ca đang ở trạng thái called thì chuyển sang in_progress
-    if (row.queueEntryId && row.triageStatus === 'called') {
+    // Nếu ca đang ở trạng thái waiting hoặc called, chuyển sang in_progress để bắt đầu đo
+    if (row.queueEntryId && (row.triageStatus === 'waiting' || row.triageStatus === 'called')) {
       try {
         await triageQueueService.startProcessing(row.queueEntryId);
         row.triageStatus = 'in_progress';

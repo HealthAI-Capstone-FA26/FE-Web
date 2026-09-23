@@ -127,19 +127,19 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
   // Kiểm tra cảnh báo bất thường trực tiếp trên form theo nhóm tuổi (chỉ kiểm tra các trường đã nhập)
   const isFormAbnormal = isToddler
     ? (numBpSys > 0 && (numBpSys > 115 || numBpSys < 75)) ||
-      (numBpDia > 0 && (numBpDia > 75 || numBpDia < 45)) ||
-      (numTemp > 0 && (numTemp >= 37.6 || numTemp < 36.1)) ||
-      (numSpo2 > 0 && numSpo2 < 96) ||
-      (numPulse > 0 && (numPulse > 135 || numPulse < 75)) ||
-      (numResp > 0 && (numResp > 32 || numResp < 18))
+    (numBpDia > 0 && (numBpDia > 75 || numBpDia < 45)) ||
+    (numTemp > 0 && (numTemp >= 37.6 || numTemp < 36.1)) ||
+    (numSpo2 > 0 && numSpo2 < 96) ||
+    (numPulse > 0 && (numPulse > 135 || numPulse < 75)) ||
+    (numResp > 0 && (numResp > 32 || numResp < 18))
     : isPediatric
-    ? (numBpSys > 0 && (numBpSys > 120 || numBpSys < 80)) ||
+      ? (numBpSys > 0 && (numBpSys > 120 || numBpSys < 80)) ||
       (numBpDia > 0 && (numBpDia > 78 || numBpDia < 50)) ||
       (numTemp > 0 && (numTemp >= 37.6 || numTemp < 36.1)) ||
       (numSpo2 > 0 && numSpo2 < 96) ||
       (numPulse > 0 && (numPulse > 115 || numPulse < 65)) ||
       (numResp > 0 && (numResp > 26 || numResp < 14))
-    : (numBpSys > 0 && (numBpSys >= 120 || numBpSys < 90)) ||
+      : (numBpSys > 0 && (numBpSys >= 120 || numBpSys < 90)) ||
       (numBpDia > 0 && (numBpDia >= 80 || numBpDia < 60)) ||
       (numTemp > 0 && (numTemp >= 37.5 || numTemp < 36.1)) ||
       (numSpo2 > 0 && numSpo2 < 96) ||
@@ -223,13 +223,12 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
                 <span className="font-bold text-amber-900">Lý do tiếp đón & Triệu chứng ban đầu:</span>
                 {typeof patientRow.chiefComplaint.painLevel === 'number' && (
                   <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                      patientRow.chiefComplaint.painLevel >= 7
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${patientRow.chiefComplaint.painLevel >= 7
                         ? 'bg-rose-100 text-rose-700 border border-rose-200'
                         : patientRow.chiefComplaint.painLevel >= 4
-                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                        : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                    }`}
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      }`}
                   >
                     Mức đau: {patientRow.chiefComplaint.painLevel}/10
                   </span>
@@ -274,21 +273,20 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
               type="number"
               value={bpSystolic}
               onChange={(e) => setBpSystolic(e.target.value)}
-              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${
-                (isToddler && (numBpSys > 115 || (numBpSys > 0 && numBpSys < 75))) ||
-                (!isToddler && isPediatric && (numBpSys > 120 || (numBpSys > 0 && numBpSys < 80))) ||
-                (!isPediatric && (numBpSys >= 120 || (numBpSys > 0 && numBpSys < 90)))
+              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${(isToddler && (numBpSys > 115 || (numBpSys > 0 && numBpSys < 75))) ||
+                  (!isToddler && isPediatric && (numBpSys > 120 || (numBpSys > 0 && numBpSys < 80))) ||
+                  (!isPediatric && (numBpSys >= 120 || (numBpSys > 0 && numBpSys < 90)))
                   ? 'border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600'
                   : 'border-slate-200 focus:border-blue-600'
-              }`}
+                }`}
               placeholder={isToddler ? '95' : isPediatric ? '105' : '115'}
             />
             <span className="text-[10px] text-slate-400">
               {isToddler
                 ? 'Bình thường (Nhi khoa 3-5t): 80 - 110'
                 : isPediatric
-                ? 'Bình thường (Nhi khoa): 85 - 115'
-                : 'Bình thường (NEWS2): 90 - 119'}
+                  ? 'Bình thường (Nhi khoa): 85 - 115'
+                  : 'Bình thường (NEWS2): 90 - 119'}
             </span>
           </div>
 
@@ -299,21 +297,20 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
               type="number"
               value={bpDiastolic}
               onChange={(e) => setBpDiastolic(e.target.value)}
-              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${
-                (isToddler && (numBpDia > 75 || (numBpDia > 0 && numBpDia < 45))) ||
-                (!isToddler && isPediatric && (numBpDia > 78 || (numBpDia > 0 && numBpDia < 50))) ||
-                (!isPediatric && (numBpDia >= 80 || (numBpDia > 0 && numBpDia < 60)))
+              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${(isToddler && (numBpDia > 75 || (numBpDia > 0 && numBpDia < 45))) ||
+                  (!isToddler && isPediatric && (numBpDia > 78 || (numBpDia > 0 && numBpDia < 50))) ||
+                  (!isPediatric && (numBpDia >= 80 || (numBpDia > 0 && numBpDia < 60)))
                   ? 'border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600'
                   : 'border-slate-200 focus:border-blue-600'
-              }`}
+                }`}
               placeholder={isToddler ? '60' : isPediatric ? '70' : '75'}
             />
             <span className="text-[10px] text-slate-400">
               {isToddler
                 ? 'Bình thường (Nhi khoa 3-5t): 50 - 75'
                 : isPediatric
-                ? 'Bình thường (Nhi khoa): 55 - 75'
-                : 'Bình thường (NEWS2): 60 - 79'}
+                  ? 'Bình thường (Nhi khoa): 55 - 75'
+                  : 'Bình thường (NEWS2): 60 - 79'}
             </span>
           </div>
 
@@ -327,21 +324,20 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
               type="number"
               value={pulse}
               onChange={(e) => setPulse(e.target.value)}
-              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${
-                (isToddler && (numPulse > 135 || (numPulse > 0 && numPulse < 75))) ||
-                (!isToddler && isPediatric && (numPulse > 115 || (numPulse > 0 && numPulse < 65))) ||
-                (!isPediatric && (numPulse > 90 || (numPulse > 0 && numPulse < 60)))
+              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${(isToddler && (numPulse > 135 || (numPulse > 0 && numPulse < 75))) ||
+                  (!isToddler && isPediatric && (numPulse > 115 || (numPulse > 0 && numPulse < 65))) ||
+                  (!isPediatric && (numPulse > 90 || (numPulse > 0 && numPulse < 60)))
                   ? 'border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600'
                   : 'border-slate-200 focus:border-blue-600'
-              }`}
+                }`}
               placeholder={isToddler ? '100' : isPediatric ? '90' : '80'}
             />
             <span className="text-[10px] text-slate-400">
               {isToddler
                 ? 'Bình thường (Nhi khoa 3-5t): 80 - 130'
                 : isPediatric
-                ? 'Bình thường (Nhi khoa): 70 - 110'
-                : 'Bình thường: 60 - 90'}
+                  ? 'Bình thường (Nhi khoa): 70 - 110'
+                  : 'Bình thường: 60 - 90'}
             </span>
           </div>
 
@@ -356,11 +352,10 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
               step="0.1"
               value={temp}
               onChange={(e) => setTemp(e.target.value)}
-              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${
-                numTemp >= 37.6 || (numTemp > 0 && numTemp < 36.1)
+              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${numTemp >= 37.6 || (numTemp > 0 && numTemp < 36.1)
                   ? 'border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600'
                   : 'border-slate-200 focus:border-blue-600'
-              }`}
+                }`}
               placeholder="37.0"
             />
             <span className="text-[10px] text-slate-400">Bình thường: 36.1 - 37.5</span>
@@ -373,11 +368,10 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
               type="number"
               value={spo2}
               onChange={(e) => setSpo2(e.target.value)}
-              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${
-                numSpo2 > 0 && numSpo2 < 96
+              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${numSpo2 > 0 && numSpo2 < 96
                   ? 'border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600'
                   : 'border-slate-200 focus:border-blue-600'
-              }`}
+                }`}
               placeholder="98"
             />
             <span className="text-[10px] text-slate-400">Bình thường: 96 - 100</span>
@@ -390,21 +384,20 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
               type="number"
               value={respiratoryRate}
               onChange={(e) => setRespiratoryRate(e.target.value)}
-              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${
-                (isToddler && (numResp > 32 || (numResp > 0 && numResp < 18))) ||
-                (!isToddler && isPediatric && (numResp > 26 || (numResp > 0 && numResp < 14))) ||
-                (!isPediatric && (numResp > 20 || (numResp > 0 && numResp < 12)))
+              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${(isToddler && (numResp > 32 || (numResp > 0 && numResp < 18))) ||
+                  (!isToddler && isPediatric && (numResp > 26 || (numResp > 0 && numResp < 14))) ||
+                  (!isPediatric && (numResp > 20 || (numResp > 0 && numResp < 12)))
                   ? 'border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600'
                   : 'border-slate-200 focus:border-blue-600'
-              }`}
+                }`}
               placeholder={isToddler ? '24' : isPediatric ? '20' : '18'}
             />
             <span className="text-[10px] text-slate-400">
               {isToddler
                 ? 'Bình thường (Nhi khoa 3-5t): 20 - 30'
                 : isPediatric
-                ? 'Bình thường (Nhi khoa): 16 - 24'
-                : 'Bình thường: 12 - 20'}
+                  ? 'Bình thường (Nhi khoa): 16 - 24'
+                  : 'Bình thường: 12 - 20'}
             </span>
           </div>
 
@@ -519,9 +512,8 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
                         return (
                           <tr
                             key={row.itemCode}
-                            className={`hover:bg-slate-50 transition-colors ${
-                              isAbn ? 'bg-rose-50/60 font-medium' : ''
-                            }`}
+                            className={`hover:bg-slate-50 transition-colors ${isAbn ? 'bg-rose-50/60 font-medium' : ''
+                              }`}
                           >
                             <td className="py-2 px-3 font-bold text-slate-800">
                               {row.itemName} <span className="text-[10px] text-slate-400">({row.itemCode})</span>
