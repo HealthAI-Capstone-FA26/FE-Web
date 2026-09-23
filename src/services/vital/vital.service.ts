@@ -14,6 +14,7 @@ export interface RecordVitalSignsPayload {
   spo2?: number;
   height?: number;
   weight?: number;
+  queueEntryId?: string;
 }
 
 export interface UpdateVitalSignsPayload {
