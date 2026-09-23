@@ -53,9 +53,10 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
   ],
   DOCTOR: [
     {
-      groupName: 'Không gian Thăm khám',
+      groupName: 'Không gian Thăm khám & Lịch trực',
       items: [
-        { id: 'doc_workspace_clinical', label: 'Bàn làm việc Bác sĩ (Clinical)', path: '/bac-si/danh-sach-kham', iconName: 'Stethoscope', badge: 'AI Integrated', requiredPermission: 'encounter:read:all' }
+        { id: 'doc_workspace_clinical', label: 'Bàn làm việc Bác sĩ (Clinical)', path: '/bac-si/danh-sach-kham', iconName: 'Stethoscope', badge: 'AI Integrated', requiredPermission: 'encounter:read:all' },
+        { id: 'doc_workspace_schedule', label: 'Lịch ca trực của tôi', path: '/bac-si/lich-truc', iconName: 'CalendarDays' }
       ]
     }
   ],

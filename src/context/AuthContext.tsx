@@ -267,13 +267,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       appointmentService.getAppointments().catch(() => {});
     }
 
-    // Nếu là Bác sĩ → tự động tra doctorId từ userId và lưu vào profile
+    // Nếu là Bác sĩ → tự động tra doctorId & hồ sơ bác sĩ từ userId và lưu vào profile + cache
     if (mappedRole === 'DOCTOR') {
-      doctorService.getDoctorIdByUserId(backendUser.userId).then((doctorId) => {
-        if (doctorId) {
-          const updatedProfile = { ...userProfile, doctorId };
+      doctorService.getDoctorByUserId(backendUser.userId).then((doctor) => {
+        if (doctor) {
+          const updatedProfile = { ...userProfile, doctorId: doctor.doctorId };
           setUser(updatedProfile);
           localStorage.setItem('4am_user_data', JSON.stringify(updatedProfile));
+          localStorage.setItem('4am_cached_doctor', JSON.stringify(doctor));
         }
       }).catch(() => {});
     }
@@ -286,6 +287,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('4am_is_logged_in');
     localStorage.removeItem('4am_user_name');
     localStorage.removeItem('4am_user_data');
+    localStorage.removeItem('4am_cached_doctor');
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
   };

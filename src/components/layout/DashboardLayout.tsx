@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   AlertCircle,
   CalendarCheck,
+  CalendarDays,
   CalendarPlus,
   Megaphone,
   PanelLeft,
@@ -86,6 +87,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
   const getIconComponent = (iconName: string) => {
     switch (iconName) {
+      case 'CalendarDays':
+        return CalendarDays;
       case 'CalendarCheck':
         return CalendarCheck;
       case 'CalendarPlus':

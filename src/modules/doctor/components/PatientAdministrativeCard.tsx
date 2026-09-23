@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   FileText, ShieldAlert, Heart, Thermometer, Activity,
-  AlertTriangle, Loader2, PlayCircle, CheckCircle2
+  AlertTriangle, Loader2, PlayCircle, CheckCircle2, RefreshCw
 } from 'lucide-react';
 import type { PatientEMR } from '../types';
 import type { CaseOverviewData } from '../../../services/doctor';
@@ -16,6 +16,7 @@ interface PatientAdministrativeCardProps {
   currentAppointment?: AppointmentItem | null;
   isStartingAppointment?: boolean;
   onStartConsultation?: () => void;
+  onRefreshEncounter?: () => void;
   activeAllergies: Array<PatientAllergyItem | {
     allergyId: string;
     allergyType: string;
@@ -40,6 +41,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
   currentAppointment,
   isStartingAppointment,
   onStartConsultation,
+  onRefreshEncounter,
   activeAllergies,
   isLoadingAllergies,
   isLoadingOverview,
@@ -117,23 +119,53 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
   const activeFilteredAllergies = activeAllergies.filter((a) => a.status === 'active');
   const hasDrugAllergy = activeFilteredAllergies.some((a) => a.allergyType === 'drug');
 
+  // Khóa an toàn dữ liệu: Chỉ dùng caseOverview và encounterDetail nếu trùng khớp 100% với bệnh nhân đang chọn
+  const isOverviewMatching = Boolean(
+    caseOverview &&
+    currentPatient &&
+    ((caseOverview.encounter?.encounterId && caseOverview.encounter.encounterId === currentPatient.encounterId) ||
+     (caseOverview.patient?.patientId && caseOverview.patient.patientId === currentPatient.patientId))
+  );
+  const safeOverview = isOverviewMatching ? caseOverview : null;
+
+  const isEncounterMatching = Boolean(
+    selectedEncounterDetail &&
+    currentPatient &&
+    (selectedEncounterDetail.encounterId === currentPatient.encounterId ||
+     selectedEncounterDetail.patientId === currentPatient.patientId)
+  );
+  const safeEncounterDetail = isEncounterMatching ? selectedEncounterDetail : null;
+
   return (
     <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-        <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
-          <FileText className="w-4 h-4 text-blue-700" />
-          <span>Hồ sơ Bệnh án Điện tử (EMR) - Thông tin Hành chính & Sinh hiệu</span>
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+            <FileText className="w-4 h-4 text-blue-700" />
+            <span>Hồ sơ Bệnh án Điện tử (EMR) - Thông tin Hành chính & Sinh hiệu</span>
+          </h3>
+          {onRefreshEncounter && (
+            <button
+              type="button"
+              onClick={onRefreshEncounter}
+              disabled={isLoadingOverview}
+              className="p-1 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50"
+              title="Tải lại dữ liệu mới nhất cho ca khám này"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingOverview ? 'animate-spin text-blue-600' : ''}`} />
+            </button>
+          )}
+        </div>
 
         {/* Action Button: Bắt đầu khám / Trạng thái phiên khám */}
         {onStartConsultation && (
           <div className="flex items-center gap-2 shrink-0">
-            {currentAppointment?.status === 'in_progress' || selectedEncounterDetail?.status === 'in_progress' ? (
+            {currentAppointment?.status === 'in_progress' || safeEncounterDetail?.status === 'in_progress' ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span>Đang khám</span>
               </span>
-            ) : currentAppointment?.status === 'completed' || selectedEncounterDetail?.status === 'finished' ? (
+            ) : currentAppointment?.status === 'completed' || safeEncounterDetail?.status === 'finished' ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
                 <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
                 <span>Đã hoàn tất khám</span>
@@ -142,7 +174,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
               <button
                 type="button"
                 onClick={onStartConsultation}
-                disabled={isStartingAppointment || (!selectedEncounterDetail?.appointmentId && !currentAppointment?.appointmentId)}
+                disabled={isStartingAppointment || (!safeEncounterDetail?.appointmentId && !currentAppointment?.appointmentId && !currentPatient?.appointmentId)}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Bác sĩ bắt đầu phiên khám lâm sàng (PATCH /appointments/:id/start)"
               >
@@ -166,30 +198,39 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
         {/* 1. Personal Info */}
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-            Thông tin bệnh nhân
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+              Thông tin bệnh nhân
+            </span>
+            {isLoadingOverview && !safeOverview && (
+              <span className="text-[10px] font-bold text-blue-600 flex items-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" /> Đang cập nhật...
+              </span>
+            )}
+          </div>
           <div className="space-y-1">
             <p>
               <strong className="text-slate-700">Họ tên:</strong>{' '}
-              {caseOverview?.patient?.fullName || selectedEncounterDetail?.patient?.fullName || currentPatient?.name}
+              <span className="font-bold text-slate-800">
+                {safeOverview?.patient?.fullName || safeEncounterDetail?.patient?.fullName || currentPatient?.name}
+              </span>
             </p>
             <p>
               <strong className="text-slate-700">Tuổi/Giới:</strong> {currentPatient?.age} tuổi (
-              {caseOverview?.patient?.gender === 'female' || selectedEncounterDetail?.patient?.gender === 'female'
+              {safeOverview?.patient?.gender === 'female' || safeEncounterDetail?.patient?.gender === 'female'
                 ? 'Nữ'
-                : caseOverview?.patient?.gender === 'male' || selectedEncounterDetail?.patient?.gender === 'male'
+                : safeOverview?.patient?.gender === 'male' || safeEncounterDetail?.patient?.gender === 'male'
                 ? 'Nam'
                 : currentPatient?.gender}
               )
             </p>
             <p>
               <strong className="text-slate-700">Ngày sinh:</strong>{' '}
-              {caseOverview?.patient?.dateOfBirth?.slice(0, 10) || selectedEncounterDetail?.patient?.dateOfBirth?.slice(0, 10) || currentPatient?.dob}
+              {safeOverview?.patient?.dateOfBirth?.slice(0, 10) || safeEncounterDetail?.patient?.dateOfBirth?.slice(0, 10) || currentPatient?.dob}
             </p>
             <p>
               <strong className="text-slate-700">Nhóm máu:</strong>{' '}
-              {caseOverview?.patient?.bloodType || selectedEncounterDetail?.patient?.bloodType || currentPatient?.bloodType}
+              {safeOverview?.patient?.bloodType || safeEncounterDetail?.patient?.bloodType || currentPatient?.bloodType}
             </p>
           </div>
         </div>
@@ -200,7 +241,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
               Tiền sử & Dị ứng
             </span>
-            {(isLoadingAllergies || isLoadingOverview) && (
+            {isLoadingAllergies && !safeOverview && activeFilteredAllergies.length === 0 && (
               <Loader2 className="w-3.5 h-3.5 text-rose-600 animate-spin" />
             )}
           </div>
@@ -212,7 +253,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
                 <strong className="text-slate-800 text-[11px]">Dị ứng ghi nhận:</strong>
               </div>
 
-              {isLoadingAllergies && activeFilteredAllergies.length === 0 ? (
+              {isLoadingAllergies && !safeOverview && activeFilteredAllergies.length === 0 ? (
                 <span className="text-[11px] text-slate-400 italic">Đang tải dị ứng bệnh nhân...</span>
               ) : activeFilteredAllergies.length > 0 ? (
                 <div className="space-y-1.5 pt-0.5">
@@ -253,9 +294,9 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
             <div className="pt-1.5 border-t border-slate-200/60 space-y-1">
               <p>
                 <strong className="text-slate-700">Tiền sử bệnh:</strong>{' '}
-                {caseOverview?.medicalHistories && caseOverview.medicalHistories.length > 0 ? (
+                {safeOverview?.medicalHistories && safeOverview.medicalHistories.length > 0 ? (
                   <span className="text-slate-800 font-semibold">
-                    {caseOverview.medicalHistories.map((h) => h.conditionName).join(', ')}
+                    {safeOverview.medicalHistories.map((h) => h.conditionName).join(', ')}
                   </span>
                 ) : (
                   <span className="text-slate-500">
@@ -266,7 +307,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
               <p>
                 <strong className="text-slate-700">Triệu chứng khai báo:</strong>{' '}
                 <span className="text-slate-800 font-semibold">
-                  {caseOverview?.chiefComplaint?.symptoms || selectedEncounterDetail?.chiefComplaint?.symptoms || currentPatient?.symptoms}
+                  {safeOverview?.chiefComplaint?.symptoms || safeEncounterDetail?.chiefComplaint?.symptoms || currentPatient?.symptoms}
                 </span>
               </p>
             </div>
@@ -279,7 +320,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
               Chỉ số sinh hiệu lúc đón tiếp
             </span>
-            {isLoadingOverview && <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />}
+            {isLoadingOverview && !safeOverview && <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />}
           </div>
 
           {hasMeasuredVitals ? (

@@ -1,0 +1,853 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  CalendarDays,
+  Clock,
+  Building2,
+  MapPin,
+  Users,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  Filter,
+  X,
+  Sunrise,
+  Sun,
+  Moon,
+  Stethoscope,
+  Info,
+} from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import {
+  doctorScheduleService,
+  type DoctorScheduleResponse,
+  type ScheduleSession,
+  SESSION_CONFIG,
+} from '../../services/doctor/doctor-schedule.service';
+import {
+  doctorService,
+  type DoctorResponse,
+} from '../../services/doctor/doctor.service';
+
+// Helper tính ngày đầu tuần (Thứ Hai)
+function getMonday(d: Date): Date {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  date.setDate(diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+// Format ngày YYYY-MM-DD
+function toDateStr(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Helper format giờ:phút từ chuỗi ISO (vd "1970-01-01T07:30:00.000Z" hoặc "2026-09-23T07:30:00.000Z" -> "07:30")
+function formatTimeHHmm(timeStr?: string | null, fallback = '--:--'): string {
+  if (!timeStr) return fallback;
+  if (timeStr.includes('T')) {
+    const afterT = timeStr.split('T')[1];
+    return afterT.slice(0, 5);
+  }
+  return timeStr.slice(0, 5);
+}
+
+const DAY_NAMES = [
+  'Thứ Hai',
+  'Thứ Ba',
+  'Thứ Tư',
+  'Thứ Năm',
+  'Thứ Sáu',
+  'Thứ Bảy',
+  'Chủ Nhật',
+];
+
+const SESSION_STYLES: Record<
+  ScheduleSession,
+  {
+    bg: string;
+    border: string;
+    text: string;
+    badgeBg: string;
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    timeRange: string;
+  }
+> = {
+  morning: {
+    bg: 'bg-gradient-to-br from-amber-50/70 to-orange-50/40',
+    border: 'border-amber-200/90 hover:border-amber-400',
+    text: 'text-amber-800',
+    badgeBg: 'bg-amber-100/90 text-amber-900 border-amber-200',
+    icon: Sunrise,
+    label: 'Ca Sáng',
+    timeRange: '07:30 - 11:30',
+  },
+  afternoon: {
+    bg: 'bg-gradient-to-br from-sky-50/70 to-blue-50/40',
+    border: 'border-sky-200/90 hover:border-sky-400',
+    text: 'text-sky-800',
+    badgeBg: 'bg-sky-100/90 text-sky-900 border-sky-200',
+    icon: Sun,
+    label: 'Ca Chiều',
+    timeRange: '13:00 - 17:00',
+  },
+  evening: {
+    bg: 'bg-gradient-to-br from-purple-50/70 to-indigo-50/40',
+    border: 'border-purple-200/90 hover:border-purple-400',
+    text: 'text-purple-800',
+    badgeBg: 'bg-purple-100/90 text-purple-900 border-purple-200',
+    icon: Moon,
+    label: 'Ca Tối',
+    timeRange: '17:30 - 20:30',
+  },
+};
+
+export const DoctorScheduleView: React.FC = () => {
+  const { user } = useAuth();
+
+  // Khởi tạo thông tin bác sĩ từ cache nếu có sẵn để hiển thị ngay lập tức (0ms)
+  const [currentDoctor, setCurrentDoctor] = useState<DoctorResponse | null>(() => {
+    try {
+      const saved = localStorage.getItem('4am_cached_doctor');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.doctorId || parsed.doctorCode)) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return null;
+  });
+
+  const [loadingDoctor, setLoadingDoctor] = useState<boolean>(() => !currentDoctor);
+  const [currentWeekMonday, setCurrentWeekMonday] = useState<Date>(() => getMonday(new Date()));
+
+  // Khởi tạo lịch trực từ sessionStorage cache của tuần này để hiển thị ngay lập tức (0ms)
+  const [schedules, setSchedules] = useState<DoctorScheduleResponse[]>(() => {
+    try {
+      const mondayStr = toDateStr(getMonday(new Date()));
+      const saved =
+        sessionStorage.getItem(`4am_cached_schedules_${user?.doctorId}_${mondayStr}`) ||
+        sessionStorage.getItem(`4am_cached_schedules_${mondayStr}`);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+
+  const [loadingSchedules, setLoadingSchedules] = useState<boolean>(false);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('all');
+  const [selectedScheduleForDetail, setSelectedScheduleForDetail] = useState<DoctorScheduleResponse | null>(null);
+
+  // 1. Nhận diện Bác sĩ đăng nhập
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDoctorInfo() {
+      if (!currentDoctor) {
+        setLoadingDoctor(true);
+      }
+      try {
+        let foundDoctor: DoctorResponse | null = null;
+
+        // Ưu tiên 1: Tra cứu trực tiếp bằng doctorId nếu user profile đã có
+        if (user?.doctorId) {
+          try {
+            foundDoctor = await doctorService.getDoctorById(user.doctorId);
+          } catch {}
+        }
+
+        // Ưu tiên 2: Tra cứu hồ sơ bác sĩ theo userId
+        if (!foundDoctor && user?.id) {
+          try {
+            foundDoctor = await doctorService.getDoctorByUserId(user.id);
+          } catch {}
+        }
+
+        // Fallback: nếu chưa tìm thấy, lấy theo tên hoặc danh sách chung
+        if (!foundDoctor) {
+          const allDocs = await doctorService.getDoctors();
+          foundDoctor =
+            allDocs.find((d) => d.fullName?.toLowerCase().includes(user?.name?.toLowerCase() || '')) ||
+            allDocs.find((d) => d.doctorDepartments && d.doctorDepartments.length > 0) ||
+            allDocs[0] ||
+            null;
+        }
+
+        if (isMounted && foundDoctor) {
+          setCurrentDoctor(foundDoctor);
+          try {
+            localStorage.setItem('4am_cached_doctor', JSON.stringify(foundDoctor));
+          } catch {}
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải thông tin bác sĩ:', err);
+      } finally {
+        if (isMounted) setLoadingDoctor(false);
+      }
+    }
+
+    loadDoctorInfo();
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  // 2. Tải lịch ca trực của tuần đang chọn (chạy ngay lập tức với doctorId đã biết, không chờ loadDoctorInfo)
+  const fetchSchedules = useCallback(async () => {
+    let docId = currentDoctor?.doctorId || user?.doctorId;
+    if (!docId) {
+      try {
+        const saved = localStorage.getItem('4am_cached_doctor');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          docId = parsed?.doctorId;
+        }
+      } catch {}
+    }
+    if (!docId) return;
+
+    const fromDate = toDateStr(currentWeekMonday);
+    const sundayDate = new Date(currentWeekMonday);
+    sundayDate.setDate(sundayDate.getDate() + 6);
+    const toDate = toDateStr(sundayDate);
+    const cacheKey = `4am_cached_schedules_${docId}_${fromDate}`;
+
+    // Kiểm tra sessionStorage cache cho tuần này để hiển thị ngay
+    const cachedStr = sessionStorage.getItem(cacheKey) || sessionStorage.getItem(`4am_cached_schedules_${fromDate}`);
+    if (cachedStr) {
+      try {
+        const cachedList = JSON.parse(cachedStr);
+        setSchedules(cachedList);
+      } catch {}
+    } else if (schedules.length === 0) {
+      setLoadingSchedules(true);
+    }
+
+    try {
+      const res = await doctorScheduleService.getSchedules({
+        doctorId: docId,
+        from: fromDate,
+        to: toDate,
+      });
+
+      const list = res || [];
+      setSchedules(list);
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify(list));
+        sessionStorage.setItem(`4am_cached_schedules_${fromDate}`, JSON.stringify(list));
+      } catch {}
+    } catch (err) {
+      console.error('Lỗi khi tải lịch làm việc của bác sĩ:', err);
+    } finally {
+      setLoadingSchedules(false);
+    }
+  }, [currentDoctor?.doctorId, user?.doctorId, currentWeekMonday]);
+
+  useEffect(() => {
+    fetchSchedules();
+    const handleWorkspaceRefresh = () => fetchSchedules();
+    window.addEventListener('workspace-refresh', handleWorkspaceRefresh);
+    return () => window.removeEventListener('workspace-refresh', handleWorkspaceRefresh);
+  }, [fetchSchedules]);
+
+  // Điều hướng tuần
+  const handlePrevWeek = () => {
+    setCurrentWeekMonday((prev) => {
+      const next = new Date(prev);
+      next.setDate(next.getDate() - 7);
+      return next;
+    });
+  };
+
+  const handleNextWeek = () => {
+    setCurrentWeekMonday((prev) => {
+      const next = new Date(prev);
+      next.setDate(next.getDate() + 7);
+      return next;
+    });
+  };
+
+  const handleCurrentWeek = () => {
+    setCurrentWeekMonday(getMonday(new Date()));
+  };
+
+  // Tính 7 ngày trong tuần được chọn
+  const weekDays = useMemo(() => {
+    const days: { date: Date; dateStr: string; dayName: string; isToday: boolean }[] = [];
+    const todayStr = toDateStr(new Date());
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(currentWeekMonday);
+      d.setDate(d.getDate() + i);
+      const dStr = toDateStr(d);
+      days.push({
+        date: d,
+        dateStr: dStr,
+        dayName: DAY_NAMES[i],
+        isToday: dStr === todayStr,
+      });
+    }
+    return days;
+  }, [currentWeekMonday]);
+
+  // Danh sách các khoa mà bác sĩ đảm nhận
+  const assignedDepartments = useMemo(() => {
+    return currentDoctor?.doctorDepartments || [];
+  }, [currentDoctor]);
+
+  // Lọc ca trực theo khoa được chọn
+  const filteredSchedules = useMemo(() => {
+    if (selectedDepartmentId === 'all') return schedules;
+    return schedules.filter((s) => s.departmentId === selectedDepartmentId);
+  }, [schedules, selectedDepartmentId]);
+
+  // Gom ca trực theo từng ngày trong tuần
+  const schedulesByDate = useMemo(() => {
+    const map = new Map<string, DoctorScheduleResponse[]>();
+    weekDays.forEach((w) => map.set(w.dateStr, []));
+
+    filteredSchedules.forEach((sch) => {
+      const dateKey = sch.workDate ? sch.workDate.slice(0, 10) : '';
+      if (map.has(dateKey)) {
+        map.get(dateKey)!.push(sch);
+      }
+    });
+
+    // Sắp xếp ca trực trong ngày: Sáng -> Chiều -> Tối
+    const sessionOrder: Record<ScheduleSession, number> = {
+      morning: 1,
+      afternoon: 2,
+      evening: 3,
+    };
+    map.forEach((list) => {
+      list.sort((a, b) => (sessionOrder[a.session] || 0) - (sessionOrder[b.session] || 0));
+    });
+
+    return map;
+  }, [filteredSchedules, weekDays]);
+
+  // Thống kê nhanh trong tuần
+  const weeklyStats = useMemo(() => {
+    const totalShifts = filteredSchedules.length;
+    let morningCount = 0;
+    let afternoonCount = 0;
+    let eveningCount = 0;
+    let totalCapacity = 0;
+    let totalBooked = 0;
+
+    filteredSchedules.forEach((s) => {
+      if (s.session === 'morning') morningCount++;
+      if (s.session === 'afternoon') afternoonCount++;
+      if (s.session === 'evening') eveningCount++;
+
+      if (s.appointmentSlots && s.appointmentSlots.length > 0) {
+        s.appointmentSlots.forEach((slot) => {
+          totalCapacity += slot.capacity || 1;
+          totalBooked += slot.bookedCount || 0;
+        });
+      } else {
+        totalCapacity += (s.maxPatientsPerSlot || 1) * 8;
+      }
+    });
+
+    return {
+      totalShifts,
+      morningCount,
+      afternoonCount,
+      eveningCount,
+      totalCapacity,
+      totalBooked,
+    };
+  }, [filteredSchedules]);
+
+  const sundayOfCurrentWeek = useMemo(() => {
+    const s = new Date(currentWeekMonday);
+    s.setDate(s.getDate() + 6);
+    return s;
+  }, [currentWeekMonday]);
+
+  return (
+    <div className="space-y-5 animate-in fade-in duration-150">
+      {/* 1. THẺ THÔNG TIN BÁC SĨ & PHÂN CÔNG CHUYÊN KHOA */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-teal-600 to-emerald-500 text-white flex items-center justify-center font-bold shadow-sm shadow-teal-500/20">
+            <Stethoscope className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900">
+                {currentDoctor?.fullName || user?.name || 'Bác sĩ phụ trách'}
+              </h2>
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 border border-teal-200 font-semibold">
+                {currentDoctor?.doctorCode || user?.doctorId || (loadingDoctor ? 'Đang đồng bộ...' : 'BS-CLINICAL')}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+              <span>Học vị: <strong className="text-slate-700">{currentDoctor?.title || (loadingDoctor ? 'Đang đồng bộ...' : 'Bác sĩ chuyên khoa')}</strong></span>
+              <span>•</span>
+              <span>Chứng chỉ hành nghề: <strong className="text-slate-700">{currentDoctor?.licenseNumber || '---'}</strong></span>
+            </p>
+          </div>
+        </div>
+
+        {/* Danh sách các khoa đảm nhận */}
+        <div className="flex flex-col sm:items-end gap-1.5">
+          <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
+            <Building2 className="w-3.5 h-3.5 text-teal-600" />
+            <span>Khoa / Trung tâm được phân công:</span>
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {assignedDepartments.length > 0 ? (
+              assignedDepartments.map((rel) => (
+                <span
+                  key={rel.departmentId}
+                  className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-xl border ${rel.isPrimary
+                      ? 'bg-teal-50 text-teal-800 border-teal-200 shadow-2xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                >
+                  <Building2 className="w-3 h-3 text-teal-600 shrink-0" />
+                  <span>{rel.department?.departmentName || 'Chuyên khoa'}</span>
+                  {rel.isPrimary && (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-teal-200/80 text-teal-900 font-extrabold uppercase ml-0.5">
+                      Chính
+                    </span>
+                  )}
+                </span>
+              ))
+            ) : loadingDoctor ? (
+              <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-xl bg-slate-100 text-slate-400 animate-pulse font-medium">
+                Đang cập nhật khoa trực...
+              </span>
+            ) : (
+              <span className="text-xs text-slate-400 italic">Đang cập nhật khoa trực thuộc</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 2. THANH CÔNG CỤ: CHUYỂN TUẦN & BỘ LỌC CHUYÊN KHOA */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Điều hướng tuần */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-xl border border-slate-200 overflow-hidden bg-slate-50/70 p-0.5">
+            <button
+              type="button"
+              onClick={handlePrevWeek}
+              className="p-1.5 hover:bg-white rounded-lg text-slate-600 transition cursor-pointer"
+              title="Tuần trước"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handleCurrentWeek}
+              className="px-3 py-1 text-xs font-bold text-slate-700 hover:bg-white rounded-lg transition cursor-pointer flex items-center gap-1.5"
+            >
+              <RotateCcw className="w-3 h-3 text-teal-600" />
+              <span>Tuần này</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleNextWeek}
+              className="p-1.5 hover:bg-white rounded-lg text-slate-600 transition cursor-pointer"
+              title="Tuần sau"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200">
+            <CalendarDays className="w-4 h-4 text-teal-600" />
+            <span>
+              {currentWeekMonday.toLocaleDateString('vi-VN')} – {sundayOfCurrentWeek.toLocaleDateString('vi-VN')}
+            </span>
+          </div>
+        </div>
+
+        {/* Bộ lọc Khoa (khi bác sĩ kiêm nhiệm nhiều khoa) */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 shrink-0">
+            <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <span>Khoa trực:</span>
+          </span>
+          <select
+            value={selectedDepartmentId}
+            onChange={(e) => setSelectedDepartmentId(e.target.value)}
+            className="text-xs font-semibold px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition cursor-pointer"
+          >
+            <option value="all">Tất cả các khoa ({assignedDepartments.length || 1})</option>
+            {assignedDepartments.map((rel) => (
+              <option key={rel.departmentId} value={rel.departmentId}>
+                {rel.department?.departmentName || rel.departmentId} {rel.isPrimary ? '(Khoa chính)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* 3. THẺ THỐNG KÊ NHANH TRONG TUẦN */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {/* Tổng ca trực */}
+        <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
+            <span>Tổng ca tuần này</span>
+            <CalendarDays className="w-4 h-4 text-teal-600" />
+          </div>
+          {loadingSchedules && schedules.length === 0 ? (
+            <div className="h-7 w-12 bg-slate-100 rounded-md animate-pulse mt-1" />
+          ) : (
+            <div className="text-xl font-extrabold text-slate-900 mt-1">
+              {weeklyStats.totalShifts} <span className="text-xs font-medium text-slate-400">ca</span>
+            </div>
+          )}
+          <div className="text-[10px] text-teal-700 font-semibold mt-0.5">
+            Được phân công
+          </div>
+        </div>
+
+        {/* Ca Sáng */}
+        <div className="bg-white p-3.5 rounded-2xl border border-amber-100 shadow-2xs">
+          <div className="flex items-center justify-between text-amber-700 text-xs font-semibold">
+            <span>Ca Sáng (07:30 - 11:30)</span>
+            <Sunrise className="w-4 h-4 text-amber-600" />
+          </div>
+          {loadingSchedules && schedules.length === 0 ? (
+            <div className="h-7 w-12 bg-amber-50 rounded-md animate-pulse mt-1" />
+          ) : (
+            <div className="text-xl font-extrabold text-amber-900 mt-1">
+              {weeklyStats.morningCount} <span className="text-xs font-medium text-amber-600/70">buổi</span>
+            </div>
+          )}
+          <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+            Khám ban ngày
+          </div>
+        </div>
+
+        {/* Ca Chiều */}
+        <div className="bg-white p-3.5 rounded-2xl border border-sky-100 shadow-2xs">
+          <div className="flex items-center justify-between text-sky-700 text-xs font-semibold">
+            <span>Ca Chiều (13:00 - 17:00)</span>
+            <Sun className="w-4 h-4 text-sky-600" />
+          </div>
+          {loadingSchedules && schedules.length === 0 ? (
+            <div className="h-7 w-12 bg-sky-50 rounded-md animate-pulse mt-1" />
+          ) : (
+            <div className="text-xl font-extrabold text-sky-900 mt-1">
+              {weeklyStats.afternoonCount} <span className="text-xs font-medium text-sky-600/70">buổi</span>
+            </div>
+          )}
+          <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+            Khám buổi chiều
+          </div>
+        </div>
+
+        {/* Ca Tối */}
+        <div className="bg-white p-3.5 rounded-2xl border border-purple-100 shadow-2xs">
+          <div className="flex items-center justify-between text-purple-700 text-xs font-semibold">
+            <span>Ca Tối (17:30 - 20:30)</span>
+            <Moon className="w-4 h-4 text-purple-600" />
+          </div>
+          {loadingSchedules && schedules.length === 0 ? (
+            <div className="h-7 w-12 bg-purple-50 rounded-md animate-pulse mt-1" />
+          ) : (
+            <div className="text-xl font-extrabold text-purple-900 mt-1">
+              {weeklyStats.eveningCount} <span className="text-xs font-medium text-purple-600/70">buổi</span>
+            </div>
+          )}
+          <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+            Khám ngoài giờ
+          </div>
+        </div>
+      </div>
+
+      {/* 4. LƯỚI LỊCH TUẦN 7 NGÀY (WEEKLY SCHEDULE GRID) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-teal-600" />
+            <h3 className="text-sm font-bold text-slate-900">
+              Chi Tiết Lịch Trực Theo Ngày Trong Tuần
+            </h3>
+          </div>
+          <span className="text-xs text-slate-400 italic">
+            💡 Nhấp vào ca trực bất kỳ để xem danh sách các slot khám và số lượng bệnh nhân
+          </span>
+        </div>
+
+        {loadingSchedules && schedules.length === 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-7 divide-y md:divide-y-0 md:divide-x divide-slate-100 min-h-[420px]">
+            {weekDays.map((day) => (
+              <div key={day.dateStr} className="flex flex-col p-3 space-y-3">
+                <div className="pb-2.5 border-b border-slate-100 text-center">
+                  <div className="h-4 w-16 bg-slate-100 rounded mx-auto animate-pulse" />
+                  <div className="h-3 w-10 bg-slate-100 rounded mx-auto animate-pulse mt-1" />
+                </div>
+                <div className="space-y-2 flex-1">
+                  <div className="h-20 bg-slate-50 border border-slate-100 rounded-xl animate-pulse" />
+                  <div className="h-20 bg-slate-50 border border-slate-100 rounded-xl animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-7 divide-y md:divide-y-0 md:divide-x divide-slate-100 min-h-[420px]">
+            {weekDays.map((day) => {
+              const daySchedules = schedulesByDate.get(day.dateStr) || [];
+              return (
+                <div
+                  key={day.dateStr}
+                  className={`flex flex-col p-3 transition-colors ${day.isToday ? 'bg-teal-50/20' : 'hover:bg-slate-50/40'
+                    }`}
+                >
+                  {/* Header ngày */}
+                  <div
+                    className={`pb-2.5 mb-2.5 border-b text-center ${day.isToday
+                        ? 'border-teal-300 text-teal-800'
+                        : 'border-slate-100 text-slate-700'
+                      }`}
+                  >
+                    <div className="text-xs font-bold flex items-center justify-center gap-1">
+                      <span>{day.dayName}</span>
+                      {day.isToday && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></span>
+                      )}
+                    </div>
+                    <div
+                      className={`text-[11px] font-mono mt-0.5 ${day.isToday
+                          ? 'font-extrabold text-teal-700'
+                          : 'text-slate-400 font-medium'
+                        }`}
+                    >
+                      {day.date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                    </div>
+                  </div>
+
+                  {/* Danh sách ca trực trong ngày */}
+                  <div className="space-y-2 flex-1">
+                    {daySchedules.length > 0 ? (
+                      daySchedules.map((sch) => {
+                        const style = SESSION_STYLES[sch.session] || SESSION_STYLES.morning;
+                        const SessionIcon = style.icon;
+                        const booked = sch.appointmentSlots?.reduce((acc, s) => acc + (s.bookedCount || 0), 0) || 0;
+                        const capacity = sch.appointmentSlots?.reduce((acc, s) => acc + (s.capacity || 1), 0) || (sch.maxPatientsPerSlot * 8);
+
+                        return (
+                          <div
+                            key={sch.scheduleId}
+                            onClick={() => setSelectedScheduleForDetail(sch)}
+                            className={`p-2.5 rounded-xl border transition-all cursor-pointer shadow-2xs group ${style.bg} ${style.border}`}
+                          >
+                            {/* Ca & Giờ */}
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${style.badgeBg}`}
+                              >
+                                <SessionIcon className="w-3 h-3" />
+                                <span>{style.label}</span>
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-slate-600">
+                                {formatTimeHHmm(sch.startTime, style.timeRange.split(' - ')[0])} – {formatTimeHHmm(sch.endTime, style.timeRange.split(' - ')[1])}
+                              </span>
+                            </div>
+
+                            {/* Tên Khoa (Quan trọng khi bác sĩ nhiều khoa) */}
+                            <div className="text-xs font-bold text-slate-800 line-clamp-1 group-hover:text-teal-700 transition-colors flex items-center gap-1">
+                              <Building2 className="w-3 h-3 text-teal-600 shrink-0" />
+                              <span title={sch.department?.departmentName || 'Khoa khám'}>
+                                {sch.department?.departmentName || 'Khoa khám'}
+                              </span>
+                            </div>
+
+                            {/* Vị trí phòng khám */}
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-1 font-medium">
+                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span className="truncate">
+                                {sch.department?.roomLocation || 'Phòng khám đa khoa'}
+                              </span>
+                            </div>
+
+                            {/* Số lượng bệnh nhân */}
+                            <div className="mt-2 pt-1.5 border-t border-slate-200/60 flex items-center justify-between text-[10px]">
+                              <span className="text-slate-500 font-medium flex items-center gap-1">
+                                <Users className="w-3 h-3 text-slate-400" />
+                                <span>Đã đặt:</span>
+                              </span>
+                              <span className="font-bold text-slate-800 font-mono">
+                                {booked} / {capacity}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="h-full min-h-[90px] rounded-xl border border-dashed border-slate-200/80 flex flex-col items-center justify-center text-slate-300 text-[11px] select-none p-2 text-center">
+                        <span>Không có ca trực</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 5. MODAL XEM CHI TIẾT CA TRỰC & DANH SÁCH SLOT KHÁM (VIEW-ONLY) */}
+      {selectedScheduleForDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[88vh] flex flex-col border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold">
+                  <CalendarDays className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Chi Tiết Ca Trực Bác Sĩ (Chỉ Xem)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Ngày:{' '}
+                    <strong className="text-slate-700">
+                      {new Date(selectedScheduleForDetail.workDate).toLocaleDateString('vi-VN')}
+                    </strong>{' '}
+                    • {SESSION_CONFIG[selectedScheduleForDetail.session]?.label || selectedScheduleForDetail.session}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedScheduleForDetail(null)}
+                className="w-8 h-8 rounded-xl hover:bg-slate-200/70 text-slate-500 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 overflow-y-auto text-xs flex-1">
+              {/* Box thông tin ca */}
+              <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-semibold block">Khoa công tác:</span>
+                  <span className="font-bold text-slate-800 text-xs flex items-center gap-1 mt-0.5">
+                    <Building2 className="w-3.5 h-3.5 text-teal-600" />
+                    <span>{selectedScheduleForDetail.department?.departmentName || '---'}</span>
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-slate-400 font-semibold block">Vị trí phòng khám:</span>
+                  <span className="font-bold text-slate-800 text-xs flex items-center gap-1 mt-0.5">
+                    <MapPin className="w-3.5 h-3.5 text-teal-600" />
+                    <span>{selectedScheduleForDetail.department?.roomLocation || 'Phòng khám'}</span>
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-slate-400 font-semibold block">Khung giờ ca trực:</span>
+                  <span className="font-semibold text-slate-800 text-xs flex items-center gap-1 mt-0.5">
+                    <Clock className="w-3.5 h-3.5 text-teal-600" />
+                    <span>
+                      {formatTimeHHmm(selectedScheduleForDetail.startTime, '07:30')} –{' '}
+                      {formatTimeHHmm(selectedScheduleForDetail.endTime, '11:30')}
+                    </span>
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-slate-400 font-semibold block">Thời lượng mỗi slot:</span>
+                  <span className="font-semibold text-slate-800 text-xs flex items-center gap-1 mt-0.5">
+                    <span>{selectedScheduleForDetail.slotDurationMins || 15} phút / bệnh nhân</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Danh sách các slot cụ thể */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Danh sách khung giờ slot khám ({selectedScheduleForDetail.appointmentSlots?.length || 0} slots):</span>
+                  </h4>
+                  <span className="text-[10px] text-slate-400">Tự động phân bổ</span>
+                </div>
+
+                <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                  {selectedScheduleForDetail.appointmentSlots && selectedScheduleForDetail.appointmentSlots.length > 0 ? (
+                    selectedScheduleForDetail.appointmentSlots.map((slot, idx) => {
+                      const isBooked = (slot.bookedCount || 0) > 0;
+                      return (
+                        <div
+                          key={slot.slotId || idx}
+                          className="flex items-center justify-between p-2 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50/50 transition text-xs"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 font-mono text-[10px] font-bold flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <span className="font-mono font-bold text-slate-700">
+                              {formatTimeHHmm(slot.slotStartTime)} – {formatTimeHHmm(slot.slotEndTime)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-slate-500">
+                              Đã nhận: <strong className="text-slate-800">{slot.bookedCount || 0}/{slot.capacity || 1}</strong>
+                            </span>
+                            {slot.status === 'blocked' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                Đã khóa
+                              </span>
+                            ) : isBooked ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
+                                Đã có lịch hẹn
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-50 text-slate-500 border border-slate-200">
+                                Còn trống
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="p-4 text-center text-slate-400 text-xs italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      Chưa có slot chi tiết cho ca này
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Ghi chú nghiệp vụ */}
+              <div className="p-3 bg-teal-50/60 rounded-xl border border-teal-100 text-teal-900 text-[11px] flex items-start gap-2">
+                <Info className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+                <span>
+                  Lịch ca trực này được quản lý và phân công bởi Ban Quản lý Bệnh viện / Trưởng khoa. Bác sĩ xem lịch để nắm vị trí phòng và chuẩn bị ca trực tương ứng.
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedScheduleForDetail(null)}
+                className="px-4 py-2 bg-slate-200/80 hover:bg-slate-300/80 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
