@@ -100,9 +100,14 @@ export const triageQueueService = {
   },
 
   // POST /triage-queue/dequeue
-  // Y tá gọi bệnh nhân tiếp theo trong hàng đợi triage của mình theo thứ tự ưu tiên (waiting -> called)
-  async dequeue(): Promise<TriageQueueEntryItem> {
-    return apiFetch<TriageQueueEntryItem>('/triage-queue/dequeue', {
+  // Y tá gọi bệnh nhân tiếp theo trong hàng đợi triage (có thể lọc theo khoa)
+  async dequeue(departmentId?: string): Promise<TriageQueueEntryItem> {
+    const query = new URLSearchParams();
+    if (departmentId) query.append('departmentId', departmentId);
+    const queryString = query.toString();
+    const endpoint = queryString ? `/triage-queue/dequeue?${queryString}` : '/triage-queue/dequeue';
+
+    return apiFetch<TriageQueueEntryItem>(endpoint, {
       method: 'POST',
     });
   },

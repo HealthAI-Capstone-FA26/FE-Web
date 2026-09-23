@@ -425,6 +425,31 @@ export const ReceptionEncounterDetailModal: React.FC<ReceptionEncounterDetailMod
               </div>
             </div>
           )}
+
+          {/* KHỐI 5: Cam kết đồng ý y tế (Consent) */}
+          <div className="p-3.5 bg-teal-50/50 rounded-2xl border border-teal-200/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-teal-900 flex items-center gap-1.5 text-xs">
+                <FileText className="w-3.5 h-3.5 text-teal-600" />
+                <span>Trạng thái Cam kết Đồng ý Y tế & Chữ ký điện tử (Consent):</span>
+              </span>
+              {encounter.consents && encounter.consents.length > 0 ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>Đã ghi nhận {encounter.consents.length} cam kết</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
+                  <CheckCircle2 className="w-3 h-3 text-teal-600" />
+                  <span>Đã cam kết tại quầy tiếp đón</span>
+                </span>
+              )}
+            </div>
+
+            <div className="text-[11px] text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200/60 font-medium">
+              Bệnh nhân đã ký xác nhận điều khoản xử lý dữ liệu y tế cá nhân (HL7 FHIR R4) và đồng ý thực hiện các thủ thuật chẩn đoán, khám chữa bệnh theo đúng quy định pháp lý tại Quầy Tiếp Đón.
+            </div>
+          </div>
         </div>
       )}
     </Modal>

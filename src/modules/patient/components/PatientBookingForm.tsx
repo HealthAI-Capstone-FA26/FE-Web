@@ -335,7 +335,7 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
     <div className="bg-slate-100/60 p-3 rounded-[2rem] border border-slate-200/50 shadow-md w-full max-w-2xl mx-auto relative">
       {/* Inner Core Container with glowing border sweep background */}
       <div className="text-white rounded-[calc(2rem-0.625rem)] flex flex-col h-auto relative z-10">
-        
+
         {/* Glowing background */}
         <div className="absolute inset-0 rounded-[calc(2rem-0.625rem)] overflow-hidden pointer-events-none z-0 bg-[#0b3c8f]">
           <div className="absolute inset-[2px] rounded-[calc(2rem-0.625rem-2px)] bg-gradient-to-b from-blue-600 to-blue-700 z-[1]" />
@@ -365,7 +365,7 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
               <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
                 * 1. Chọn Hồ sơ Bệnh nhân khám
               </span>
-              
+
               {patients.length === 0 ? (
                 <div className="p-3 bg-white/10 rounded-xl text-xs text-blue-100">
                   Chưa có hồ sơ bệnh nhân. Vui lòng cập nhật hồ sơ cá nhân.
@@ -379,11 +379,10 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                       <label
                         key={p.patientId}
                         onClick={() => setSelectedPatientId(p.patientId)}
-                        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${
-                          isSelected
+                        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${isSelected
                             ? 'bg-white text-[#0b3c8f] font-bold border-white shadow-md'
                             : 'bg-white/90 text-slate-700 hover:bg-white border-transparent'
-                        }`}
+                          }`}
                       >
                         <input
                           type="radio"
@@ -392,9 +391,8 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                           onChange={() => setSelectedPatientId(p.patientId)}
                           className="sr-only"
                         />
-                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors shrink-0 ${
-                          isSelected ? 'border-[#0b3c8f] bg-[#0b3c8f] text-white' : 'border-slate-300 bg-transparent'
-                        }`}>
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors shrink-0 ${isSelected ? 'border-[#0b3c8f] bg-[#0b3c8f] text-white' : 'border-slate-300 bg-transparent'
+                          }`}>
                           {isSelected && <Check className="w-3 h-3 stroke-[3] text-white" />}
                         </div>
                         <div className="flex flex-col min-w-0">
@@ -489,18 +487,16 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                           key={s.departmentId}
                           type="button"
                           onClick={() => setSelectedDeptId(s.departmentId)}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs font-semibold transition-all cursor-pointer border ${
-                            isActive
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs font-semibold transition-all cursor-pointer border ${isActive
                               ? 'bg-violet-500/30 border-violet-400 text-white'
                               : 'bg-white/10 border-white/20 text-blue-100 hover:bg-white/20'
-                          }`}
+                            }`}
                         >
                           <span>{idx === 0 && '🏆 '}{s.departmentName}</span>
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                            s.confidence === 'high' ? 'bg-emerald-500/30 text-emerald-200'
-                            : s.confidence === 'medium' ? 'bg-blue-400/30 text-blue-200'
-                            : 'bg-white/10 text-blue-300'
-                          }`}>{confidenceLabel(s.confidence)}</span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.confidence === 'high' ? 'bg-emerald-500/30 text-emerald-200'
+                              : s.confidence === 'medium' ? 'bg-blue-400/30 text-blue-200'
+                                : 'bg-white/10 text-blue-300'
+                            }`}>{confidenceLabel(s.confidence)}</span>
                         </button>
                       );
                     })}
@@ -535,11 +531,10 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                             if (tab.id === 'vip') setPriority('urgent');
                             else setPriority('normal');
                           }}
-                          className={`py-2 rounded-lg w-full flex items-center justify-center gap-1.5 transition-all duration-300 uppercase tracking-tight text-xs cursor-pointer font-bold ${
-                            isActive
+                          className={`py-2 rounded-lg w-full flex items-center justify-center gap-1.5 transition-all duration-300 uppercase tracking-tight text-xs cursor-pointer font-bold ${isActive
                               ? 'bg-[#0b3c8f] text-white shadow-md'
                               : 'text-slate-700 hover:text-[#0b3c8f] hover:bg-slate-50'
-                          }`}
+                            }`}
                         >
                           <Icon className="w-3.5 h-3.5" />
                           {tab.label}
@@ -613,7 +608,7 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                       className="w-full bg-white text-slate-800 font-semibold py-2.5 px-3 rounded-lg border border-transparent focus:ring-2 focus:ring-yellow-400 outline-none text-xs cursor-pointer"
                     />
                   </div>
-                  
+
                   <div className="sm:col-span-2">
                     {loadingSlots ? (
                       <div className="bg-white/90 p-2.5 rounded-lg text-slate-600 text-xs flex items-center justify-center gap-2">
@@ -635,11 +630,10 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                               key={s.slotId}
                               type="button"
                               onClick={() => setSelectedSlotId(s.slotId)}
-                              className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between border cursor-pointer ${
-                                isSelected
+                              className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between border cursor-pointer ${isSelected
                                   ? 'bg-white text-[#0b3c8f] border-white shadow-md'
                                   : 'bg-white/20 text-white border-white/20 hover:bg-white/30'
-                              }`}
+                                }`}
                             >
                               <span>{startTime} - {endTime}</span>
                               <span className="text-[10px] opacity-80 font-normal">({s.capacity - s.bookedCount})</span>

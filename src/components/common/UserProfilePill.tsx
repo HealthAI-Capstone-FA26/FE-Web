@@ -60,13 +60,7 @@ export const UserProfilePill: React.FC<UserProfilePillProps> = ({
         onClick={onClick}
         className={`group relative flex items-center space-x-2.5 px-3 py-1.5 rounded-full bg-[#12141d] active:scale-[0.98] transition-all duration-200 cursor-pointer text-left ${className}`}
       >
-        {/* Animated Multi-color Glowing Gradient Border Beam (Electric Blue to Purple/Magenta) */}
-        {animatedBorder && (
-          <div className="absolute -inset-[1.5px] rounded-full p-[1.5px] overflow-hidden pointer-events-none z-0">
-            <div className="absolute -inset-[150%] bg-[conic-gradient(from_0deg_at_50%_50%,#0099ff_0%,#38bdf8_30%,#ec4899_65%,#a855f7_85%,#0099ff_100%)] animate-[spin_6s_linear_infinite] opacity-90 group-hover:opacity-100 group-hover:animate-[spin_3s_linear_infinite] transition-opacity" />
-            <div className="absolute inset-[1.5px] rounded-full bg-[#12141d]" />
-          </div>
-        )}
+
 
         {/* Ambient Outer Soft Glow */}
         <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-blue-600/30 via-purple-600/20 to-pink-600/30 blur-md opacity-50 group-hover:opacity-90 transition-opacity pointer-events-none -z-10" />
@@ -104,9 +98,8 @@ export const UserProfilePill: React.FC<UserProfilePillProps> = ({
         {showChevron && (
           <div className="relative z-10 shrink-0 w-7 h-7 rounded-full bg-[#242634] group-hover:bg-[#2c2e3f] border border-white/10 flex items-center justify-center shadow-[inset_0_1px_2px_rgba(255,255,255,0.15),0_2px_6px_rgba(0,0,0,0.4)] transition-all duration-200">
             <ChevronDown
-              className={`w-3.5 h-3.5 text-white/90 group-hover:text-white transition-transform duration-200 ${
-                isOpen ? 'rotate-180 text-[#38bdf8]' : ''
-              }`}
+              className={`w-3.5 h-3.5 text-white/90 group-hover:text-white transition-transform duration-200 ${isOpen ? 'rotate-180 text-[#38bdf8]' : ''
+                }`}
             />
           </div>
         )}
@@ -157,9 +150,8 @@ export const UserProfilePill: React.FC<UserProfilePillProps> = ({
       {/* Down arrow indicator */}
       {showChevron && (
         <ChevronDown
-          className={`relative z-10 w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 shrink-0 ml-1 ${
-            isOpen ? 'rotate-180 text-blue-600' : ''
-          }`}
+          className={`relative z-10 w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 shrink-0 ml-1 ${isOpen ? 'rotate-180 text-blue-600' : ''
+            }`}
         />
       )}
     </button>
