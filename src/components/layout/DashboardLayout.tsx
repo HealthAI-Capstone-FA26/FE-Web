@@ -305,12 +305,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
           }}
           className={`fixed lg:sticky top-[78px] left-0 z-20 h-[calc(100vh-78px)] transition-all duration-300 ease-in-out shrink-0 overflow-y-auto overflow-x-hidden ${
             isSidebarOpen
-              ? 'w-60 translate-x-0 p-3.5'
+              ? 'w-72 translate-x-0 p-3'
               : 'w-0 p-0 border-r-0 -translate-x-full lg:translate-x-0'
           }`}
         >
           {/* Light Liquid Glass Rail Container Card */}
-          <div className="relative h-full rounded-3xl bg-white/70 backdrop-blur-2xl border border-white/80 shadow-[0_20px_50px_rgba(15,23,42,0.08),inset_0_1px_2px_rgba(255,255,255,0.9)] p-3.5 flex flex-col justify-between text-slate-800 overflow-hidden">
+          <div className="relative h-full rounded-3xl bg-white/80 backdrop-blur-2xl border border-white/80 shadow-[0_20px_50px_rgba(15,23,42,0.08),inset_0_1px_2px_rgba(255,255,255,0.9)] p-3 flex flex-col justify-between text-slate-800 overflow-hidden">
             {/* Ambient Soft Glow Spheres */}
             <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-blue-400/20 blur-2xl pointer-events-none" />
             <div className="absolute bottom-10 -left-10 w-40 h-40 rounded-full bg-indigo-400/15 blur-2xl pointer-events-none" />
@@ -356,10 +356,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                           to={item.path}
                           title={item.label}
                           className={({ isActive }) =>
-                            `group relative flex items-center w-full justify-between px-3.5 py-3 rounded-2xl text-xs text-left transition-all duration-200 cursor-pointer ${
+                            `group relative flex items-center w-full justify-between px-3 py-2.5 rounded-2xl text-xs text-left transition-all duration-200 cursor-pointer ${
                               isActive
-                                ? 'bg-white text-blue-950 font-black shadow-[0_10px_25px_-5px_rgba(59,130,246,0.25)] border border-blue-200/80 scale-[1.03]'
-                                : 'bg-white/40 hover:bg-white/80 text-slate-700 hover:text-blue-900 font-bold border border-white/60 hover:border-blue-200/60 hover:scale-[1.02] hover:translate-x-0.5 shadow-2xs'
+                                ? 'bg-white text-blue-950 font-bold shadow-[0_10px_25px_-5px_rgba(59,130,246,0.25)] border border-blue-200/80 scale-[1.02]'
+                                : 'bg-white/40 hover:bg-white/80 text-slate-700 hover:text-blue-900 font-semibold border border-white/60 hover:border-blue-200/60 hover:scale-[1.01] hover:translate-x-0.5 shadow-2xs'
                             }`
                           }
                         >
@@ -373,16 +373,16 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                                       : 'bg-white/80 text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600 border border-slate-200/50'
                                   }`}
                                 >
-                                  <Icon className="w-4 h-4" />
+                                  <Icon className="w-4 h-4 shrink-0" />
                                 </div>
-                                <span className="text-xs font-black leading-tight truncate tracking-tight">
+                                <span className="text-xs font-bold leading-snug tracking-tight text-slate-800 group-hover:text-blue-900 transition-colors">
                                   {item.label}
                                 </span>
                               </div>
 
                               {item.badge && (
                                 <span
-                                  className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap ml-1 relative z-10 ${
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap ml-1.5 relative z-10 ${
                                     isActive
                                       ? 'bg-blue-100 text-blue-800 border border-blue-200'
                                       : 'bg-blue-50 text-blue-700 border border-blue-200/60'
@@ -403,10 +403,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
             {/* Sidebar Footer Info - Light Liquid Capsule Button */}
             <div className="pt-3 border-t border-slate-200/60 relative z-10">
-              <div className="w-full bg-white hover:bg-blue-50/60 text-slate-900 rounded-full px-4 py-2.5 border border-slate-200/80 shadow-md flex items-center justify-between cursor-pointer transition-all duration-200 hover:scale-[1.03] active:scale-[0.98]">
+              <div className="w-full bg-white hover:bg-blue-50/60 text-slate-900 rounded-2xl px-3.5 py-2.5 border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer transition-all duration-200">
                 <div className="flex items-center space-x-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"></span>
-                  <span className="text-xs font-black tracking-tight text-slate-800">HL7 FHIR R4</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse shrink-0"></span>
+                  <span className="text-xs font-bold tracking-tight text-slate-800">HL7 FHIR R4</span>
                 </div>
                 <span className="text-[11px] font-bold text-blue-600 flex items-center gap-1">
                   Đã kết nối →

@@ -190,6 +190,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentRole, isLoggedIn]);
 
   const switchRole = (role: UserRole) => {
+    appointmentService.invalidateCache();
     setCurrentRole(role);
     setIsLoggedIn(true);
     const mockUser = MOCK_USERS[role];
@@ -256,6 +257,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentRole(mappedRole);
     setUser(userProfile);
     setIsLoggedIn(true);
+    appointmentService.invalidateCache();
     localStorage.setItem('4am_active_role', mappedRole);
     localStorage.setItem('4am_is_logged_in', 'true');
     localStorage.setItem('4am_user_data', JSON.stringify(userProfile));
@@ -281,6 +283,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    appointmentService.invalidateCache();
     authService.logout().catch(() => {});
     setIsLoggedIn(false);
     setUser(null);

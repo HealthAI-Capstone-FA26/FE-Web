@@ -36,12 +36,12 @@ export const PatientPortalAppointmentsView: React.FC = () => {
   // Cancel Modal
   const [cancellingAppointment, setCancellingAppointment] = useState<AppointmentItem | null>(null);
 
-  const fetchAppointments = async () => {
+  const fetchAppointments = async (forceRefresh = true) => {
     try {
       setLoading(true);
       setErrorMsg(null);
       const [appList, patientList] = await Promise.all([
-        appointmentService.getAppointments(),
+        appointmentService.getAppointments(undefined, forceRefresh),
         patientService.getMyPatients(),
       ]);
       setAppointments(appList);
@@ -54,7 +54,7 @@ export const PatientPortalAppointmentsView: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchAppointments();
+    fetchAppointments(true);
   }, []);
 
   const handleBookingSuccess = () => {
@@ -159,7 +159,7 @@ export const PatientPortalAppointmentsView: React.FC = () => {
             </div>
 
             <button
-              onClick={fetchAppointments}
+              onClick={() => fetchAppointments(true)}
               disabled={loading}
               className="text-xs font-bold text-slate-600 hover:text-blue-600 p-2 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-1.5 self-end sm:self-auto"
             >
