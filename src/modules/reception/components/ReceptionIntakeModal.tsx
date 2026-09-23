@@ -24,6 +24,7 @@ import {
   type VerificationMethod,
   type VerificationStatus,
 } from '../../../services/encounter/encounter.service';
+import { consentService } from '../../../services/consent/consent.service';
 
 const QUICK_SYMPTOM_TAGS = [
   'Đau đầu / Chóng mặt',
@@ -173,10 +174,27 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
         } catch (ccErr: any) {
           console.warn('Lưu Chief Complaint thất bại:', ccErr);
         }
+
+        // 4. Ký cam kết đồng ý xử lý dữ liệu và điều trị bắt buộc (data_processing, treatment_consent)
+        const patientId = ticket.appointment?.patientId;
+        if (patientId) {
+          try {
+            await consentService.ensureMandatoryConsents(patientId, encounterId);
+          } catch (consentErr) {
+            console.warn('Ghi nhận cam kết bắt buộc thất bại:', consentErr);
+          }
+        }
+
+        // 5. Hoàn tất đăng ký tiếp đón để xếp vào Hàng đợi Triage của Điều dưỡng
+        try {
+          await encounterService.completeRegistration(encounterId);
+        } catch (regErr: any) {
+          console.warn('Hoàn tất đăng ký vào hàng đợi Triage thất bại:', regErr);
+        }
       }
 
       showToast(
-        `Đã tiếp nhận thành công số ${code}, lưu xác minh danh tính & chuyển khám!`,
+        `Đã tiếp nhận thành công số ${code}, lưu xác minh danh tính & chuyển hàng đợi điều dưỡng!`,
         'success'
       );
       onSuccess();

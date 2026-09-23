@@ -167,6 +167,7 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
         height: numHeight > 0 ? numHeight : undefined,
         weight: numWeight > 0 ? numWeight : undefined,
         notes: notes.trim() || undefined,
+        queueEntryId: patientRow.queueEntryId,
       });
 
       onSuccess(`Đã lưu phiên sinh hiệu mới vào lịch sử cho bệnh nhân ${patientRow.name}!`);

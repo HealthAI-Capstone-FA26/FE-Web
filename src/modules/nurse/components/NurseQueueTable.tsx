@@ -24,6 +24,7 @@ interface NurseQueueTableProps {
   onOpenDetail: (row: NursePatientRow) => void;
   onOpenAllergy: (row: NursePatientRow) => void;
   onOpenChangeDept?: (row: NursePatientRow) => void;
+  onStartProcessing?: (row: NursePatientRow) => void;
 }
 
 export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
@@ -34,6 +35,7 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
   onOpenDetail,
   onOpenAllergy,
   onOpenChangeDept,
+  onStartProcessing,
 }) => {
   const formatTimeAgo = (dateStr?: string) => {
     if (!dateStr) return '---';
@@ -45,7 +47,83 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
     }
   };
 
+  const getPriorityBadge = (priority?: string) => {
+    switch (priority?.toLowerCase()) {
+      case 'emergency':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-700 border border-rose-200">
+            Cấp cứu
+          </span>
+        );
+      case 'urgent':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200">
+            Khẩn cấp
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+            Thường
+          </span>
+        );
+    }
+  };
+
+  const getTriageStatusBadge = (triageStatus?: string, rowStatus?: string) => {
+    switch (triageStatus) {
+      case 'waiting':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            <Clock className="w-2.5 h-2.5" />
+            Đang chờ
+          </span>
+        );
+      case 'called':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200 animate-pulse">
+            <Activity className="w-2.5 h-2.5" />
+            Đang gọi vào
+          </span>
+        );
+      case 'in_progress':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
+            <Activity className="w-2.5 h-2.5" />
+            Đang đo
+          </span>
+        );
+      case 'done':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            ✓ Đã đo xong
+          </span>
+        );
+      default:
+        return rowStatus === 'Measured' ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            ✓ Đã đo xong
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+            Chờ xử lý
+          </span>
+        );
+    }
+  };
+
   const columns: Column<NursePatientRow>[] = [
+    {
+      header: 'STT & Ưu tiên',
+      cell: (row) => (
+        <div className="flex flex-col items-start gap-1">
+          <span className="font-black text-slate-900 font-mono text-sm">
+            {row.queueOrder !== undefined ? `#${String(row.queueOrder).padStart(2, '0')}` : '---'}
+          </span>
+          {getPriorityBadge(row.priority)}
+        </div>
+      ),
+    },
     {
       header: 'Mã Lượt Khám',
       accessorKey: 'encounterCode',
@@ -56,6 +134,9 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
             <Clock className="w-3 h-3" />
             Tiếp nhận: {formatTimeAgo(row.arrivedAt)}
           </span>
+          <div className="mt-1">
+            {getTriageStatusBadge(row.triageStatus, row.status)}
+          </div>
         </div>
       ),
     },
@@ -166,17 +247,29 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
             <ShieldAlert className="w-3.5 h-3.5" />
           </button>
 
+          {row.triageStatus === 'called' && onStartProcessing && (
+            <button
+              type="button"
+              onClick={() => onStartProcessing(row)}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600 shadow-2xs"
+              title="Bệnh nhân đã vào bàn, bấm để bắt đầu đo"
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>Bắt đầu đo</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => onOpenMeasure(row)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 shadow-2xs ${
-              row.status === 'Measured'
+              row.status === 'Measured' || row.triageStatus === 'done'
                 ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
                 : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
-            <span>{row.status === 'Measured' ? 'Đo lại' : 'Đo sinh hiệu'}</span>
+            <span>{row.status === 'Measured' || row.triageStatus === 'done' ? 'Đo lại' : 'Nhập sinh hiệu'}</span>
           </button>
 
           {row.status === 'Measured' && (

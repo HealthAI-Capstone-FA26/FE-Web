@@ -112,7 +112,12 @@ export interface NursePatientRow {
   status: 'Pending' | 'Measured';
   vitalSessionId?: string;
   vitals?: ParsedVitals;
-  chiefComplaint?: EncounterChiefComplaint;
+  chiefComplaint?: Partial<EncounterChiefComplaint>;
+  queueEntryId?: string;
+  priority?: string;
+  queueOrder?: number;
+  triageStatus?: string;
+  assignedNurseUserId?: string;
 }
 
 export type VerificationMethod =
@@ -216,6 +221,16 @@ export const encounterService = {
     return apiFetch(`/encounters/${encounterId}/department`, {
       method: 'PATCH',
       body: JSON.stringify({ departmentId }),
+    });
+  },
+
+  // Hoàn tất tiếp đón: kiểm tra chief complaint + xác minh danh tính + consent, chuyển sang registered và xếp vào hàng đợi triage
+  async completeRegistration(encounterId: string): Promise<{
+    encounter: EncounterItem;
+    triageQueueEntry: any;
+  }> {
+    return apiFetch(`/encounters/${encounterId}/complete-registration`, {
+      method: 'POST',
     });
   },
 };

@@ -1,11 +1,26 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  CheckCircle2,
+  AlertCircle,
+  Activity,
+  Play,
+  Clock,
+  UserCheck,
+  RefreshCw,
+  Loader2,
+  FileText,
+  Filter,
+} from 'lucide-react';
 import {
   encounterService,
   type EncounterItem,
   type NursePatientRow,
   type ParsedVitals,
 } from '../../services/encounter/encounter.service';
+import {
+  triageQueueService,
+  type TriageQueueEntryItem,
+} from '../../services/triage/triage-queue.service';
 import { useAuth } from '../../context/AuthContext';
 import { NurseStatsHeader } from './components/NurseStatsHeader';
 import { NurseQueueTable } from './components/NurseQueueTable';
@@ -18,8 +33,13 @@ import { ChangeEncounterDepartmentModal } from './components/ChangeEncounterDepa
 export const NurseQueueView: React.FC = () => {
   const { user } = useAuth();
 
+  const [triageEntries, setTriageEntries] = useState<TriageQueueEntryItem[]>([]);
   const [encounters, setEncounters] = useState<EncounterItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isTakingNext, setIsTakingNext] = useState<boolean>(false);
+  const [filterTab, setFilterTab] = useState<'my_waiting' | 'all_waiting' | 'done' | 'all'>('my_waiting');
+
+  // State các Modal
   const [selectedRow, setSelectedRow] = useState<NursePatientRow | null>(null);
   const [isInputModalOpen, setIsInputModalOpen] = useState<boolean>(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
@@ -35,28 +55,39 @@ export const NurseQueueView: React.FC = () => {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Tải danh sách ca khám từ API
-  const fetchEncounters = useCallback(async (silent = false) => {
+  // Tải dữ liệu Hàng đợi Triage & Ca khám
+  const fetchData = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
-      const data = await encounterService.getEncounters();
-      setEncounters(Array.isArray(data) ? data : []);
+      const [triageRes, encRes] = await Promise.all([
+        triageQueueService.getTriageQueue().catch((err) => {
+          console.warn('Lỗi lấy triage queue:', err);
+          return [] as TriageQueueEntryItem[];
+        }),
+        encounterService.getEncounters().catch((err) => {
+          console.warn('Lỗi lấy encounters:', err);
+          return [] as EncounterItem[];
+        }),
+      ]);
+
+      setTriageEntries(Array.isArray(triageRes) ? triageRes : []);
+      setEncounters(Array.isArray(encRes) ? encRes : []);
     } catch (err: any) {
-      console.error('Lỗi khi tải danh sách ca khám điều dưỡng:', err);
-      showToast(err.message || 'Không thể tải danh sách ca khám từ hệ thống', 'error');
+      console.error('Lỗi khi tải dữ liệu hàng đợi điều dưỡng:', err);
+      showToast(err.message || 'Không thể tải dữ liệu hàng đợi từ hệ thống', 'error');
     } finally {
       if (!silent) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchEncounters();
-    // Tự động làm mới mỗi 20 giây để cập nhật ca mới từ quầy lễ tân
+    fetchData();
+    // Tự động làm mới mỗi 15 giây để cập nhật ca mới từ Lễ tân
     const interval = setInterval(() => {
-      fetchEncounters(true);
-    }, 20000);
+      fetchData(true);
+    }, 15000);
     return () => clearInterval(interval);
-  }, [fetchEncounters]);
+  }, [fetchData]);
 
   // Parse tuổi từ ngày sinh
   const calculateAge = (dob?: string): number | string => {
@@ -120,56 +151,231 @@ export const NurseQueueView: React.FC = () => {
     };
   };
 
-  // Chuẩn hóa dữ liệu sang cấu trúc hàng hiển thị
+  // Trọng số ưu tiên (Cấp cứu > Khẩn cấp > Thường)
+  const getPriorityWeight = (priority?: string) => {
+    switch (priority?.toLowerCase()) {
+      case 'emergency':
+        return 3;
+      case 'urgent':
+        return 2;
+      default:
+        return 1;
+    }
+  };
+
+  // Chuẩn hóa và sắp xếp dữ liệu:
+  // 1. Ca chưa đo (Pending) xếp trước ca đã đo (Measured)
+  // 2. Ca ưu tiên cao hơn (Emergency > Urgent > Normal) xếp trước
+  // 3. Cùng mức ưu tiên thì ai đến trước xếp trước (queueOrder / arrivedAt)
   const tableData: NursePatientRow[] = useMemo(() => {
-    return encounters.map((enc) => {
+    const encMap = new Map<string, EncounterItem>();
+    encounters.forEach((e) => encMap.set(e.encounterId, e));
+
+    const rowsFromTriage: NursePatientRow[] = triageEntries.map((entry) => {
+      const enc = encMap.get(entry.encounterId) || (entry.encounter as any) || {};
       const { vitals, vitalSessionId } = parseSessionVitals(enc);
-      const isMeasured = !!vitals || enc.status === 'registered' || enc.status === 'waiting_for_doctor';
+      const isMeasured = entry.status === 'done' || !!vitals;
+
+      const p = enc.patient || entry.encounter?.patient;
+      const dept = enc.department || entry.encounter?.department;
 
       return {
-        encounterId: enc.encounterId,
-        encounterCode: enc.encounterCode || enc.encounterId.slice(0, 8),
-        patientId: enc.patientId,
-        name: enc.patient?.fullName || 'Bệnh nhân',
-        age: calculateAge(enc.patient?.dateOfBirth),
+        encounterId: entry.encounterId,
+        encounterCode: enc.encounterCode || entry.encounter?.encounterCode || entry.encounterId.slice(0, 8),
+        patientId: enc.patientId || entry.encounter?.patientId || '',
+        name: p?.fullName || 'Bệnh nhân',
+        age: calculateAge(p?.dateOfBirth),
         gender:
-          enc.patient?.gender === 'male'
+          p?.gender === 'male'
             ? 'Nam'
-            : enc.patient?.gender === 'female'
+            : p?.gender === 'female'
             ? 'Nữ'
-            : enc.patient?.gender || '---',
-        phone: enc.patient?.phoneNumber || 'Chưa cập nhật',
-        departmentName: enc.department?.departmentName || 'Khoa khám bệnh',
+            : p?.gender || '---',
+        phone: p?.phoneNumber || 'Chưa cập nhật',
+        departmentName: dept?.departmentName || 'Khoa khám bệnh',
         doctorName: enc.doctor?.fullName
           ? `${enc.doctor.title ? `${enc.doctor.title} ` : ''}${enc.doctor.fullName}`
           : 'Bác sĩ trực',
-        arrivedAt: enc.arrivedAt,
+        arrivedAt: enc.arrivedAt || entry.createdAt,
         status: isMeasured ? 'Measured' : 'Pending',
         vitalSessionId,
         vitals,
-        chiefComplaint: enc.chiefComplaint,
+        chiefComplaint: enc.chiefComplaint || entry.encounter?.chiefComplaint,
+        queueEntryId: entry.queueEntryId,
+        priority: entry.priority,
+        queueOrder: entry.queueOrder,
+        triageStatus: entry.status,
+        assignedNurseUserId: entry.assignedNurseUserId,
       };
     });
-  }, [encounters]);
+
+    const triageEncIds = new Set(triageEntries.map((t) => t.encounterId));
+    const extraEncounters: NursePatientRow[] = encounters
+      .filter((e) => !triageEncIds.has(e.encounterId))
+      .map((enc) => {
+        const { vitals, vitalSessionId } = parseSessionVitals(enc);
+        const isMeasured = !!vitals || enc.status === 'registered' || enc.status === 'waiting_for_doctor';
+        return {
+          encounterId: enc.encounterId,
+          encounterCode: enc.encounterCode || enc.encounterId.slice(0, 8),
+          patientId: enc.patientId,
+          name: enc.patient?.fullName || 'Bệnh nhân',
+          age: calculateAge(enc.patient?.dateOfBirth),
+          gender:
+            enc.patient?.gender === 'male'
+              ? 'Nam'
+              : enc.patient?.gender === 'female'
+              ? 'Nữ'
+              : enc.patient?.gender || '---',
+          phone: enc.patient?.phoneNumber || 'Chưa cập nhật',
+          departmentName: enc.department?.departmentName || 'Khoa khám bệnh',
+          doctorName: enc.doctor?.fullName
+            ? `${enc.doctor.title ? `${enc.doctor.title} ` : ''}${enc.doctor.fullName}`
+            : 'Bác sĩ trực',
+          arrivedAt: enc.arrivedAt,
+          status: isMeasured ? 'Measured' : 'Pending',
+          vitalSessionId,
+          vitals,
+          chiefComplaint: enc.chiefComplaint,
+        };
+      });
+
+    const all = [...rowsFromTriage, ...extraEncounters];
+
+    return all.sort((a, b) => {
+      // 1. Chưa đo xếp trước đã đo
+      if (a.status !== b.status) {
+        return a.status === 'Pending' ? -1 : 1;
+      }
+
+      // 2. Mức độ ưu tiên cao xếp trước (Cấp cứu > Khẩn cấp > Thường)
+      const prioDiff = getPriorityWeight(b.priority) - getPriorityWeight(a.priority);
+      if (prioDiff !== 0) return prioDiff;
+
+      // 3. Thứ tự xếp hàng queueOrder tăng dần
+      if (a.queueOrder !== undefined && b.queueOrder !== undefined) {
+        return a.queueOrder - b.queueOrder;
+      }
+      if (a.queueOrder !== undefined) return -1;
+      if (b.queueOrder !== undefined) return 1;
+
+      // 4. Ai đến trước xếp trước (arrivedAt)
+      const timeA = new Date(a.arrivedAt || 0).getTime();
+      const timeB = new Date(b.arrivedAt || 0).getTime();
+      return timeA - timeB;
+    });
+  }, [triageEntries, encounters]);
+
+  // Bộ lọc dữ liệu hiển thị theo Tab
+  const filteredData = useMemo(() => {
+    const currentUserId = user?.id;
+    switch (filterTab) {
+      case 'my_waiting':
+        return tableData.filter(
+          (r) =>
+            r.assignedNurseUserId === currentUserId &&
+            (r.triageStatus === 'waiting' || r.triageStatus === 'called' || r.triageStatus === 'in_progress')
+        );
+      case 'all_waiting':
+        return tableData.filter(
+          (r) =>
+            r.triageStatus === 'waiting' ||
+            r.triageStatus === 'called' ||
+            r.triageStatus === 'in_progress' ||
+            r.status === 'Pending'
+        );
+      case 'done':
+        return tableData.filter((r) => r.triageStatus === 'done' || r.status === 'Measured');
+      default:
+        return tableData;
+    }
+  }, [tableData, filterTab, user?.id]);
 
   // Thống kê nhanh
   const stats = useMemo(() => {
     const total = tableData.length;
-    const pending = tableData.filter((r) => r.status === 'Pending').length;
-    const measured = tableData.filter((r) => r.status === 'Measured').length;
+    const myWaiting = tableData.filter(
+      (r) =>
+        r.assignedNurseUserId === user?.id &&
+        (r.triageStatus === 'waiting' || r.triageStatus === 'called' || r.triageStatus === 'in_progress')
+    ).length;
+    const pending = tableData.filter((r) => r.status === 'Pending' || r.triageStatus === 'waiting').length;
+    const measured = tableData.filter((r) => r.status === 'Measured' || r.triageStatus === 'done').length;
     const abnormal = tableData.filter((r) => r.vitals?.isAbnormal).length;
-    return { total, pending, measured, abnormal };
-  }, [tableData]);
+    return { total, myWaiting, pending, measured, abnormal };
+  }, [tableData, user?.id]);
+
+  // HÀNH ĐỘNG: "LẤY HỒ SƠ TIẾP THEO" (Chỉ bấm là lấy đúng ca tiếp theo theo thứ tự và mở form đo ngay)
+  const handleTakeNextPatient = async () => {
+    setIsTakingNext(true);
+    try {
+      // 1. Lấy ca tiếp theo theo thứ tự ưu tiên được phân bổ cho điều dưỡng này
+      const calledEntry = await triageQueueService.dequeue();
+      const enc = calledEntry.encounter;
+      const p = enc?.patient;
+      const dept = enc?.department;
+
+      // 2. Kích hoạt trạng thái in_progress để đo
+      try {
+        await triageQueueService.startProcessing(calledEntry.queueEntryId);
+      } catch (startErr) {
+        console.warn('Could not mark started, keeping called status:', startErr);
+      }
+
+      // 3. Mở form nhập sinh hiệu cho bệnh nhân này ngay lập tức
+      const { vitals, vitalSessionId } = parseSessionVitals((enc as any) || {});
+
+      const targetRow: NursePatientRow = {
+        encounterId: calledEntry.encounterId,
+        encounterCode: enc?.encounterCode || calledEntry.encounterId.slice(0, 8),
+        patientId: enc?.patientId || p?.patientId || '',
+        name: p?.fullName || 'Bệnh nhân',
+        age: calculateAge(p?.dateOfBirth),
+        gender: p?.gender === 'male' ? 'Nam' : p?.gender === 'female' ? 'Nữ' : p?.gender || '---',
+        phone: p?.phoneNumber || 'Chưa cập nhật',
+        departmentName: dept?.departmentName || 'Khoa khám bệnh',
+        doctorName: 'Bác sĩ trực',
+        arrivedAt: calledEntry.createdAt,
+        status: 'Pending',
+        queueEntryId: calledEntry.queueEntryId,
+        priority: calledEntry.priority,
+        queueOrder: calledEntry.queueOrder,
+        triageStatus: 'in_progress',
+        vitals,
+        vitalSessionId,
+        chiefComplaint: enc?.chiefComplaint,
+      };
+
+      setSelectedRow(targetRow);
+      setIsInputModalOpen(true);
+      showToast(`Đã tiếp nhận hồ sơ STT #${calledEntry.queueOrder} - ${p?.fullName || 'Bệnh nhân'}`, 'success');
+      await fetchData(true);
+    } catch (err: any) {
+      console.warn('Lỗi lấy hồ sơ tiếp theo:', err);
+      showToast(err.message || 'Hàng đợi của bạn hiện không có bệnh nhân nào đang chờ.', 'error');
+    } finally {
+      setIsTakingNext(false);
+    }
+  };
+
+  // Mở modal đo sinh hiệu từ nút trên dòng bảng
+  const handleOpenMeasure = async (row: NursePatientRow) => {
+    // Nếu ca đang ở trạng thái called thì chuyển sang in_progress
+    if (row.queueEntryId && row.triageStatus === 'called') {
+      try {
+        await triageQueueService.startProcessing(row.queueEntryId);
+        row.triageStatus = 'in_progress';
+      } catch (e) {
+        console.warn('Lỗi start processing:', e);
+      }
+    }
+    setSelectedRow(row);
+    setIsInputModalOpen(true);
+  };
 
   // Xử lý mở Modal Chi tiết ca khám (Encounter Detail)
   const handleOpenDetail = (row: NursePatientRow) => {
     setSelectedDetailEncounterId(row.encounterId);
-  };
-
-  // Xử lý mở Modal Đo / Cập nhật sinh hiệu
-  const handleOpenMeasure = (row: NursePatientRow) => {
-    setSelectedRow(row);
-    setIsInputModalOpen(true);
   };
 
   // Xử lý mở Modal Lịch sử đo
@@ -217,12 +423,101 @@ export const NurseQueueView: React.FC = () => {
         measuredCount={stats.measured}
         abnormalCount={stats.abnormal}
         isLoading={isLoading}
-        onRefresh={() => fetchEncounters()}
+        onRefresh={() => fetchData()}
       />
 
-      {/* Bảng dữ liệu danh sách ca khám */}
+      {/* THANH THAO TÁC TIẾP NHẬN HỒ SƠ & BỘ LỌC DANH SÁCH */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between gap-4 flex-wrap">
+        {/* Nút chính: Lấy hồ sơ tiếp theo theo thứ tự */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleTakeNextPatient}
+            disabled={isTakingNext}
+            className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-extrabold text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Tự động bốc hồ sơ bệnh nhân tiếp theo theo đúng thứ tự ưu tiên"
+          >
+            {isTakingNext ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Đang lấy hồ sơ...</span>
+              </>
+            ) : (
+              <>
+                <UserCheck className="w-4 h-4" />
+                <span>TIẾP NHẬN CA TIẾP THEO</span>
+              </>
+            )}
+          </button>
+
+          <span className="text-xs text-slate-500 hidden md:inline">
+            Tự động lấy hồ sơ theo thứ tự ưu tiên (Cấp cứu &rarr; Khẩn cấp &rarr; Đến trước đo trước)
+          </span>
+        </div>
+
+        {/* Tab lọc danh sách & Nút làm mới */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setFilterTab('my_waiting')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                filterTab === 'my_waiting'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Hàng đợi của tôi ({stats.myWaiting})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTab('all_waiting')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                filterTab === 'all_waiting'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Tất cả đang chờ ({stats.pending})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTab('done')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                filterTab === 'done'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Đã đo xong ({stats.measured})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTab('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                filterTab === 'all'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Tất cả ({stats.total})
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => fetchData()}
+            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+            title="Làm mới danh sách"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Bảng dữ liệu danh sách ca khám sắp xếp theo đúng thứ tự */}
       <NurseQueueTable
-        data={tableData}
+        data={filteredData}
         isLoading={isLoading}
         onOpenMeasure={handleOpenMeasure}
         onOpenHistory={handleOpenHistory}
@@ -267,7 +562,7 @@ export const NurseQueueView: React.FC = () => {
         currentUserId={user?.id}
         onSuccess={(msg) => {
           showToast(msg, 'success');
-          fetchEncounters(true);
+          fetchData(true);
         }}
         onError={(err) => showToast(err, 'error')}
       />
@@ -294,10 +589,11 @@ export const NurseQueueView: React.FC = () => {
         currentDepartmentName={selectedRow?.departmentName}
         onSuccess={(msg) => {
           showToast(msg, 'success');
-          fetchEncounters(true);
+          fetchData(true);
         }}
       />
     </div>
   );
 };
+
 export default NurseQueueView;
