@@ -130,41 +130,49 @@ export const ReceptionAppointmentsView: React.FC = () => {
     fetchAppointments();
   }, [fetchAppointments]);
 
-  // Filtered appointments on client side (for search and channel)
+  // Filtered appointments on client side (for search, channel, and sorted by newest first)
   const filteredAppointments = useMemo(() => {
-    return appointments.filter((app) => {
-      // Channel filter
-      if (selectedChannel !== 'ALL' && app.bookingChannel !== selectedChannel) {
-        return false;
-      }
+    return appointments
+      .filter((app) => {
+        // Channel filter
+        if (selectedChannel !== 'ALL' && app.bookingChannel !== selectedChannel) {
+          return false;
+        }
 
-      // Search term filter
-      if (searchTerm.trim()) {
-        const query = searchTerm.toLowerCase().trim();
-        const patientName = app.patient?.fullName?.toLowerCase() || '';
-        const patientCode = app.patient?.patientCode?.toLowerCase() || '';
-        const phone = app.patient?.phoneNumber || '';
-        const cccd = app.patient?.identityNumber || '';
-        const appCode = app.appointmentCode?.toLowerCase() || '';
-        const doctorName = app.doctor?.fullName?.toLowerCase() || '';
-        const deptName = app.department?.departmentName?.toLowerCase() || '';
-        const ticketNum = app.queueTicket?.ticketNumber?.toLowerCase() || '';
+        // Search term filter
+        if (searchTerm.trim()) {
+          const query = searchTerm.toLowerCase().trim();
+          const patientName = app.patient?.fullName?.toLowerCase() || '';
+          const patientCode = app.patient?.patientCode?.toLowerCase() || '';
+          const phone = app.patient?.phoneNumber || '';
+          const cccd = app.patient?.identityNumber || '';
+          const appCode = app.appointmentCode?.toLowerCase() || '';
+          const doctorName = app.doctor?.fullName?.toLowerCase() || '';
+          const deptName = app.department?.departmentName?.toLowerCase() || '';
+          const ticketNum = app.queueTicket?.ticketNumber?.toLowerCase() || '';
 
-        const match =
-          patientName.includes(query) ||
-          patientCode.includes(query) ||
-          phone.includes(query) ||
-          cccd.includes(query) ||
-          appCode.includes(query) ||
-          doctorName.includes(query) ||
-          deptName.includes(query) ||
-          ticketNum.includes(query);
+          const match =
+            patientName.includes(query) ||
+            patientCode.includes(query) ||
+            phone.includes(query) ||
+            cccd.includes(query) ||
+            appCode.includes(query) ||
+            doctorName.includes(query) ||
+            deptName.includes(query) ||
+            ticketNum.includes(query);
 
-        if (!match) return false;
-      }
+          if (!match) return false;
+        }
 
-      return true;
-    });
+        return true;
+      })
+      .sort((a, b) => {
+        // Đưa lịch hẹn tạo mới nhất (createdAt giảm dần) lên đầu danh sách
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (timeB !== timeA) return timeB - timeA;
+        return (b.appointmentCode || '').localeCompare(a.appointmentCode || '');
+      });
   }, [appointments, selectedChannel, searchTerm]);
 
   // Metric stats
