@@ -13,6 +13,35 @@ export const SESSION_CONFIG: Record<
   evening: { label: 'Ca Tối', defaultStart: '17:30', defaultEnd: '20:30' },
 };
 
+export interface SlotAppointmentInfo {
+  appointmentId: string;
+  appointmentCode: string;
+  bookingChannel: string;
+  status: string;
+  reasonForVisit?: string | null;
+  priority?: string;
+  appointmentDate: string;
+  patient?: {
+    patientId: string;
+    patientCode?: string;
+    fullName: string;
+    phoneNumber?: string;
+    gender?: string;
+    dateOfBirth?: string;
+    identityNumber?: string;
+    status?: string;
+  } | null;
+  suggestedPatient?: {
+    patientId: string;
+    patientCode?: string;
+    fullName: string;
+    phoneNumber?: string;
+    gender?: string;
+    dateOfBirth?: string;
+    identityNumber?: string;
+  } | null;
+}
+
 export interface AppointmentSlotResponse {
   slotId: string;
   scheduleId: string;
@@ -23,6 +52,7 @@ export interface AppointmentSlotResponse {
   status: string; // 'free' | 'full' | 'booked' | 'blocked'
   createdAt?: string;
   updatedAt?: string;
+  appointments?: SlotAppointmentInfo[];
 }
 
 export interface DoctorScheduleResponse {
