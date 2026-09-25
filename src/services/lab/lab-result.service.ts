@@ -19,6 +19,31 @@ export interface UpdateLabResultDto {
   resultStatus?: 'preliminary' | 'final' | 'corrected' | 'cancelled';
 }
 
+export interface LabParameterThresholdItem {
+  labThresholdId: string;
+  parameterId: string;
+  ageMin?: number | null;
+  ageMax?: number | null;
+  gender?: string | null;
+  riskLevel: 'normal' | 'low' | 'medium' | 'high' | 'critical';
+  rangeMin?: number | string | null;
+  rangeMax?: number | string | null;
+  isActive?: boolean;
+}
+
+export interface LabResultAlertItem {
+  alertId?: string;
+  resultValueId?: string;
+  encounterId?: string;
+  thresholdId?: string | null;
+  measuredValue?: string;
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+  expectedMin?: number | string | null;
+  expectedMax?: number | string | null;
+  status?: string;
+  reason?: string;
+}
+
 export interface LabResultValueItem {
   resultValueId: string;
   labResultId: string;
@@ -32,8 +57,9 @@ export interface LabResultValueItem {
     parameterName: string;
     unit?: string;
     dataType?: string;
+    labParameterThresholds?: LabParameterThresholdItem[];
   };
-  labResultAlerts?: any[];
+  labResultAlerts?: LabResultAlertItem[];
 }
 
 export interface LabResultAttachmentItem {
@@ -132,6 +158,28 @@ export const labResultService = {
   async getAttachments(labResultId: string): Promise<LabResultAttachmentItem[]> {
     return apiFetch<LabResultAttachmentItem[]>(`/lab-results/${labResultId}/attachments`, {
       method: 'GET',
+    });
+  },
+
+  /**
+   * POST /api/v1/lab-results/:id/detect-alerts
+   * Kích hoạt và lấy kết quả đối soát ngưỡng bất thường
+   */
+  async detectAlerts(labResultId: string): Promise<{
+    labResultId: string;
+    totalValues: number;
+    abnormalCount: number;
+    results: Array<{
+      resultValueId: string;
+      isAbnormal: boolean;
+      riskLevel: 'low' | 'medium' | 'high' | 'critical' | null;
+      expectedMin?: number | null;
+      expectedMax?: number | null;
+      thresholdId?: string | null;
+    }>;
+  }> {
+    return apiFetch(`/lab-results/${labResultId}/detect-alerts`, {
+      method: 'POST',
     });
   },
 };
