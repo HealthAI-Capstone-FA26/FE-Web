@@ -853,7 +853,7 @@ export const DoctorEMRView: React.FC = () => {
       setPreliminaryDiag(verifiedCaseOverview.clinicalExamination.clinicalNotes || '');
     } else {
       const targetId = currentPatient?.encounterId;
-      const cached = (targetId && globalEncounterCache[targetId]) || (selectedPatientId && globalEncounterCache[selectedPatientId]);
+      const cached = (targetId ? globalEncounterCache[targetId] : undefined) || (selectedPatientId ? globalEncounterCache[selectedPatientId] : undefined);
       if (cached?.clinicalExam) {
         setClinicalExamNote(cached.clinicalExam.examinationFindings || '');
         setPreliminaryDiag(cached.clinicalExam.clinicalNotes || '');
