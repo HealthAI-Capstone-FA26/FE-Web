@@ -149,123 +149,11 @@ const mockPatientsDiagnosisData: Record<string, PatientEMRDetail> = {
   }
 };
 
-// National Drug Directory
-interface DrugCatalogItem {
-  code: string;
-  name: string;
-  class: string;
-  unit: string;
-  defaultDosage: string;
-  defaultRoute: string;
-  defaultQty: number;
-  activeIngredient: string;
-}
-
-const NATIONAL_DRUG_DIRECTORY: DrugCatalogItem[] = [
-  {
-    code: 'DRUG-001',
-    name: 'Amoxicillin 500mg',
-    class: 'Penicillin Antibiotic',
-    unit: 'Viên',
-    defaultDosage: 'Uống 1 viên x 3 lần/ngày',
-    defaultRoute: 'Uống',
-    defaultQty: 21,
-    activeIngredient: 'Penicillin'
-  },
-  {
-    code: 'DRUG-002',
-    name: 'Clarithromycin 500mg',
-    class: 'Macrolide Antibiotic',
-    unit: 'Viên',
-    defaultDosage: 'Uống 1 viên x 2 lần/ngày sau khi ăn',
-    defaultRoute: 'Uống',
-    defaultQty: 14,
-    activeIngredient: 'Clarithromycin'
-  },
-  {
-    code: 'DRUG-003',
-    name: 'Paracetamol 500mg',
-    class: 'Analgesic / Antipyretic',
-    unit: 'Viên',
-    defaultDosage: 'Uống 1 viên khi đau đầu hoặc sốt > 38.5°C (tối đa 4 viên/ngày)',
-    defaultRoute: 'Uống',
-    defaultQty: 10,
-    activeIngredient: 'Paracetamol'
-  },
-  {
-    code: 'DRUG-004',
-    name: 'Ibuprofen 400mg',
-    class: 'NSAID (Kháng viêm không Steroid)',
-    unit: 'Viên',
-    defaultDosage: 'Uống 1 viên x 2 lần/ngày sau khi ăn no',
-    defaultRoute: 'Uống',
-    defaultQty: 10,
-    activeIngredient: 'NSAID / Aspirin class'
-  },
-  {
-    code: 'DRUG-005',
-    name: 'Aspirin 81mg',
-    class: 'Antiplatelet (Kháng kết tập tiểu cầu)',
-    unit: 'Viên',
-    defaultDosage: 'Uống 1 viên vào buổi sáng sau ăn no',
-    defaultRoute: 'Uống',
-    defaultQty: 30,
-    activeIngredient: 'NSAID / Aspirin class'
-  },
-  {
-    code: 'DRUG-006',
-    name: 'Esomeprazole 40mg',
-    class: 'Proton Pump Inhibitor (PPI)',
-    unit: 'Viên',
-    defaultDosage: 'Uống 1 viên trước ăn sáng 30 phút',
-    defaultRoute: 'Uống',
-    defaultQty: 14,
-    activeIngredient: 'Esomeprazole'
-  },
-  {
-    code: 'DRUG-007',
-    name: 'Sucralfate 1g',
-    class: 'Gastric Mucosal Protectant',
-    unit: 'Gói',
-    defaultDosage: 'Hòa tan uống 1 gói x 3 lần/ngày trước ăn 1 tiếng hoặc trước khi đi ngủ',
-    defaultRoute: 'Uống',
-    defaultQty: 20,
-    activeIngredient: 'Sucralfate'
-  },
-  {
-    code: 'DRUG-008',
-    name: 'Atorvastatin 10mg',
-    class: 'Statin (Hạ lipid máu)',
-    unit: 'Viên',
-    defaultDosage: 'Uống 1 viên tối trước khi đi ngủ',
-    defaultRoute: 'Uống',
-    defaultQty: 30,
-    activeIngredient: 'Atorvastatin'
-  },
-  {
-    code: 'DRUG-009',
-    name: 'Amlodipine 5mg',
-    class: 'Antihypertensive (Hạ huyết áp)',
-    unit: 'Viên',
-    defaultDosage: 'Uống 1 viên sáng ngủ dậy',
-    defaultRoute: 'Uống',
-    defaultQty: 30,
-    activeIngredient: 'Amlodipine'
-  },
-  {
-    code: 'DRUG-010',
-    name: 'Loratadine 10mg',
-    class: 'Antihistamine (Chống dị ứng)',
-    unit: 'Viên',
-    defaultDosage: 'Uống 1 viên tối sau ăn',
-    defaultRoute: 'Uống',
-    defaultQty: 10,
-    activeIngredient: 'Loratadine'
-  }
-];
+import { drugCatalogService, type DrugCatalogItem as ApiDrugItem, type DrugCatalogDetail } from '../../services/doctor/drug-catalog.service';
 
 interface PrescribedDrugItem {
   catalogCode: string;
+  drugId?: string;
   name: string;
   class: string;
   dosage: string;
@@ -286,11 +174,16 @@ export const DoctorPrescriptionView: React.FC = () => {
     return mockPatientsDiagnosisData[selectedPatientId] || mockPatientsDiagnosisData['BN-2026-088'];
   }, [selectedPatientId]);
 
+  // Real Drug Catalog State from Backend API
+  const [dbDrugs, setDbDrugs] = useState<ApiDrugItem[]>([]);
+  const [isLoadingDrugs, setIsLoadingDrugs] = useState<boolean>(false);
+  const [drugSearchQuery, setDrugSearchQuery] = useState<string>('');
+
   // Selected drug state in form
-  const [selectedCatalogCode, setSelectedCatalogCode] = useState<string>(NATIONAL_DRUG_DIRECTORY[2].code);
-  const [customDosage, setCustomDosage] = useState<string>(NATIONAL_DRUG_DIRECTORY[2].defaultDosage);
-  const [customQty, setCustomQty] = useState<number>(NATIONAL_DRUG_DIRECTORY[2].defaultQty);
-  const [customRoute, setCustomRoute] = useState<string>(NATIONAL_DRUG_DIRECTORY[2].defaultRoute);
+  const [selectedCatalogCode, setSelectedCatalogCode] = useState<string>('');
+  const [customDosage, setCustomDosage] = useState<string>('');
+  const [customQty, setCustomQty] = useState<number>(10);
+  const [customRoute, setCustomRoute] = useState<string>('Uống');
   const [customDuration, setCustomDuration] = useState<string>('5 ngày');
   const [customAdvice, setCustomAdvice] = useState<string>('Uống nhiều nước ấm.');
 
@@ -307,16 +200,52 @@ export const DoctorPrescriptionView: React.FC = () => {
   const [isSigningProgress, setIsSigningProgress] = useState(false);
   const [isSignedSuccess, setIsSignedSuccess] = useState(false);
 
-  // Sync initial drug selection when dropdown code changes
+  // Fetch real Drug Catalog from Backend API (GET /prescriptions/drug-catalog)
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchDrugCatalog() {
+      setIsLoadingDrugs(true);
+      try {
+        const res = await drugCatalogService.search(drugSearchQuery, 1, 100);
+        if (isMounted && res?.items) {
+          setDbDrugs(res.items);
+          if (res.items.length > 0 && !selectedCatalogCode) {
+            const first = res.items[0];
+            setSelectedCatalogCode(first.drugCode || first.drugId);
+            setCustomDosage(first.defaultDosage || 'Uống 1 viên x 2 lần/ngày');
+            setCustomRoute(first.defaultRoute || 'Uống');
+          }
+        }
+      } catch (err) {
+        console.warn('Không thể tải danh mục thuốc từ Backend:', err);
+      } finally {
+        if (isMounted) setIsLoadingDrugs(false);
+      }
+    }
+    fetchDrugCatalog();
+    return () => { isMounted = false; };
+  }, [drugSearchQuery]);
+
+  // Active selected item from API
   const activeDirectoryItem = useMemo(() => {
-    return NATIONAL_DRUG_DIRECTORY.find(item => item.code === selectedCatalogCode) || NATIONAL_DRUG_DIRECTORY[0];
-  }, [selectedCatalogCode]);
+    return dbDrugs.find(item => (item.drugCode === selectedCatalogCode || item.drugId === selectedCatalogCode)) || dbDrugs[0];
+  }, [dbDrugs, selectedCatalogCode]);
+
+  // Detailed drug info fetched from GET /prescriptions/drug-catalog/:drugId
+  const [selectedDrugDetail, setSelectedDrugDetail] = useState<DrugCatalogDetail | null>(null);
 
   useEffect(() => {
     if (activeDirectoryItem) {
-      setCustomDosage(activeDirectoryItem.defaultDosage);
-      setCustomQty(activeDirectoryItem.defaultQty);
-      setCustomRoute(activeDirectoryItem.defaultRoute);
+      if (activeDirectoryItem.defaultDosage) setCustomDosage(activeDirectoryItem.defaultDosage);
+      if (activeDirectoryItem.defaultRoute) setCustomRoute(activeDirectoryItem.defaultRoute);
+
+      let isMounted = true;
+      drugCatalogService.getById(activeDirectoryItem.drugId).then(detail => {
+        if (isMounted) setSelectedDrugDetail(detail);
+      }).catch(err => {
+        console.warn('Không thể lấy chi tiết thuốc từ API getById:', err);
+      });
+      return () => { isMounted = false; };
     }
   }, [activeDirectoryItem]);
 
@@ -430,18 +359,24 @@ export const DoctorPrescriptionView: React.FC = () => {
   // Add drug action
   const handleAddDrug = (e: React.FormEvent) => {
     e.preventDefault();
-    if (prescribedList.some(item => item.catalogCode === selectedCatalogCode)) {
+    if (!activeDirectoryItem) {
+      alert('Vui lòng chọn thuốc từ danh mục!');
+      return;
+    }
+    const code = activeDirectoryItem.drugCode || activeDirectoryItem.drugId;
+    if (prescribedList.some(item => item.catalogCode === code || item.drugId === activeDirectoryItem.drugId)) {
       alert('Thuốc này đã tồn tại trong đơn thuốc!');
       return;
     }
     const newDrug: PrescribedDrugItem = {
-      catalogCode: selectedCatalogCode,
-      name: activeDirectoryItem.name,
-      class: activeDirectoryItem.class,
-      dosage: customDosage,
-      unit: activeDirectoryItem.unit,
+      catalogCode: code,
+      drugId: activeDirectoryItem.drugId,
+      name: activeDirectoryItem.drugName,
+      class: activeDirectoryItem.genericName || activeDirectoryItem.allergenCategory?.categoryName || 'Thuốc hóa dược',
+      dosage: customDosage || activeDirectoryItem.defaultDosage || 'Uống 1 viên x 2 lần/ngày',
+      unit: activeDirectoryItem.unit || 'Viên',
       quantity: customQty,
-      route: customRoute,
+      route: customRoute || activeDirectoryItem.defaultRoute || 'Uống',
       duration: customDuration,
       advice: customAdvice
     };
@@ -560,8 +495,8 @@ export const DoctorPrescriptionView: React.FC = () => {
                   key={p.id}
                   onClick={() => handleSelectPatient(p.id)}
                   className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all flex justify-between items-center ${selectedPatientId === p.id
-                      ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300'
-                      : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'
+                    ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300'
+                    : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'
                     }`}
                 >
                   <div>
@@ -624,8 +559,8 @@ export const DoctorPrescriptionView: React.FC = () => {
                 <div
                   key={idx}
                   className={`p-4 rounded-2xl border text-xs font-bold flex items-start gap-2.5 animate-in slide-in-from-top-2 duration-200 ${w.type === 'danger'
-                      ? 'bg-rose-50 border-rose-200 text-rose-900 shadow-xs'
-                      : 'bg-amber-50 border-amber-200 text-amber-900 shadow-xs'
+                    ? 'bg-rose-50 border-rose-200 text-rose-900 shadow-xs'
+                    : 'bg-amber-50 border-amber-200 text-amber-900 shadow-xs'
                     }`}
                 >
                   {w.type === 'danger' ? (
@@ -661,19 +596,58 @@ export const DoctorPrescriptionView: React.FC = () => {
 
             <form onSubmit={handleAddDrug} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
 
-              <div className="space-y-1">
-                <label className="block font-bold text-slate-700">1. Chọn thuốc kê đơn (*):</label>
-                <select
-                  value={selectedCatalogCode}
-                  onChange={(e) => setSelectedCatalogCode(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 font-extrabold text-slate-800 outline-none focus:border-blue-600 bg-white"
-                >
-                  {NATIONAL_DRUG_DIRECTORY.map((item) => (
-                    <option key={item.code} value={item.code}>
-                      {item.name} ({item.class})
-                    </option>
-                  ))}
-                </select>
+              <div className="space-y-1 md:col-span-2">
+                <label className="block font-bold text-slate-700">1. Tìm & Chọn thuốc kê đơn (*):</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={drugSearchQuery}
+                    onChange={(e) => setDrugSearchQuery(e.target.value)}
+                    placeholder="Tìm tên thuốc..."
+                    className="w-1/3 p-3 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-blue-600 bg-white text-xs"
+                  />
+                  <select
+                    value={selectedCatalogCode}
+                    onChange={(e) => setSelectedCatalogCode(e.target.value)}
+                    className="w-2/3 p-3 rounded-xl border border-slate-200 font-extrabold text-slate-800 outline-none focus:border-blue-600 bg-white"
+                  >
+                    {isLoadingDrugs ? (
+                      <option value="">Đang tải danh mục thuốc...</option>
+                    ) : dbDrugs.length === 0 ? (
+                      <option value="">Không tìm thấy thuốc...</option>
+                    ) : (
+                      dbDrugs.map((item) => {
+                        const code = item.drugCode || item.drugId;
+                        return (
+                          <option key={item.drugId} value={code}>
+                            {item.drugName} {item.genericName ? `(${item.genericName})` : ''} - {item.unit}
+                          </option>
+                        );
+                      })
+                    )}
+                  </select>
+                </div>
+                {selectedDrugDetail && (
+                  <div className="mt-2 p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl text-[11px] space-y-1">
+                    <div className="flex items-center justify-between font-bold text-blue-900">
+                      <span>Mã CSDL: <span className="font-mono text-blue-800">{selectedDrugDetail.drugCode}</span> ({selectedDrugDetail.drugName})</span>
+                      {selectedDrugDetail.allergenCategory && (
+                        <span className="bg-rose-100 text-rose-800 px-2 py-0.5 rounded font-extrabold text-[10px]">
+                          Nhóm dị ứng: {selectedDrugDetail.allergenCategory.categoryName}
+                        </span>
+                      )}
+                    </div>
+                    {selectedDrugDetail.genericName && (
+                      <div className="text-slate-600">Hoạt chất gốc: <span className="font-semibold">{selectedDrugDetail.genericName}</span></div>
+                    )}
+                    {((selectedDrugDetail.interactionsA && selectedDrugDetail.interactionsA.length > 0) || (selectedDrugDetail.interactionsB && selectedDrugDetail.interactionsB.length > 0)) && (
+                      <div className="text-amber-800 font-extrabold flex items-center gap-1 mt-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Có ghi nhận tương tác thuốc trong CSDL hệ thống</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -687,7 +661,7 @@ export const DoctorPrescriptionView: React.FC = () => {
                     className="w-24 p-3 rounded-xl border border-slate-200 font-black text-center text-slate-800 outline-none focus:border-blue-600"
                   />
                   <span className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 flex items-center">
-                    {activeDirectoryItem.unit}
+                    {activeDirectoryItem?.unit || 'Viên'}
                   </span>
                 </div>
               </div>
@@ -850,8 +824,8 @@ export const DoctorPrescriptionView: React.FC = () => {
                 type="button"
                 onClick={handleSyncFollowUp}
                 className={`px-4 py-2 text-xs font-extrabold rounded-xl border-none cursor-pointer flex items-center gap-1.5 shadow-xs transition-all ${isFollowUpSynced
-                    ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
-                    : 'bg-slate-800 hover:bg-slate-900 text-white'
+                  ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
+                  : 'bg-slate-800 hover:bg-slate-900 text-white'
                   }`}
               >
                 {isFollowUpSynced ? (
