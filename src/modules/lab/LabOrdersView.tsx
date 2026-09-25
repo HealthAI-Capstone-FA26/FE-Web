@@ -3,7 +3,9 @@ import {
   FlaskConical, CheckCircle2, Sparkles, Upload, 
   Lock, FileText, Loader2,
   Building2, RefreshCw, Search, AlertCircle, Eye,
-  ChevronDown, MapPin, Pencil
+  ChevronDown, MapPin, Pencil, AlertTriangle, ShieldAlert,
+  ArrowUpRight, ArrowDownRight, Info, Check, ShieldCheck, X,
+  Calendar, Clock, CalendarDays
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { DataTable, type Column } from '../../components/common/DataTable';
@@ -11,6 +13,30 @@ import { Modal } from '../../components/common/Modal';
 import { labRoomService, type LabRoomItem, type LabStaffRoomAssignment } from '../../services/lab/lab-room.service';
 import { labTaskService, type LabTaskItem } from '../../services/lab/lab-task.service';
 import { labResultService, type LabResultDetail } from '../../services/lab/lab-result.service';
+
+export type LabDateFilterMode = 'today' | 'yesterday' | '7days' | 'all' | 'custom';
+
+
+export interface ThresholdAlertSummaryItem {
+  parameterId: string;
+  parameterCode: string;
+  parameterName: string;
+  measuredValue: string | number;
+  unit: string;
+  rangeMin?: number;
+  rangeMax?: number;
+  isAbnormal: boolean;
+  deviationText: string;
+  riskLevel?: 'normal' | 'low' | 'medium' | 'high' | 'critical';
+}
+
+export interface ThresholdAlertSummary {
+  task: LabTaskItem;
+  labResultId: string;
+  totalParameters: number;
+  abnormalCount: number;
+  items: ThresholdAlertSummaryItem[];
+}
 
 export const LabOrdersView: React.FC = () => {
 
@@ -26,6 +52,16 @@ export const LabOrdersView: React.FC = () => {
   const [taskError, setTaskError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Date Filtering State
+  const [dateFilterMode, setDateFilterMode] = useState<LabDateFilterMode>('today');
+  const [customDate, setCustomDate] = useState<string>(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
 
   // Action Loading States
   const [receivingTaskId, setReceivingTaskId] = useState<string | null>(null);
@@ -48,9 +84,17 @@ export const LabOrdersView: React.FC = () => {
   const [editConclusion, setEditConclusion] = useState<string>('');
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
 
+  // Modal 3: Thông báo tổng kết đối soát ngưỡng ngay sau khi Lưu
+  const [alertSummary, setAlertSummary] = useState<ThresholdAlertSummary | null>(null);
+  const [isAlertSummaryModalOpen, setIsAlertSummaryModalOpen] = useState<boolean>(false);
+
   // AI analysis states
   const [isAIScanning, setIsAIScanning] = useState<boolean>(false);
   const [isAIAnalyzed, setIsAIAnalyzed] = useState<boolean>(false);
+
+  // Modal Error states (Hiển thị trực tiếp bên trong Modal)
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [editModalError, setEditModalError] = useState<string | null>(null);
 
   // Toast notification
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
@@ -118,6 +162,44 @@ export const LabOrdersView: React.FC = () => {
     fetchTasks();
   }, [fetchTasks]);
 
+  const formatLocalDate = (d: Date | string | undefined | null): string => {
+    if (!d) return '';
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getTaskDateStr = (task: LabTaskItem): string => {
+    return formatLocalDate(task.orderItem?.order?.orderedAt || task.createdAt);
+  };
+
+  const getTaskTimestamp = (task: LabTaskItem): number => {
+    const raw = task.orderItem?.order?.orderedAt || task.createdAt;
+    const time = new Date(raw).getTime();
+    return isNaN(time) ? 0 : time;
+  };
+
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+
+  const yesterdayStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+
+  const sevenDaysAgoTime = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, []);
+
   // Lọc tức thì trong RAM theo phòng Lab đang chọn (0ms, không tốn request mạng)
   const tasksForRoom = useMemo(() => {
     if (!selectedRoomId || selectedRoomId === 'ALL') {
@@ -126,11 +208,68 @@ export const LabOrdersView: React.FC = () => {
     return allTasks.filter((t) => t.labRoomId === selectedRoomId);
   }, [allTasks, selectedRoomId]);
 
+  // Thống kê số lượng ca theo mốc ngày
+  const dateStats = useMemo(() => {
+    let todayCount = 0;
+    let yesterdayCount = 0;
+    let sevenDaysCount = 0;
+
+    tasksForRoom.forEach((t) => {
+      const dStr = getTaskDateStr(t);
+      const time = getTaskTimestamp(t);
+      if (dStr === todayStr) todayCount++;
+      if (dStr === yesterdayStr) yesterdayCount++;
+      if (time >= sevenDaysAgoTime) sevenDaysCount++;
+    });
+
+    return {
+      today: todayCount,
+      yesterday: yesterdayCount,
+      sevenDays: sevenDaysCount,
+      all: tasksForRoom.length,
+    };
+  }, [tasksForRoom, todayStr, yesterdayStr, sevenDaysAgoTime]);
+
+  // Lọc danh sách theo ngày
+  const tasksForDate = useMemo(() => {
+    if (dateFilterMode === 'all') return tasksForRoom;
+
+    return tasksForRoom.filter((t) => {
+      const dStr = getTaskDateStr(t);
+      const time = getTaskTimestamp(t);
+
+      if (dateFilterMode === 'today') {
+        return dStr === todayStr;
+      }
+      if (dateFilterMode === 'yesterday') {
+        return dStr === yesterdayStr;
+      }
+      if (dateFilterMode === '7days') {
+        return time >= sevenDaysAgoTime;
+      }
+      if (dateFilterMode === 'custom') {
+        return dStr === customDate;
+      }
+      return true;
+    });
+  }, [tasksForRoom, dateFilterMode, customDate, todayStr, yesterdayStr, sevenDaysAgoTime]);
+
+  // Thống kê nhanh theo phạm vi ngày đang chọn
+  const activeDateStats = useMemo(() => {
+    const total = tasksForDate.length;
+    const ready = tasksForDate.filter((t) => t.status === 'ready').length;
+    const inProgress = tasksForDate.filter((t) => t.status === 'in_progress').length;
+    const completed = tasksForDate.filter((t) => t.status === 'completed').length;
+    const paymentPending = tasksForDate.filter((t) => !t.paymentVerified || t.status === 'payment_pending').length;
+
+    return { total, ready, inProgress, completed, paymentPending };
+  }, [tasksForDate]);
+
   // Lọc theo search box
   const filteredTasks = useMemo(() => {
-    if (!searchQuery.trim()) return tasksForRoom;
+    if (!searchQuery.trim()) return tasksForDate;
     const term = searchQuery.toLowerCase().trim();
-    return tasksForRoom.filter((t) => {
+    return tasksForDate.filter((t) => {
       const patientName = t.orderItem?.order?.encounter?.patient?.fullName?.toLowerCase() || '';
       const patientCode = t.orderItem?.order?.encounter?.patient?.patientCode?.toLowerCase() || '';
       const testName = t.orderItem?.testType?.testName?.toLowerCase() || '';
@@ -144,7 +283,7 @@ export const LabOrdersView: React.FC = () => {
         doctorName.includes(term)
       );
     });
-  }, [tasksForRoom, searchQuery]);
+  }, [tasksForDate, searchQuery]);
 
   // Thao tác: KTV tiếp nhận mẫu xét nghiệm
   const handleReceiveTask = async (task: LabTaskItem) => {
@@ -163,12 +302,14 @@ export const LabOrdersView: React.FC = () => {
   // Mở modal nhập kết quả ban đầu (khi ca đang in_progress)
   const handleOpenInputModal = (task: LabTaskItem) => {
     setSelectedTask(task);
+    setModalError(null);
     const initialParams: Record<string, { valueNumeric?: number; valueText?: string }> = {};
     const parameters = task.orderItem?.testType?.labResultParameters || [];
     parameters.forEach((p) => {
+      const isPositiveNegative = p.dataType === 'positive_negative';
       initialParams[p.parameterId] = {
         valueNumeric: undefined,
-        valueText: '',
+        valueText: isPositiveNegative ? 'Âm tính (-)' : '',
       };
     });
     setParamValues(initialParams);
@@ -182,12 +323,14 @@ export const LabOrdersView: React.FC = () => {
 
   // Nạp dữ liệu vào form chỉnh sửa / bổ sung trong Modal Xem kết quả
   const populateEditData = (task: LabTaskItem, result: LabResultDetail) => {
+    setEditModalError(null);
     const initialParams: Record<string, { valueNumeric?: number; valueText?: string }> = {};
     const parameters = task.orderItem?.testType?.labResultParameters || [];
     parameters.forEach((p) => {
+      const isPositiveNegative = p.dataType === 'positive_negative';
       initialParams[p.parameterId] = {
         valueNumeric: undefined,
-        valueText: '',
+        valueText: isPositiveNegative ? 'Âm tính (-)' : '',
       };
     });
 
@@ -196,7 +339,7 @@ export const LabOrdersView: React.FC = () => {
         if (v.parameterId) {
           initialParams[v.parameterId] = {
             valueNumeric: v.valueNumeric !== null && v.valueNumeric !== undefined ? Number(v.valueNumeric) : undefined,
-            valueText: v.valueText || '',
+            valueText: v.valueText || (v.parameter?.dataType === 'positive_negative' ? 'Âm tính (-)' : ''),
           };
         }
       });
@@ -227,19 +370,28 @@ export const LabOrdersView: React.FC = () => {
   // Lưu chỉnh sửa / bổ sung trực tiếp trong Modal Xem kết quả
   const handleSaveEditInViewModal = async () => {
     if (!selectedTask || !viewingResult) return;
+    setEditModalError(null);
 
     const parameters = selectedTask.orderItem?.testType?.labResultParameters || [];
     const valuesPayload = parameters.map((p) => {
       const val = editParamValues[p.parameterId];
+      const dataType = p.dataType ?? 'numeric';
+      const isNumeric = dataType === 'numeric';
+      let valueText = val?.valueText?.trim();
+      if (!isNumeric && !valueText && dataType === 'positive_negative') {
+        valueText = 'Âm tính (-)';
+      }
       return {
         parameterId: p.parameterId,
-        valueNumeric: val?.valueNumeric !== undefined ? Number(val.valueNumeric) : undefined,
-        valueText: val?.valueText || undefined,
+        valueNumeric: isNumeric ? (val?.valueNumeric !== undefined ? Number(val.valueNumeric) : undefined) : undefined,
+        valueText: !isNumeric ? (valueText || undefined) : undefined,
       };
     });
 
     if (parameters.length > 0 && valuesPayload.every((v) => v.valueNumeric === undefined && !v.valueText)) {
-      showToast('Vui lòng nhập ít nhất một chỉ số đo đạc', 'error');
+      const err = 'Vui lòng nhập ít nhất một chỉ số đo đạc';
+      setEditModalError(err);
+      showToast(err, 'error');
       return;
     }
 
@@ -256,7 +408,9 @@ export const LabOrdersView: React.FC = () => {
       showToast('Đã cập nhật và bổ sung kết quả xét nghiệm EMR thành công!', 'success');
       fetchTasks(true);
     } catch (err: any) {
-      showToast(err?.message || 'Không thể cập nhật kết quả xét nghiệm. Vui lòng thử lại.', 'error');
+      const errMessage = err?.message || 'Không thể cập nhật kết quả xét nghiệm. Vui lòng thử lại.';
+      setEditModalError(errMessage);
+      showToast(errMessage, 'error');
     } finally {
       setIsSavingEdit(false);
     }
@@ -276,19 +430,28 @@ export const LabOrdersView: React.FC = () => {
   const handleSubmitResult = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTask) return;
+    setModalError(null);
 
     const parameters = selectedTask.orderItem?.testType?.labResultParameters || [];
     const valuesPayload = parameters.map((p) => {
       const val = paramValues[p.parameterId];
+      const dataType = p.dataType ?? 'numeric';
+      const isNumeric = dataType === 'numeric';
+      let valueText = val?.valueText?.trim();
+      if (!isNumeric && !valueText && dataType === 'positive_negative') {
+        valueText = 'Âm tính (-)';
+      }
       return {
         parameterId: p.parameterId,
-        valueNumeric: val?.valueNumeric !== undefined ? Number(val.valueNumeric) : undefined,
-        valueText: val?.valueText || undefined,
+        valueNumeric: isNumeric ? (val?.valueNumeric !== undefined ? Number(val.valueNumeric) : undefined) : undefined,
+        valueText: !isNumeric ? (valueText || undefined) : undefined,
       };
     });
 
     if (parameters.length > 0 && valuesPayload.every((v) => v.valueNumeric === undefined && !v.valueText)) {
-      showToast('Vui lòng nhập ít nhất một chỉ số đo đạc', 'error');
+      const err = 'Vui lòng nhập ít nhất một chỉ số đo đạc';
+      setModalError(err);
+      showToast(err, 'error');
       return;
     }
 
@@ -305,11 +468,86 @@ export const LabOrdersView: React.FC = () => {
         await labResultService.uploadAttachment(result.labResultId, selectedFile, 'image', 'Hình ảnh xét nghiệm đính kèm').catch(() => {});
       }
 
-      showToast(`Đã lưu và hoàn tất kết quả EMR cho ca ${selectedTask.orderItem?.testType?.testName || ''}!`, 'success');
+      // Kích hoạt phát hiện bất thường từ backend để lấy phân loại nguy cơ chuẩn y tế
+      let alertData: any = null;
+      if (result.labResultId) {
+        alertData = await labResultService.detectAlerts(result.labResultId).catch(() => null);
+      }
+
+      // Tổng hợp dữ liệu đối soát ngưỡng cho từng chỉ số
+      const summaryItems: ThresholdAlertSummaryItem[] = parameters.map((param) => {
+        const val = paramValues[param.parameterId];
+        const threshold = param.labParameterThresholds?.[0];
+        const min = threshold?.rangeMin !== undefined && threshold?.rangeMin !== null ? Number(threshold.rangeMin) : undefined;
+        const max = threshold?.rangeMax !== undefined && threshold?.rangeMax !== null ? Number(threshold.rangeMax) : undefined;
+        const dataType = param.dataType || 'numeric';
+        const numVal = val?.valueNumeric;
+        const textVal = val?.valueText || (dataType === 'positive_negative' ? 'Âm tính (-)' : '');
+
+        const isPositiveNegative = dataType === 'positive_negative';
+        const isText = dataType === 'text';
+        const isNumeric = !isPositiveNegative && !isText;
+
+        const isPositive = isPositiveNegative && (
+          textVal.toLowerCase().includes('dương tính') ||
+          textVal.toLowerCase().includes('positive') ||
+          textVal.includes('+')
+        );
+
+        const matchedServerAlert = alertData?.results?.find((r: any) => r.parameterId === param.parameterId);
+        const isServerAbnormal = matchedServerAlert?.isAbnormal === true;
+        const serverRisk = matchedServerAlert?.riskLevel;
+
+        const isClientOutOfRange = isNumeric
+          ? (numVal !== undefined && ((min !== undefined && numVal < min) || (max !== undefined && numVal > max)))
+          : isPositive;
+
+        const isAbnormal = isServerAbnormal || isClientOutOfRange;
+        let deviationText = 'Bình thường';
+        if (isNumeric) {
+          if (numVal !== undefined && max !== undefined && numVal > max) {
+            deviationText = 'Vượt ngưỡng cao (Tăng)';
+          } else if (numVal !== undefined && min !== undefined && numVal < min) {
+            deviationText = 'Dưới ngưỡng chuẩn (Giảm)';
+          } else if (isAbnormal) {
+            deviationText = 'Bất thường';
+          }
+        } else if (isPositiveNegative) {
+          deviationText = isPositive ? 'Dương tính (Bất thường)' : 'Âm tính (Bình thường)';
+        }
+
+        return {
+          parameterId: param.parameterId,
+          parameterCode: param.parameterCode,
+          parameterName: param.parameterName || param.parameterCode,
+          measuredValue: isNumeric ? (numVal !== undefined ? numVal : '-') : (textVal || '-'),
+          unit: param.unit || '-',
+          rangeMin: min,
+          rangeMax: max,
+          isAbnormal,
+          deviationText,
+          riskLevel: serverRisk || (isAbnormal ? 'high' : 'normal'),
+        };
+      });
+
+      const abnormalCount = summaryItems.filter((i) => i.isAbnormal).length;
+      
+      setAlertSummary({
+        task: selectedTask,
+        labResultId: result.labResultId,
+        totalParameters: summaryItems.length,
+        abnormalCount,
+        items: summaryItems,
+      });
+
       setIsInputModalOpen(false);
+      setIsAlertSummaryModalOpen(true);
+      showToast(`Đã lưu kết quả EMR cho ca ${selectedTask.orderItem?.testType?.testName || ''}!`, 'success');
       fetchTasks(true);
     } catch (err: any) {
-      showToast(err?.message || 'Không thể lưu kết quả xét nghiệm. Vui lòng thử lại.', 'error');
+      const errMessage = err?.message || 'Không thể lưu kết quả xét nghiệm. Vui lòng thử lại.';
+      setModalError(errMessage);
+      showToast(errMessage, 'error');
     } finally {
       setIsSubmittingResult(false);
     }
@@ -322,11 +560,32 @@ export const LabOrdersView: React.FC = () => {
       accessorKey: 'labTaskId',
       cell: (row) => {
         const orderCode = row.orderItem?.order?.orderCode || row.labTaskId.slice(0, 8).toUpperCase();
+        const rawDate = row.orderItem?.order?.orderedAt || row.createdAt;
+        const dStr = formatLocalDate(rawDate);
+        const timeStr = new Date(rawDate).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        const isToday = dStr === todayStr;
+        const isYesterday = dStr === yesterdayStr;
+
         return (
-          <div className="font-extrabold text-blue-900 whitespace-nowrap">
-            <div>{orderCode}</div>
-            <div className="text-[10px] text-slate-400 font-medium">
-              {new Date(row.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} • {new Date(row.createdAt).toLocaleDateString('vi-VN')}
+          <div className="font-extrabold text-blue-900 whitespace-nowrap space-y-1">
+            <div className="text-xs font-mono font-bold tracking-tight text-blue-950">{orderCode}</div>
+            <div>
+              {isToday ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Hôm nay, {timeStr}
+                </span>
+              ) : isYesterday ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                  <Clock className="w-2.5 h-2.5 text-amber-600" />
+                  Hôm qua, {timeStr}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                  <Calendar className="w-2.5 h-2.5 text-slate-400" />
+                  {new Date(rawDate).toLocaleDateString('vi-VN')}, {timeStr}
+                </span>
+              )}
             </div>
           </div>
         );
@@ -525,11 +784,11 @@ export const LabOrdersView: React.FC = () => {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold text-white animate-in slide-in-from-bottom-5 ${
+          className={`fixed bottom-6 right-6 z-[9999] px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-bold text-white animate-in slide-in-from-bottom-5 ${
             toast.type === 'success' ? 'bg-emerald-600' : toast.type === 'error' ? 'bg-rose-600' : 'bg-blue-600'
           }`}
         >
-          {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+          {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
           <span>{toast.message}</span>
         </div>
       )}
@@ -677,9 +936,135 @@ export const LabOrdersView: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter Tabs & Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+      {/* KPI Metric Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
+          <span className="text-[11px] font-bold text-slate-500 block">Tổng số ca</span>
+          <div className="text-xl font-black text-slate-900 mt-1 flex items-center justify-between">
+            <span>{activeDateStats.total}</span>
+            <Calendar className="w-4 h-4 text-slate-400" />
+          </div>
+          <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+            {dateFilterMode === 'today' ? 'Trong ca trực hôm nay' : dateFilterMode === 'yesterday' ? 'Hôm qua' : dateFilterMode === '7days' ? '7 ngày gần đây' : 'Phạm vi ngày đã chọn'}
+          </span>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-amber-200/80 bg-amber-50/40 shadow-2xs">
+          <span className="text-[11px] font-bold text-amber-800 block">Chờ lấy mẫu</span>
+          <div className="text-xl font-black text-amber-700 mt-1 flex items-center justify-between">
+            <span>{activeDateStats.ready}</span>
+            <Clock className="w-4 h-4 text-amber-500" />
+          </div>
+          <span className="text-[10px] text-amber-600 font-medium block mt-0.5">
+            Cần KTV tiếp nhận mẫu
+          </span>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-blue-200/80 bg-blue-50/40 shadow-2xs">
+          <span className="text-[11px] font-bold text-blue-800 block">Đang xét nghiệm</span>
+          <div className="text-xl font-black text-blue-700 mt-1 flex items-center justify-between">
+            <span>{activeDateStats.inProgress}</span>
+            <FlaskConical className="w-4 h-4 text-blue-500" />
+          </div>
+          <span className="text-[10px] text-blue-600 font-medium block mt-0.5">
+            Đang đo chỉ số & nhập EMR
+          </span>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 shadow-2xs">
+          <span className="text-[11px] font-bold text-emerald-800 block">Đã có kết quả EMR</span>
+          <div className="text-xl font-black text-emerald-700 mt-1 flex items-center justify-between">
+            <span>{activeDateStats.completed}</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+          </div>
+          <span className="text-[10px] text-emerald-600 font-medium block mt-0.5">
+            Đã hoàn tất & lưu hồ sơ
+          </span>
+        </div>
+      </div>
+
+      {/* Date Filter & Search Toolbar */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs space-y-3">
+        {/* Row 1: Date Filter Presets + Custom Date Input + Search Box */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-700 mr-1">
+              <CalendarDays className="w-4 h-4 text-blue-600" />
+              <span>Thời gian:</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[
+                { key: 'today', label: 'Hôm nay', count: dateStats.today },
+                { key: 'yesterday', label: 'Hôm qua', count: dateStats.yesterday },
+                { key: '7days', label: '7 ngày qua', count: dateStats.sevenDays },
+                { key: 'all', label: 'Tất cả các ngày', count: dateStats.all },
+                { key: 'custom', label: 'Tùy chọn ngày', count: null },
+              ].map((tab) => {
+                const isActive = dateFilterMode === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setDateFilterMode(tab.key as LabDateFilterMode)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
+                      isActive
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    {tab.count !== null && (
+                      <span
+                        className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                          isActive ? 'bg-blue-800 text-blue-100' : 'bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Date picker input when custom is selected */}
+            {dateFilterMode === 'custom' && (
+              <div className="flex items-center gap-1.5 pl-1 animate-in fade-in">
+                <input
+                  type="date"
+                  value={customDate}
+                  onChange={(e) => setCustomDate(e.target.value)}
+                  className="px-2.5 py-1 text-xs font-bold text-slate-800 bg-white border border-blue-400 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Search Box */}
+          <div className="relative w-full lg:w-72 shrink-0">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm theo tên BN, mã BN, xét nghiệm..."
+              className="w-full pl-9 pr-3.5 py-1.5 text-xs font-medium rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white"
+            />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2" />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Row 2: Status Filter Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-slate-100 pb-1">
+          <span className="text-xs font-bold text-slate-500 shrink-0 mr-1">Trạng thái:</span>
           {[
             { key: 'ALL', label: 'Tất cả ca' },
             { key: 'ready', label: '📥 Chờ tiếp nhận mẫu' },
@@ -690,9 +1075,9 @@ export const LabOrdersView: React.FC = () => {
             <button
               key={tab.key}
               onClick={() => setStatusFilter(tab.key)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all shrink-0 border cursor-pointer ${
+              className={`px-3 py-1.2 text-xs font-bold rounded-xl transition-all shrink-0 border cursor-pointer ${
                 statusFilter === tab.key
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                  ? 'bg-slate-800 text-white border-slate-800 shadow-2xs'
                   : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               }`}
             >
@@ -700,18 +1085,26 @@ export const LabOrdersView: React.FC = () => {
             </button>
           ))}
         </div>
-
-        <div className="relative w-full md:w-72">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm theo tên BN, mã BN, xét nghiệm..."
-            className="w-full pl-9 pr-3.5 py-1.5 text-xs font-medium rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white"
-          />
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2" />
-        </div>
       </div>
+
+      {/* Thông báo nếu hôm nay chưa có ca xét nghiệm */}
+      {dateFilterMode === 'today' && dateStats.today === 0 && dateStats.all > 0 && (
+        <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-2xs animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <Info className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              Hôm nay chưa phát sinh ca xét nghiệm mới nào. Hiện có <strong>{dateStats.all}</strong> ca xét nghiệm từ các ngày trước đó cần theo dõi.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDateFilterMode('all')}
+            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs cursor-pointer border-none shadow-2xs shrink-0 transition-all"
+          >
+            Xem tất cả ({dateStats.all} ca)
+          </button>
+        </div>
+      )}
 
       {/* Main Worklist Table */}
       {taskError ? (
@@ -729,6 +1122,7 @@ export const LabOrdersView: React.FC = () => {
         <DataTable
           columns={columns}
           data={filteredTasks}
+          pageSize={10}
           searchPlaceholder="Lọc nhanh danh sách đang hiển thị..."
         />
       )}
@@ -780,6 +1174,24 @@ export const LabOrdersView: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-xs text-slate-800">
             {/* Left: Input parameters */}
             <div className="lg:col-span-7 space-y-4">
+              {/* Cảnh báo lỗi trực tiếp trên Modal */}
+              {modalError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-2.5 text-xs text-rose-800 shadow-sm animate-in fade-in">
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="font-extrabold text-rose-900">Không thể lưu kết quả EMR:</div>
+                    <div className="text-[11px] mt-0.5 text-rose-700 font-medium">{modalError}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setModalError(null)}
+                    className="text-rose-400 hover:text-rose-600 p-0.5 cursor-pointer border-none bg-transparent"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl flex items-center justify-between text-[11px] font-semibold text-blue-950">
                 <span>Phòng xét nghiệm: <strong className="text-blue-700">{currentRoomInfo?.labRoomName}</strong></span>
                 <span className="text-emerald-700 font-bold">✓ Đã xác nhận thanh toán</span>
@@ -798,7 +1210,7 @@ export const LabOrdersView: React.FC = () => {
                       <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                         <tr>
                           <th className="p-2.5">Chỉ số</th>
-                          <th className="p-2.5 w-32">Giá trị đo</th>
+                          <th className="p-2.5 w-40">Giá trị đo</th>
                           <th className="p-2.5">Đơn vị</th>
                           <th className="p-2.5">Khoảng chuẩn</th>
                         </tr>
@@ -809,48 +1221,102 @@ export const LabOrdersView: React.FC = () => {
                           const threshold = param.labParameterThresholds?.[0];
                           const min = threshold?.rangeMin !== undefined && threshold?.rangeMin !== null ? Number(threshold.rangeMin) : undefined;
                           const max = threshold?.rangeMax !== undefined && threshold?.rangeMax !== null ? Number(threshold.rangeMax) : undefined;
+                          const dataType = param.dataType || 'numeric';
                           
                           const numVal = val?.valueNumeric;
-                          const isOutOfRange = numVal !== undefined && (
-                            (min !== undefined && numVal < min) ||
-                            (max !== undefined && numVal > max)
+                          const textVal = val?.valueText ?? (dataType === 'positive_negative' ? 'Âm tính (-)' : '');
+
+                          const isPositiveNegative = dataType === 'positive_negative';
+                          const isText = dataType === 'text';
+                          const isNumeric = !isPositiveNegative && !isText;
+
+                          const isPositive = isPositiveNegative && (
+                            textVal.toLowerCase().includes('dương tính') ||
+                            textVal.toLowerCase().includes('positive') ||
+                            textVal.includes('+')
                           );
+
+                          const isOutOfRange = isNumeric
+                            ? (numVal !== undefined && ((min !== undefined && numVal < min) || (max !== undefined && numVal > max)))
+                            : isPositive;
 
                           return (
                             <tr key={param.parameterId} className={isOutOfRange ? 'bg-rose-50/50' : ''}>
                               <td className="p-2.5">
                                 <div className="font-bold text-slate-900">{param.parameterName || param.parameterCode}</div>
-                                <div className="text-[10px] text-slate-400 font-mono">{param.parameterCode}</div>
+                                <div className="text-[10px] text-slate-400 font-mono">
+                                  {param.parameterCode} {isPositiveNegative ? '• (Âm/Dương)' : isText ? '• (Chữ)' : ''}
+                                </div>
                               </td>
                               <td className="p-2.5">
-                                <input
-                                  type="number"
-                                  step="any"
-                                  value={val?.valueNumeric !== undefined ? val.valueNumeric : ''}
-                                  onChange={(e) => {
-                                    const v = e.target.value === '' ? undefined : Number(e.target.value);
-                                    setParamValues((prev) => ({
-                                      ...prev,
-                                      [param.parameterId]: { ...prev[param.parameterId], valueNumeric: v },
-                                    }));
-                                  }}
-                                  placeholder="Nhập số..."
-                                  className={`w-full px-2.5 py-1 text-xs font-bold rounded-lg border outline-none focus:border-blue-600 ${
-                                    isOutOfRange ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white text-slate-900'
-                                  }`}
-                                />
+                                {isPositiveNegative ? (
+                                  <select
+                                    value={textVal}
+                                    onChange={(e) => {
+                                      setModalError(null);
+                                      setParamValues((prev) => ({
+                                        ...prev,
+                                        [param.parameterId]: { ...prev[param.parameterId], valueText: e.target.value },
+                                      }));
+                                    }}
+                                    className={`w-full px-2.5 py-1 text-xs font-bold rounded-lg border outline-none focus:border-blue-600 bg-white cursor-pointer ${
+                                      isPositive ? 'border-rose-400 bg-rose-50 text-rose-700 font-extrabold' : 'border-slate-300 text-slate-900'
+                                    }`}
+                                  >
+                                    <option value="Âm tính (-)">Âm tính (-)</option>
+                                    <option value="Vết (Trace)">Vết (Trace)</option>
+                                    <option value="Dương tính 1+ (+)">Dương tính 1+ (+)</option>
+                                    <option value="Dương tính 2+ (++)">Dương tính 2+ (++)</option>
+                                    <option value="Dương tính 3+ (+++)">Dương tính 3+ (+++)</option>
+                                    <option value="Dương tính 4+ (++++)">Dương tính 4+ (++++)</option>
+                                  </select>
+                                ) : isText ? (
+                                  <input
+                                    type="text"
+                                    value={textVal}
+                                    onChange={(e) => {
+                                      setModalError(null);
+                                      setParamValues((prev) => ({
+                                        ...prev,
+                                        [param.parameterId]: { ...prev[param.parameterId], valueText: e.target.value },
+                                      }));
+                                    }}
+                                    placeholder="Nhập kết quả..."
+                                    className="w-full px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-900 outline-none focus:border-blue-600"
+                                  />
+                                ) : (
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    value={val?.valueNumeric !== undefined ? val.valueNumeric : ''}
+                                    onChange={(e) => {
+                                      setModalError(null);
+                                      const v = e.target.value === '' ? undefined : Number(e.target.value);
+                                      setParamValues((prev) => ({
+                                        ...prev,
+                                        [param.parameterId]: { ...prev[param.parameterId], valueNumeric: v },
+                                      }));
+                                    }}
+                                    placeholder="Nhập số..."
+                                    className={`w-full px-2.5 py-1 text-xs font-bold rounded-lg border outline-none focus:border-blue-600 ${
+                                      isOutOfRange ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white text-slate-900'
+                                    }`}
+                                  />
+                                )}
                               </td>
                               <td className="p-2.5 text-slate-500 font-mono text-[11px]">{param.unit || '-'}</td>
                               <td className="p-2.5 text-slate-500 text-[11px]">
-                                {min !== undefined && max !== undefined ? (
-                                  <span>
-                                    {min} - {max}
-                                  </span>
+                                {isPositiveNegative ? (
+                                  <span className="font-semibold text-emerald-700">Âm tính (-)</span>
+                                ) : min !== undefined && max !== undefined ? (
+                                  <span>{min} - {max}</span>
                                 ) : (
                                   <span>Bình thường</span>
                                 )}
                                 {isOutOfRange && (
-                                  <span className="ml-1 text-rose-600 font-bold text-[10px] block">⚠️ Vượt ngưỡng!</span>
+                                  <span className="ml-1 text-rose-600 font-bold text-[10px] block">
+                                    {isPositive ? '⚠️ Dương tính (Vượt ngưỡng)!' : '⚠️ Vượt ngưỡng!'}
+                                  </span>
                                 )}
                               </td>
                             </tr>
@@ -1074,6 +1540,24 @@ export const LabOrdersView: React.FC = () => {
             {/* CHẾ ĐỘ 1: ĐANG CHỈNH SỬA / BỔ SUNG TRỰC TIẾP TRONG MODAL NÀY */}
             {isEditingInViewModal ? (
               <div className="space-y-4">
+                {/* Cảnh báo lỗi cập nhật trực tiếp trên Modal */}
+                {editModalError && (
+                  <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-2.5 text-xs text-rose-800 shadow-sm animate-in fade-in">
+                    <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="font-extrabold text-rose-900">Không thể cập nhật kết quả EMR:</div>
+                      <div className="text-[11px] mt-0.5 text-rose-700 font-medium">{editModalError}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditModalError(null)}
+                      className="text-rose-400 hover:text-rose-600 p-0.5 cursor-pointer border-none bg-transparent"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-[11px] font-semibold text-amber-900">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>
@@ -1094,7 +1578,7 @@ export const LabOrdersView: React.FC = () => {
                         <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                           <tr>
                             <th className="p-2.5">Chỉ số</th>
-                            <th className="p-2.5 w-36">Giá trị đo</th>
+                            <th className="p-2.5 w-40">Giá trị đo</th>
                             <th className="p-2.5">Đơn vị</th>
                             <th className="p-2.5">Khoảng chuẩn</th>
                           </tr>
@@ -1105,45 +1589,102 @@ export const LabOrdersView: React.FC = () => {
                             const threshold = param.labParameterThresholds?.[0];
                             const min = threshold?.rangeMin !== undefined && threshold?.rangeMin !== null ? Number(threshold.rangeMin) : undefined;
                             const max = threshold?.rangeMax !== undefined && threshold?.rangeMax !== null ? Number(threshold.rangeMax) : undefined;
+                            const dataType = param.dataType || 'numeric';
+
                             const numVal = val?.valueNumeric;
-                            const isOutOfRange = numVal !== undefined && (
-                              (min !== undefined && numVal < min) ||
-                              (max !== undefined && numVal > max)
+                            const textVal = val?.valueText ?? (dataType === 'positive_negative' ? 'Âm tính (-)' : '');
+
+                            const isPositiveNegative = dataType === 'positive_negative';
+                            const isText = dataType === 'text';
+                            const isNumeric = !isPositiveNegative && !isText;
+
+                            const isPositive = isPositiveNegative && (
+                              textVal.toLowerCase().includes('dương tính') ||
+                              textVal.toLowerCase().includes('positive') ||
+                              textVal.includes('+')
                             );
+
+                            const isOutOfRange = isNumeric
+                              ? (numVal !== undefined && ((min !== undefined && numVal < min) || (max !== undefined && numVal > max)))
+                              : isPositive;
 
                             return (
                               <tr key={param.parameterId} className={isOutOfRange ? 'bg-rose-50/50' : ''}>
                                 <td className="p-2.5">
                                   <div className="font-bold text-slate-900">{param.parameterName || param.parameterCode}</div>
-                                  <div className="text-[10px] text-slate-400 font-mono">{param.parameterCode}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono">
+                                    {param.parameterCode} {isPositiveNegative ? '• (Âm/Dương)' : isText ? '• (Chữ)' : ''}
+                                  </div>
                                 </td>
                                 <td className="p-2.5">
-                                  <input
-                                    type="number"
-                                    step="any"
-                                    value={val?.valueNumeric !== undefined ? val.valueNumeric : ''}
-                                    onChange={(e) => {
-                                      const v = e.target.value === '' ? undefined : Number(e.target.value);
-                                      setEditParamValues((prev) => ({
-                                        ...prev,
-                                        [param.parameterId]: { ...prev[param.parameterId], valueNumeric: v },
-                                      }));
-                                    }}
-                                    placeholder="Nhập số..."
-                                    className={`w-full px-2.5 py-1 text-xs font-bold rounded-lg border outline-none focus:border-indigo-600 ${
-                                      isOutOfRange ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white text-slate-900'
-                                    }`}
-                                  />
+                                  {isPositiveNegative ? (
+                                    <select
+                                      value={textVal}
+                                      onChange={(e) => {
+                                        setEditModalError(null);
+                                        setEditParamValues((prev) => ({
+                                          ...prev,
+                                          [param.parameterId]: { ...prev[param.parameterId], valueText: e.target.value },
+                                        }));
+                                      }}
+                                      className={`w-full px-2.5 py-1 text-xs font-bold rounded-lg border outline-none focus:border-indigo-600 bg-white cursor-pointer ${
+                                        isPositive ? 'border-rose-400 bg-rose-50 text-rose-700 font-extrabold' : 'border-slate-300 text-slate-900'
+                                      }`}
+                                    >
+                                      <option value="Âm tính (-)">Âm tính (-)</option>
+                                      <option value="Vết (Trace)">Vết (Trace)</option>
+                                      <option value="Dương tính 1+ (+)">Dương tính 1+ (+)</option>
+                                      <option value="Dương tính 2+ (++)">Dương tính 2+ (++)</option>
+                                      <option value="Dương tính 3+ (+++)">Dương tính 3+ (+++)</option>
+                                      <option value="Dương tính 4+ (++++)">Dương tính 4+ (++++)</option>
+                                    </select>
+                                  ) : isText ? (
+                                    <input
+                                      type="text"
+                                      value={textVal}
+                                      onChange={(e) => {
+                                        setEditModalError(null);
+                                        setEditParamValues((prev) => ({
+                                          ...prev,
+                                          [param.parameterId]: { ...prev[param.parameterId], valueText: e.target.value },
+                                        }));
+                                      }}
+                                      placeholder="Nhập kết quả..."
+                                      className="w-full px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-900 outline-none focus:border-indigo-600"
+                                    />
+                                  ) : (
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      value={val?.valueNumeric !== undefined ? val.valueNumeric : ''}
+                                      onChange={(e) => {
+                                        setEditModalError(null);
+                                        const v = e.target.value === '' ? undefined : Number(e.target.value);
+                                        setEditParamValues((prev) => ({
+                                          ...prev,
+                                          [param.parameterId]: { ...prev[param.parameterId], valueNumeric: v },
+                                        }));
+                                      }}
+                                      placeholder="Nhập số..."
+                                      className={`w-full px-2.5 py-1 text-xs font-bold rounded-lg border outline-none focus:border-indigo-600 ${
+                                        isOutOfRange ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white text-slate-900'
+                                      }`}
+                                    />
+                                  )}
                                 </td>
                                 <td className="p-2.5 text-slate-500 font-mono text-[11px]">{param.unit || '-'}</td>
                                 <td className="p-2.5 text-slate-500 text-[11px]">
-                                  {min !== undefined && max !== undefined ? (
+                                  {isPositiveNegative ? (
+                                    <span className="font-semibold text-emerald-700">Âm tính (-)</span>
+                                  ) : min !== undefined && max !== undefined ? (
                                     <span>{min} - {max}</span>
                                   ) : (
                                     <span>Bình thường</span>
                                   )}
                                   {isOutOfRange && (
-                                    <span className="ml-1 text-rose-600 font-bold text-[10px] block">⚠️ Vượt ngưỡng!</span>
+                                    <span className="ml-1 text-rose-600 font-bold text-[10px] block">
+                                      {isPositive ? '⚠️ Dương tính (Vượt ngưỡng)!' : '⚠️ Vượt ngưỡng!'}
+                                    </span>
                                   )}
                                 </td>
                               </tr>
@@ -1176,7 +1717,54 @@ export const LabOrdersView: React.FC = () => {
             ) : (
               /* CHẾ ĐỘ 2: XEM KẾT QUẢ CHÍNH THỨC */
               <div className="space-y-4">
-                {/* Bảng chỉ số đã nhập */}
+                {/* Thông báo đánh giá tổng thể các chỉ số */}
+                {viewingResult.values && viewingResult.values.length > 0 && (() => {
+                  const abnormalItems = viewingResult.values.filter((v) => {
+                    const alertItem = v.labResultAlerts?.[0];
+                    const thresholds = v.parameter?.labParameterThresholds || [];
+                    const defaultThreshold = thresholds[0];
+                    const min = defaultThreshold?.rangeMin !== undefined && defaultThreshold?.rangeMin !== null 
+                      ? Number(defaultThreshold.rangeMin) 
+                      : alertItem?.expectedMin !== undefined && alertItem?.expectedMin !== null 
+                      ? Number(alertItem.expectedMin) 
+                      : undefined;
+                    const max = defaultThreshold?.rangeMax !== undefined && defaultThreshold?.rangeMax !== null 
+                      ? Number(defaultThreshold.rangeMax) 
+                      : alertItem?.expectedMax !== undefined && alertItem?.expectedMax !== null 
+                      ? Number(alertItem.expectedMax) 
+                      : undefined;
+                    const numVal = v.valueNumeric !== null && v.valueNumeric !== undefined ? Number(v.valueNumeric) : undefined;
+                    const isOutOfRange = numVal !== undefined && ((min !== undefined && numVal < min) || (max !== undefined && numVal > max));
+                    return v.isAbnormal || isOutOfRange || Boolean(alertItem);
+                  });
+
+                  if (abnormalItems.length > 0) {
+                    return (
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-900">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-bold text-rose-800">
+                            Phát hiện {abnormalItems.length}/{viewingResult.values.length} chỉ số xét nghiệm vượt ngưỡng tham chiếu sinh học
+                          </div>
+                          <div className="text-[11px] text-rose-700 mt-0.5">
+                            Hệ thống đã tự động ghi nhận cảnh báo EMR để Bác sĩ lưu ý khi chẩn đoán và chỉ định điều trị.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs text-emerald-800">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="font-semibold">
+                        Tất cả {viewingResult.values.length} chỉ số đo đạc đều nằm trong khoảng tham chiếu sinh học an toàn.
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                {/* Bảng chỉ số đã nhập (Chuẩn Y Tế 5 cột: Chỉ số, Giá trị, Đơn vị, Khoảng chuẩn, Đánh giá) */}
                 {viewingResult.values && viewingResult.values.length > 0 ? (
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
                     <table className="w-full text-left text-xs">
@@ -1185,20 +1773,85 @@ export const LabOrdersView: React.FC = () => {
                           <th className="p-2.5">Chỉ số xét nghiệm</th>
                           <th className="p-2.5">Giá trị đo</th>
                           <th className="p-2.5">Đơn vị</th>
+                          <th className="p-2.5">Khoảng tham chiếu chuẩn</th>
+                          <th className="p-2.5">Đánh giá / Trạng thái</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {viewingResult.values.map((v) => (
-                          <tr key={v.resultValueId}>
-                            <td className="p-2.5 font-bold text-slate-800">
-                              {v.parameter?.parameterName || v.parameter?.parameterCode || 'Chỉ số'}
-                            </td>
-                            <td className="p-2.5 font-mono font-bold text-blue-900">
-                              {v.valueNumeric !== null && v.valueNumeric !== undefined ? v.valueNumeric : v.valueText || '-'}
-                            </td>
-                            <td className="p-2.5 text-slate-500 font-mono text-[11px]">{v.parameter?.unit || '-'}</td>
-                          </tr>
-                        ))}
+                      <tbody className="divide-y divide-slate-100 font-medium">
+                        {viewingResult.values.map((v) => {
+                          const alertItem = v.labResultAlerts?.[0];
+                          const thresholds = v.parameter?.labParameterThresholds || [];
+                          const defaultThreshold = thresholds[0];
+
+                          const min = defaultThreshold?.rangeMin !== undefined && defaultThreshold?.rangeMin !== null 
+                            ? Number(defaultThreshold.rangeMin) 
+                            : alertItem?.expectedMin !== undefined && alertItem?.expectedMin !== null 
+                            ? Number(alertItem.expectedMin) 
+                            : undefined;
+
+                          const max = defaultThreshold?.rangeMax !== undefined && defaultThreshold?.rangeMax !== null 
+                            ? Number(defaultThreshold.rangeMax) 
+                            : alertItem?.expectedMax !== undefined && alertItem?.expectedMax !== null 
+                            ? Number(alertItem.expectedMax) 
+                            : undefined;
+
+                          const numVal = v.valueNumeric !== null && v.valueNumeric !== undefined ? Number(v.valueNumeric) : undefined;
+                          const isOutOfRange = numVal !== undefined && (
+                            (min !== undefined && numVal < min) ||
+                            (max !== undefined && numVal > max)
+                          );
+                          const isAbnormal = v.isAbnormal || isOutOfRange || Boolean(alertItem);
+                          const riskLevel = alertItem?.riskLevel || (isAbnormal ? 'high' : 'normal');
+
+                          return (
+                            <tr key={v.resultValueId} className={isAbnormal ? 'bg-rose-50/40' : ''}>
+                              <td className="p-2.5">
+                                <div className="font-bold text-slate-900">{v.parameter?.parameterName || v.parameter?.parameterCode || 'Chỉ số'}</div>
+                                <div className="text-[10px] text-slate-400 font-mono">{v.parameter?.parameterCode}</div>
+                              </td>
+                              <td className="p-2.5 font-mono font-bold text-slate-900">
+                                <span className={isAbnormal ? 'text-rose-700 font-extrabold' : 'text-blue-900'}>
+                                  {v.valueNumeric !== null && v.valueNumeric !== undefined ? v.valueNumeric : v.valueText || '-'}
+                                </span>
+                              </td>
+                              <td className="p-2.5 text-slate-500 font-mono text-[11px]">{v.parameter?.unit || '-'}</td>
+                              <td className="p-2.5 text-slate-600 text-[11px] font-mono">
+                                {min !== undefined && max !== undefined ? (
+                                  <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-semibold">
+                                    {min} – {max}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 italic">Bình thường</span>
+                                )}
+                              </td>
+                              <td className="p-2.5">
+                                {isAbnormal ? (
+                                  riskLevel === 'critical' ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                                      <ShieldAlert className="w-3 h-3 text-rose-600" />
+                                      <span>Báo động đỏ (Critical)</span>
+                                    </span>
+                                  ) : riskLevel === 'high' ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                      <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                      <span>{numVal !== undefined && max !== undefined && numVal > max ? 'Vượt ngưỡng cao' : 'Vượt ngưỡng'}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                      <AlertCircle className="w-3 h-3 text-amber-600" />
+                                      <span>{numVal !== undefined && min !== undefined && numVal < min ? 'Dưới ngưỡng chuẩn' : 'Cảnh báo lệch ngưỡng'}</span>
+                                    </span>
+                                  )
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                    <span>Bình thường</span>
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1226,6 +1879,168 @@ export const LabOrdersView: React.FC = () => {
           <div className="p-8 text-center text-slate-400">Không tìm thấy thông tin kết quả</div>
         )}
       </Modal>
+
+      {/* MODAL 3: TỔNG KẾT ĐỐI SOÁT CHỈ SỐ XÉT NGHIỆM VÀ NGƯỠNG SAU KHI LƯU */}
+      {alertSummary && (
+        <Modal
+          isOpen={isAlertSummaryModalOpen}
+          onClose={() => setIsAlertSummaryModalOpen(false)}
+          title="Tổng kết đối soát chỉ số xét nghiệm & Ngưỡng sinh học"
+          subtitle={`Ca: ${alertSummary.task.orderItem?.testType?.testName || 'Xét nghiệm'} • Bệnh nhân: ${
+            alertSummary.task.orderItem?.order?.encounter?.patient?.fullName || 'N/A'
+          } (Mã BN: ${alertSummary.task.orderItem?.order?.encounter?.patient?.patientCode || 'N/A'})`}
+          maxWidth="4xl"
+          footer={
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
+              <div className="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Dữ liệu đã được lưu chính thức vào bệnh án điện tử EMR</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAlertSummaryModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-50 cursor-pointer"
+                >
+                  Đóng lại
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAlertSummaryModalOpen(false);
+                    handleViewResult(alertSummary.task);
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-1.5 cursor-pointer border-none"
+                >
+                  <Eye className="w-4 h-4" />
+                  <span>Xem phiếu kết quả EMR</span>
+                </button>
+              </div>
+            </div>
+          }
+        >
+          <div className="space-y-4 text-xs">
+            {/* Thẻ thống kê nhanh */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="text-[10px] text-slate-500 font-bold uppercase">Tổng số chỉ số</div>
+                <div className="text-xl font-extrabold text-slate-800 mt-0.5">{alertSummary.totalParameters}</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Thông số kỹ thuật đo đạc</div>
+              </div>
+
+              <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200">
+                <div className="text-[10px] text-emerald-700 font-bold uppercase">Trong ngưỡng chuẩn</div>
+                <div className="text-xl font-extrabold text-emerald-700 mt-0.5">
+                  {alertSummary.totalParameters - alertSummary.abnormalCount}
+                </div>
+                <div className="text-[10px] text-emerald-600 mt-0.5">Chỉ số an toàn bình thường</div>
+              </div>
+
+              <div className={`p-3 rounded-xl border ${
+                alertSummary.abnormalCount > 0 ? 'bg-rose-50/80 border-rose-200' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <div className={`text-[10px] font-bold uppercase ${
+                  alertSummary.abnormalCount > 0 ? 'text-rose-700' : 'text-slate-500'
+                }`}>
+                  Vượt ngưỡng cảnh báo
+                </div>
+                <div className={`text-xl font-extrabold mt-0.5 ${
+                  alertSummary.abnormalCount > 0 ? 'text-rose-700' : 'text-slate-800'
+                }`}>
+                  {alertSummary.abnormalCount}
+                </div>
+                <div className={`text-[10px] mt-0.5 ${
+                  alertSummary.abnormalCount > 0 ? 'text-rose-600 font-bold' : 'text-slate-400'
+                }`}>
+                  {alertSummary.abnormalCount > 0 ? 'Cần Bác sĩ chú ý đặc biệt' : 'Không có bất thường'}
+                </div>
+              </div>
+            </div>
+
+            {/* Thông điệp đánh giá */}
+            {alertSummary.abnormalCount > 0 ? (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-900">
+                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <div className="font-extrabold text-rose-800 text-xs">
+                    Cảnh báo: Có {alertSummary.abnormalCount} chỉ số xét nghiệm lệch khỏi ngưỡng tham chiếu sinh học!
+                  </div>
+                  <div className="text-[11px] text-rose-700">
+                    Hệ thống đã tự động lưu dấu cảnh báo bất thường vào hồ sơ EMR để hỗ trợ Bác sĩ khám ra quyết định lâm sàng chính xác.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs text-emerald-900">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span className="font-bold">
+                  Hoàn hảo! Toàn bộ {alertSummary.totalParameters} chỉ số đo đạc đều nằm trong ngưỡng sinh học tiêu chuẩn.
+                </span>
+              </div>
+            )}
+
+            {/* Bảng chi tiết từng thông số và ngưỡng */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="p-2.5">Chỉ số xét nghiệm</th>
+                    <th className="p-2.5">Kết quả đo</th>
+                    <th className="p-2.5">Đơn vị</th>
+                    <th className="p-2.5">Khoảng chuẩn (Value Range)</th>
+                    <th className="p-2.5">Đánh giá ngưỡng</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {alertSummary.items.map((item) => (
+                    <tr key={item.parameterId} className={item.isAbnormal ? 'bg-rose-50/40' : ''}>
+                      <td className="p-2.5">
+                        <div className="font-bold text-slate-900">{item.parameterName}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{item.parameterCode}</div>
+                      </td>
+                      <td className="p-2.5 font-mono font-bold text-slate-900">
+                        <span className={item.isAbnormal ? 'text-rose-700 font-extrabold' : 'text-blue-900'}>
+                          {item.measuredValue}
+                        </span>
+                      </td>
+                      <td className="p-2.5 text-slate-500 font-mono text-[11px]">{item.unit}</td>
+                      <td className="p-2.5 text-slate-600 text-[11px] font-mono">
+                        {item.rangeMin !== undefined && item.rangeMax !== undefined ? (
+                          <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-semibold">
+                            {item.rangeMin} – {item.rangeMax}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 italic">Bình thường</span>
+                        )}
+                      </td>
+                      <td className="p-2.5">
+                        {item.isAbnormal ? (
+                          item.riskLevel === 'critical' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
+                              <ShieldAlert className="w-3 h-3 text-rose-600" />
+                              <span>Báo động đỏ (Critical)</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              <AlertTriangle className="w-3 h-3 text-rose-600" />
+                              <span>{item.deviationText}</span>
+                            </span>
+                          )
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>Bình thường</span>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Modal>
+      )}
 
     </div>
   );
