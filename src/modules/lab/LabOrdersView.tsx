@@ -4,7 +4,8 @@ import {
   Lock, FileText, Loader2,
   Building2, RefreshCw, Search, AlertCircle, Eye,
   ChevronDown, MapPin, Pencil, AlertTriangle, ShieldAlert,
-  ArrowUpRight, ArrowDownRight, Info, Check, ShieldCheck, X
+  ArrowUpRight, ArrowDownRight, Info, Check, ShieldCheck, X,
+  Calendar, Clock, CalendarDays
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { DataTable, type Column } from '../../components/common/DataTable';
@@ -12,6 +13,9 @@ import { Modal } from '../../components/common/Modal';
 import { labRoomService, type LabRoomItem, type LabStaffRoomAssignment } from '../../services/lab/lab-room.service';
 import { labTaskService, type LabTaskItem } from '../../services/lab/lab-task.service';
 import { labResultService, type LabResultDetail } from '../../services/lab/lab-result.service';
+
+export type LabDateFilterMode = 'today' | 'yesterday' | '7days' | 'all' | 'custom';
+
 
 export interface ThresholdAlertSummaryItem {
   parameterId: string;
@@ -48,6 +52,16 @@ export const LabOrdersView: React.FC = () => {
   const [taskError, setTaskError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Date Filtering State
+  const [dateFilterMode, setDateFilterMode] = useState<LabDateFilterMode>('today');
+  const [customDate, setCustomDate] = useState<string>(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
 
   // Action Loading States
   const [receivingTaskId, setReceivingTaskId] = useState<string | null>(null);
@@ -148,6 +162,44 @@ export const LabOrdersView: React.FC = () => {
     fetchTasks();
   }, [fetchTasks]);
 
+  const formatLocalDate = (d: Date | string | undefined | null): string => {
+    if (!d) return '';
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getTaskDateStr = (task: LabTaskItem): string => {
+    return formatLocalDate(task.orderItem?.order?.orderedAt || task.createdAt);
+  };
+
+  const getTaskTimestamp = (task: LabTaskItem): number => {
+    const raw = task.orderItem?.order?.orderedAt || task.createdAt;
+    const time = new Date(raw).getTime();
+    return isNaN(time) ? 0 : time;
+  };
+
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+
+  const yesterdayStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+
+  const sevenDaysAgoTime = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, []);
+
   // Lọc tức thì trong RAM theo phòng Lab đang chọn (0ms, không tốn request mạng)
   const tasksForRoom = useMemo(() => {
     if (!selectedRoomId || selectedRoomId === 'ALL') {
@@ -156,11 +208,68 @@ export const LabOrdersView: React.FC = () => {
     return allTasks.filter((t) => t.labRoomId === selectedRoomId);
   }, [allTasks, selectedRoomId]);
 
+  // Thống kê số lượng ca theo mốc ngày
+  const dateStats = useMemo(() => {
+    let todayCount = 0;
+    let yesterdayCount = 0;
+    let sevenDaysCount = 0;
+
+    tasksForRoom.forEach((t) => {
+      const dStr = getTaskDateStr(t);
+      const time = getTaskTimestamp(t);
+      if (dStr === todayStr) todayCount++;
+      if (dStr === yesterdayStr) yesterdayCount++;
+      if (time >= sevenDaysAgoTime) sevenDaysCount++;
+    });
+
+    return {
+      today: todayCount,
+      yesterday: yesterdayCount,
+      sevenDays: sevenDaysCount,
+      all: tasksForRoom.length,
+    };
+  }, [tasksForRoom, todayStr, yesterdayStr, sevenDaysAgoTime]);
+
+  // Lọc danh sách theo ngày
+  const tasksForDate = useMemo(() => {
+    if (dateFilterMode === 'all') return tasksForRoom;
+
+    return tasksForRoom.filter((t) => {
+      const dStr = getTaskDateStr(t);
+      const time = getTaskTimestamp(t);
+
+      if (dateFilterMode === 'today') {
+        return dStr === todayStr;
+      }
+      if (dateFilterMode === 'yesterday') {
+        return dStr === yesterdayStr;
+      }
+      if (dateFilterMode === '7days') {
+        return time >= sevenDaysAgoTime;
+      }
+      if (dateFilterMode === 'custom') {
+        return dStr === customDate;
+      }
+      return true;
+    });
+  }, [tasksForRoom, dateFilterMode, customDate, todayStr, yesterdayStr, sevenDaysAgoTime]);
+
+  // Thống kê nhanh theo phạm vi ngày đang chọn
+  const activeDateStats = useMemo(() => {
+    const total = tasksForDate.length;
+    const ready = tasksForDate.filter((t) => t.status === 'ready').length;
+    const inProgress = tasksForDate.filter((t) => t.status === 'in_progress').length;
+    const completed = tasksForDate.filter((t) => t.status === 'completed').length;
+    const paymentPending = tasksForDate.filter((t) => !t.paymentVerified || t.status === 'payment_pending').length;
+
+    return { total, ready, inProgress, completed, paymentPending };
+  }, [tasksForDate]);
+
   // Lọc theo search box
   const filteredTasks = useMemo(() => {
-    if (!searchQuery.trim()) return tasksForRoom;
+    if (!searchQuery.trim()) return tasksForDate;
     const term = searchQuery.toLowerCase().trim();
-    return tasksForRoom.filter((t) => {
+    return tasksForDate.filter((t) => {
       const patientName = t.orderItem?.order?.encounter?.patient?.fullName?.toLowerCase() || '';
       const patientCode = t.orderItem?.order?.encounter?.patient?.patientCode?.toLowerCase() || '';
       const testName = t.orderItem?.testType?.testName?.toLowerCase() || '';
@@ -174,7 +283,7 @@ export const LabOrdersView: React.FC = () => {
         doctorName.includes(term)
       );
     });
-  }, [tasksForRoom, searchQuery]);
+  }, [tasksForDate, searchQuery]);
 
   // Thao tác: KTV tiếp nhận mẫu xét nghiệm
   const handleReceiveTask = async (task: LabTaskItem) => {
@@ -451,11 +560,32 @@ export const LabOrdersView: React.FC = () => {
       accessorKey: 'labTaskId',
       cell: (row) => {
         const orderCode = row.orderItem?.order?.orderCode || row.labTaskId.slice(0, 8).toUpperCase();
+        const rawDate = row.orderItem?.order?.orderedAt || row.createdAt;
+        const dStr = formatLocalDate(rawDate);
+        const timeStr = new Date(rawDate).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        const isToday = dStr === todayStr;
+        const isYesterday = dStr === yesterdayStr;
+
         return (
-          <div className="font-extrabold text-blue-900 whitespace-nowrap">
-            <div>{orderCode}</div>
-            <div className="text-[10px] text-slate-400 font-medium">
-              {new Date(row.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} • {new Date(row.createdAt).toLocaleDateString('vi-VN')}
+          <div className="font-extrabold text-blue-900 whitespace-nowrap space-y-1">
+            <div className="text-xs font-mono font-bold tracking-tight text-blue-950">{orderCode}</div>
+            <div>
+              {isToday ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Hôm nay, {timeStr}
+                </span>
+              ) : isYesterday ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                  <Clock className="w-2.5 h-2.5 text-amber-600" />
+                  Hôm qua, {timeStr}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                  <Calendar className="w-2.5 h-2.5 text-slate-400" />
+                  {new Date(rawDate).toLocaleDateString('vi-VN')}, {timeStr}
+                </span>
+              )}
             </div>
           </div>
         );
@@ -806,9 +936,135 @@ export const LabOrdersView: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter Tabs & Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+      {/* KPI Metric Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
+          <span className="text-[11px] font-bold text-slate-500 block">Tổng số ca</span>
+          <div className="text-xl font-black text-slate-900 mt-1 flex items-center justify-between">
+            <span>{activeDateStats.total}</span>
+            <Calendar className="w-4 h-4 text-slate-400" />
+          </div>
+          <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+            {dateFilterMode === 'today' ? 'Trong ca trực hôm nay' : dateFilterMode === 'yesterday' ? 'Hôm qua' : dateFilterMode === '7days' ? '7 ngày gần đây' : 'Phạm vi ngày đã chọn'}
+          </span>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-amber-200/80 bg-amber-50/40 shadow-2xs">
+          <span className="text-[11px] font-bold text-amber-800 block">Chờ lấy mẫu</span>
+          <div className="text-xl font-black text-amber-700 mt-1 flex items-center justify-between">
+            <span>{activeDateStats.ready}</span>
+            <Clock className="w-4 h-4 text-amber-500" />
+          </div>
+          <span className="text-[10px] text-amber-600 font-medium block mt-0.5">
+            Cần KTV tiếp nhận mẫu
+          </span>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-blue-200/80 bg-blue-50/40 shadow-2xs">
+          <span className="text-[11px] font-bold text-blue-800 block">Đang xét nghiệm</span>
+          <div className="text-xl font-black text-blue-700 mt-1 flex items-center justify-between">
+            <span>{activeDateStats.inProgress}</span>
+            <FlaskConical className="w-4 h-4 text-blue-500" />
+          </div>
+          <span className="text-[10px] text-blue-600 font-medium block mt-0.5">
+            Đang đo chỉ số & nhập EMR
+          </span>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 shadow-2xs">
+          <span className="text-[11px] font-bold text-emerald-800 block">Đã có kết quả EMR</span>
+          <div className="text-xl font-black text-emerald-700 mt-1 flex items-center justify-between">
+            <span>{activeDateStats.completed}</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+          </div>
+          <span className="text-[10px] text-emerald-600 font-medium block mt-0.5">
+            Đã hoàn tất & lưu hồ sơ
+          </span>
+        </div>
+      </div>
+
+      {/* Date Filter & Search Toolbar */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs space-y-3">
+        {/* Row 1: Date Filter Presets + Custom Date Input + Search Box */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-700 mr-1">
+              <CalendarDays className="w-4 h-4 text-blue-600" />
+              <span>Thời gian:</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[
+                { key: 'today', label: 'Hôm nay', count: dateStats.today },
+                { key: 'yesterday', label: 'Hôm qua', count: dateStats.yesterday },
+                { key: '7days', label: '7 ngày qua', count: dateStats.sevenDays },
+                { key: 'all', label: 'Tất cả các ngày', count: dateStats.all },
+                { key: 'custom', label: 'Tùy chọn ngày', count: null },
+              ].map((tab) => {
+                const isActive = dateFilterMode === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setDateFilterMode(tab.key as LabDateFilterMode)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
+                      isActive
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    {tab.count !== null && (
+                      <span
+                        className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                          isActive ? 'bg-blue-800 text-blue-100' : 'bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Date picker input when custom is selected */}
+            {dateFilterMode === 'custom' && (
+              <div className="flex items-center gap-1.5 pl-1 animate-in fade-in">
+                <input
+                  type="date"
+                  value={customDate}
+                  onChange={(e) => setCustomDate(e.target.value)}
+                  className="px-2.5 py-1 text-xs font-bold text-slate-800 bg-white border border-blue-400 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Search Box */}
+          <div className="relative w-full lg:w-72 shrink-0">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm theo tên BN, mã BN, xét nghiệm..."
+              className="w-full pl-9 pr-3.5 py-1.5 text-xs font-medium rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white"
+            />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2" />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Row 2: Status Filter Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-slate-100 pb-1">
+          <span className="text-xs font-bold text-slate-500 shrink-0 mr-1">Trạng thái:</span>
           {[
             { key: 'ALL', label: 'Tất cả ca' },
             { key: 'ready', label: '📥 Chờ tiếp nhận mẫu' },
@@ -819,9 +1075,9 @@ export const LabOrdersView: React.FC = () => {
             <button
               key={tab.key}
               onClick={() => setStatusFilter(tab.key)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all shrink-0 border cursor-pointer ${
+              className={`px-3 py-1.2 text-xs font-bold rounded-xl transition-all shrink-0 border cursor-pointer ${
                 statusFilter === tab.key
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                  ? 'bg-slate-800 text-white border-slate-800 shadow-2xs'
                   : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               }`}
             >
@@ -829,18 +1085,26 @@ export const LabOrdersView: React.FC = () => {
             </button>
           ))}
         </div>
-
-        <div className="relative w-full md:w-72">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm theo tên BN, mã BN, xét nghiệm..."
-            className="w-full pl-9 pr-3.5 py-1.5 text-xs font-medium rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white"
-          />
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2" />
-        </div>
       </div>
+
+      {/* Thông báo nếu hôm nay chưa có ca xét nghiệm */}
+      {dateFilterMode === 'today' && dateStats.today === 0 && dateStats.all > 0 && (
+        <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-2xs animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <Info className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              Hôm nay chưa phát sinh ca xét nghiệm mới nào. Hiện có <strong>{dateStats.all}</strong> ca xét nghiệm từ các ngày trước đó cần theo dõi.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDateFilterMode('all')}
+            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs cursor-pointer border-none shadow-2xs shrink-0 transition-all"
+          >
+            Xem tất cả ({dateStats.all} ca)
+          </button>
+        </div>
+      )}
 
       {/* Main Worklist Table */}
       {taskError ? (
@@ -858,6 +1122,7 @@ export const LabOrdersView: React.FC = () => {
         <DataTable
           columns={columns}
           data={filteredTasks}
+          pageSize={10}
           searchPlaceholder="Lọc nhanh danh sách đang hiển thị..."
         />
       )}
