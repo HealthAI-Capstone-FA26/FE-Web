@@ -5,7 +5,7 @@ export const getAvatarUrl = (avatar?: string) => {
   if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
     return avatar;
   }
-  const baseUrl = import.meta.env.VITE_UPLOAD_BASE_URL || 'https://storage.googleapis.com/healthcare-ai-uploads';
+  const baseUrl = import.meta.env.VITE_UPLOAD_BASE_URL;
   const cleanPath = avatar.startsWith('/') ? avatar.slice(1) : avatar;
   return `${baseUrl}/${cleanPath}`;
 };
