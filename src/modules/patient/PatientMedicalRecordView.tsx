@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { FileText, AlertCircle, Plus, X, Save, CheckCircle2, HeartPulse } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { FileText, AlertCircle, Plus, X, Save, CheckCircle2, HeartPulse, History, Calendar, Stethoscope, Clock } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
+import { getPatientEncounterHistory, type EncounterItem } from '../../services/encounter/encounter.service';
 
 export const PatientMedicalRecordView: React.FC = () => {
   const [medicalRecord, setMedicalRecord] = useState({
@@ -15,6 +16,29 @@ export const PatientMedicalRecordView: React.FC = () => {
   const [allergies, setAllergies] = useState<string[]>(['Penicillin', 'Hải sản (Tôm, Cua)']);
   const [newAllergy, setNewAllergy] = useState('');
   const [isSaved, setIsSaved] = useState(false);
+
+  // Encounter History from API (GET /api/v1/encounters?patientId=UUID)
+  const [encounterHistory, setEncounterHistory] = useState<EncounterItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchHistory() {
+      setIsLoadingHistory(true);
+      try {
+        const history = await getPatientEncounterHistory(medicalRecord.patientId);
+        if (isMounted && Array.isArray(history)) {
+          setEncounterHistory(history);
+        }
+      } catch (err) {
+        console.warn('Không thể tải lịch sử lượt khám từ Backend:', err);
+      } finally {
+        if (isMounted) setIsLoadingHistory(false);
+      }
+    }
+    fetchHistory();
+    return () => { isMounted = false; };
+  }, [medicalRecord.patientId]);
 
   const handleAddAllergy = () => {
     if (newAllergy.trim() && !allergies.includes(newAllergy.trim())) {
@@ -33,6 +57,26 @@ export const PatientMedicalRecordView: React.FC = () => {
     setTimeout(() => setIsSaved(false), 3000);
   };
 
+  const formatStatusText = (status: string) => {
+    switch (status) {
+      case 'finished': return 'Đã hoàn thành';
+      case 'in_progress': return 'Đang khám';
+      case 'registered': return 'Đã tiếp nhận';
+      case 'arrived': return 'Mới tới';
+      case 'cancelled': return 'Đã hủy';
+      default: return status;
+    }
+  };
+
+  const getStatusVariant = (status: string) => {
+    switch (status) {
+      case 'finished': return 'normal';
+      case 'in_progress': return 'ai';
+      case 'registered': return 'normal';
+      default: return 'normal';
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Header Banner */}
@@ -43,7 +87,7 @@ export const PatientMedicalRecordView: React.FC = () => {
             <span>Hồ Sơ Y Tế & Tiền Sử Bệnh Lý Lâm Sàng</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Dữ liệu y khoa lâm sàng, tiền sử dị ứng thuốc và thông tin thẻ BHYT phục vụ thăm khám tại bệnh viện.
+            Dữ liệu y khoa lâm sàng, tiền sử dị ứng thuốc, thông tin BHYT và lịch sử các ca khám cũ.
           </p>
         </div>
         <Badge variant="normal" size="sm">
@@ -76,6 +120,70 @@ export const PatientMedicalRecordView: React.FC = () => {
           <span>Hồ sơ y tế và tiền sử bệnh lý đã được cập nhật thành công!</span>
         </div>
       )}
+
+      {/* Real Patient Encounter History Section (GET /api/v1/encounters?patientId=UUID) */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+            <History className="w-5 h-5 text-indigo-700" />
+            <span>Lịch Sử Các Ca Khám Cũ Đã Thực Hiện (Encounter History)</span>
+          </h3>
+          <span className="text-xs font-bold text-slate-500">
+            {encounterHistory.length} ca khám
+          </span>
+        </div>
+
+        {isLoadingHistory ? (
+          <div className="p-6 text-center text-xs text-slate-500 font-bold">
+            Đang tải dữ liệu ca khám từ Backend...
+          </div>
+        ) : encounterHistory.length === 0 ? (
+          <div className="p-6 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-slate-200/80">
+            Chưa có lịch sử lượt khám nào được ghi nhận cho bệnh nhân này.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {encounterHistory.map((enc) => (
+              <div
+                key={enc.encounterId}
+                className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 transition-all space-y-2 text-xs"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-extrabold text-slate-900">
+                    <span className="font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[11px]">
+                      {enc.encounterCode}
+                    </span>
+                    <span className="flex items-center gap-1 text-slate-600 font-semibold">
+                      <Stethoscope className="w-3.5 h-3.5 text-blue-600" />
+                      {enc.department?.departmentName || 'Khoa Nội Tổng hợp'}
+                    </span>
+                  </div>
+                  <Badge variant={getStatusVariant(enc.status)} size="sm">
+                    {formatStatusText(enc.status)}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-600 pt-1 border-t border-slate-200/60">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Thời gian đến: <strong className="text-slate-800 font-mono">{enc.arrivedAt ? new Date(enc.arrivedAt).toLocaleString('vi-VN') : '---'}</strong></span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Bác sĩ phụ trách: <strong className="text-slate-800">{enc.doctor?.fullName || 'Bác sĩ trực khoa'}</strong></span>
+                  </div>
+                </div>
+
+                {enc.chiefComplaint?.reasonForVisit && (
+                  <div className="p-2 bg-white rounded-lg border border-slate-200/70 text-slate-700 text-[11px] font-medium">
+                    <strong className="text-indigo-900 font-bold">Lý do khám:</strong> {enc.chiefComplaint.reasonForVisit}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Medical Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -200,3 +308,4 @@ export const PatientMedicalRecordView: React.FC = () => {
     </div>
   );
 };
+
