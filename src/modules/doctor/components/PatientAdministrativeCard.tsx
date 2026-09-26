@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText, ShieldAlert, Heart, Thermometer, Activity,
-  AlertTriangle, Loader2, PlayCircle, CheckCircle2, RefreshCw
+  AlertTriangle, Loader2, PlayCircle, CheckCircle2, RefreshCw,
+  History, ChevronDown, ChevronUp, Calendar, Stethoscope, Clock
 } from 'lucide-react';
 import type { PatientEMR } from '../types';
 import type { CaseOverviewData } from '../../../services/doctor';
 import type { PatientAllergyItem, AllergyType, AllergySeverity } from '../../../services/patient/patient-allergy.service';
 import type { EncounterItem } from '../../../services/encounter/encounter.service';
+import { getPatientEncounterHistory } from '../../../services/encounter/encounter.service';
 import type { AppointmentItem } from '../../../services/appointment/appointment.service';
 
 interface PatientAdministrativeCardProps {
@@ -135,6 +137,53 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
      selectedEncounterDetail.patientId === currentPatient.patientId)
   );
   const safeEncounterDetail = isEncounterMatching ? selectedEncounterDetail : null;
+
+  // Lịch sử các ca khám cũ của bệnh nhân (GET /api/v1/encounters?patientId=UUID)
+  const realPatientId =
+    safeOverview?.patient?.patientId ||
+    safeEncounterDetail?.patientId ||
+    safeEncounterDetail?.patient?.patientId ||
+    currentPatient?.patientId;
+
+  const [encounterHistory, setEncounterHistory] = useState<EncounterItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!realPatientId) {
+      setEncounterHistory([]);
+      return;
+    }
+    let isMounted = true;
+    setIsLoadingHistory(true);
+    getPatientEncounterHistory(realPatientId)
+      .then((data) => {
+        if (isMounted && Array.isArray(data)) {
+          setEncounterHistory(data);
+        }
+      })
+      .catch((err) => {
+        console.warn('Không thể lấy lịch sử lượt khám cho bác sĩ:', err);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingHistory(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [realPatientId]);
+
+  const formatEncounterStatus = (status: string) => {
+    switch (status) {
+      case 'finished': return 'Đã hoàn thành';
+      case 'in_progress': return 'Đang khám';
+      case 'registered': return 'Đã tiếp nhận';
+      case 'arrived': return 'Mới tới';
+      case 'cancelled': return 'Đã hủy';
+      default: return status;
+    }
+  };
 
   return (
     <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-4">
@@ -378,6 +427,81 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
             </div>
           )}
         </div>
+      </div>
+
+      {/* 4. Lịch Sử Các Ca Khám Cũ Đã Thực Hiện (Dành cho Bác sĩ) */}
+      <div className="pt-3 border-t border-slate-100">
+        <button
+          type="button"
+          onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+          className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-50/90 hover:bg-slate-100/90 border border-slate-200/80 transition-all text-xs font-bold text-slate-800 cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-indigo-600" />
+            <span>Lịch Sử Các Ca Khám Cũ Đã Thực Hiện</span>
+            {encounterHistory.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-100 text-indigo-800 font-extrabold">
+                {encounterHistory.length} lượt
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-slate-500 text-[11px] font-medium">
+            {isLoadingHistory && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />}
+            <span>{isHistoryOpen ? 'Thu gọn' : 'Xem chi tiết'}</span>
+            {isHistoryOpen ? <ChevronUp className="w-4 h-4 text-slate-600" /> : <ChevronDown className="w-4 h-4 text-slate-600" />}
+          </div>
+        </button>
+
+        {isHistoryOpen && (
+          <div className="mt-3 space-y-2.5 text-xs animate-in fade-in duration-150">
+            {isLoadingHistory ? (
+              <div className="p-4 text-center text-slate-400 italic font-semibold">
+                Đang tải lịch sử ca khám từ hệ thống...
+              </div>
+            ) : encounterHistory.length === 0 ? (
+              <div className="p-4 text-center text-slate-400 italic bg-slate-50 rounded-xl border border-slate-200/60">
+                Chưa ghi nhận lịch sử ca khám cũ nào cho bệnh nhân này.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto p-1">
+                {encounterHistory.map((enc) => (
+                  <div
+                    key={enc.encounterId}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/40 hover:bg-white hover:border-indigo-300 transition-all shadow-2xs space-y-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-extrabold">
+                        {enc.encounterCode}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700">
+                        {formatEncounterStatus(enc.status)}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1 text-[11px] text-slate-600">
+                      <div className="flex items-center justify-between font-semibold text-slate-800">
+                        <span className="flex items-center gap-1.5">
+                          <Stethoscope className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span>{enc.department?.departmentName || 'Khoa Nội Tổng hợp'}</span>
+                        </span>
+                        <span className="text-slate-700 font-bold">{enc.doctor?.fullName || 'BS. Trực khoa'}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                        <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>Thời gian đến: <strong className="text-slate-700 font-mono">{enc.arrivedAt ? new Date(enc.arrivedAt).toLocaleString('vi-VN') : '---'}</strong></span>
+                      </div>
+                      {enc.chiefComplaint?.reasonForVisit && (
+                        <div className="mt-1 p-2 bg-white rounded-lg border border-slate-200/80 text-[10px] text-slate-700 font-medium">
+                          <strong className="text-indigo-900 font-bold">Lý do khám:</strong> {enc.chiefComplaint.reasonForVisit}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

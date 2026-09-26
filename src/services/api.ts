@@ -5,9 +5,12 @@ export const getAvatarUrl = (avatar?: string) => {
   if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
     return avatar;
   }
-  const baseUrl = import.meta.env.VITE_UPLOAD_BASE_URL || 'http://localhost:9000/app-uploads';
-  return `${baseUrl}/${avatar}`;
+  const baseUrl = import.meta.env.VITE_UPLOAD_BASE_URL || 'https://storage.googleapis.com/healthcare-ai-uploads';
+  const cleanPath = avatar.startsWith('/') ? avatar.slice(1) : avatar;
+  return `${baseUrl}/${cleanPath}`;
 };
+
+export const getFileUrl = getAvatarUrl;
 
 export class ApiError extends Error {
   status: number;

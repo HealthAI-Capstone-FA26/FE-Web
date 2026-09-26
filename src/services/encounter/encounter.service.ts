@@ -235,3 +235,8 @@ export const encounterService = {
   },
 };
 
+// Hàm tiện ích lấy Lịch sử các ca khám cũ của bệnh nhân (GET /api/v1/encounters?patientId=UUID)
+export const getPatientEncounterHistory = async (patientId: string): Promise<EncounterItem[]> => {
+  return encounterService.getEncounters({ patientId });
+};
+
