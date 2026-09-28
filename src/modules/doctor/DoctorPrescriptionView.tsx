@@ -2,154 +2,34 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Pill, CheckCircle2, AlertTriangle, FileCheck, Printer,
   Download, Calendar, Search, Plus, Trash2, ShieldAlert,
-  Award, Check
+  Award, Check, RefreshCw
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { BorderBeam } from '../../components/ui/border-beam';
 import { Mascot } from 'page-mascot';
+import { encounterService, type EncounterItem } from '../../services/encounter/encounter.service';
+import { caseTimelineService, type CaseTimelineResponse } from '../../services/doctor/case-timeline.service';
+import { useAuth } from '../../context/AuthContext';
+import { drugCatalogService, type DrugCatalogItem as ApiDrugItem, type DrugCatalogDetail } from '../../services/doctor/drug-catalog.service';
 
-/* 
- * DESIGN READ:
- * Component Kind: Electronic Prescription & Digital Signing module (Mô-đun 9)
- * Audience: Doctors prescribing medications and signing checkup reports.
- * Vibe: Premium clinical workstation layout with live drug-safety checks (allergies, interactions, duplications),
- *       interactive National Drug Directory lookup, follow-up calendar sync, and digital CA signature workflow.
- */
-
-interface PatientEMRDetail {
+interface PrescriptionPatientInfo {
   id: string;
+  encounterId: string;
   name: string;
-  age: number;
+  age: number | string;
   gender: 'Nam' | 'Nữ';
   dob: string;
   bloodType: string;
   allergies: string;
   history: string;
-  symptoms: string;
-  vitals: {
-    bp: string;
-    hr: number;
-    spo2: number;
-    temp: number;
-  };
-  clinicalExam: string;
-  labResult: string;
-  attachedFile: string;
+  diagnosis: string;
+  icd10Code: string;
   aiSuggestedIcd: {
     code: string;
     name: string;
-    confidence: string;
-    reasoning: string;
-    references: string;
-  };
-  defaultAdvice: {
-    explanation: string;
-    plan: string;
-    lifestyle: string;
   };
 }
-
-const mockPatientsDiagnosisData: Record<string, PatientEMRDetail> = {
-  'BN-2026-088': {
-    id: 'BN-2026-088',
-    name: 'Khưu Trọng Quân',
-    age: 21,
-    gender: 'Nam',
-    dob: '2005-05-15',
-    bloodType: 'O+',
-    allergies: 'Dị ứng kháng sinh Penicillin, bụi phấn hoa',
-    history: 'Tiền sử hen phế quản nhẹ thời thơ ấu (đã ổn định)',
-    symptoms: 'Ho khan kéo dài 4 ngày, kèm sốt nhẹ, cảm giác tức ngực trái khi hít thở sâu',
-    vitals: {
-      bp: '122/82 mmHg',
-      hr: 88,
-      spo2: 96,
-      temp: 38.2
-    },
-    clinicalExam: 'Lồng ngực cân đối. Phổi trái nghe rì rào phế nang giảm nhẹ ở đáy phổi, có ít rale ẩm rải rác thùy dưới trái. Họng hơi đỏ nhẹ.',
-    labResult: 'Chụp X-quang phổi thẳng (Digital Chest X-Ray): Hình ảnh mờ thâm nhiễm đông đặc khu trú nhu mô phổi thùy dưới trái. Chỉ số Bạch cầu WBC: 12.5 K/uL (tăng nhẹ).',
-    attachedFile: 'Chest_XRay_Digital.png',
-    aiSuggestedIcd: {
-      code: 'J18.1',
-      name: 'Viêm phổi thùy, không xác định',
-      confidence: '94.8%',
-      reasoning: 'Vùng đông đặc nhu mô đáy phổi trái trên X-quang kết hợp sốt 38.2°C, bạch cầu tăng nhẹ và SpO2 giảm nhẹ (96%) là dấu hiệu điển hình của viêm phổi thùy cấp tính.',
-      references: 'Bệnh học Nội khoa Lồng ngực + Phân tích hình ảnh AI02 ROI Chest'
-    },
-    defaultAdvice: {
-      explanation: 'Viêm thùy dưới phổi trái mức độ nhẹ, cần dùng kháng sinh điều trị và theo dõi sát chỉ số hô hấp SpO2 tại nhà.',
-      plan: 'Điều trị ngoại trú kháng sinh nhóm Macrolide (Clarithromycin 500mg) do dị ứng kháng sinh nhóm Penicillin. Hạ sốt bằng Paracetamol 500mg khi sốt > 38.5°C.',
-      lifestyle: 'Nghỉ ngơi hoàn toàn tại giường, ăn cháo súp ấm dễ tiêu, uống nhiều nước ấm (2.5L/ngày) để loãng đờm, hạn chế nằm phòng máy lạnh quá lạnh.'
-    }
-  },
-  'BN-2026-089': {
-    id: 'BN-2026-089',
-    name: 'Nguyễn Thị Thu Hà',
-    age: 45,
-    gender: 'Nữ',
-    dob: '1981-11-20',
-    bloodType: 'A+',
-    allergies: 'Chưa ghi nhận dị ứng',
-    history: 'Tăng huyết áp vô căn phát hiện 3 năm nay, uống thuốc Amlodipine 5mg hàng ngày',
-    symptoms: 'Đau tức vùng ngực trái lan ra bả vai trái, cảm giác hồi hộp đánh trống ngực khó thở nhẹ',
-    vitals: {
-      bp: '135/85 mmHg',
-      hr: 95,
-      spo2: 98,
-      temp: 36.8
-    },
-    clinicalExam: 'Tim nhịp đều nhanh 95 l/p, tiếng tim T1, T2 rõ, không nghe âm thổi bệnh lý. Phổi trong, không rale.',
-    labResult: 'Điện tâm đồ (ECG 12 cực): Nhịp xoang nhanh 95 l/p, có sóng T dẹt ở các chuyển đạo trước tim V5, V6 hướng tới thiếu máu cơ tim dưới nội tâm mạc.',
-    attachedFile: 'ECG_12Leads_Report.pdf',
-    aiSuggestedIcd: {
-      code: 'I25.9',
-      name: 'Bệnh tim thiếu máu cục bộ mạn tính, không xác định',
-      confidence: '89.4%',
-      reasoning: 'Cơn đau thắt ngực trái điển hình lan sau vai kết hợp nhịp tim nhanh 95 bpm và biến đổi sóng T dẹt trên điện tâm đồ hướng tới bệnh lý mạch vành mạch máu nhỏ trên nền tăng huyết áp.',
-      references: 'Khuyến cáo Hội Tim mạch học Quốc gia về Hội chứng mạch vành mạn 2024'
-    },
-    defaultAdvice: {
-      explanation: 'Thiếu máu cơ tim cục bộ nhẹ do hẹp nhẹ mạch vành kết hợp huyết áp chưa được kiểm soát tối ưu tại nhà.',
-      plan: 'Bổ sung thuốc chống ngưng tập tiểu cầu (Aspirin 81mg) phối hợp điều trị ổn định huyết áp và hạ mỡ máu (Atorvastatin 10mg).',
-      lifestyle: 'Hạn chế vận động gắng sức đột ngột, giữ tinh thần thoải mái, ăn giảm muối (ăn nhạt), kiêng thực phẩm giàu cholesterol (lòng đỏ trứng, nội tạng động vật).'
-    }
-  },
-  'BN-2026-090': {
-    id: 'BN-2026-090',
-    name: 'Phạm Minh Đức',
-    age: 62,
-    gender: 'Nam',
-    dob: '1964-04-12',
-    bloodType: 'B+',
-    allergies: 'Dị ứng aspirin gây kích ứng dạ dày cấp',
-    history: 'Viêm loét dạ dày tá tràng tái phát nhiều lần, xơ vữa động mạch nhẹ',
-    symptoms: 'Đau dữ dội vùng thượng vị lan ra sau lưng sau bữa ăn nhiều dầu mỡ, kèm buồn nôn nhiều lần',
-    vitals: {
-      bp: '120/80 mmHg',
-      hr: 78,
-      spo2: 99,
-      temp: 37.0
-    },
-    clinicalExam: 'Bụng mềm, ấn đau tức chói vùng thượng vị và hạ sườn trái, phản ứng thành bụng âm tính.',
-    labResult: 'Nội soi dạ dày tá tràng gây mê: Niêm mạc hang vị dạ dày xung huyết đỏ, có vài ổ loét trợt nông kích thước nhỏ 2-3mm, bờ mềm mại không xuất huyết hoạt động.',
-    attachedFile: 'Gastro_Endoscopy_Images.png',
-    aiSuggestedIcd: {
-      code: 'K29.5',
-      name: 'Viêm dạ dày mạn tính, không xác định',
-      confidence: '91.2%',
-      reasoning: 'Hình ảnh nội soi niêm mạc hang vị dạ dày xung huyết trợt nhẹ khẳng định tình trạng viêm dạ dày cấp tính/đợt cấp viêm dạ dày mạn tính sau ăn thức ăn nhiều dầu mỡ.',
-      references: 'Tiêu chuẩn chẩn đoán nội soi dạ dày tá tràng - Hiệp hội Tiêu hóa Việt Nam'
-    },
-    defaultAdvice: {
-      explanation: 'Viêm trợt hang vị dạ dày cấp tính do kích ứng thức ăn hoặc stress làm tăng tiết acid dịch vị.',
-      plan: 'Sử dụng thuốc ức chế bơm proton PPI (Esomeprazole 40mg uống trước ăn sáng 30 phút) kết hợp thuốc bao niêm mạc dạ dày (Sucralfate). Ngừng sử dụng Aspirin.',
-      lifestyle: 'Ăn chín uống sôi, dùng thức ăn lỏng dễ tiêu, chia nhỏ 5-6 bữa ăn/ngày, tránh ăn quá no hoặc để bụng quá đói. Tuyệt đối kiêng chua, cay, bia rượu, cà phê.'
-    }
-  }
-};
-
-import { drugCatalogService, type DrugCatalogItem as ApiDrugItem, type DrugCatalogDetail } from '../../services/doctor/drug-catalog.service';
 
 interface PrescribedDrugItem {
   catalogCode: string;
@@ -165,14 +45,115 @@ interface PrescribedDrugItem {
 }
 
 export const DoctorPrescriptionView: React.FC = () => {
+  const { user } = useAuth();
   // Sync selected patient from localStorage
   const [selectedPatientId, setSelectedPatientId] = useState<string>(() => {
-    return localStorage.getItem('doctor_selected_patient_id') || 'BN-2026-088';
+    return localStorage.getItem('doctor_selected_patient_id') || '';
   });
 
-  const currentPatient = useMemo(() => {
-    return mockPatientsDiagnosisData[selectedPatientId] || mockPatientsDiagnosisData['BN-2026-088'];
-  }, [selectedPatientId]);
+  const [apiEncounters, setApiEncounters] = useState<EncounterItem[]>([]);
+  const [isLoadingEncounters, setIsLoadingEncounters] = useState(false);
+  const [timelineData, setTimelineData] = useState<CaseTimelineResponse | null>(null);
+
+  // Tải danh sách ca khám thực tế
+  const fetchEncounters = async () => {
+    try {
+      setIsLoadingEncounters(true);
+      const data = await encounterService.getEncounters(user?.doctorId ? { doctorId: user.doctorId } : undefined);
+      if (Array.isArray(data)) {
+        setApiEncounters(data);
+        const currentSaved = localStorage.getItem('doctor_selected_patient_id');
+        const match = data.find((e) => e.encounterId === currentSaved || e.encounterCode === currentSaved);
+        if (match) {
+          setSelectedPatientId(match.encounterId);
+        } else if (data.length > 0 && (!currentSaved || !data.some((e) => e.encounterId === currentSaved))) {
+          setSelectedPatientId(data[0].encounterId);
+          localStorage.setItem('doctor_selected_patient_id', data[0].encounterId);
+        }
+      }
+    } catch (err) {
+      console.warn('Lỗi khi tải danh sách ca khám:', err);
+    } finally {
+      setIsLoadingEncounters(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEncounters();
+  }, [user?.doctorId]);
+
+  // Tìm ca khám thật
+  const activeEncounter = useMemo(() => {
+    return apiEncounters.find(
+      (e) =>
+        e.encounterId === selectedPatientId ||
+        e.encounterCode === selectedPatientId ||
+        e.patient?.patientCode === selectedPatientId ||
+        e.patient?.patientId === selectedPatientId
+    );
+  }, [apiEncounters, selectedPatientId]);
+
+  const activeEncounterId = activeEncounter?.encounterId || (selectedPatientId.includes('-') && selectedPatientId.length > 30 ? selectedPatientId : undefined);
+
+  useEffect(() => {
+    if (!activeEncounterId) {
+      setTimelineData(null);
+      return;
+    }
+    let cancelled = false;
+    caseTimelineService
+      .getTimeline(activeEncounterId)
+      .then((res) => {
+        if (!cancelled) setTimelineData(res);
+      })
+      .catch(() => {
+        if (!cancelled) setTimelineData(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeEncounterId]);
+
+  const currentPatient = useMemo<PrescriptionPatientInfo | null>(() => {
+    if (!activeEncounter && !timelineData) return null;
+
+    const pat = timelineData?.patient || activeEncounter?.patient;
+    const enc = timelineData?.encounter || activeEncounter;
+    const dob = pat?.dateOfBirth || '';
+    const age = dob ? new Date().getFullYear() - new Date(dob).getFullYear() : '--';
+    const gender = (pat?.gender === 'female' ? 'Nữ' : 'Nam') as 'Nam' | 'Nữ';
+    const bloodType = pat?.bloodType || 'Chưa rõ';
+
+    const allergies = timelineData?.allergies?.length
+      ? timelineData.allergies.map((a) => a.allergenName).join(', ')
+      : 'Chưa ghi nhận dị ứng';
+
+    const history = timelineData?.medicalHistories?.length
+      ? timelineData.medicalHistories.map((h) => h.conditionName).join(', ')
+      : 'Chưa ghi nhận tiền sử';
+
+    const diagEvent = timelineData?.timeline?.find((t) => t.type === 'diagnosis');
+    const icd10Code = diagEvent?.data?.icd10?.icd10Code || diagEvent?.data?.icd10Code || 'R69';
+    const diagnosis = diagEvent?.data?.diagnosisName || diagEvent?.data?.icd10?.descriptionVi || 'Chưa có chẩn đoán chính thức';
+
+    return {
+      id: enc?.encounterCode || pat?.patientCode || enc?.encounterId || 'N/A',
+      encounterId: activeEncounterId || enc?.encounterId || '',
+      name: pat?.fullName || 'Bệnh nhân',
+      age,
+      gender,
+      dob,
+      bloodType,
+      allergies,
+      history,
+      diagnosis,
+      icd10Code,
+      aiSuggestedIcd: {
+        code: icd10Code,
+        name: diagnosis,
+      },
+    };
+  }, [activeEncounter, timelineData, activeEncounterId]);
 
   // Real Drug Catalog State from Backend API
   const [dbDrugs, setDbDrugs] = useState<ApiDrugItem[]>([]);
@@ -270,84 +251,6 @@ export const DoctorPrescriptionView: React.FC = () => {
     setPrescribedList([]);
     setIsFollowUpSynced(false);
     setIsSignedSuccess(false);
-
-    // Auto-populate default medications based on AI proposed plans
-    if (selectedPatientId === 'BN-2026-088') {
-      setPrescribedList([
-        {
-          catalogCode: 'DRUG-002',
-          name: 'Clarithromycin 500mg',
-          class: 'Macrolide Antibiotic',
-          dosage: 'Uống 1 viên x 2 lần/ngày sau khi ăn',
-          unit: 'Viên',
-          quantity: 14,
-          route: 'Uống',
-          duration: '7 ngày',
-          advice: 'Kháng sinh uống đúng giờ. Tránh xa các sản phẩm sữa khi uống.'
-        },
-        {
-          catalogCode: 'DRUG-003',
-          name: 'Paracetamol 500mg',
-          class: 'Analgesic / Antipyretic',
-          dosage: 'Uống 1 viên khi sốt trên 38.5°C hoặc đau ngực nhiều',
-          unit: 'Viên',
-          quantity: 10,
-          route: 'Uống',
-          duration: 'Khi cần',
-          advice: 'Cách nhau tối thiểu 4-6 tiếng.'
-        }
-      ]);
-    } else if (selectedPatientId === 'BN-2026-089') {
-      setPrescribedList([
-        {
-          catalogCode: 'DRUG-005',
-          name: 'Aspirin 81mg',
-          class: 'Antiplatelet (Kháng kết tập tiểu cầu)',
-          dosage: 'Uống 1 viên vào buổi sáng sau ăn no',
-          unit: 'Viên',
-          quantity: 30,
-          route: 'Uống',
-          duration: '30 ngày',
-          advice: 'Không bẻ vụn hoặc nhai nát viên thuốc giải phóng chậm.'
-        },
-        {
-          catalogCode: 'DRUG-009',
-          name: 'Amlodipine 5mg',
-          class: 'Antihypertensive (Hạ huyết áp)',
-          dosage: 'Uống 1 viên sáng ngủ dậy',
-          unit: 'Viên',
-          quantity: 30,
-          route: 'Uống',
-          duration: '30 ngày',
-          advice: 'Đo huyết áp hàng ngày.'
-        }
-      ]);
-    } else if (selectedPatientId === 'BN-2026-090') {
-      setPrescribedList([
-        {
-          catalogCode: 'DRUG-006',
-          name: 'Esomeprazole 40mg',
-          class: 'Proton Pump Inhibitor (PPI)',
-          dosage: 'Uống 1 viên trước ăn sáng 30 phút',
-          unit: 'Viên',
-          quantity: 14,
-          route: 'Uống',
-          duration: '14 ngày',
-          advice: 'Uống lúc bụng đói.'
-        },
-        {
-          catalogCode: 'DRUG-007',
-          name: 'Sucralfate 1g',
-          class: 'Gastric Mucosal Protectant',
-          dosage: 'Hòa tan uống 1 gói x 3 lần/ngày trước ăn 1 tiếng',
-          unit: 'Gói',
-          quantity: 20,
-          route: 'Uống',
-          duration: '7 ngày',
-          advice: 'Khuấy đều với nước trước khi uống.'
-        }
-      ]);
-    }
   }, [selectedPatientId]);
 
   // Handle select patient
@@ -393,22 +296,19 @@ export const DoctorPrescriptionView: React.FC = () => {
     const warnings: { type: 'danger' | 'warning'; text: string }[] = [];
 
     prescribedList.forEach(drug => {
-      // 1. Allergies & Contraindications Checks
-      if (selectedPatientId === 'BN-2026-088') {
-        if (drug.catalogCode === 'DRUG-001') {
-          warnings.push({
-            type: 'danger',
-            text: `Chống chỉ định nghiêm trọng: Bệnh nhân Khưu Trọng Quân có tiền sử dị ứng kháng sinh nhóm Penicillin. Nguy cơ sốc phản vệ khi dùng Amoxicillin!`
-          });
-        }
-      }
-      if (selectedPatientId === 'BN-2026-090') {
-        if (drug.catalogCode === 'DRUG-005' || drug.catalogCode === 'DRUG-004') {
-          warnings.push({
-            type: 'danger',
-            text: `Cảnh báo lâm sàng: Bệnh nhân Phạm Minh Đức có tiền sử dị ứng kích ứng dạ dày cấp với Aspirin/NSAID. Tránh kê đơn Aspirin 81mg hoặc Ibuprofen 400mg khi đang loét hang vị.`
-          });
-        }
+      // 1. Allergies & Contraindications Checks from real patient allergies
+      if (timelineData?.allergies && timelineData.allergies.length > 0) {
+        timelineData.allergies.forEach((al) => {
+          const allergen = (al.allergenName || '').toLowerCase();
+          const dName = (drug.name || '').toLowerCase();
+          const dClass = (drug.class || '').toLowerCase();
+          if (allergen && (dName.includes(allergen) || dClass.includes(allergen))) {
+            warnings.push({
+              type: 'danger',
+              text: `Cảnh báo dị ứng nghiêm trọng: Bệnh nhân ${currentPatient?.name || ''} có tiền sử dị ứng "${al.allergenName}". Nguy cơ phản ứng phụ khi dùng thuốc "${drug.name}"!`
+            });
+          }
+        });
       }
     });
 
@@ -433,7 +333,7 @@ export const DoctorPrescriptionView: React.FC = () => {
     }
 
     return warnings;
-  }, [prescribedList, selectedPatientId]);
+  }, [prescribedList, timelineData, currentPatient]);
 
   // Sync follow-up schedule
   const handleSyncFollowUp = () => {
@@ -487,27 +387,55 @@ export const DoctorPrescriptionView: React.FC = () => {
 
           {/* Patient queue card */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
-            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Bệnh nhân đang chờ đơn thuốc</h3>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Bệnh nhân đang chờ đơn thuốc</h3>
+              <button
+                type="button"
+                onClick={fetchEncounters}
+                disabled={isLoadingEncounters}
+                className="text-slate-400 hover:text-blue-600 transition-colors cursor-pointer p-1"
+                title="Làm mới danh sách"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingEncounters ? 'animate-spin text-blue-600' : ''}`} />
+              </button>
+            </div>
 
-            <div className="grid grid-cols-1 gap-2">
-              {Object.values(mockPatientsDiagnosisData).map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => handleSelectPatient(p.id)}
-                  className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all flex justify-between items-center ${selectedPatientId === p.id
-                    ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300'
-                    : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'
-                    }`}
-                >
-                  <div>
-                    <div className="text-xs font-extrabold text-slate-800">{p.name}</div>
-                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{p.id}</div>
-                  </div>
-                  <Badge variant={selectedPatientId === p.id ? 'ai' : 'normal'} size="sm">
-                    ICD-10: {p.aiSuggestedIcd.code}
-                  </Badge>
+            <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1">
+              {isLoadingEncounters && (
+                <div className="p-4 text-center text-xs text-slate-400">Đang tải danh sách ca khám...</div>
+              )}
+
+              {!isLoadingEncounters && apiEncounters.length === 0 && (
+                <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  Chưa có ca khám nào trong hàng đợi
                 </div>
-              ))}
+              )}
+
+              {apiEncounters.map((enc) => {
+                const patName = enc.patient?.fullName || 'Bệnh nhân';
+                const patCode = enc.encounterCode || enc.patient?.patientCode || enc.encounterId.slice(0, 8);
+                const isSelected = selectedPatientId === enc.encounterId || selectedPatientId === enc.encounterCode;
+
+                return (
+                  <div
+                    key={enc.encounterId}
+                    onClick={() => handleSelectPatient(enc.encounterId)}
+                    className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all flex justify-between items-center ${
+                      isSelected
+                        ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300'
+                        : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div>
+                      <div className="text-xs font-extrabold text-slate-800">{patName}</div>
+                      <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{patCode}</div>
+                    </div>
+                    <Badge variant={isSelected ? 'ai' : 'normal'} size="sm">
+                      {enc.department?.departmentName || 'Ca khám'}
+                    </Badge>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -517,34 +445,40 @@ export const DoctorPrescriptionView: React.FC = () => {
               Thông tin lâm sàng & Dị ứng
             </h3>
 
-            <div className="space-y-3 text-xs">
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
-                <span className="font-extrabold text-rose-800 flex items-center gap-1.5 uppercase text-[9px] tracking-wider">
-                  <ShieldAlert className="w-4 h-4 text-rose-600" />
-                  <span>Tiền sử dị ứng thuốc:</span>
-                </span>
-                <p className="font-extrabold text-rose-950 leading-relaxed">
-                  {currentPatient.allergies}
-                </p>
-              </div>
+            {currentPatient ? (
+              <div className="space-y-3 text-xs">
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
+                  <span className="font-extrabold text-rose-800 flex items-center gap-1.5 uppercase text-[9px] tracking-wider">
+                    <ShieldAlert className="w-4 h-4 text-rose-600" />
+                    <span>Tiền sử dị ứng thuốc:</span>
+                  </span>
+                  <p className="font-extrabold text-rose-950 leading-relaxed">
+                    {currentPatient.allergies}
+                  </p>
+                </div>
 
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <span className="font-extrabold text-slate-700 block uppercase text-[9px] tracking-wider">Chẩn đoán lâm sàng:</span>
-                <div className="space-y-1 font-semibold text-slate-600">
-                  <div className="text-slate-800">
-                    Mã bệnh: <span className="font-mono bg-blue-700 text-white px-1.5 py-0.5 rounded text-[10px]">{currentPatient.aiSuggestedIcd.code}</span>
-                  </div>
-                  <div className="text-slate-800 leading-snug">
-                    Tên bệnh: {currentPatient.aiSuggestedIcd.name}
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <span className="font-extrabold text-slate-700 block uppercase text-[9px] tracking-wider">Chẩn đoán lâm sàng:</span>
+                  <div className="space-y-1 font-semibold text-slate-600">
+                    <div className="text-slate-800">
+                      Mã bệnh: <span className="font-mono bg-blue-700 text-white px-1.5 py-0.5 rounded text-[10px]">{currentPatient.icd10Code}</span>
+                    </div>
+                    <div className="text-slate-800 leading-snug">
+                      Tên bệnh: {currentPatient.diagnosis}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="p-3 bg-blue-50/50 border border-blue-150 rounded-xl space-y-1 font-semibold text-slate-700">
-                <span className="text-[9px] font-extrabold uppercase text-blue-800 block tracking-wider">Tiền sử bệnh án:</span>
-                <p className="leading-snug text-slate-600">{currentPatient.history}</p>
+                <div className="p-3 bg-blue-50/50 border border-blue-150 rounded-xl space-y-1 font-semibold text-slate-700">
+                  <span className="text-[9px] font-extrabold uppercase text-blue-800 block tracking-wider">Tiền sử bệnh án:</span>
+                  <p className="leading-snug text-slate-600">{currentPatient.history}</p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                Chưa chọn ca khám
+              </div>
+            )}
           </div>
 
         </div>
@@ -911,7 +845,7 @@ export const DoctorPrescriptionView: React.FC = () => {
             <div className="space-y-1">
               <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">Ký Số Đơn Thuốc Thành Công!</h4>
               <p className="text-xs text-slate-500 font-semibold max-w-sm mx-auto leading-normal">
-                Đơn thuốc đã được mã hóa pháp lý bằng chữ ký số của <strong className="text-slate-800">BS. Nguyễn Quang Huy</strong> và tự động đồng bộ sang Trang cá nhân bệnh nhân & Nhà thuốc bệnh viện.
+                Đơn thuốc đã được mã hóa pháp lý bằng chữ ký số của <strong className="text-slate-800">{user?.name || 'Bác sĩ điều trị'}</strong> và tự động đồng bộ sang Trang cá nhân bệnh nhân & Nhà thuốc bệnh viện.
               </p>
             </div>
 
@@ -922,15 +856,15 @@ export const DoctorPrescriptionView: React.FC = () => {
                 <span className="font-mono text-[9px] bg-slate-200 px-1.5 py-0.5 rounded">Digital Verified</span>
               </div>
               <div className="space-y-1 text-[11px] leading-relaxed">
-                <div>Bệnh viện Đa khoa Tâm Anh - Phòng khám Nội hô hấp</div>
-                <div>Bệnh nhân: <strong className="text-slate-900">{currentPatient.name}</strong> ({currentPatient.gender}, {currentPatient.age} tuổi)</div>
-                <div>Chẩn đoán chính: <strong>{currentPatient.aiSuggestedIcd.code} - {currentPatient.aiSuggestedIcd.name}</strong></div>
-                <div>Đơn thuốc kê: <strong>{prescribedList.map(d => `${d.name} x ${d.quantity}`).join(', ')}</strong></div>
+                <div>{user?.department ? `Khoa / Phòng: ${user.department}` : 'Phòng khám Chuyên khoa'}</div>
+                <div>Bệnh nhân: <strong className="text-slate-900">{currentPatient?.name || 'Bệnh nhân'}</strong> ({currentPatient?.gender || '--'}, {currentPatient?.age || '--'} tuổi)</div>
+                <div>Chẩn đoán chính: <strong>{currentPatient?.aiSuggestedIcd?.code || currentPatient?.icd10Code || 'R69'} - {currentPatient?.aiSuggestedIcd?.name || currentPatient?.diagnosis || 'Chưa có chẩn đoán'}</strong></div>
+                <div>Đơn thuốc kê: <strong>{prescribedList.map(d => `${d.name} x ${d.quantity}`).join(', ') || 'Chưa có thuốc'}</strong></div>
                 {isFollowUpSynced && <div>Hẹn khám lại: <strong>{followUpDate} ({followUpNotes})</strong></div>}
               </div>
               <div className="text-[10px] text-emerald-600 font-extrabold flex items-center gap-1">
                 <Award className="w-4 h-4 shrink-0 text-emerald-600" />
-                <span>Ký bởi: BS. CKII. Nguyễn Quang Huy (Bộ Y Tế CA)</span>
+                <span>Ký bởi: {user?.name || 'Bác sĩ điều trị'} {user?.staffCode ? `(Mã BS: ${user.staffCode})` : '(Bộ Y Tế CA)'}</span>
               </div>
             </div>
 
