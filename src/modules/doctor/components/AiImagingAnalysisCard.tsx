@@ -10,6 +10,8 @@ interface AiImagingAnalysisCardProps {
   preliminaryDiag: string;
   aiConfidence?: string;
   aiProposedDiag?: string;
+  realImageUrl?: string;
+  realImageDescription?: string;
 }
 
 export const AiImagingAnalysisCard: React.FC<AiImagingAnalysisCardProps> = ({
@@ -18,6 +20,8 @@ export const AiImagingAnalysisCard: React.FC<AiImagingAnalysisCardProps> = ({
   preliminaryDiag,
   aiConfidence = '93.5%',
   aiProposedDiag = 'Theo dõi lâm sàng',
+  realImageUrl,
+  realImageDescription,
 }) => {
   if (currentWorkflowState === 'completed') {
     return (
@@ -34,21 +38,29 @@ export const AiImagingAnalysisCard: React.FC<AiImagingAnalysisCardProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center animate-in zoom-in-95 duration-200">
-            {/* Chest X-ray simulator with highlight overlay */}
+            {/* Chest X-ray or real image with highlight overlay */}
             <div className="md:col-span-5 bg-slate-950 border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden h-52 group">
-              <span className="text-[9px] font-extrabold text-slate-500 absolute top-2 left-2 font-mono uppercase">
-                Simulation: X-Ray Chest
+              <span className="text-[9px] font-extrabold text-slate-300 absolute top-2 left-2 font-mono uppercase bg-slate-900/90 px-2 py-0.5 rounded border border-slate-700 z-10">
+                {realImageUrl ? (realImageDescription || 'Hình ảnh thực tế từ phòng Lab') : 'Simulation: X-Ray Chest'}
               </span>
 
-              {/* stylized SVG lungs outline */}
-              <svg className="w-36 h-36 opacity-40 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 4v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4m-8 6h4m-4 4h4m-4-8h4M4 8h16M4 12h16m-16 4h16" />
-                <circle cx="8" cy="12" r="3" strokeWidth={1} />
-                <circle cx="16" cy="12" r="3" strokeWidth={1} />
-              </svg>
+              {realImageUrl ? (
+                <img
+                  src={realImageUrl}
+                  alt="Ảnh xét nghiệm thực tế"
+                  className="w-full h-full object-contain rounded-lg"
+                />
+              ) : (
+                /* stylized SVG lungs outline */
+                <svg className="w-36 h-36 opacity-40 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 4v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4m-8 6h4m-4 4h4m-4-8h4M4 8h16M4 12h16m-16 4h16" />
+                  <circle cx="8" cy="12" r="3" strokeWidth={1} />
+                  <circle cx="16" cy="12" r="3" strokeWidth={1} />
+                </svg>
+              )}
 
               {/* Simulated abnormal region glowing pulse border overlay */}
-              <div className="absolute bottom-10 left-12 w-14 h-14 border-2 border-dashed border-rose-500 bg-rose-500/10 rounded-full animate-ping duration-1000 flex items-center justify-center">
+              <div className="absolute bottom-10 left-12 w-14 h-14 border-2 border-dashed border-rose-500 bg-rose-500/10 rounded-full animate-ping duration-1000 flex items-center justify-center pointer-events-none">
                 <span className="text-[8px] bg-rose-600 text-white font-extrabold px-1 py-0.5 rounded leading-none shrink-0 pointer-events-none">
                   AI02 (92%)
                 </span>
