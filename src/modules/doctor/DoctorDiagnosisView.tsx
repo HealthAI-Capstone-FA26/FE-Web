@@ -636,8 +636,9 @@ export const DoctorDiagnosisView: React.FC = () => {
               /* Dòng thời gian THỰC TẾ từ Backend (CaseTimelineService) */
               <div className="relative pl-6 border-l-2 border-slate-200 space-y-5 text-xs">
                 {timelineData.timeline.map((event, idx) => {
-                  const eventTime = event.occurredAt
-                    ? new Date(event.occurredAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                  const eventDate = event.occurredAt ? new Date(event.occurredAt) : null;
+                  const eventTime = eventDate
+                    ? `${eventDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} • ${eventDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
                     : '';
 
                   if (event.type === 'chief_complaint') {
