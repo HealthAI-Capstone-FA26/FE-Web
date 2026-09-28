@@ -17,6 +17,7 @@ import {
   testOrderService,
   clinicalExamService,
   doctorAiService,
+  caseTimelineService,
   AVAILABLE_TEST_CATALOG,
   type TestOrderDetail,
   type CaseOverviewData,
@@ -873,6 +874,35 @@ export const DoctorEMRView: React.FC = () => {
     }
   }, [currentPatient, activeEncounterId, selectedPatientId, verifiedCaseOverview?.clinicalExamination]);
 
+  // Tự động tải hình ảnh xét nghiệm thực tế từ Timeline nếu có
+  const [latestLabImage, setLatestLabImage] = useState<{ url: string; description?: string } | null>(null);
+
+  useEffect(() => {
+    if (!activeEncounterId) {
+      setLatestLabImage(null);
+      return;
+    }
+    caseTimelineService
+      .getTimeline(activeEncounterId)
+      .then((timeline) => {
+        const labEvents = timeline?.timeline?.filter((e) => e.type === 'lab_result') || [];
+        for (const ev of labEvents) {
+          const atts = ev.data?.labResult?.attachments || [];
+          const imgAtt = atts.find((a: any) =>
+            a.fileType?.includes('image') ||
+            a.fileType?.includes('xray') ||
+            a.fileUrl?.match(/\.(jpg|jpeg|png|webp|gif)/i)
+          );
+          if (imgAtt) {
+            setLatestLabImage({ url: imgAtt.fileUrl, description: imgAtt.description || ev.data?.testName });
+            return;
+          }
+        }
+        setLatestLabImage(null);
+      })
+      .catch(() => setLatestLabImage(null));
+  }, [activeEncounterId, patientWorkflowStates[selectedPatientId]]);
+
   // Trạng thái quy trình ca khám hiện tại
   const currentWorkflowState = patientWorkflowStates[selectedPatientId] || 'initial';
 
@@ -1237,6 +1267,8 @@ export const DoctorEMRView: React.FC = () => {
                     preliminaryDiag={preliminaryDiag}
                     aiConfidence={currentPatient?.aiConfidence}
                     aiProposedDiag={currentPatient?.aiProposedDiag}
+                    realImageUrl={latestLabImage?.url}
+                    realImageDescription={latestLabImage?.description}
                   />
                 </div>
               )}
