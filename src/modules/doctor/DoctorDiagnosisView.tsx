@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Search, CheckCircle2, XCircle, Sparkles, Clock, FileText,
   Clipboard, BookOpen, AlertCircle, ArrowRight, User, Loader2,
@@ -78,6 +78,9 @@ export const DoctorDiagnosisView: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Cache timeline data theo encounterId — tránh fetch lại khi quay về ca đã xem
+  const timelineCache = useRef<Map<string, CaseTimelineResponse>>(new Map());
+
   // Trạng thái yêu cầu AI tổng hợp phân tích sau xét nghiệm
   const [isGeneratingAiReview, setIsGeneratingAiReview] = useState(false);
   const [customAiReview, setCustomAiReview] = useState<{
@@ -152,30 +155,48 @@ export const DoctorDiagnosisView: React.FC = () => {
 
   const activeEncounterId = activeEncounter?.encounterId || (selectedPatientId.includes('-') && selectedPatientId.length > 30 ? selectedPatientId : undefined);
 
-  // Lấy dữ liệu dòng thời gian thực tế (Timeline + Lab Results) của ca khám qua GET /post-test-consultation/encounters/:id/timeline
+  // Fetch timeline có cache: nếu đã fetch rồi → hiển thị tức thì, fetch ngầm cập nhật
+  const fetchTimeline = useCallback(async (encounterId: string, forceRefresh = false) => {
+    // Cache hit → hiển thị ngay, không loading
+    if (!forceRefresh && timelineCache.current.has(encounterId)) {
+      setTimelineData(timelineCache.current.get(encounterId)!);
+      setIsLoadingTimeline(false);
+      // Fetch ngầm để cập nhật cache (silent background refresh)
+      caseTimelineService.getTimeline(encounterId)
+        .then((res) => {
+          timelineCache.current.set(encounterId, res);
+          setTimelineData((prev) =>
+            // Chỉ cập nhật nếu vẫn đang xem cùng encounter
+            prev?.encounter?.encounterId === encounterId ? res : prev
+          );
+        })
+        .catch(() => { /* silent fail */ });
+      return;
+    }
+    // Cache miss hoặc force → fetch với loading spinner
+    setIsLoadingTimeline(true);
+    try {
+      const res = await caseTimelineService.getTimeline(encounterId);
+      timelineCache.current.set(encounterId, res);
+      setTimelineData(res);
+    } catch (err) {
+      console.warn('Lỗi tải timeline ca khám:', err);
+      setTimelineData(null);
+    } finally {
+      setIsLoadingTimeline(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!activeEncounterId) {
       setTimelineData(null);
       return;
     }
     let cancelled = false;
-    setIsLoadingTimeline(true);
-    caseTimelineService
-      .getTimeline(activeEncounterId)
-      .then((res) => {
-        if (!cancelled) setTimelineData(res);
-      })
-      .catch((err) => {
-        console.warn('Lỗi tải timeline ca khám:', err);
-        if (!cancelled) setTimelineData(null);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoadingTimeline(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeEncounterId]);
+    // Dùng cache nếu có, không set cancelled check cần thiết vì fetchTimeline tự guard
+    fetchTimeline(activeEncounterId);
+    return () => { cancelled = true; };
+  }, [activeEncounterId, fetchTimeline]);
 
   const [icd10Search, setIcd10Search] = useState('');
   const [selectedIcd, setSelectedIcd] = useState({ code: 'J18.1', name: 'Viêm phổi thùy, không xác định' });
@@ -268,24 +289,12 @@ export const DoctorDiagnosisView: React.FC = () => {
     };
   }, [activeEncounter, timelineData, activeEncounterId]);
 
-  // Đồng bộ lời khuyên & ICD khi chuyển bệnh nhân
+  // ① Reset hoàn toàn form khi BÁC SĨ ĐỔI CA KHÁM (activeEncounterId thay đổi)
   useEffect(() => {
-    if (!currentPatient) {
-      setExpNote('');
-      setPlanNote('');
-      setLifeNote('');
-      setSelectedIcd({ code: 'J18.1', name: 'Viêm phổi thùy, không xác định' });
-      setCustomAiReview(null);
-      setAiReviewNotification(null);
-      return;
-    }
-    setExpNote(currentPatient.defaultAdvice.explanation);
-    setPlanNote(currentPatient.defaultAdvice.plan);
-    setLifeNote(currentPatient.defaultAdvice.lifestyle);
-    setSelectedIcd({
-      code: currentPatient.aiSuggestedIcd.code,
-      name: currentPatient.aiSuggestedIcd.name,
-    });
+    setExpNote('');
+    setPlanNote('');
+    setLifeNote('');
+    setSelectedIcd({ code: 'J18.1', name: 'Viêm phổi thùy, không xác định' });
     setAiDecision('ACCEPT');
     setRejectReason('');
     setIcd10Search('');
@@ -293,7 +302,32 @@ export const DoctorDiagnosisView: React.FC = () => {
     setSubmitError(null);
     setCustomAiReview(null);
     setAiReviewNotification(null);
-  }, [currentPatient?.id]);
+  }, [activeEncounterId]);
+
+  // ② Populate form bằng dữ liệu THỰC TẾ khi timeline load xong (có diagnosis/treatment_consultation cũ)
+  useEffect(() => {
+    if (!timelineData || !currentPatient) return;
+
+    // Chỉ điền nếu có dữ liệu thật từ timeline (tránh ghi đè khi chưa có)
+    const hasAdvice =
+      currentPatient.defaultAdvice.explanation ||
+      currentPatient.defaultAdvice.plan ||
+      currentPatient.defaultAdvice.lifestyle;
+    if (hasAdvice) {
+      setExpNote(currentPatient.defaultAdvice.explanation);
+      setPlanNote(currentPatient.defaultAdvice.plan);
+      setLifeNote(currentPatient.defaultAdvice.lifestyle);
+    }
+
+    // Điền ICD nếu timeline có chẩn đoán đã lưu
+    if (currentPatient.aiSuggestedIcd.code && currentPatient.aiSuggestedIcd.code !== 'R69') {
+      setSelectedIcd({
+        code: currentPatient.aiSuggestedIcd.code,
+        name: currentPatient.aiSuggestedIcd.name,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timelineData]);
 
   // Gợi ý AI hiệu lực (ưu tiên kết quả phân tích tổng hợp mới sau xét nghiệm nếu bác sĩ vừa yêu cầu AI chạy)
   const activeAiSuggestion = useMemo(() => {
@@ -469,9 +503,9 @@ export const DoctorDiagnosisView: React.FC = () => {
 
         setIsSubmitSuccess(true);
 
-        // Tải lại timeline để cập nhật ngay kết quả vừa chốt
-        const refreshed = await caseTimelineService.getTimeline(activeEncounterId);
-        setTimelineData(refreshed);
+        // Invalidate cache và tải lại timeline sau khi lưu thành công
+        timelineCache.current.delete(activeEncounterId);
+        await fetchTimeline(activeEncounterId, true);
 
         setTimeout(() => {
           setIsSubmitSuccess(false);
@@ -615,8 +649,9 @@ export const DoctorDiagnosisView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsLoadingTimeline(true);
-                    caseTimelineService.getTimeline(activeEncounterId).then(setTimelineData).finally(() => setIsLoadingTimeline(false));
+                    // Nút "Cập nhật" thủ công → xóa cache, fetch lại
+                    timelineCache.current.delete(activeEncounterId);
+                    fetchTimeline(activeEncounterId, true);
                   }}
                   disabled={isLoadingTimeline}
                   className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 cursor-pointer"
