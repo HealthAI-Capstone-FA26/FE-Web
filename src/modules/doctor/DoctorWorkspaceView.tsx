@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Stethoscope, FileText, Pill } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { DoctorEMRView } from './DoctorEMRView';
@@ -7,6 +7,7 @@ import { DoctorPrescriptionView } from './DoctorPrescriptionView';
 import { useAuth } from '../../context/AuthContext';
 import { doctorService } from '../../services/doctor/doctor.service';
 import { doctorScheduleService } from '../../services/doctor/doctor-schedule.service';
+import { encounterService } from '../../services/encounter/encounter.service';
 
 function getMonday(d: Date): Date {
   const date = new Date(d);
@@ -74,17 +75,37 @@ export const DoctorWorkspaceView: React.FC = () => {
 
     prefetchSchedule();
   }, [user]);
-  const tabs: WorkspaceTab[] = [
+
+  // Đếm số ca khám thực tế từ API để hiển thị lên huy hiệu tab
+  const [encounterCount, setEncounterCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    async function fetchCount() {
+      try {
+        const data = await encounterService.getEncounters(
+          user?.doctorId ? { doctorId: user.doctorId } : undefined
+        );
+        if (Array.isArray(data)) {
+          setEncounterCount(data.length);
+        }
+      } catch {
+        // bỏ qua
+      }
+    }
+    fetchCount();
+  }, [user?.doctorId]);
+
+  const tabs: WorkspaceTab[] = useMemo(() => [
     {
       id: 'emr-ai',
-      label: 'Hàng chờ & Hồ sơ EMR (Tóm tắt AI)',
+      label: 'Hàng chờ & Hồ sơ',
       icon: Stethoscope,
-      badge: '15 Ca',
+      badge: encounterCount !== null ? `${String(encounterCount).padStart(2, '0')} Ca` : undefined,
       component: <DoctorEMRView />
     },
     {
       id: 'icd10-diagnosis',
-      label: 'Chẩn đoán mã ICD-10',
+      label: 'Chuẩn đoán bệnh ',
       icon: FileText,
       component: <DoctorDiagnosisView />
     },
@@ -94,7 +115,7 @@ export const DoctorWorkspaceView: React.FC = () => {
       icon: Pill,
       component: <DoctorPrescriptionView />
     }
-  ];
+  ], [encounterCount]);
 
   return (
     <WorkspaceContainer
