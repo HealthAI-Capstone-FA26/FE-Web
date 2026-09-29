@@ -409,18 +409,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               </div>
             </div>
 
-            {/* Sidebar Footer Info - Light Liquid Capsule Button */}
-            <div className="pt-3 border-t border-slate-200/60 relative z-10">
-              <div className="w-full bg-white hover:bg-blue-50/60 text-slate-900 rounded-2xl px-3.5 py-2.5 border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer transition-all duration-200">
-                <div className="flex items-center space-x-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse shrink-0"></span>
-                  <span className="text-xs font-bold tracking-tight text-slate-800">HL7 FHIR R4</span>
-                </div>
-                <span className="text-[11px] font-bold text-blue-600 flex items-center gap-1">
-                  Đã kết nối →
-                </span>
-              </div>
-            </div>
+
           </div>
         </aside>
 
