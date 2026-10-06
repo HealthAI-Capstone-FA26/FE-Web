@@ -46,7 +46,7 @@ export const Header = () => {
               </div>
               <div className="flex flex-col">
                 <span className="font-black text-base md:text-lg text-[#0b3c8f] leading-tight uppercase tracking-wide group-hover:text-blue-600 transition-colors">
-                  Bệnh viện Đa khoa 4AM
+                  Phòng khám Tim mạch 4AM
                 </span>
                 <span className="text-[10px] md:text-[11px] text-slate-500 font-medium tracking-wider">Hệ thống Y tế uy tín</span>
               </div>

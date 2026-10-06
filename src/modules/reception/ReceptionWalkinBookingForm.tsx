@@ -330,7 +330,7 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
             >
               <div className="border-b border-blue-200 pb-3">
                 <div className="text-[11px] font-black text-blue-800 uppercase tracking-wider">
-                  BỆNH VIỆN ĐA KHOA 4AM HEALTHCARE
+                  PHÒNG KHÁM TIM MẠCH 4AM HEALTHCARE
                 </div>
                 <div className="text-[10px] text-slate-500 font-medium">Phiếu Khám Bệnh - Đăng Ký Tại Quầy</div>
               </div>

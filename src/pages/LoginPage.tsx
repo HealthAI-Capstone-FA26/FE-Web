@@ -101,7 +101,7 @@ export const LoginPage = () => {
             </div>
             <div className="flex flex-col text-left">
               <span className="font-extrabold text-sm md:text-[15px] text-[#0b3c8f] uppercase leading-tight tracking-wide">
-                BỆNH VIỆN ĐA KHOA 4AM
+                PHÒNG KHÁM TIM MẠCH 4AM
               </span>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none mt-1">
                 4AM MEDICAL CENTER
