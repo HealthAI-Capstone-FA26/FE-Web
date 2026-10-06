@@ -733,7 +733,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
                     <div className="text-4xl font-black text-[#0b3c8f] font-mono leading-none tracking-tight">
                       {String(selectedPatient.visitHistory.length).padStart(2, '0')}
                     </div>
-                    <span className="text-[10px] text-slate-500 font-medium block mt-1">Lượt khám tại Bệnh viện 4AM</span>
+                    <span className="text-[10px] text-slate-500 font-medium block mt-1">Lượt khám tại Phòng khám Tim mạch 4AM</span>
                   </div>
                 </div>
 

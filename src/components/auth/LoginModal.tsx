@@ -300,7 +300,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 </div>
                 <div className="flex flex-col text-left">
                   <span className="font-black text-xs md:text-sm text-[#0b3c8f] uppercase leading-tight tracking-wide">
-                    BỆNH VIỆN ĐA KHOA 4AM
+                    PHÒNG KHÁM TIM MẠCH 4AM
                   </span>
                   <span className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider mt-0.5">
                     FHIR & Medical AI Healthcare System

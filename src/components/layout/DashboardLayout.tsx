@@ -161,7 +161,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                   {currentRole === 'PATIENT' ? 'CỔNG THÔNG TIN BỆNH NHÂN (PATIENT PORTAL)' : 'HỆ THỐNG QUẢN LÝ NỘI BỘ (EMR & AI)'}
                 </span>
                 <span className="text-[10px] text-slate-500 font-semibold whitespace-nowrap">
-                  Bệnh viện Đa khoa 4AM • Chuẩn HL7 FHIR R4
+                  Phòng khám Tim mạch 4AM • Chuẩn HL7 FHIR R4
                 </span>
               </div>
             </Link>

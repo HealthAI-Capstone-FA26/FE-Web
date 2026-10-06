@@ -57,7 +57,7 @@ export const StepProgressBar: React.FC<StepProgressBarProps> = ({
               Quy trình chuẩn 7 bước
             </span>
             <span className="text-xs font-medium text-slate-500">
-              (Theo mô hình Bệnh viện Đa khoa Tâm Anh)
+              (Theo quy trình Phòng khám Tim mạch 4AM)
             </span>
           </div>
           <h4 className="text-sm font-extrabold text-slate-800 mt-1">

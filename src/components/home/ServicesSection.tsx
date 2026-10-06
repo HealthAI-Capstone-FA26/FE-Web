@@ -232,7 +232,7 @@ export const ServicesSection: React.FC = () => {
         ctx.font = '600 12px system-ui, -apple-system, sans-serif';
         ctx.fillStyle = '#64748b';
         ctx.shadowBlur = 0;
-        ctx.fillText('Chăm sóc toàn diện • Công nghệ chẩn đoán AI • Bệnh viện 4AM', cx, cy + 54);
+        ctx.fillText('Chăm sóc toàn diện • Công nghệ chẩn đoán AI • Phòng khám Tim mạch 4AM', cx, cy + 54);
 
         ctx.restore();
       };
@@ -405,7 +405,7 @@ export const ServicesSection: React.FC = () => {
           <div>
             <div className="flex items-center space-x-2 text-xs font-black text-blue-600 uppercase tracking-widest mb-2">
               <Sparkles className="w-4 h-4 animate-pulse text-blue-600" />
-              <span>Grainient 3D Showcase • Bệnh viện 4AM</span>
+              <span>Grainient 3D Showcase • Phòng khám Tim mạch 4AM</span>
             </div>
             <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
               Khám Phá Dịch Vụ & Cơ Sở Vật Chất 5 Sao

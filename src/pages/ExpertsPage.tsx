@@ -165,7 +165,7 @@ export const ExpertsPage: React.FC = () => {
         <section className="text-center space-y-4 mb-12 animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200 shadow-xs">
             <Sparkles className="w-4 h-4 text-blue-600" />
-            <span>Bệnh Viện 4AM Care • Đội Ngũ Y Bác Sĩ Chuyên Khoa</span>
+            <span>Phòng Khám Tim Mạch 4AM Care • Đội Ngũ Y Bác Sĩ Chuyên Khoa</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tight">
@@ -364,7 +364,7 @@ export const ExpertsPage: React.FC = () => {
                       {deptName && (
                         <p className="text-xs sm:text-sm italic font-medium text-slate-600 flex items-center gap-1.5">
                           <Building2 className="w-4 h-4 text-slate-400 shrink-0 not-italic" />
-                          <span>Khoa công tác: {deptName} — Bệnh viện 4AM Care</span>
+                          <span>Khoa công tác: {deptName} — Phòng khám Tim mạch 4AM Care</span>
                         </p>
                       )}
 
@@ -372,7 +372,7 @@ export const ExpertsPage: React.FC = () => {
                       <p className="text-xs sm:text-sm text-slate-600 font-normal leading-relaxed mt-2 line-clamp-3">
                         {specializationName
                           ? `${doc.fullName} là chuyên gia giàu kinh nghiệm trong lĩnh vực ${specializationName}, luôn tận tâm đồng hành mang lại giải pháp chăm sóc sức khỏe tối ưu và hiệu quả nhất cho người bệnh.`
-                          : `${doc.fullName} là chuyên gia y tế giàu kinh nghiệm công tác tại Bệnh viện 4AM Care, tận tâm tư vấn, chẩn đoán và điều trị chăm sóc sức khỏe toàn diện.`}
+                          : `${doc.fullName} là chuyên gia y tế giàu kinh nghiệm công tác tại Phòng khám Tim mạch 4AM Care, tận tâm tư vấn, chẩn đoán và điều trị chăm sóc sức khỏe toàn diện.`}
                       </p>
                     </div>
 
@@ -449,7 +449,7 @@ export const ExpertsPage: React.FC = () => {
                         </div>
                         <h2 className="text-xl font-black text-slate-900">{selectedDoctor.fullName}</h2>
                         <p className="text-xs text-slate-500 font-medium">
-                          {selectedDoctor.specialization || 'Bác sĩ chuyên khoa y tế hàng đầu tại Bệnh viện 4AM Care.'}
+                          {selectedDoctor.specialization || 'Bác sĩ chuyên khoa y tế hàng đầu tại Phòng khám Tim mạch 4AM Care.'}
                         </p>
                       </div>
                     </div>
@@ -484,7 +484,7 @@ export const ExpertsPage: React.FC = () => {
                       <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-100 space-y-1 sm:col-span-2">
                         <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider block">Lịch Khám & Tiếp Nhận</span>
                         <p className="text-xs font-medium text-emerald-800">
-                          Bác sĩ có lịch tiếp nhận khám bệnh từ Thứ 2 đến Thứ 7 hàng tuần tại Bệnh viện 4AM.
+                          Bác sĩ có lịch tiếp nhận khám bệnh từ Thứ 2 đến Thứ 7 hàng tuần tại Phòng khám Tim mạch 4AM.
                         </p>
                       </div>
                     </div>

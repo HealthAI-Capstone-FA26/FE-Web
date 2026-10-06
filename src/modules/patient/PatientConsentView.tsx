@@ -72,13 +72,13 @@ export const PatientConsentView: React.FC = () => {
         {/* Scrollable Terms Content */}
         <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-700 space-y-3 max-h-60 overflow-y-auto leading-relaxed">
           <p className="font-bold text-slate-900">1. Điều khoản bảo mật & lưu trữ dữ liệu y tế (EMR):</p>
-          <p>Bệnh nhân đồng ý cho Bệnh viện Đa khoa 4AM thu thập, mã hóa và lưu trữ dữ liệu bệnh án điện tử (bao gồm sinh hiệu, kết quả xét nghiệm, chẩn đoán, đơn thuốc) theo quy chuẩn an toàn HL7 FHIR R4 và các quy định pháp luật hiện hành của Bộ Y Tế.</p>
+          <p>Bệnh nhân đồng ý cho Phòng khám Tim mạch 4AM thu thập, mã hóa và lưu trữ dữ liệu bệnh án điện tử (bao gồm sinh hiệu, kết quả xét nghiệm, chẩn đoán, đơn thuốc) theo quy chuẩn an toàn HL7 FHIR R4 và các quy định pháp luật hiện hành của Bộ Y Tế.</p>
           
           <p className="font-bold text-slate-900">2. Điều khoản cho phép ứng dụng Mô-đun AI hỗ trợ chẩn đoán:</p>
           <p>Bệnh nhân đồng ý cho phép các hệ thống AI (AI01 - Tóm tắt EMR tự động và AI02 - Khoanh vùng bất thường hình ảnh y tế DICOM) xử lý dữ liệu lâm sàng của mình nhằm mục đích hỗ trợ bác sĩ đưa ra quyết định thăm khám nhanh chóng và chính xác hơn.</p>
 
           <p className="font-bold text-slate-900">3. Quyền riêng tư & bảo mật thông tin:</p>
-          <p>Mọi thông tin cá nhân của bệnh nhân đều được bảo mật tuyệt đối, mã hóa đường truyền SSL/TLS 256-bit và không được chia sẻ cho bất kỳ bên thứ ba nào ngoài phạm vi phục vụ khám chữa bệnh tại Bệnh viện 4AM.</p>
+          <p>Mọi thông tin cá nhân của bệnh nhân đều được bảo mật tuyệt đối, mã hóa đường truyền SSL/TLS 256-bit và không được chia sẻ cho bất kỳ bên thứ ba nào ngoài phạm vi phục vụ khám chữa bệnh tại Phòng khám Tim mạch 4AM.</p>
         </div>
 
         {/* Checkboxes */}
