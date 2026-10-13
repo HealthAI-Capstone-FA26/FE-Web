@@ -4,7 +4,9 @@ import { Mascot } from 'page-mascot';
 import {
   encounterService,
   type EncounterItem,
+  type NursePatientRow,
 } from '../../services/encounter/encounter.service';
+import { NurseMedicalHistoryModal } from '../nurse/components/NurseMedicalHistoryModal';
 import {
   patientAllergyService,
   type PatientAllergyItem,
@@ -18,6 +20,7 @@ import {
   clinicalExamService,
   doctorAiService,
   caseTimelineService,
+  initialDiagnosisService,
   AVAILABLE_TEST_CATALOG,
   type TestOrderDetail,
   type CaseOverviewData,
@@ -55,6 +58,7 @@ export const DoctorEMRView: React.FC = () => {
   const [selectedPatientId, setSelectedPatientId] = useState<string>(() => {
     return globalLastSelectedPatientId || localStorage.getItem('doctor_selected_patient_id') || '';
   });
+  const [isMedicalHistoryModalOpen, setIsMedicalHistoryModalOpen] = useState<boolean>(false);
 
   // Tab con nội bộ: 'emr_summary' (Hồ sơ EMR & AI01) | 'clinical_orders' (Khám & Chỉ định) | 'ai_imaging' (Phân tích ảnh AI02)
   const [activeSubTab, setActiveSubTab] = useState<'emr_summary' | 'clinical_orders' | 'ai_imaging'>('emr_summary');
@@ -342,6 +346,23 @@ export const DoctorEMRView: React.FC = () => {
     }
     return Object.values(combinedPatientsMap)[0] || null;
   }, [selectedPatientId, combinedPatientsMap]);
+
+  const currentPatientAsNurseRow = useMemo<NursePatientRow | null>(() => {
+    if (!currentPatient) return null;
+    return {
+      encounterId: currentPatient.encounterId || '',
+      encounterCode: currentPatient.encounterCode || '',
+      patientId: currentPatient.patientId || '',
+      name: currentPatient.name,
+      age: currentPatient.age,
+      gender: currentPatient.gender,
+      phone: currentPatient.phone,
+      departmentName: 'Khoa Tim mạch',
+      doctorName: user?.name || 'Bác sĩ',
+      arrivedAt: currentPatient.arrivedAt || '',
+      status: 'Measured',
+    };
+  }, [currentPatient, user]);
 
   useEffect(() => {
     const keys = Object.keys(combinedPatientsMap);
@@ -998,6 +1019,7 @@ export const DoctorEMRView: React.FC = () => {
 
     try {
       // 1. Lưu khám lâm sàng & chẩn đoán sơ bộ
+      let initialDiagnosisId: string | undefined;
       if (clinicalExamNote.trim() || preliminaryDiag.trim()) {
         try {
           await clinicalExamService.upsertClinicalExamination(activeEncounterId, {
@@ -1010,6 +1032,25 @@ export const DoctorEMRView: React.FC = () => {
             setExamWarningMsg('Lưu ý: Khám lâm sàng chưa lưu vào DB do ca khám đang ở trạng thái tiếp đón (arrived).');
           } else {
             console.warn('Cảnh báo lưu khám lâm sàng:', examErr);
+          }
+        }
+
+        // Tạo bản ghi Chẩn đoán sơ bộ (SE02 Initial Diagnosis)
+        if (preliminaryDiag.trim()) {
+          try {
+            const matchedIcd = preliminaryDiag.match(/([A-Z]\d{2}(\.\d{1,2})?)/i);
+            const icdCode = matchedIcd ? matchedIcd[1].toUpperCase() : 'I20.9';
+            const diagResult = await initialDiagnosisService.create(activeEncounterId, {
+              icd10Code: icdCode,
+              diagnosisName: preliminaryDiag.trim(),
+              diagnosisType: 'initial',
+              isPrimary: true,
+            });
+            if (diagResult?.diagnosisId) {
+              initialDiagnosisId = diagResult.diagnosisId;
+            }
+          } catch (diagErr) {
+            console.warn('Ghi nhận chẩn đoán sơ bộ SE02:', diagErr);
           }
         }
       }
@@ -1025,6 +1066,7 @@ export const DoctorEMRView: React.FC = () => {
       });
 
       const orderResult = await testOrderService.createTestOrder(activeEncounterId, {
+        diagnosisId: initialDiagnosisId,
         notes: orderNotes.trim() || undefined,
         items: itemsPayload,
       });
@@ -1198,6 +1240,7 @@ export const DoctorEMRView: React.FC = () => {
                     activeAllergies={activeAllergies}
                     isLoadingAllergies={isLoadingAllergies}
                     isLoadingOverview={isLoadingOverview}
+                    onOpenMedicalHistory={() => setIsMedicalHistoryModalOpen(true)}
                     displayBp={displayBp}
                     displayHr={displayHr}
                     displaySpo2={displaySpo2}
@@ -1287,6 +1330,13 @@ export const DoctorEMRView: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Modal Tiền sử bệnh nhân (Chronic Diseases, Cardiac History, Surgeries) */}
+      <NurseMedicalHistoryModal
+        isOpen={isMedicalHistoryModalOpen}
+        onClose={() => setIsMedicalHistoryModalOpen(false)}
+        patientRow={currentPatientAsNurseRow}
+      />
     </div>
   );
 };

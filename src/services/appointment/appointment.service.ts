@@ -25,8 +25,8 @@ export interface AppointmentSlotResponse {
 
 export interface CreateOnlineAppointmentPayload {
   patientId: string;
-  relationship: string;
-  departmentId: string;
+  relationship?: string;
+  departmentId?: string;
   doctorId: string;
   slotId: string;
   reasonForVisit?: string;
@@ -40,7 +40,7 @@ export interface GuestRequestOtpPayload {
   dateOfBirth: string;
   gender: 'male' | 'female' | 'other';
   identityNumber: string;
-  departmentId: string;
+  departmentId?: string;
   doctorId: string;
   slotId: string;
   reasonForVisit?: string;
@@ -205,9 +205,10 @@ export const appointmentService = {
 
   // Đặt lịch khám online
   async createOnlineAppointment(payload: CreateOnlineAppointmentPayload): Promise<AppointmentItem> {
+    const { departmentId, relationship, ...rest } = payload as any;
     const res = await apiFetch<AppointmentItem>('/appointments', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(rest),
     });
     this.invalidateCache();
     return res;
@@ -215,9 +216,10 @@ export const appointmentService = {
 
   // Khách vãng lai (Guest) đặt lịch - Bước 1: Gửi thông tin + yêu cầu mã OTP
   async guestRequestOtp(payload: GuestRequestOtpPayload): Promise<{ message: string }> {
+    const { departmentId, ...rest } = payload as any;
     return apiFetch<{ message: string }>('/appointments/guest/request-otp', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(rest),
     });
   },
 
@@ -328,13 +330,15 @@ export const appointmentService = {
   // Lễ tân tạo lịch khám trực tiếp tại quầy (bookingChannel = at_hospital)
   async createAtHospitalAppointment(payload: {
     patientId?: string;
-    departmentId: string;
+    departmentId?: string;
+    symptoms?: string;
     reasonForVisit?: string;
     priority?: 'normal' | 'urgent' | 'emergency';
   }): Promise<{ appointment: AppointmentItem; queueTicket: any }> {
+    const { departmentId, ...rest } = payload as any;
     const res = await apiFetch<{ appointment: AppointmentItem; queueTicket: any }>('/appointments/at-hospital', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(rest),
     });
     this.invalidateCache();
     return res;

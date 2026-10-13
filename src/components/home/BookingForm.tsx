@@ -20,20 +20,13 @@ import {
   KeyRound,
   RefreshCw,
   Plus,
-  Wand2,
   X,
   AlertCircle,
-  Baby,
+  HeartPulse,
 } from 'lucide-react';
 import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { appointmentService, type AppointmentSlotResponse, type AppointmentItem } from '../../services/appointment/appointment.service';
 import { useLocation } from 'react-router-dom';
-import {
-  departmentSuggestionService,
-  calcPatientAgeYears,
-  confidenceLabel,
-  type DepartmentSuggestionResult,
-} from '../../services/department/department-suggestion.service';
 
 export const BookingForm = () => {
   const location = useLocation();
@@ -78,59 +71,22 @@ export const BookingForm = () => {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [successBooking, setSuccessBooking] = useState<AppointmentItem | null>(null);
 
-  // AI Department Suggestion
-  const [aiSuggestions, setAiSuggestions] = useState<DepartmentSuggestionResult[]>([]);
-  const [isAISuggesting, setIsAISuggesting] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [showAIPanel, setShowAIPanel] = useState(false);
-  const [emergencyMsg, setEmergencyMsg] = useState<string | null>(null);
-  const [symptomInput, setSymptomInput] = useState('');
 
-  // 1. Fetch initial Departments
+
+  // 1. Fetch Doctors directly (Cardiology clinic)
   useEffect(() => {
     const fetchInit = async () => {
       try {
         setLoadingInit(true);
-        const deptList = await doctorService.getDepartments();
+        const docList = await doctorService.getDoctors();
+        const activeDocs = Array.isArray(docList) ? docList.filter((d) => d.isActive) : [];
+        setFilteredDoctors(activeDocs);
 
-        const activeDepts = deptList.filter((d) => d.isActive);
-        setDepartments(activeDepts);
-        if (stateDeptId && activeDepts.some((d) => d.departmentId === stateDeptId)) {
-          setSelectedDeptId(stateDeptId);
-        } else if (activeDepts.length > 0) {
-          setSelectedDeptId(activeDepts[0].departmentId);
-        }
-      } catch (err) {
-        console.error('Failed to load init data for booking form:', err);
-      } finally {
-        setLoadingInit(false);
-      }
-    };
-    fetchInit();
-  }, []);
-
-  // 2. Fetch Doctors by selected Department (GET /departments/:id/doctors)
-  useEffect(() => {
-    if (!selectedDeptId) {
-      setFilteredDoctors([]);
-      setSelectedDoctorId('');
-      return;
-    }
-
-    const fetchDoctorsByDept = async () => {
-      try {
-        const list = await doctorService.getDoctorsByDepartment(selectedDeptId);
-        const mapped: DoctorResponse[] = list.map((item: any) => ({
-          ...item.doctor,
-          isPrimary: item.isPrimary,
-        }));
-        setFilteredDoctors(mapped);
-
-        if (mapped.length > 0) {
-          if (stateDoctorId && mapped.some((d) => d.doctorId === stateDoctorId)) {
+        if (activeDocs.length > 0) {
+          if (stateDoctorId && activeDocs.some((d) => d.doctorId === stateDoctorId)) {
             setSelectedDoctorId(stateDoctorId);
           } else {
-            setSelectedDoctorId(mapped[0].doctorId);
+            setSelectedDoctorId(activeDocs[0].doctorId);
           }
         } else {
           setSelectedDoctorId('');
@@ -138,14 +94,13 @@ export const BookingForm = () => {
           setSelectedSlotId('');
         }
       } catch (err) {
-        console.error('Failed to load doctors for department:', err);
-        setFilteredDoctors([]);
-        setSelectedDoctorId('');
+        console.error('Failed to load doctors for booking form:', err);
+      } finally {
+        setLoadingInit(false);
       }
     };
-
-    fetchDoctorsByDept();
-  }, [selectedDeptId, stateDoctorId]);
+    fetchInit();
+  }, [stateDoctorId]);
 
   // Cuộn mượt tới form nếu được chuyển hướng từ trang Chuyên gia
   useEffect(() => {
@@ -160,45 +115,7 @@ export const BookingForm = () => {
     }
   }, [stateDoctorId, stateDeptId]);
 
-  // AI Department Suggestion handler
-  const handleAISuggest = useCallback(async () => {
-    const symptomText = (symptomInput.trim() || reasonForVisit.trim());
-    if (symptomText.length < 3) {
-      setAiError('Vui lòng nhập ít nhất 3 ký tự mô tả triệu chứng.');
-      return;
-    }
 
-    // Đồng bộ 2 trường nếu 1 trong 2 đang trống
-    if (!symptomInput.trim()) setSymptomInput(symptomText);
-    if (!reasonForVisit.trim()) setReasonForVisit(symptomText);
-
-    setIsAISuggesting(true);
-    setAiError(null);
-    setAiSuggestions([]);
-    setEmergencyMsg(null);
-    setShowAIPanel(true);
-    try {
-      const patientAgeYears = calcPatientAgeYears(dateOfBirth);
-      const results = await departmentSuggestionService.suggest({ symptoms: symptomText, patientAgeYears });
-      setAiSuggestions(results ?? []);
-
-      const emergency = results?.find((r) => r.isEmergency);
-      if (emergency) {
-        setEmergencyMsg(emergency.advice ?? 'Vui lòng đến ngay Khoa Cấp Cứu hoặc gọi 115.');
-        if (emergency.departmentId) setSelectedDeptId(emergency.departmentId);
-        return;
-      }
-
-      const best = results?.[0];
-      if (best && (best.confidence === 'high' || best.confidence === 'medium')) {
-        setSelectedDeptId(best.departmentId);
-      }
-    } catch (err: any) {
-      setAiError(err?.message ?? 'Không thể kết nối dịch vụ gợi ý AI.');
-    } finally {
-      setIsAISuggesting(false);
-    }
-  }, [symptomInput, reasonForVisit, dateOfBirth]);
 
   // Load free slots when doctor or date changes
   useEffect(() => {
@@ -251,8 +168,7 @@ export const BookingForm = () => {
       newErrors.identityNumber = 'Số CCCD/CMND tối thiểu 9 chữ số';
     }
 
-    if (!selectedDeptId) newErrors.selectedDeptId = 'Vui lòng chọn chuyên khoa';
-    if (!selectedDoctorId) newErrors.selectedDoctorId = 'Vui lòng chọn bác sĩ';
+    if (!selectedDoctorId) newErrors.selectedDoctorId = 'Vui lòng chọn bác sĩ khám';
     if (!selectedSlotId) newErrors.selectedSlotId = 'Vui lòng chọn khung giờ khám còn trống';
 
     setErrors(newErrors);
@@ -277,7 +193,6 @@ export const BookingForm = () => {
         identityNumber: identityNumber.trim(),
         dateOfBirth,
         gender,
-        departmentId: selectedDeptId,
         doctorId: selectedDoctorId,
         slotId: selectedSlotId,
         reasonForVisit: reasonForVisit.trim()
@@ -480,104 +395,36 @@ export const BookingForm = () => {
                   </div>
                 </div>
 
-                {/* KHUNG 2: VẤN ĐỀ SỨC KHỎE CẦN KHÁM & AI GỢI Ý KHOA */}
+                {/* KHUNG 2: VẤN ĐỀ SỨC KHỎE CẦN KHÁM */}
                 <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                      * 2. Vấn đề sức khỏe cần khám
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleAISuggest}
-                      disabled={isAISuggesting || (!reasonForVisit.trim() && !symptomInput.trim())}
-                      className="px-3 py-1 rounded-lg bg-violet-500 hover:bg-violet-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer border-none shadow-xs"
-                    >
-                      {isAISuggesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5 text-yellow-300" />}
-                      <span>{isAISuggesting ? 'Đang phân tích...' : '✨ AI Gợi ý Khoa'}</span>
-                    </button>
-                  </div>
+                  <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
+                    * 2. Vấn đề sức khỏe cần khám
+                  </span>
 
                   <textarea
-                    placeholder="Mô tả triệu chứng bệnh hoặc nhu cầu khám... (VD: Bé 3 tuổi sốt cao, hoặc trẻ sơ sinh 10 ngày bú kém, đau bụng...)"
+                    placeholder="Mô tả triệu chứng hoặc lý do khám... (VD: Đau tức ngực trái, khó thở khi gắng sức, hồi hộp tim đập nhanh, tăng huyết áp...)"
                     rows={2.5}
                     value={reasonForVisit}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setReasonForVisit(val);
-                      setSymptomInput(val);
-                      setAiSuggestions([]);
-                      setAiError(null);
-                      setEmergencyMsg(null);
-                    }}
+                    onChange={(e) => setReasonForVisit(e.target.value)}
                     className="w-full bg-white text-slate-800 font-semibold p-3 rounded-lg text-xs outline-none resize-none focus:ring-2 focus:ring-yellow-400"
                   />
 
-                  {/* Hint note for pediatric & neonate */}
+                  {/* Triệu chứng tim mạch thường gặp */}
                   <div className="flex items-start gap-1.5 text-[10.5px] text-blue-100/90 bg-blue-950/40 rounded-lg px-2.5 py-1.5 border border-blue-400/20 leading-relaxed">
-                    <Baby className="w-3.5 h-3.5 text-amber-300 shrink-0 mt-0.5" />
+                    <HeartPulse className="w-3.5 h-3.5 text-rose-300 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold text-amber-300">Gợi ý cho trẻ: </span>
-                      Nhập <span className="font-semibold text-white">&quot;trẻ sơ sinh&quot;</span> + lý do (vào Khoa Sơ sinh) hoặc <span className="font-semibold text-white">&quot;bé&quot; + lý do</span> hoặc <span className="font-semibold text-white">số tuổi</span> (vào Khoa Nhi).
+                      <span className="font-bold text-rose-300">Triệu chứng tim mạch gợi ý: </span>
+                      Đau thắt ngực, khó thở khi nằm/gắng sức, hồi hộp đánh trống ngực, phù chân, tăng huyết áp, tái khám sau can thiệp.
                     </div>
                   </div>
-
-                  {aiError && (
-                    <p className="text-yellow-300 text-[11px] flex items-center gap-1 font-medium">
-                      <AlertCircle className="w-3.5 h-3.5" /> {aiError}
-                    </p>
-                  )}
-
-                  {emergencyMsg && (
-                    <div className="bg-rose-600/90 border border-rose-400 rounded-xl p-3 text-xs text-white flex items-start gap-2">
-                      <ShieldAlert className="w-4 h-4 shrink-0 text-rose-200 mt-0.5" />
-                      <div>
-                        <div className="font-black text-rose-100 mb-0.5">🚨 Dấu hiệu cấp cứu!</div>
-                        <p className="font-medium leading-relaxed text-rose-100">{emergencyMsg}</p>
-                      </div>
-                      <button type="button" onClick={() => setEmergencyMsg(null)} className="ml-auto shrink-0 text-rose-300 hover:text-white cursor-pointer border-none bg-transparent">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-
-                  {showAIPanel && aiSuggestions.length > 0 && !emergencyMsg && (
-                    <div className="space-y-1 pt-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-violet-300 uppercase">Gợi ý từ AI (Chọn khoa phù hợp):</span>
-                        <button type="button" onClick={() => setShowAIPanel(false)} className="text-blue-300 hover:text-white cursor-pointer border-none bg-transparent"><X className="w-3 h-3" /></button>
-                      </div>
-                      <div className="space-y-1">
-                        {aiSuggestions.slice(0, 3).map((s, idx) => {
-                          const isActive = selectedDeptId === s.departmentId;
-                          return (
-                            <button
-                              key={s.departmentId}
-                              type="button"
-                              onClick={() => setSelectedDeptId(s.departmentId)}
-                              className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left text-xs font-semibold transition-all cursor-pointer border ${isActive
-                                  ? 'bg-violet-500/30 border-violet-400 text-white shadow-xs'
-                                  : 'bg-white/10 border-white/20 text-blue-100 hover:bg-white/20'
-                                }`}
-                            >
-                              <span>{idx === 0 && '🏆 '}{s.departmentName}</span>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.confidence === 'high' ? 'bg-emerald-500/30 text-emerald-200'
-                                  : s.confidence === 'medium' ? 'bg-blue-400/30 text-blue-200'
-                                    : 'bg-white/10 text-blue-300'
-                                }`}>{confidenceLabel(s.confidence)}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </div>
 
-                {/* KHUNG 3: CHỌN LOẠI HÌNH & CHUYÊN KHOA KHÁM */}
+                {/* KHUNG 3: CHỌN LOẠI HÌNH & BÁC SĨ TIM MẠCH */}
                 <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-3 font-sans">
                   {/* Chọn loại hình khám */}
                   <div className="space-y-1">
                     <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                      * 3. Chọn loại hình & chuyên khoa khám
+                      * 3. Chọn loại hình khám & Bác sĩ phụ trách
                     </span>
                     <div className="grid grid-cols-2 bg-white p-1 rounded-lg text-center font-bold">
                       <button
@@ -599,28 +446,9 @@ export const BookingForm = () => {
                     </div>
                   </div>
 
-                  {/* Chuyên khoa */}
+                  {/* Bác sĩ Tim mạch */}
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-blue-100 mb-1">Chuyên khoa *</label>
-                    <div className="relative">
-                      <select
-                        value={selectedDeptId}
-                        onChange={(e) => setSelectedDeptId(e.target.value)}
-                        className="w-full bg-white text-slate-800 font-semibold py-2 pl-3 pr-8 rounded-lg text-xs outline-none appearance-none"
-                      >
-                        {departments.map((d) => (
-                          <option key={d.departmentId} value={d.departmentId}>
-                            {d.departmentName} ({d.departmentCode})
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
-
-                  {/* Bác sĩ */}
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-blue-100 mb-1">Bác sĩ phụ trách *</label>
+                    <label className="block text-[10px] font-bold uppercase text-blue-100 mb-1">Bác sĩ Tim Mạch phụ trách *</label>
                     <div className="relative">
                       <select
                         value={selectedDoctorId}

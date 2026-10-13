@@ -28,6 +28,7 @@ import { NurseVitalModal } from './components/NurseVitalModal';
 import { NurseVitalHistoryModal } from './components/NurseVitalHistoryModal';
 import { EncounterDetailModal } from './components/EncounterDetailModal';
 import { NurseAllergyModal } from './components/NurseAllergyModal';
+import { NurseMedicalHistoryModal } from './components/NurseMedicalHistoryModal';
 import { ChangeEncounterDepartmentModal } from './components/ChangeEncounterDepartmentModal';
 
 export const NurseQueueView: React.FC = () => {
@@ -44,6 +45,7 @@ export const NurseQueueView: React.FC = () => {
   const [isInputModalOpen, setIsInputModalOpen] = useState<boolean>(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
   const [isAllergyModalOpen, setIsAllergyModalOpen] = useState<boolean>(false);
+  const [isMedicalHistoryModalOpen, setIsMedicalHistoryModalOpen] = useState<boolean>(false);
   const [isChangeDeptModalOpen, setIsChangeDeptModalOpen] = useState<boolean>(false);
   const [selectedDetailEncounterId, setSelectedDetailEncounterId] = useState<string | null>(null);
 
@@ -360,6 +362,24 @@ export const NurseQueueView: React.FC = () => {
     setIsAllergyModalOpen(true);
   };
 
+  // Xử lý mở Modal Tiền sử bệnh
+  const handleOpenMedicalHistory = (row: NursePatientRow) => {
+    setSelectedRow(row);
+    setIsMedicalHistoryModalOpen(true);
+  };
+
+  // Xử lý bắt đầu đo cho bệnh nhân đã gọi (triage-queue start)
+  const handleStartProcessing = async (row: NursePatientRow) => {
+    if (!row.queueEntryId) return;
+    try {
+      await triageQueueService.startProcessing(row.queueEntryId);
+      showToast(`Đã bắt đầu đo sinh hiệu cho bệnh nhân ${row.name}!`);
+      fetchData(true);
+    } catch (err: any) {
+      showToast(err?.message || 'Không thể bắt đầu phiên đo.', 'error');
+    }
+  };
+
   // Xử lý mở Modal Đổi khoa khám
   const handleOpenChangeDept = (row: NursePatientRow) => {
     setSelectedRow(row);
@@ -493,7 +513,9 @@ export const NurseQueueView: React.FC = () => {
         onOpenHistory={handleOpenHistory}
         onOpenDetail={handleOpenDetail}
         onOpenAllergy={handleOpenAllergy}
+        onOpenMedicalHistory={handleOpenMedicalHistory}
         onOpenChangeDept={handleOpenChangeDept}
+        onStartProcessing={handleStartProcessing}
       />
 
       {/* Modal Chi tiết ca khám (Encounter Detail) */}
@@ -514,6 +536,18 @@ export const NurseQueueView: React.FC = () => {
         isOpen={isAllergyModalOpen}
         onClose={() => {
           setIsAllergyModalOpen(false);
+          setSelectedRow(null);
+        }}
+        patientRow={selectedRow}
+        onSuccess={(msg) => showToast(msg, 'success')}
+        onError={(err) => showToast(err, 'error')}
+      />
+
+      {/* Modal Khai báo & Quản lý tiền sử bệnh án */}
+      <NurseMedicalHistoryModal
+        isOpen={isMedicalHistoryModalOpen}
+        onClose={() => {
+          setIsMedicalHistoryModalOpen(false);
           setSelectedRow(null);
         }}
         patientRow={selectedRow}

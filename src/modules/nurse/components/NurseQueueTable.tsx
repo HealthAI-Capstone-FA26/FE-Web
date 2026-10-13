@@ -23,6 +23,7 @@ interface NurseQueueTableProps {
   onOpenHistory: (row: NursePatientRow) => void;
   onOpenDetail: (row: NursePatientRow) => void;
   onOpenAllergy: (row: NursePatientRow) => void;
+  onOpenMedicalHistory?: (row: NursePatientRow) => void;
   onOpenChangeDept?: (row: NursePatientRow) => void;
   onStartProcessing?: (row: NursePatientRow) => void;
 }
@@ -34,6 +35,7 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
   onOpenHistory,
   onOpenDetail,
   onOpenAllergy,
+  onOpenMedicalHistory,
   onOpenChangeDept,
   onStartProcessing,
 }) => {
@@ -246,6 +248,18 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
           >
             <ShieldAlert className="w-3.5 h-3.5" />
           </button>
+
+          {/* Nút Khai báo & quản lý tiền sử bệnh */}
+          {onOpenMedicalHistory && (
+            <button
+              type="button"
+              onClick={() => onOpenMedicalHistory(row)}
+              title="Khai báo & quản lý tiền sử bệnh án của bệnh nhân"
+              className="p-1.5 rounded-xl text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer"
+            >
+              <History className="w-3.5 h-3.5" />
+            </button>
+          )}
 
           {row.triageStatus === 'called' && onStartProcessing && (
             <button

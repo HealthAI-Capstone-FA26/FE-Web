@@ -17,7 +17,7 @@ import {
   type VitalItemResponse,
   type VitalReferenceRangeResponse,
 } from '../../../services/vital/vital.service';
-import type { NursePatientRow } from '../../../services/encounter/encounter.service';
+import { encounterService, type NursePatientRow } from '../../../services/encounter/encounter.service';
 
 interface NurseVitalModalProps {
   isOpen: boolean;
@@ -170,7 +170,17 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
         queueEntryId: patientRow.queueEntryId,
       });
 
-      onSuccess(`Đã lưu phiên sinh hiệu mới vào lịch sử cho bệnh nhân ${patientRow.name}!`);
+      let routeMsg = '';
+      try {
+        const routeResult = await encounterService.routeDoctor(patientRow.encounterId);
+        if (routeResult?.doctor?.fullName) {
+          routeMsg = ` & Điều phối vào phòng Bác sĩ ${routeResult.doctor.fullName}`;
+        }
+      } catch {
+        // Tự động bỏ qua nếu đã phân bổ hoặc chưa đủ điều kiện
+      }
+
+      onSuccess(`Đã lưu phiên sinh hiệu cho bệnh nhân ${patientRow.name}${routeMsg}!`);
       onClose();
     } catch (err: any) {
       console.error('Lỗi khi lưu sinh hiệu mới:', err);

@@ -147,6 +147,7 @@ export const caseTimelineService = {
       isPrimary?: boolean;
       notes?: string;
       clinicalNotes?: string;
+      diagnosedAt?: string;
       aiSuggestionId?: string;
       aiDecision?: 'accepted' | 'rejected' | 'modified';
       doctorFeedback?: 'accepted' | 'rejected' | 'modified';
@@ -158,14 +159,8 @@ export const caseTimelineService = {
       diagnosisName: payload.diagnosisName,
       isPrimary: payload.isPrimary ?? true,
       notes: payload.notes || payload.clinicalNotes,
+      diagnosedAt: payload.diagnosedAt,
     };
-    if (payload.aiSuggestionId) {
-      body.aiSuggestionId = payload.aiSuggestionId;
-      body.aiDecision = payload.aiDecision || payload.doctorFeedback || 'accepted';
-      if (body.aiDecision === 'rejected') {
-        body.rejectionReason = payload.rejectionReason;
-      }
-    }
     return apiFetch(
       `/post-test-consultation/encounters/${encounterId}/diagnosis-conclusion`,
       {
@@ -175,7 +170,7 @@ export const caseTimelineService = {
     );
   },
 
-  /** Ghi nhận tư vấn điều trị và đóng lượt khám (finished) */
+  /** Ghi nhận tư vấn điều trị và khoảng cách tái khám */
   async submitTreatmentConsultation(
     encounterId: string,
     payload: {
@@ -184,14 +179,36 @@ export const caseTimelineService = {
       lifestyleAdvice?: string;
       nutritionAdvice?: string;
       followUpRequired?: boolean;
+      followUpIntervalDays?: number;
       followUpDate?: string;
+      consultedAt?: string;
     }
   ): Promise<any> {
+    const body: Record<string, any> = {
+      conditionExplanation: payload.conditionExplanation,
+      treatmentPlan: payload.treatmentPlan,
+      lifestyleAdvice: payload.lifestyleAdvice,
+      nutritionAdvice: payload.nutritionAdvice,
+      followUpRequired: payload.followUpRequired ?? false,
+      consultedAt: payload.consultedAt,
+    };
+
+    if (body.followUpRequired) {
+      if (payload.followUpIntervalDays !== undefined && payload.followUpIntervalDays !== null) {
+        body.followUpIntervalDays = Number(payload.followUpIntervalDays);
+      } else if (payload.followUpDate) {
+        const diffDays = Math.max(1, Math.round((new Date(payload.followUpDate).getTime() - Date.now()) / (1000 * 3600 * 24)));
+        body.followUpIntervalDays = diffDays;
+      } else {
+        body.followUpIntervalDays = 14;
+      }
+    }
+
     return apiFetch(
       `/post-test-consultation/encounters/${encounterId}/treatment-consultation`,
       {
         method: 'PUT',
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       }
     );
   },
