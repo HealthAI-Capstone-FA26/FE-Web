@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  Search, CheckCircle2, XCircle, Sparkles, Clock, FileText,
+  Search, CheckCircle2, Clock, FileText,
   Clipboard, BookOpen, AlertCircle, ArrowRight, User, Loader2,
-  Eye, Image as ImageIcon, ExternalLink, RefreshCw, X, AlertTriangle, Check, FlaskConical
+  Eye, Image as ImageIcon, ExternalLink, RefreshCw, X, AlertTriangle, Check, FlaskConical,
+  HeartPulse, Stethoscope, Calendar, Activity, CheckSquare, Square
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
-import { doctorAiService } from '../../services/doctor/doctor-ai.service';
 import { icd10Service } from '../../services/icd10/icd10.service';
 import {
-  caseTimelineService,
-  type CaseTimelineResponse,
-  type TimelineEvent,
-} from '../../services/doctor/case-timeline.service';
+  postTestConsultationService,
+  type PostTestTimelineResponse,
+} from '../../services/doctor/post-test-consultation.service';
+import { type TimelineEvent } from '../../services/doctor/case-timeline.service';
 import { encounterService, type EncounterItem } from '../../services/encounter/encounter.service';
 import { useAuth } from '../../context/AuthContext';
 import { BorderBeam } from '../../components/ui/border-beam';
@@ -20,11 +20,25 @@ import { Mascot } from 'page-mascot';
 
 /* 
  * DESIGN READ:
- * Component Kind: Post-Lab Diagnosis & Patient Consultation panel (Mô-đun 8)
- * Audience: Doctors finalizing official diagnoses.
- * Vibe: Premium clinical EMR workspace, displaying EMR history timelines, 
- *       AI-generated diagnostic reasoning panels, and interactive ICD-10 search engines.
+ * Component Kind: Post-Test Cardiology Diagnosis & Treatment Consultation Panel (Mô-đun 8 / SE05)
+ * Specialty: Cardiology Clinic Only (Phòng Khám Chuyên Khoa Tim Mạch)
+ * Audience: Cardiologists reviewing completed paraclinical tests (Blood/Troponin, ECG, Echo, X-ray),
+ *           selecting official ICD-10 cardiovascular diagnosis, and formulating treatment consultations.
  */
+
+// Danh mục mã bệnh ICD-10 tim mạch phổ biến (Gợi ý nhanh cho Bác sĩ Tim mạch)
+const CARDIOLOGY_QUICK_ICD10 = [
+  { code: 'I20.9', name: 'Đau thắt ngực, không đặc hiệu (Angina pectoris, unspecified)', shortName: 'Đau thắt ngực' },
+  { code: 'I21.9', name: 'Nhồi máu cơ tim cấp, không đặc hiệu (Acute myocardial infarction)', shortName: 'Nhồi máu cơ tim cấp' },
+  { code: 'I25.1', name: 'Bệnh tim do xơ vữa động mạch (Atherosclerotic heart disease)', shortName: 'Bệnh tim xơ vữa' },
+  { code: 'I50.9', name: 'Suy tim, không đặc hiệu (Heart failure, unspecified)', shortName: 'Suy tim' },
+  { code: 'I10', name: 'Tăng huyết áp vô căn (nguyên phát) (Essential hypertension)', shortName: 'Tăng huyết áp' },
+  { code: 'I48.9', name: 'Rung nhĩ và cuồng nhĩ, không đặc hiệu (Atrial fibrillation & flutter)', shortName: 'Rung nhĩ / Cuồng nhĩ' },
+  { code: 'I47.1', name: 'Nhịp nhanh trên thất kịch phát (Supraventricular tachycardia)', shortName: 'Nhịp nhanh trên thất' },
+  { code: 'I42.0', name: 'Bệnh cơ tim giãn (Dilated cardiomyopathy)', shortName: 'Bệnh cơ tim giãn' },
+  { code: 'I35.0', name: 'Hẹp van động mạch chủ (Aortic valve stenosis)', shortName: 'Hẹp van ĐMC' },
+  { code: 'I05.0', name: 'Hẹp van hai lá do thấp (Rheumatic mitral stenosis)', shortName: 'Hẹp van 2 lá' },
+];
 
 interface CurrentPatientInfo {
   id: string;
@@ -38,21 +52,21 @@ interface CurrentPatientInfo {
   history: string;
   symptoms: string;
   clinicalExam: string;
-  aiSuggestedIcd: {
+  existingDiagnosis?: {
     code: string;
     name: string;
-    confidence: string;
-    reasoning: string;
-    references: string;
+    notes?: string;
+    isPrimary?: boolean;
   };
   defaultAdvice: {
     explanation: string;
     plan: string;
     lifestyle: string;
+    nutrition: string;
+    followUpRequired: boolean;
+    followUpIntervalDays: number;
   };
 }
-
-
 
 export const DoctorDiagnosisView: React.FC = () => {
   const { user } = useAuth();
@@ -62,28 +76,15 @@ export const DoctorDiagnosisView: React.FC = () => {
 
   const [apiEncounters, setApiEncounters] = useState<EncounterItem[]>([]);
   const [isLoadingEncounters, setIsLoadingEncounters] = useState(false);
-  const [timelineData, setTimelineData] = useState<CaseTimelineResponse | null>(null);
+  const [timelineData, setTimelineData] = useState<PostTestTimelineResponse | null>(null);
   const [isLoadingTimeline, setIsLoadingTimeline] = useState(false);
   const [previewAttachmentUrl, setPreviewAttachmentUrl] = useState<string | null>(null);
   const [selectedLabEvent, setSelectedLabEvent] = useState<TimelineEvent | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Cache timeline data theo encounterId — tránh fetch lại khi quay về ca đã xem
-  const timelineCache = useRef<Map<string, CaseTimelineResponse>>(new Map());
-
-  // Trạng thái yêu cầu AI tổng hợp phân tích sau xét nghiệm
-  const [isGeneratingAiReview, setIsGeneratingAiReview] = useState(false);
-  const [customAiReview, setCustomAiReview] = useState<{
-    code: string;
-    name: string;
-    confidence: string;
-    reasoning: string;
-    references: string;
-    source: string;
-    suggestionId?: string;
-  } | null>(null);
-  const [aiReviewNotification, setAiReviewNotification] = useState<string | null>(null);
+  // Cache timeline data theo encounterId
+  const timelineCache = useRef<Map<string, PostTestTimelineResponse>>(new Map());
 
   const handleSelectPatientId = (id: string) => {
     setSelectedPatientId(id);
@@ -146,31 +147,26 @@ export const DoctorDiagnosisView: React.FC = () => {
 
   const activeEncounterId = activeEncounter?.encounterId || (selectedPatientId.includes('-') && selectedPatientId.length > 30 ? selectedPatientId : undefined);
 
-  // Fetch timeline có cache: nếu đã fetch rồi → hiển thị tức thì, fetch ngầm cập nhật
+  // Fetch timeline có cache
   const fetchTimeline = useCallback(async (encounterId: string, forceRefresh = false) => {
-    // Cache hit → hiển thị ngay, không loading
     if (!forceRefresh && timelineCache.current.has(encounterId)) {
       setTimelineData(timelineCache.current.get(encounterId)!);
       setIsLoadingTimeline(false);
-      // Fetch ngầm để cập nhật cache (silent background refresh)
-      caseTimelineService.getTimeline(encounterId)
+      postTestConsultationService.getTimeline(encounterId)
         .then((res) => {
           timelineCache.current.set(encounterId, res);
           setTimelineData((prev) =>
-            // Chỉ cập nhật nếu vẫn đang xem cùng encounter
             prev?.encounter?.encounterId === encounterId ? res : prev
           );
         })
         .catch(() => { /* silent fail */ });
       return;
     }
-    // Cache miss hoặc force → dọn dẹp timeline cũ NGAY LẬP TỨC và bật loading spinner
     setTimelineData(null);
     setIsLoadingTimeline(true);
     try {
-      const res = await caseTimelineService.getTimeline(encounterId);
+      const res = await postTestConsultationService.getTimeline(encounterId);
       timelineCache.current.set(encounterId, res);
-      // Đảm bảo chỉ set khi vẫn đang xem đúng encounter này
       setTimelineData((prev) => {
         return activeEncounterId === encounterId ? res : prev;
       });
@@ -187,43 +183,34 @@ export const DoctorDiagnosisView: React.FC = () => {
       setTimelineData(null);
       return;
     }
-    let cancelled = false;
-    // Dùng cache nếu có, không set cancelled check cần thiết vì fetchTimeline tự guard
     fetchTimeline(activeEncounterId);
-    return () => { cancelled = true; };
   }, [activeEncounterId, fetchTimeline]);
 
-  // ⚡ Cơ chế Tải trước ngầm (Rolling Background Prefetch):
-  // Khi đang ở ca khám hiện tại, âm thầm tải trước dữ liệu 2-3 ca tiếp theo trong hàng đợi
+  // Tải trước ngầm 2-3 ca tiếp theo trong hàng đợi
   useEffect(() => {
     if (!activeEncounterId || apiEncounters.length === 0) return;
 
     let isCancelled = false;
-
-    // Tìm vị trí ca hiện tại trong danh sách
     const currentIndex = apiEncounters.findIndex(
       (e) => e.encounterId === activeEncounterId || e.encounterCode === activeEncounterId
     );
 
-    // Lấy 2 đến 3 ca tiếp theo chưa có trong cache
     const nextEncounters = apiEncounters
       .slice(currentIndex >= 0 ? currentIndex + 1 : 0, (currentIndex >= 0 ? currentIndex + 1 : 0) + 3)
       .filter((e) => e.encounterId && !timelineCache.current.has(e.encounterId));
 
     if (nextEncounters.length === 0) return;
 
-    // Đặt độ trễ 800ms để ưu tiên ca khám hiện tại nạp xong hoàn toàn trước
     const timer = setTimeout(async () => {
       for (const enc of nextEncounters) {
         if (isCancelled) break;
         try {
-          // Tải ngầm tuần tự và nạp thẳng vào Cache
-          const prefetchData = await caseTimelineService.getTimeline(enc.encounterId);
+          const prefetchData = await postTestConsultationService.getTimeline(enc.encounterId);
           if (!isCancelled) {
             timelineCache.current.set(enc.encounterId, prefetchData);
           }
         } catch {
-          // Bỏ qua lỗi ngầm nếu có sự cố mạng, không làm gián đoạn UI
+          // Bỏ qua lỗi ngầm
         }
       }
     }, 800);
@@ -234,39 +221,45 @@ export const DoctorDiagnosisView: React.FC = () => {
     };
   }, [activeEncounterId, apiEncounters]);
 
+  // Form states cho Chẩn đoán ICD-10 chính thức
   const [icd10Search, setIcd10Search] = useState('');
-  const [selectedIcd, setSelectedIcd] = useState({ code: 'R69', name: 'Bệnh chưa xác định / Đang theo dõi (Illness, unspecified)' });
-  const [aiDecision, setAiDecision] = useState<'ACCEPT' | 'REJECT'>('ACCEPT');
-  const [hasCustomIcdSelected, setHasCustomIcdSelected] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
+  const [selectedIcd, setSelectedIcd] = useState<{ code: string; name: string }>({
+    code: 'I20.9',
+    name: 'Đau thắt ngực, không đặc hiệu (Angina pectoris, unspecified)',
+  });
+  const [diagnosisNotes, setDiagnosisNotes] = useState('');
+  const [isPrimaryDiagnosis, setIsPrimaryDiagnosis] = useState(true);
 
-  // Consultation form states
+  // Form states cho Tư vấn Điều trị (Treatment Consultation)
   const [expNote, setExpNote] = useState('');
   const [planNote, setPlanNote] = useState('');
   const [lifeNote, setLifeNote] = useState('');
+  const [nutritionNote, setNutritionNote] = useState('');
+  const [followUpRequired, setFollowUpRequired] = useState(false);
+  const [followUpIntervalDays, setFollowUpIntervalDays] = useState<number>(14);
 
   const [isSubmitSuccess, setIsSubmitSuccess] = useState(false);
 
-  // Thông tin tổng hợp của bệnh nhân hiện tại (chỉ trích xuất từ dữ liệu thật)
+  // Thông tin tổng hợp của bệnh nhân hiện tại
   const currentPatient = useMemo<CurrentPatientInfo | null>(() => {
-    if (!activeEncounter && !timelineData) {
+    const validTimeline = timelineData?.encounter?.encounterId === activeEncounterId ? timelineData : null;
+
+    if (!activeEncounter && !validTimeline?.patient) {
       return null;
     }
 
-    // Chỉ dùng timelineData nếu thuộc đúng ca khám đang chọn (activeEncounterId)
-    const isTimelineMatched = Boolean(
-      timelineData &&
-      activeEncounterId &&
-      timelineData.encounter?.encounterId === activeEncounterId
-    );
-    const validTimeline = isTimelineMatched ? timelineData : null;
+    const enc = activeEncounter;
+    const pat = validTimeline?.patient || enc?.patient;
 
-    // Ưu tiên thông tin bệnh nhân từ ca khám được click chọn (activeEncounter)
-    const pat = activeEncounter?.patient || validTimeline?.patient;
-    const enc = activeEncounter || validTimeline?.encounter;
+    let age: number | string = '—';
+    let dob = 'Chưa rõ';
+    if (pat?.dateOfBirth) {
+      const birth = new Date(pat.dateOfBirth);
+      dob = birth.toLocaleDateString('vi-VN');
+      const diff = Date.now() - birth.getTime();
+      age = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+    }
 
-    const dob = pat?.dateOfBirth || '';
-    const age = dob ? new Date().getFullYear() - new Date(dob).getFullYear() : '--';
     const gender = (pat?.gender === 'female' ? 'Nữ' : 'Nam') as 'Nam' | 'Nữ';
     const bloodType = pat?.bloodType || 'Chưa rõ';
 
@@ -296,26 +289,22 @@ export const DoctorDiagnosisView: React.FC = () => {
       clinicalExamEvent?.data?.clinicalNotes ||
       'Chưa có kết quả khám lâm sàng';
 
-    const aiSuggestedIcd = diagEvent?.data?.icd10?.icd10Code
+    const existingDiagnosis = diagEvent?.data?.icd10Code || diagEvent?.data?.icd10?.icd10Code
       ? {
-        code: diagEvent.data.icd10.icd10Code,
-        name: diagEvent.data.icd10.descriptionVi || diagEvent.data.icd10.descriptionEn || diagEvent.data.diagnosisName || '',
-        confidence: '95.0%',
-        reasoning: diagEvent.data.clinicalNotes || 'Gợi ý từ dữ liệu khám lâm sàng và kết quả cận lâm sàng.',
-        references: 'ICD-10 Quốc tế & Dòng thời gian EMR',
+        code: diagEvent.data.icd10Code || diagEvent.data.icd10.icd10Code,
+        name: diagEvent.data.diagnosisName || diagEvent.data.icd10?.descriptionVi || diagEvent.data.icd10?.descriptionEn || '',
+        notes: diagEvent.data.notes || diagEvent.data.clinicalNotes || '',
+        isPrimary: diagEvent.data.isPrimary ?? true,
       }
-      : {
-        code: 'R69',
-        name: 'Bệnh chưa xác định / Đang theo dõi',
-        confidence: '80.0%',
-        reasoning: 'Chưa có chẩn đoán sơ bộ từ các bước trước. Bác sĩ tra cứu mã ICD-10 và hoàn tất kết luận.',
-        references: 'ICD-10 Chuẩn Bộ Y Tế & WHO',
-      };
+      : undefined;
 
     const defaultAdvice = {
       explanation: consultEvent?.data?.conditionExplanation || '',
       plan: consultEvent?.data?.treatmentPlan || '',
       lifestyle: consultEvent?.data?.lifestyleAdvice || '',
+      nutrition: consultEvent?.data?.nutritionAdvice || '',
+      followUpRequired: Boolean(consultEvent?.data?.followUpRequired),
+      followUpIntervalDays: consultEvent?.data?.followUpIntervalDays || 14,
     };
 
     return {
@@ -330,154 +319,58 @@ export const DoctorDiagnosisView: React.FC = () => {
       history,
       symptoms,
       clinicalExam,
-      aiSuggestedIcd,
+      existingDiagnosis,
       defaultAdvice,
     };
   }, [activeEncounter, timelineData, activeEncounterId]);
 
-  // ① Reset hoàn toàn form khi BÁC SĨ ĐỔI CA KHÁM (activeEncounterId thay đổi)
+  // Reset form khi bác sĩ đổi ca khám
   useEffect(() => {
     setExpNote('');
     setPlanNote('');
     setLifeNote('');
-    setSelectedIcd({ code: 'R69', name: 'Bệnh chưa xác định / Đang theo dõi (Illness, unspecified)' });
-    setAiDecision('ACCEPT');
-    setHasCustomIcdSelected(false);
-    setRejectReason('');
+    setNutritionNote('');
+    setFollowUpRequired(false);
+    setFollowUpIntervalDays(14);
+    setSelectedIcd({
+      code: 'I20.9',
+      name: 'Đau thắt ngực, không đặc hiệu (Angina pectoris, unspecified)',
+    });
+    setDiagnosisNotes('');
+    setIsPrimaryDiagnosis(true);
     setIcd10Search('');
     setIsSubmitSuccess(false);
     setSubmitError(null);
-    setCustomAiReview(null);
-    setAiReviewNotification(null);
   }, [activeEncounterId]);
 
-  // ② Populate form bằng dữ liệu THỰC TẾ khi timeline load xong (có diagnosis/treatment_consultation cũ)
+  // Điền dữ liệu từ timeline nếu ca khám đã có chẩn đoán hoặc tư vấn trước đó
   useEffect(() => {
     if (!timelineData || !currentPatient) return;
 
-    // Chỉ điền nếu có dữ liệu thật từ timeline (tránh ghi đè khi chưa có)
-    const hasAdvice =
-      currentPatient.defaultAdvice.explanation ||
-      currentPatient.defaultAdvice.plan ||
-      currentPatient.defaultAdvice.lifestyle;
-    if (hasAdvice) {
+    if (currentPatient.defaultAdvice.explanation || currentPatient.defaultAdvice.plan) {
       setExpNote(currentPatient.defaultAdvice.explanation);
       setPlanNote(currentPatient.defaultAdvice.plan);
       setLifeNote(currentPatient.defaultAdvice.lifestyle);
+      setNutritionNote(currentPatient.defaultAdvice.nutrition);
+      setFollowUpRequired(currentPatient.defaultAdvice.followUpRequired);
+      setFollowUpIntervalDays(currentPatient.defaultAdvice.followUpIntervalDays || 14);
     }
 
-    // Điền ICD nếu timeline có chẩn đoán đã lưu hoặc AI gợi ý
-    if (currentPatient.aiSuggestedIcd?.code) {
+    if (currentPatient.existingDiagnosis?.code) {
       setSelectedIcd({
-        code: currentPatient.aiSuggestedIcd.code,
-        name: currentPatient.aiSuggestedIcd.name,
+        code: currentPatient.existingDiagnosis.code,
+        name: currentPatient.existingDiagnosis.name,
       });
+      if (currentPatient.existingDiagnosis.notes) {
+        setDiagnosisNotes(currentPatient.existingDiagnosis.notes);
+      }
+      if (currentPatient.existingDiagnosis.isPrimary !== undefined) {
+        setIsPrimaryDiagnosis(currentPatient.existingDiagnosis.isPrimary);
+      }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timelineData]);
+  }, [timelineData, currentPatient]);
 
-  // Gợi ý AI hiệu lực (ưu tiên kết quả phân tích tổng hợp mới sau xét nghiệm nếu bác sĩ vừa yêu cầu AI chạy)
-  const activeAiSuggestion = useMemo(() => {
-    if (customAiReview) return customAiReview;
-    return (
-      currentPatient?.aiSuggestedIcd || {
-        code: 'R69',
-        name: 'Bệnh chưa xác định / Đang theo dõi',
-        confidence: '80.0%',
-        reasoning: 'Chưa có chẩn đoán sơ bộ từ các bước trước. Bác sĩ tra cứu mã ICD-10 và hoàn tất kết luận.',
-        references: 'ICD-10 Chuẩn Bộ Y Tế & WHO',
-        source: 'Chẩn đoán sơ bộ ban đầu',
-      }
-    );
-  }, [customAiReview, currentPatient?.aiSuggestedIcd]);
-
-  // Kích hoạt AI tổng hợp phân tích sau xét nghiệm
-  const handleGenerateAiReview = async () => {
-    if (!activeEncounterId) return;
-    setIsGeneratingAiReview(true);
-    setAiReviewNotification(null);
-
-    try {
-      // 1. Thử gọi API Backend AI Review
-      let backendSuggestions: any[] = [];
-      try {
-        backendSuggestions = await caseTimelineService.generateAiDiagnosisReview(activeEncounterId);
-      } catch (e) {
-        console.warn('Backend AI review endpoint returned empty/error:', e);
-      }
-
-      if (Array.isArray(backendSuggestions) && backendSuggestions.length > 0) {
-        const top = backendSuggestions[0];
-        const newReview = {
-          code: top.icd10Code || top.icd10?.icd10Code || 'J18.9',
-          name: top.suggestedDiagName || top.icd10?.icd10Name || 'Viêm phổi, không xác định',
-          confidence: `${Math.round((top.confidenceScore || 0.95) * 100)}%`,
-          reasoning: top.explanationText || 'Tổng hợp từ dữ liệu lâm sàng và kết quả cận lâm sàng của lượt khám.',
-          references: 'ICD-10 Quốc tế & Tiêu chuẩn Phân tích Cận lâm sàng',
-          source: 'Mô hình AI Toàn diện (Backend API)',
-          suggestionId: top.suggestionId,
-        };
-        setCustomAiReview(newReview);
-        if (aiDecision === 'ACCEPT') {
-          setSelectedIcd({ code: newReview.code, name: newReview.name });
-        }
-        setAiReviewNotification('AI đã tổng hợp dữ liệu và đề xuất chẩn đoán thành công!');
-      } else {
-        // 2. Logic tổng hợp thông minh dựa trên kết quả xét nghiệm thực tế trong timeline
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        const labEvents = timelineData?.timeline?.filter((e) => e.type === 'lab_result') || [];
-        const abnormalParams: string[] = [];
-        let totalLabParams = 0;
-
-        labEvents.forEach((ev: any) => {
-          const values = ev.data?.labResult?.values || [];
-          totalLabParams += values.length;
-          values.forEach((v: any) => {
-            if (v.isAbnormal) {
-              const name = v.parameter?.parameterName || v.parameter?.parameterCode || 'Chỉ số';
-              const val = v.valueNumeric ?? v.valueText;
-              abnormalParams.push(`${name} (${val} ${v.parameter?.unit || ''})`);
-            }
-          });
-        });
-
-        const baseCode = currentPatient?.aiSuggestedIcd?.code || 'J18.1';
-        const baseName = currentPatient?.aiSuggestedIcd?.name || 'Viêm phổi thùy, không xác định';
-        let synthesizedReasoning = '';
-
-        if (abnormalParams.length > 0) {
-          synthesizedReasoning = `Phân tích toàn diện sau xét nghiệm ghi nhận ${abnormalParams.length}/${totalLabParams} chỉ số bất thường: ${abnormalParams.slice(0, 4).join(', ')}${abnormalParams.length > 4 ? '...' : ''}. Kết hợp với triệu chứng ban đầu ("${currentPatient?.symptoms || 'chưa ghi nhận'}") và kết quả khám thực thể, AI xác định sự tương thích với bệnh lý ${baseName} (${baseCode}) và khuyến nghị phác đồ chuyên biệt.`;
-        } else if (totalLabParams > 0) {
-          synthesizedReasoning = `Tất cả ${totalLabParams} chỉ số xét nghiệm cận lâm sàng đều nằm trong ngưỡng an toàn bình thường. Dữ liệu cận lâm sàng cho thấy không có dấu hiệu nhiễm trùng nặng hoặc tổn thương thực thể cấp tính. Khuyến nghị bác sĩ theo dõi tiến triển và điều trị triệu chứng.`;
-        } else {
-          synthesizedReasoning = `Chưa có kết quả xét nghiệm phòng Lab được chốt. AI tổng hợp dựa trên triệu chứng lâm sàng: "${currentPatient?.symptoms}" và bệnh sử ghi nhận.`;
-        }
-
-        const newReview = {
-          code: baseCode,
-          name: baseName,
-          confidence: abnormalParams.length > 0 ? '97.2%' : '91.5%',
-          reasoning: synthesizedReasoning,
-          references: 'ICD-10 Chuẩn Bộ Y Tế, Phân tích chỉ số Lab & WHO Guidelines',
-          source: 'AI03 Comprehensive Review Engine',
-        };
-
-        setCustomAiReview(newReview);
-        if (aiDecision === 'ACCEPT') {
-          setSelectedIcd({ code: newReview.code, name: newReview.name });
-        }
-        setAiReviewNotification(
-          `AI đã tổng hợp dữ liệu từ ${labEvents.length} phiếu xét nghiệm (${abnormalParams.length} chỉ số bất thường) và cập nhật đề xuất chẩn đoán!`
-        );
-      }
-    } catch (err: any) {
-      console.error('Lỗi khi gọi AI tổng hợp:', err);
-    } finally {
-      setIsGeneratingAiReview(false);
-    }
-  };
-
+  // Autocomplete tra cứu mã ICD-10
   const [searchResults, setSearchResults] = useState<Array<{ code: string; name: string }>>([]);
   const [isSearchingIcd, setIsSearchingIcd] = useState(false);
 
@@ -495,16 +388,14 @@ export const DoctorDiagnosisView: React.FC = () => {
           setSearchResults(
             apiResults.map((r) => ({
               code: r.icd10Code,
-              name: r.icd10Code === 'R69'
-                ? 'Bệnh chưa xác định / Đang theo dõi (Illness, unspecified)'
-                : (r.icd10NameVi || r.icd10Name),
+              name: r.icd10NameVi || r.icd10Name,
             }))
           );
         } else {
           setSearchResults([]);
         }
       } catch (err) {
-        console.warn('Lỗi tra cứu ICD-10 từ server:', err);
+        console.warn('Lỗi tra cứu ICD-10:', err);
         setSearchResults([]);
       } finally {
         setIsSearchingIcd(false);
@@ -516,64 +407,87 @@ export const DoctorDiagnosisView: React.FC = () => {
 
   const handleSelectIcd = (item: { code: string; name: string }) => {
     setSelectedIcd(item);
-    setHasCustomIcdSelected(true);
     setIcd10Search('');
   };
 
+  // Tính ngày tái khám dự kiến hiển thị cho người dùng
+  const computedFollowUpDate = useMemo(() => {
+    if (!followUpRequired || !followUpIntervalDays) return null;
+    const target = new Date();
+    target.setDate(target.getDate() + Number(followUpIntervalDays));
+    return target.toLocaleDateString('vi-VN', {
+      weekday: 'long',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  }, [followUpRequired, followUpIntervalDays]);
+
+  // Lưu Chẩn đoán & Tư vấn điều trị
   const handleSaveDiagnosis = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
 
-    if (aiDecision === 'REJECT') {
-      if (!rejectReason.trim()) {
-        setSubmitError('Vui lòng nhập lý do bác sĩ chỉ định chẩn đoán khác.');
-        return;
-      }
-      if (!hasCustomIcdSelected || !selectedIcd.code) {
-        setSubmitError('Bạn đã phủ quyết gợi ý AI. Vui lòng tra cứu và chọn một mã bệnh ICD-10 thay thế trước khi lưu.');
-        return;
-      }
+    if (!activeEncounterId) {
+      setSubmitError('Vui lòng chọn một ca khám trước khi lưu.');
+      return;
     }
 
-    if (activeEncounterId) {
-      setIsSubmitting(true);
-      try {
-        // 1. Lưu chẩn đoán chính thức (POST /post-test-consultation/encounters/:id/diagnosis-conclusion)
-        await caseTimelineService.submitDiagnosisConclusion(activeEncounterId, {
-          icd10Code: selectedIcd.code,
-          diagnosisName: selectedIcd.name,
-          doctorFeedback: aiDecision === 'ACCEPT' ? 'accepted' : 'rejected',
-          rejectionReason: aiDecision === 'REJECT' ? rejectReason : undefined,
-        });
+    if (!selectedIcd.code) {
+      setSubmitError('Vui lòng chọn một mã bệnh ICD-10 chẩn đoán chính thức.');
+      return;
+    }
 
-        // 2. Lưu tư vấn điều trị và hoàn tất lượt khám (POST /post-test-consultation/encounters/:id/treatment-consultation)
-        await caseTimelineService.submitTreatmentConsultation(activeEncounterId, {
-          conditionExplanation: expNote,
-          treatmentPlan: planNote,
-          lifestyleAdvice: lifeNote,
-        });
+    if (!expNote.trim()) {
+      setSubmitError('Vui lòng nhập nội dung giải thích tình trạng bệnh cho bệnh nhân.');
+      return;
+    }
 
-        setIsSubmitSuccess(true);
+    if (!planNote.trim()) {
+      setSubmitError('Vui lòng nhập phương án điều trị đề xuất.');
+      return;
+    }
 
-        // Invalidate cache và tải lại timeline sau khi lưu thành công
-        timelineCache.current.delete(activeEncounterId);
-        await fetchTimeline(activeEncounterId, true);
+    if (followUpRequired && (followUpIntervalDays < 1 || followUpIntervalDays > 730)) {
+      setSubmitError('Số ngày hẹn tái khám phải nằm trong khoảng từ 1 đến 730 ngày.');
+      return;
+    }
 
-        setTimeout(() => {
-          setIsSubmitSuccess(false);
-        }, 4000);
-      } catch (err: any) {
-        console.error('Lỗi khi lưu chẩn đoán & tư vấn:', err);
-        setSubmitError(err?.message || 'Có lỗi xảy ra khi lưu kết luận chẩn đoán.');
-      } finally {
-        setIsSubmitting(false);
-      }
-    } else {
-      // Mock fallback
+    setIsSubmitting(true);
+    try {
+      // 1. Ghi nhận kết luận chẩn đoán chính thức (POST /post-test-consultation/encounters/:id/diagnosis-conclusion)
+      await postTestConsultationService.createDiagnosisConclusion(activeEncounterId, {
+        icd10Code: selectedIcd.code,
+        diagnosisName: selectedIcd.name,
+        isPrimary: isPrimaryDiagnosis,
+        notes: diagnosisNotes.trim() || undefined,
+      });
+
+      // 2. Lưu tư vấn điều trị và hoàn tất lượt khám (PUT /post-test-consultation/encounters/:id/treatment-consultation)
+      await postTestConsultationService.upsertTreatmentConsultation(activeEncounterId, {
+        conditionExplanation: expNote.trim(),
+        treatmentPlan: planNote.trim(),
+        lifestyleAdvice: lifeNote.trim() || undefined,
+        nutritionAdvice: nutritionNote.trim() || undefined,
+        followUpRequired,
+        followUpIntervalDays: followUpRequired ? Number(followUpIntervalDays) : undefined,
+      });
+
       setIsSubmitSuccess(true);
+
+      // Invalidate cache và refresh timeline
+      timelineCache.current.delete(activeEncounterId);
+      await fetchTimeline(activeEncounterId, true);
+
       setTimeout(() => {
         setIsSubmitSuccess(false);
-      }, 4000);
+      }, 5000);
+    } catch (err: any) {
+      console.error('Lỗi khi lưu kết luận chẩn đoán & tư vấn:', err);
+      const errMsg = err?.data?.message || err?.message || 'Có lỗi xảy ra khi lưu kết luận chẩn đoán.';
+      setSubmitError(errMsg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -586,31 +500,37 @@ export const DoctorDiagnosisView: React.FC = () => {
           <Mascot
             directions="/mascots/mydoctor-directions.png"
             reactions="/mascots/mydoctor-reactions.png"
-            size={120}
+            size={110}
             className="shrink-0"
           />
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-                Mô-đun 8: Chẩn đoán hậu xét nghiệm & Tư vấn điều trị
+              <span className="text-xs font-extrabold uppercase tracking-wider text-rose-900 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 flex items-center gap-1.5">
+                <HeartPulse className="w-3.5 h-3.5 text-rose-600" />
+                Chuyên Khoa Tim Mạch (Cardiology Clinic)
               </span>
-              <Badge variant="ai" size="sm">
-                ICD-10 Standardized
+              <Badge variant="normal" size="sm">
+                Mô-đun 8: Sau Cận Lâm Sàng (SE05)
               </Badge>
             </div>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">
-              Kết luận Chẩn đoán Lâm sàng & Lập Hồ sơ Tư vấn
+            <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <span>Kết Luận Chẩn Đoán & Tư Vấn Phác Đồ Tim Mạch</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Tổng hợp timeline y khoa, phê duyệt đề xuất từ mô-đun AI tổng hợp, chọn mã bệnh quốc tế ICD-10 và hoàn tất ghi chú tư vấn điều trị.
+              Đối chiếu kết quả xét nghiệm men tim, điện tim ECG, siêu âm Doppler tim; ra quyết định chẩn đoán ICD-10 và thiết lập tư vấn tái khám.
             </p>
           </div>
         </div>
 
         {currentPatient ? (
-          <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-2 text-xs font-extrabold text-indigo-950">
-            <User className="w-4 h-4 text-indigo-600" />
-            <span>Bệnh nhân đang khám: {currentPatient.name}</span>
+          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-xs font-extrabold text-slate-900">
+            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black">
+              {currentPatient.name.charAt(0)}
+            </div>
+            <div>
+              <div className="text-slate-900 font-extrabold">{currentPatient.name} ({currentPatient.age}t • {currentPatient.gender})</div>
+              <div className="text-[10px] text-slate-500 font-mono">Mã ca: {currentPatient.id}</div>
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2 text-xs font-bold text-slate-500">
@@ -628,7 +548,10 @@ export const DoctorDiagnosisView: React.FC = () => {
           {/* Patient Selector */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Danh sách bệnh nhân hậu xét nghiệm</h3>
+              <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Stethoscope className="w-4 h-4 text-rose-600" />
+                <span>Hàng đợi khám Bác sĩ Tim mạch</span>
+              </h3>
               <button
                 type="button"
                 onClick={fetchEncounters}
@@ -654,35 +577,34 @@ export const DoctorDiagnosisView: React.FC = () => {
                 </div>
               )}
 
-              {/* Ca khám thực tế từ Backend */}
               {apiEncounters.map((enc) => {
                 const patName = enc.patient?.fullName || 'Bệnh nhân';
                 const patCode = enc.encounterCode || enc.patient?.patientCode || enc.encounterId.slice(0, 8);
                 const isSelected = selectedPatientId === enc.encounterId || selectedPatientId === enc.encounterCode;
-                const hasFinishedLab = enc.status === 'in_progress' || enc.status === 'finished';
+                const isReady = enc.status === 'awaiting_review' || enc.status === 'in_progress' || enc.status === 'finished';
 
                 return (
                   <div
                     key={enc.encounterId}
                     onClick={() => handleSelectPatientId(enc.encounterId)}
                     className={`p-3 rounded-2xl border text-left cursor-pointer transition-all flex justify-between items-center ${isSelected
-                      ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300'
+                      ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-300'
                       : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'
                       }`}
                   >
                     <div>
                       <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
                         <span>{patName}</span>
-                        {enc.department?.departmentName && (
-                          <span className="text-[9px] font-semibold text-blue-600 bg-blue-100/70 px-1.5 py-0.2 rounded">
-                            {enc.department.departmentName}
+                        {enc.status && (
+                          <span className="text-[9px] font-semibold text-slate-600 bg-slate-200/70 px-1.5 py-0.2 rounded font-mono">
+                            {enc.status}
                           </span>
                         )}
                       </div>
                       <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{patCode}</div>
                     </div>
-                    <Badge variant={hasFinishedLab ? 'normal' : 'info'} size="sm">
-                      {hasFinishedLab ? 'Đã có kết quả Lab' : 'Chờ kết quả'}
+                    <Badge variant={isReady ? 'normal' : 'warning'} size="sm">
+                      {isReady ? 'Đã có KQ CLS' : 'Đang thực hiện'}
                     </Badge>
                   </div>
                 );
@@ -701,7 +623,6 @@ export const DoctorDiagnosisView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    // Nút "Cập nhật" thủ công → xóa cache, fetch lại
                     timelineCache.current.delete(activeEncounterId);
                     fetchTimeline(activeEncounterId, true);
                   }}
@@ -720,7 +641,6 @@ export const DoctorDiagnosisView: React.FC = () => {
                 <span className="font-semibold">Đang tải dòng thời gian và kết quả cận lâm sàng...</span>
               </div>
             ) : timelineData?.timeline && timelineData.encounter?.encounterId === activeEncounterId && timelineData.timeline.length > 0 ? (
-              /* Dòng thời gian THỰC TẾ từ Backend (CaseTimelineService) */
               <div className="relative pl-6 border-l-2 border-slate-200 space-y-5 text-xs">
                 {timelineData.timeline.map((event, idx) => {
                   const eventDate = event.occurredAt ? new Date(event.occurredAt) : null;
@@ -735,7 +655,7 @@ export const DoctorDiagnosisView: React.FC = () => {
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
                         <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">
-                          {eventTime} — Tiếp nhận (Mô-đun 3)
+                          {eventTime} — Tiếp nhận khám (Mô-đun 3)
                         </span>
                         <div className="space-y-0.5">
                           <p className="font-extrabold text-slate-800">
@@ -757,7 +677,7 @@ export const DoctorDiagnosisView: React.FC = () => {
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
                         <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">
-                          {eventTime} — Khám sinh hiệu (Mô-đun 4)
+                          {eventTime} — Đo sinh hiệu tim mạch (Mô-đun 4)
                         </span>
                         <div className="space-y-1">
                           <p className="font-extrabold text-slate-800">{event.summary}</p>
@@ -788,7 +708,7 @@ export const DoctorDiagnosisView: React.FC = () => {
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
                         <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">
-                          {eventTime} — Khám lâm sàng sơ bộ (Mô-đun 5)
+                          {eventTime} — Khám lâm sàng tim mạch (Mô-đun 5)
                         </span>
                         <div className="space-y-0.5">
                           <p className="font-extrabold text-slate-800">
@@ -810,7 +730,7 @@ export const DoctorDiagnosisView: React.FC = () => {
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
                         <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">
-                          {eventTime} — Phiếu chỉ định CLS (Mô-đun 5)
+                          {eventTime} — Chỉ định CLS tim mạch (Mô-đun 5)
                         </span>
                         <p className="font-extrabold text-slate-800">
                           {items.map((i: any) => i.testType?.testName).join(', ') || event.summary}
@@ -819,70 +739,43 @@ export const DoctorDiagnosisView: React.FC = () => {
                     );
                   }
 
-                  /* ⭐ SỰ KIỆN KẾT QUẢ XÉT NGHIỆM PHÒNG LAB (MÔ-ĐUN 7) ⭐ */
                   if (event.type === 'lab_result') {
                     const labRes = event.data?.labResult;
                     const values = labRes?.values || [];
-                    const attachments = labRes?.attachments || [];
-                    const isFinal = labRes?.resultStatus === 'final' || labRes?.resultStatus === 'corrected';
                     const abnormalCount = values.filter((v: any) => v.isAbnormal).length;
 
                     return (
-                      <div key={idx} className="relative p-3.5 bg-slate-50/90 hover:bg-slate-100/90 rounded-2xl border border-slate-200 transition-all space-y-2.5 shadow-2xs">
-                        <span className="w-3.5 h-3.5 bg-amber-500 rounded-full absolute -left-[32px] top-4 ring-4 ring-amber-100 flex items-center justify-center">
+                      <div key={idx} className="relative group">
+                        <span className="w-3.5 h-3.5 bg-amber-500 rounded-full absolute -left-[32px] top-0.5 ring-4 ring-amber-100 flex items-center justify-center">
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">
+                            {eventTime} — Kết quả CLS (Mô-đun 7)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLabEvent(event)}
+                            className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 cursor-pointer bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 transition-all hover:bg-blue-100"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>Xem chi tiết</span>
+                          </button>
+                        </div>
 
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="space-y-0.5">
-                            <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">
-                              {eventTime} — Xét nghiệm Lab (Mô-đun 7)
-                            </span>
-                            <h4 className="font-black text-slate-900 text-xs flex items-center gap-1.5">
-                              <FlaskConical className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                              <span>{event.data?.testName || 'Kết quả xét nghiệm'}</span>
-                            </h4>
+                        <div className="space-y-1 mt-1 bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/80">
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-slate-900">{event.data?.testName || event.summary}</span>
+                            <Badge variant={abnormalCount > 0 ? 'critical' : 'normal'} size="sm">
+                              {abnormalCount > 0 ? `${abnormalCount} chỉ số bất thường` : 'Bình thường'}
+                            </Badge>
                           </div>
-                          <Badge variant={isFinal ? 'normal' : 'warning'} size="sm">
-                            {labRes?.resultStatus === 'final'
-                              ? 'Đã có kết quả'
-                              : labRes?.resultStatus === 'corrected'
-                                ? 'Đã đính chính'
-                                : 'Kết quả sơ bộ'}
-                          </Badge>
-                        </div>
-
-                        {/* Tóm tắt nhanh kết quả */}
-                        <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px]">
-                          {abnormalCount > 0 ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
-                              <AlertTriangle className="w-3 h-3 text-rose-600" />
-                              {abnormalCount}/{values.length} chỉ số bất thường
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                              <Check className="w-3 h-3 text-emerald-600" />
-                              {values.length} chỉ số bình thường
-                            </span>
-                          )}
-
-                          {attachments.length > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
-                              <ImageIcon className="w-3 h-3 text-purple-600" />
-                              {attachments.length} tệp/ảnh đính kèm
-                            </span>
+                          {values.length > 0 && (
+                            <div className="text-[11px] text-slate-600 line-clamp-2">
+                              {values.map((v: any) => `${v.parameter?.parameterName || v.parameter?.parameterCode || 'Chỉ số'}: ${v.valueNumeric ?? v.valueText} ${v.parameter?.unit || ''}`).join(' • ')}
+                            </div>
                           )}
                         </div>
-
-                        {/* Nút bấm xem modal chi tiết */}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedLabEvent(event)}
-                          className="w-full py-2 px-3 bg-white hover:bg-blue-50 text-blue-700 hover:text-blue-800 border border-blue-200 hover:border-blue-300 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-blue-600" />
-                          <span>Xem chi tiết kết quả xét nghiệm</span>
-                        </button>
                       </div>
                     );
                   }
@@ -931,7 +824,7 @@ export const DoctorDiagnosisView: React.FC = () => {
 
         </div>
 
-        {/* Right column: AI recommendations, Decision inputs and ICD10 lookup (7 cols) */}
+        {/* Right column: Paraclinical Readiness, ICD-10 Diagnosis & Treatment Consultation (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
           {!currentPatient ? (
             <div className="bg-white p-12 rounded-3xl border border-slate-200/90 text-center space-y-4 shadow-xs">
@@ -940,333 +833,348 @@ export const DoctorDiagnosisView: React.FC = () => {
               </div>
               <h4 className="text-base font-extrabold text-slate-800">Chưa chọn ca khám bệnh nhân</h4>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
-                Vui lòng chọn một ca khám từ danh sách bệnh nhân bên trái để tải thông tin hồ sơ EMR, xem gợi ý chẩn đoán AI và lập hồ sơ tư vấn điều trị.
+                Vui lòng chọn một ca khám từ danh sách hàng đợi bên trái để kiểm tra kết quả cận lâm sàng, thiết lập chẩn đoán ICD-10 và hồ sơ tư vấn điều trị.
               </p>
             </div>
           ) : (
             <>
-              {/* AI diagnosis recommendations with details */}
-              <BorderBeam size="md" colorVariant="colorful">
-                <div className="relative bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 border border-indigo-500/30 shadow-xl shadow-indigo-950/40 p-6 rounded-3xl text-white space-y-4 overflow-hidden">
-                  {/* Card Header with Button to Trigger AI Comprehensive Review + Top-Right Mascot */}
-                  <div className="flex items-start justify-between gap-3 border-b border-indigo-900/60 pb-3">
-                    <div className="space-y-3 flex-1">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center shrink-0">
-                          <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
-                        </div>
-                        <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">
-                          Phân tích dữ liệu & Đề xuất chẩn đoán gợi ý
-                        </h3>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          disabled={isGeneratingAiReview || !activeEncounterId}
-                          onClick={handleGenerateAiReview}
-                          className="px-3.5 py-2 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-cyan-500/20 flex items-center gap-1.5 cursor-pointer border-none transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isGeneratingAiReview ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                              <span>AI đang tổng hợp phân tích...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-3.5 h-3.5 text-cyan-200" />
-                              <span>Phân tích sau xét nghiệm</span>
-                            </>
-                          )}
-                        </button>
-
-                        <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 px-2.5 py-1.5 rounded-xl font-bold shrink-0">
-                          Mức tin cậy: {activeAiSuggestion.confidence}
+              {/* 1. Paraclinical Readiness & Completion Progress Banner */}
+              <div className="space-y-3">
+                {timelineData?.readyForConclusion ? (
+                  <div className="p-4 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-50 border border-emerald-500/40 rounded-3xl flex items-start gap-3.5 shadow-xs">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20">
+                      <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-black text-emerald-950 uppercase tracking-tight">
+                          Đã đủ điều kiện ra kết luận chẩn đoán chính thức
+                        </h4>
+                        <span className="text-[11px] font-black text-emerald-800 bg-emerald-200/80 px-2.5 py-0.5 rounded-full">
+                          100% Hoàn tất
                         </span>
                       </div>
+                      <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
+                        Tất cả 4 dịch vụ Cận lâm sàng Tim mạch (Xét nghiệm men tim, Điện tim ECG, Siêu âm tim Doppler, X-quang) đã có kết quả chính thức từ các phòng chức năng.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-amber-50 border border-amber-400/50 rounded-3xl flex items-start gap-3.5 shadow-xs">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-black text-amber-950 uppercase tracking-tight">
+                          Đang chờ kết quả cận lâm sàng
+                        </h4>
+                        {timelineData?.paraclinicalProgress && (
+                          <span className="text-[11px] font-black text-amber-900 bg-amber-200/80 px-2.5 py-0.5 rounded-full font-mono">
+                            {timelineData.paraclinicalProgress.completedOrders}/{timelineData.paraclinicalProgress.totalOrders} Dịch vụ
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                        Vẫn còn chỉ định cận lâm sàng đang trong quá trình thực hiện hoặc chờ phê duyệt tại phòng Lab. Bác sĩ có thể xem trước kết quả đã trả và lưu chẩn đoán tạm thời.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Paraclinical Progress Stats Card */}
+                {timelineData?.paraclinicalProgress && (
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-4 text-xs font-semibold">
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-blue-600" />
+                      <span className="text-slate-600">Tiến độ CLS:</span>
+                      <span className="font-extrabold text-slate-900">
+                        {timelineData.paraclinicalProgress.completedOrders} / {timelineData.paraclinicalProgress.totalOrders} phiếu
+                      </span>
                     </div>
 
-                    {/* Mascot UI Robot ở góc trên phía bên phải */}
-                    <div className="shrink-0 flex items-center justify-center -mt-2 -mr-1">
-                      <Mascot
-                        directions="/mascots/toaster-directions.webp"
-                        reactions="/mascots/toaster-reactions.webp"
-                        size={95}
+                    <div className="w-48 bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
+                      <div
+                        className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${timelineData.paraclinicalProgress.percentCompleted}%` }}
                       />
                     </div>
+
+                    {timelineData.unresolvedAlerts && timelineData.unresolvedAlerts.total > 0 && (
+                      <div className="flex items-center gap-1.5 text-rose-700 bg-rose-50 px-2.5 py-1 rounded-xl border border-rose-200 font-bold text-[11px]">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>Có {timelineData.unresolvedAlerts.total} cảnh báo bất thường</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Form container: Official ICD-10 Diagnosis & Treatment Consultation */}
+              <form onSubmit={handleSaveDiagnosis} className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-6">
+
+                {/* Section A: Official ICD-10 Cardiovascular Diagnosis */}
+                <div className="space-y-4">
+                  <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                    <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                      <Clipboard className="w-4 h-4 text-rose-600" />
+                      <span>1. Kết Luận Chẩn Đoán Chuyên Khoa Tim Mạch (Mã ICD-10)</span>
+                    </h3>
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={isPrimaryDiagnosis}
+                        onChange={(e) => setIsPrimaryDiagnosis(e.target.checked)}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                      />
+                      <span>Chẩn đoán chính (Primary)</span>
+                    </label>
                   </div>
 
-                  {/* Feedback Toast if AI review is triggered */}
-                  {aiReviewNotification && (
-                    <div className="p-3 bg-cyan-950/80 border border-cyan-400/40 rounded-2xl text-cyan-200 text-xs font-semibold flex items-center gap-2 animate-in fade-in duration-200">
-                      <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
-                      <span className="leading-snug">{aiReviewNotification}</span>
-                    </div>
-                  )}
-
-                  {/* Proposed ICD Code and Medical Reasoning (Full width below) */}
-                  <div className="p-4 bg-indigo-950/50 border border-indigo-900/60 rounded-2xl space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold text-indigo-300 uppercase tracking-wider">
-                        Mã bệnh lý AI đề xuất:
-                      </span>
-                      {customAiReview && (
-                        <span className="text-[9px] font-bold text-cyan-300 bg-cyan-950 border border-cyan-800 px-2 py-0.5 rounded-full">
-                          ✓ Đã cập nhật theo kết quả Lab
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-sm font-extrabold text-white">
-                      <span className="bg-indigo-950 text-indigo-300 px-2.5 py-1 rounded-lg font-mono mr-2 border border-indigo-800">
-                        {activeAiSuggestion.code}
-                      </span>
-                      <span>{activeAiSuggestion.name}</span>
-                    </div>
-
-                    <div className="text-xs text-slate-200 leading-relaxed font-semibold pt-2 border-t border-indigo-950/80">
-                      <strong className="text-cyan-300">Lập luận giải trình của AI:</strong> {activeAiSuggestion.reasoning}
+                  {/* Quick Pick Chips for Cardiology ICD-10 */}
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                      Gợi ý bệnh lý tim mạch thường gặp:
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {CARDIOLOGY_QUICK_ICD10.map((cardio) => {
+                        const isChosen = selectedIcd.code === cardio.code;
+                        return (
+                          <button
+                            key={cardio.code}
+                            type="button"
+                            onClick={() => handleSelectIcd({ code: cardio.code, name: cardio.name })}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${isChosen
+                              ? 'bg-rose-600 text-white border-rose-600 shadow-sm shadow-rose-600/30 ring-2 ring-rose-200'
+                              : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                              }`}
+                          >
+                            <span className="font-mono text-[10px] opacity-80">{cardio.code}</span>
+                            <span>{cardio.shortName}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                </div>
-              </BorderBeam>
-
-              {/* Form container: doctor official diagnosis & advice */}
-              <form onSubmit={handleSaveDiagnosis} className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-5">
-                <h3 className="text-sm font-extrabold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
-                  <Clipboard className="w-4 h-4 text-blue-700" />
-                  <span>Kết luận chuyên môn & Phác đồ điều trị tư vấn</span>
-                </h3>
-
-                {/* Doctor Decision: Accept or Reject AI proposal */}
-                <div className="space-y-3">
-                  <label className="block text-xs font-extrabold text-slate-700">Quyết định phê duyệt đề xuất từ AI (*):</label>
-
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAiDecision('ACCEPT');
-                        setHasCustomIcdSelected(false);
-                        setSelectedIcd({
-                          code: activeAiSuggestion.code,
-                          name: activeAiSuggestion.name
-                        });
-                        setIcd10Search('');
-                      }}
-                      className={`flex-1 p-3.5 rounded-2xl border font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${aiDecision === 'ACCEPT'
-                        ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-300 shadow-xs'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                        }`}
-                    >
-                      <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />
-                      <span>Đồng ý & Chấp nhận gợi ý AI</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAiDecision('REJECT');
-                        setHasCustomIcdSelected(false);
-                        setSelectedIcd({ code: '', name: '' });
-                        setIcd10Search('');
-                      }}
-                      className={`flex-1 p-3.5 rounded-2xl border font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${aiDecision === 'REJECT'
-                        ? 'bg-slate-100 border-slate-400 text-slate-800 ring-2 ring-slate-200 shadow-xs'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                        }`}
-                    >
-                      <XCircle className={`w-4.5 h-4.5 ${aiDecision === 'REJECT' ? 'text-slate-700' : 'text-slate-400'}`} />
-                      <span>Phủ quyết gợi ý AI (Nhập chẩn đoán khác)</span>
-                    </button>
-                  </div>
-
-                  {aiDecision === 'REJECT' && (
-                    <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-2 animate-in slide-in-from-top-2 duration-150">
-                      <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                        <FileText className="w-4 h-4 text-slate-500" />
-                        <span>Lý do bác sĩ chỉ định chẩn đoán khác (*):</span>
-                      </label>
-                      <textarea
-                        rows={2}
-                        required
-                        placeholder="Ví dụ: Triệu chứng thực thể vùng phổi nghe rale khác biệt, phim X-quang có mờ nhẹ phế quản nhưng sinh hiệu SpO2 đã hồi phục ổn định..."
-                        value={rejectReason}
-                        onChange={(e) => setRejectReason(e.target.value)}
-                        className="w-full p-3 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 outline-none focus:border-blue-600 focus:bg-white bg-white transition-all placeholder:text-slate-400 placeholder:font-normal"
+                  {/* Search bar for full ICD-10 catalog */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-extrabold text-slate-700">
+                      Tra cứu mã bệnh ICD-10 mở rộng:
+                    </label>
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Nhập mã bệnh hoặc tên bệnh lý (Ví dụ: I25, Đau ngực, Nhồi máu cơ tim)..."
+                        value={icd10Search}
+                        onChange={(e) => setIcd10Search(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:border-blue-600 focus:bg-white bg-slate-50/60 transition-all placeholder:text-slate-400"
                       />
                     </div>
-                  )}
-                </div>
 
-                {/* ICD-10 Search & Official Disease selection */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-extrabold text-slate-700">Mã bệnh lý chính thức chuẩn hóa ICD-10 (*):</label>
-                    {aiDecision === 'ACCEPT' ? (
-                      <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <Check className="w-3 h-3 text-emerald-600" />
-                        Đã tự động chọn từ gợi ý AI
-                      </span>
-                    ) : (
-                      <span className="text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <Search className="w-3 h-3 text-slate-500" />
-                        Bác sĩ tự chọn mã bệnh
-                      </span>
+                    {icd10Search && (
+                      <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-48 overflow-y-auto shadow-lg text-xs font-bold divide-y divide-slate-100 z-10 relative animate-in fade-in duration-100">
+                        {isSearchingIcd ? (
+                          <div className="p-3.5 text-center text-slate-400 font-medium">
+                            Đang tra cứu danh mục ICD-10...
+                          </div>
+                        ) : searchResults.length > 0 ? (
+                          searchResults.map((item) => (
+                            <div
+                              key={item.code}
+                              onClick={() => handleSelectIcd(item)}
+                              className="p-3 hover:bg-rose-50 cursor-pointer flex justify-between items-center text-slate-700"
+                            >
+                              <div>
+                                <span className="font-mono bg-rose-50 text-rose-800 border border-rose-200 px-2 py-0.5 rounded mr-2">
+                                  {item.code}
+                                </span>
+                                <span>{item.name}</span>
+                              </div>
+                              <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-3.5 text-center text-slate-400 font-medium">
+                            Không tìm thấy mã bệnh khớp từ khóa "{icd10Search}".
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
 
-                  {aiDecision === 'ACCEPT' ? (
-                    /* Khi ĐỒNG Ý AI: Hiển thị thẻ đã chọn từ AI + Ô tìm kiếm nếu muốn đổi */
-                    <div className="space-y-2">
-                      <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs font-bold text-emerald-950 shadow-2xs">
-                        <div className="flex items-center gap-2.5">
-                          <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
-                          <div>
-                            <span className="text-emerald-700 font-semibold block text-[10px] uppercase tracking-wider">
-                              Mã bệnh được áp dụng từ AI:
-                            </span>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="font-mono bg-emerald-700 text-white px-2 py-0.5 rounded text-[11px]">
-                                {selectedIcd.code}
-                              </span>
-                              <span className="text-slate-900 font-extrabold">{selectedIcd.name}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <Badge variant="normal" size="sm">Mã bệnh chính thức</Badge>
+                  {/* Selected ICD-10 Card */}
+                  <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl flex items-center justify-between text-xs font-bold text-slate-900 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                        <BookOpen className="w-5 h-5" />
                       </div>
-
-                      <div className="relative">
-                        <Search className="w-4.5 h-4.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input
-                          type="text"
-                          placeholder={`Đã tự động chọn từ AI: ${selectedIcd.code} - ${selectedIcd.name}. (Nhập tìm kiếm nếu muốn đổi mã khác)`}
-                          value={icd10Search}
-                          onChange={(e) => setIcd10Search(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-700 outline-none focus:border-blue-600 bg-slate-50/60 focus:bg-white placeholder:text-slate-400 placeholder:italic transition-all"
-                        />
+                      <div>
+                        <span className="text-blue-800 font-semibold block text-[10px] uppercase tracking-wider">
+                          Mã bệnh lý chính thức đã chọn:
+                        </span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="font-mono bg-blue-700 text-white px-2.5 py-0.5 rounded-md text-xs font-black">
+                            {selectedIcd.code}
+                          </span>
+                          <span className="text-slate-900 font-extrabold text-sm">{selectedIcd.name}</span>
+                        </div>
                       </div>
                     </div>
-                  ) : (
-                    /* Khi PHỦ QUYẾT: Tìm kiếm mã bệnh mới (giao diện trung tính, êm mắt) */
-                    <div className="space-y-2 animate-in fade-in duration-150">
-                      <div className="relative">
-                        <Search className="w-4.5 h-4.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input
-                          type="text"
-                          placeholder="Nhập mã bệnh ICD-10 hoặc tên bệnh lý thay thế (Ví dụ: J18, Viêm phổi)..."
-                          value={icd10Search}
-                          onChange={(e) => setIcd10Search(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 bg-white transition-all placeholder:text-slate-400 placeholder:font-normal"
-                        />
-                      </div>
+                    <Badge variant={isPrimaryDiagnosis ? 'normal' : 'info'} size="sm">
+                      {isPrimaryDiagnosis ? 'Chẩn đoán chính' : 'Chẩn đoán phụ'}
+                    </Badge>
+                  </div>
 
-                      {/* Selected Official ICD code indicator card khi REJECT */}
-                      {hasCustomIcdSelected && selectedIcd.code ? (
-                        <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center justify-between text-xs font-bold text-slate-800 animate-in fade-in duration-150">
-                          <div className="flex items-center">
-                            <BookOpen className="w-4.5 h-4.5 text-blue-700 mr-2 shrink-0" />
-                            <div>
-                              <span className="font-mono bg-blue-700 text-white px-2 py-0.5 rounded text-[11px] mr-2">
-                                {selectedIcd.code}
-                              </span>
-                              <span>{selectedIcd.name}</span>
-                            </div>
-                          </div>
-                          <Badge variant="normal" size="sm">Mã thay thế đã chọn</Badge>
-                        </div>
-                      ) : (
-                        <div className="p-3 bg-slate-50 border border-dashed border-slate-300 rounded-xl flex items-center justify-between text-xs font-medium text-slate-600">
-                          <div className="flex items-center gap-2">
-                            <BookOpen className="w-4 h-4 text-slate-400 shrink-0" />
-                            <span>Chưa chọn mã bệnh thay thế. Vui lòng nhập tìm kiếm ở ô trên và nhấp chọn một mã bệnh từ danh sách.</span>
-                          </div>
-                          <Badge variant="info" size="sm">Chưa chọn</Badge>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {icd10Search && (
-                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-48 overflow-y-auto shadow-lg text-xs font-bold divide-y divide-slate-100 z-10 relative animate-in fade-in duration-100">
-                      {isSearchingIcd ? (
-                        <div className="p-3.5 text-center text-slate-400 font-medium">
-                          Đang tra cứu danh mục ICD-10...
-                        </div>
-                      ) : searchResults.length > 0 ? (
-                        searchResults.map((item) => (
-                          <div
-                            key={item.code}
-                            onClick={() => handleSelectIcd(item)}
-                            className="p-3 hover:bg-blue-50 cursor-pointer flex justify-between items-center text-slate-700"
-                          >
-                            <div>
-                              <span className="font-mono bg-blue-50 text-blue-900 border border-blue-150 px-2 py-0.5 rounded mr-2">
-                                {item.code}
-                              </span>
-                              <span>{item.name}</span>
-                            </div>
-                            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-3.5 text-center text-slate-400 font-medium">
-                          Không tìm thấy mã bệnh khớp từ khóa "{icd10Search}".
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* Clinical diagnostic notes */}
+                  <div className="space-y-1.5 text-xs">
+                    <label className="block font-bold text-slate-700">
+                      Ghi chú chẩn đoán lâm sàng & phân tích cận lâm sàng:
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={diagnosisNotes}
+                      onChange={(e) => setDiagnosisNotes(e.target.value)}
+                      placeholder="Ví dụ: Siêu âm tim EF 48%, ST chênh xuống V4-V6, men tim Troponin I trong giới hạn an toàn..."
+                      className="w-full p-3 rounded-xl border border-slate-200 font-semibold outline-none focus:border-blue-600 text-xs text-slate-800 bg-white"
+                    />
+                  </div>
                 </div>
 
-                {/* Treatment Consultation Section */}
-                <div className="space-y-4 border-t border-slate-100 pt-4">
+                {/* Section B: Treatment Consultation Form */}
+                <div className="space-y-4 border-t border-slate-100 pt-5">
                   <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-tight flex items-center gap-1.5">
-                    < Clipboard className="w-4 h-4 text-blue-700" />
-                    <span>Nội dung tư vấn điều trị cho bệnh nhân</span>
+                    <Clipboard className="w-4 h-4 text-blue-700" />
+                    <span>2. Hồ Sơ Tư Vấn Điều Trị & Phác Đồ Tim Mạch (Mô-đun 8)</span>
                   </h4>
 
-                  {/* Input: Condition explanation */}
+                  {/* Condition explanation */}
                   <div className="space-y-1.5 text-xs">
-                    <label className="block font-bold text-slate-700">1. Giải thích tình trạng bệnh lý:</label>
+                    <label className="block font-bold text-slate-700">
+                      1. Giải thích tình trạng bệnh lý (*):
+                    </label>
                     <textarea
                       rows={2}
                       required
                       value={expNote}
                       onChange={(e) => setExpNote(e.target.value)}
-                      placeholder="Ghi giải thích cụ thể cho bệnh nhân hiểu..."
-                      className="w-full p-3 rounded-xl border border-slate-200 font-semibold outline-none focus:border-blue-600 text-xs text-slate-800"
+                      placeholder="Giải thích rõ nguyên nhân, mức độ thiếu máu cơ tim / suy tim / tăng huyết áp để bệnh nhân hiểu..."
+                      className="w-full p-3 rounded-xl border border-slate-200 font-semibold outline-none focus:border-blue-600 text-xs text-slate-800 bg-white"
                     />
                   </div>
 
-                  {/* Input: Plan details */}
+                  {/* Treatment plan */}
                   <div className="space-y-1.5 text-xs">
-                    <label className="block font-bold text-slate-700">2. Phương án điều trị đề xuất:</label>
+                    <label className="block font-bold text-slate-700">
+                      2. Phương án điều trị đề xuất (*):
+                    </label>
                     <textarea
                       rows={2}
                       required
                       value={planNote}
                       onChange={(e) => setPlanNote(e.target.value)}
-                      placeholder="Ghi phương án uống thuốc hoặc phác đồ cụ thể..."
-                      className="w-full p-3 rounded-xl border border-slate-200 font-semibold outline-none focus:border-blue-600 text-xs text-slate-800"
+                      placeholder="Phác đồ điều trị nội khoa, kiểm soát huyết áp, dùng thuốc kháng đông, theo dõi cơn đau thắt ngực..."
+                      className="w-full p-3 rounded-xl border border-slate-200 font-semibold outline-none focus:border-blue-600 text-xs text-slate-800 bg-white"
                     />
                   </div>
 
-                  {/* Input: Lifestyle and Diet */}
+                  {/* Lifestyle advice */}
                   <div className="space-y-1.5 text-xs">
-                    <label className="block font-bold text-slate-700">3. Chế độ sinh hoạt & Dinh dưỡng phù hợp:</label>
+                    <label className="block font-bold text-slate-700">
+                      3. Lời khuyên sinh hoạt & vận động:
+                    </label>
                     <textarea
                       rows={2}
-                      required
                       value={lifeNote}
                       onChange={(e) => setLifeNote(e.target.value)}
-                      placeholder="Lời dặn ăn uống nghỉ ngơi tại nhà..."
-                      className="w-full p-3 rounded-xl border border-slate-200 font-semibold outline-none focus:border-blue-600 text-xs text-slate-800"
+                      placeholder="Vận động nhẹ nhàng, đi bộ 30 phút mỗi ngày, hạn chế gắng sức nặng, bỏ thuốc lá, tránh căng thẳng..."
+                      className="w-full p-3 rounded-xl border border-slate-200 font-semibold outline-none focus:border-blue-600 text-xs text-slate-800 bg-white"
                     />
+                  </div>
+
+                  {/* Nutrition advice */}
+                  <div className="space-y-1.5 text-xs">
+                    <label className="block font-bold text-slate-700">
+                      4. Chế độ dinh dưỡng tim mạch:
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={nutritionNote}
+                      onChange={(e) => setNutritionNote(e.target.value)}
+                      placeholder="Ăn nhạt (giảm muối dưới 2g/ngày), hạn chế mỡ động vật & phủ tạng, tăng cường rau xanh, trái cây và cá béo..."
+                      className="w-full p-3 rounded-xl border border-slate-200 font-semibold outline-none focus:border-blue-600 text-xs text-slate-800 bg-white"
+                    />
+                  </div>
+
+                  {/* Follow-up appointment scheduling (SE05 followUpIntervalDays) */}
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2.5 text-xs font-black text-slate-800 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={followUpRequired}
+                          onChange={(e) => setFollowUpRequired(e.target.checked)}
+                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                        />
+                        <span className="flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-blue-600" />
+                          Yêu cầu tái khám định kỳ
+                        </span>
+                      </label>
+
+                      {followUpRequired && computedFollowUpDate && (
+                        <span className="text-[11px] font-bold text-blue-700 bg-blue-100/70 border border-blue-200 px-3 py-1 rounded-full">
+                          Dự kiến tái khám: {computedFollowUpDate}
+                        </span>
+                      )}
+                    </div>
+
+                    {followUpRequired && (
+                      <div className="space-y-2.5 pt-2 border-t border-slate-200/80 animate-in fade-in duration-150">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[11px] font-bold text-slate-600">Chọn nhanh khoảng cách:</span>
+                          {[
+                            { label: '7 ngày (1 tuần)', days: 7 },
+                            { label: '14 ngày (2 tuần)', days: 14 },
+                            { label: '30 ngày (1 tháng)', days: 30 },
+                            { label: '60 ngày (2 tháng)', days: 60 },
+                            { label: '90 ngày (3 tháng)', days: 90 },
+                          ].map((pill) => (
+                            <button
+                              key={pill.days}
+                              type="button"
+                              onClick={() => setFollowUpIntervalDays(pill.days)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer border transition-all ${followUpIntervalDays === pill.days
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                }`}
+                            >
+                              {pill.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <label className="text-xs font-semibold text-slate-700">
+                            Số ngày tới lần tái khám tiếp theo:
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={730}
+                            value={followUpIntervalDays}
+                            onChange={(e) => setFollowUpIntervalDays(Math.max(1, Math.min(730, Number(e.target.value) || 1)))}
+                            className="w-24 px-3 py-1.5 rounded-xl border border-slate-200 font-mono font-bold text-xs text-slate-900 outline-none focus:border-blue-600 bg-white"
+                          />
+                          <span className="text-xs text-slate-500 font-medium">ngày (1 - 730 ngày)</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Error feedback toast */}
+                {/* Submit Error Toast */}
                 {submitError && (
                   <div className="text-xs text-rose-600 font-semibold flex items-center gap-1.5 bg-rose-50 p-3 rounded-xl border border-rose-200 animate-in fade-in duration-200">
                     <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
@@ -1274,30 +1182,30 @@ export const DoctorDiagnosisView: React.FC = () => {
                   </div>
                 )}
 
-                {/* Success feedback toast */}
+                {/* Submit Success Toast */}
                 {isSubmitSuccess && (
-                  <div className="text-xs text-emerald-600 font-semibold flex items-center gap-1.5 bg-emerald-50 p-3 rounded-xl border border-emerald-100 animate-in fade-in duration-200">
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
-                    <span>Đã lưu chẩn đoán ICD-10 và hồ sơ tư vấn điều trị thành công! Chuyển thông tin tự động sang kê đơn thuốc (Mô-đun 9).</span>
+                  <div className="text-xs text-emerald-700 font-semibold flex items-center gap-1.5 bg-emerald-50 p-3.5 rounded-xl border border-emerald-200 animate-in fade-in duration-200">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <span>Đã lưu kết luận chẩn đoán ICD-10 và hồ sơ tư vấn điều trị thành công! Chuyển thông tin tự động sang kê đơn thuốc (Mô-đun 9).</span>
                   </div>
                 )}
 
-                {/* Submit buttons */}
+                {/* Submit button */}
                 <div className="pt-2 flex justify-end">
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-6 py-3 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer border-none flex items-center gap-2 uppercase tracking-wide transition-all"
+                    className="px-6 py-3.5 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer border-none flex items-center gap-2 uppercase tracking-wide transition-all active:scale-98"
                   >
                     {isSubmitting ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Đang lưu chẩn đoán...</span>
+                        <span>Đang lưu chẩn đoán & tư vấn...</span>
                       </>
                     ) : (
                       <>
                         <CheckCircle2 className="w-4 h-4" />
-                        <span>Lưu chẩn đoán & Chuyển kê đơn (Mô-đun 9)</span>
+                        <span>Ghi Nhận Kết Luận Chẩn Đoán & Chuyển Kê Đơn (Mô-đun 9)</span>
                       </>
                     )}
                   </button>
@@ -1355,7 +1263,6 @@ export const DoctorDiagnosisView: React.FC = () => {
 
           return (
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-              {/* Thẻ tóm tắt thông tin đầu modal */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-0.5">
                   <span className="text-[10px] font-extrabold text-slate-500 uppercase">Tên xét nghiệm</span>
@@ -1394,7 +1301,6 @@ export const DoctorDiagnosisView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Bảng chi tiết toàn bộ các chỉ số */}
               <div className="space-y-2">
                 <h5 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                   <Clipboard className="w-3.5 h-3.5 text-blue-600" />
@@ -1451,7 +1357,6 @@ export const DoctorDiagnosisView: React.FC = () => {
                 )}
               </div>
 
-              {/* Tệp & Hình ảnh đính kèm (nếu có) */}
               {attachments.length > 0 && (
                 <div className="space-y-2 pt-2 border-t border-slate-100">
                   <h5 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
@@ -1491,7 +1396,6 @@ export const DoctorDiagnosisView: React.FC = () => {
                 </div>
               )}
 
-              {/* Ghi chú KTV & Bác sĩ giải phẫu bệnh */}
               {(labRes?.technicianNotes || labRes?.overallConclusion) && (
                 <div className="space-y-2 pt-2 border-t border-slate-100">
                   {labRes?.technicianNotes && (

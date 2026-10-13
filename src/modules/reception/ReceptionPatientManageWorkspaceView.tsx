@@ -1,67 +1,51 @@
-import React, { useState } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
-import { CalendarPlus, Users } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { Users, CalendarPlus } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
-import { ReceptionWalkinBookingForm } from './ReceptionWalkinBookingForm';
 import { ReceptionPatientsView } from './ReceptionPatientsView';
+import { ReceptionWalkinBookingModal } from './ReceptionWalkinBookingModal';
 
 export const ReceptionPatientManageWorkspaceView: React.FC = () => {
   const location = useLocation();
-  const [, setSearchParams] = useSearchParams();
-  const [preselectedPatient, setPreselectedPatient] = useState<any | null>(
+  const [initialPatient, setInitialPatient] = useState<any | null>(
     (location.state as any)?.initialPatient || null
   );
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(!!(location.state as any)?.initialPatient);
 
-  const handleSelectPatientForWalkin = (patient: any) => {
-    setPreselectedPatient(patient);
-    setSearchParams((prev) => {
-      const newParams = new URLSearchParams(prev);
-      newParams.set('tab', 'walkin-booking');
-      return newParams;
-    });
-  };
-
-  const handleNavigateToTab = (tabId: string) => {
-    setSearchParams((prev) => {
-      const newParams = new URLSearchParams(prev);
-      newParams.set('tab', tabId);
-      return newParams;
-    });
-  };
+  useEffect(() => {
+    if ((location.state as any)?.initialPatient) {
+      setInitialPatient((location.state as any).initialPatient);
+      setIsModalOpen(true);
+    }
+  }, [location.state]);
 
   const tabs: WorkspaceTab[] = [
     {
-      id: 'walkin-booking',
-      label: 'Đăng ký khám trực tiếp',
-      icon: CalendarPlus,
-      component: (
-        <ReceptionWalkinBookingForm
-          initialPatient={preselectedPatient}
-          onNavigateToTab={handleNavigateToTab}
-        />
-      ),
-    },
-    {
       id: 'patients-list',
-      label: 'Danh sách bệnh nhân',
+      label: 'Danh sách bệnh nhân & Đăng ký khám',
       icon: Users,
-      component: (
-        <ReceptionPatientsView
-          onSelectPatientForWalkin={handleSelectPatientForWalkin}
-        />
-      ),
+      component: <ReceptionPatientsView />,
     },
   ];
 
   return (
-    <WorkspaceContainer
-      title="Khai Báo & Đăng Ký Khám Trực Tiếp"
-      subtitle="Tiếp nhận khai báo, quản lý danh sách bệnh nhân và đăng ký khám trực tiếp tại quầy (Cấp số thứ tự STT loại B)"
-      icon={CalendarPlus}
-      tabs={tabs}
-      defaultTabId="walkin-booking"
-    />
+    <>
+      <WorkspaceContainer
+        title="Quản Lý Bệnh Nhân & Đăng Ký Khám Tại Quầy"
+        subtitle="Tra cứu hồ sơ bệnh nhân, đăng ký khám trực tiếp và cấp số thứ tự hàng chờ (STT Loại B)"
+        icon={CalendarPlus}
+        tabs={tabs}
+        defaultTabId="patients-list"
+      />
+
+      <ReceptionWalkinBookingModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setInitialPatient(null);
+        }}
+        initialPatient={initialPatient}
+      />
+    </>
   );
 };
-
-

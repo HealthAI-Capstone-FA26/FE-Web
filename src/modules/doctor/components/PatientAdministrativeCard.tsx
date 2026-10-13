@@ -19,6 +19,7 @@ interface PatientAdministrativeCardProps {
   isStartingAppointment?: boolean;
   onStartConsultation?: () => void;
   onRefreshEncounter?: () => void;
+  onOpenMedicalHistory?: () => void;
   activeAllergies: Array<PatientAllergyItem | {
     allergyId: string;
     allergyType: string;
@@ -44,6 +45,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
   isStartingAppointment,
   onStartConsultation,
   onRefreshEncounter,
+  onOpenMedicalHistory,
   activeAllergies,
   isLoadingAllergies,
   isLoadingOverview,
@@ -341,8 +343,20 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
             </div>
 
             <div className="pt-1.5 border-t border-slate-200/60 space-y-1">
+              <div className="flex items-center justify-between">
+                <strong className="text-slate-700">Tiền sử bệnh:</strong>
+                {onOpenMedicalHistory && (
+                  <button
+                    type="button"
+                    onClick={onOpenMedicalHistory}
+                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-extrabold flex items-center gap-1 cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 transition-colors"
+                  >
+                    <History className="w-3 h-3" />
+                    <span>Quản lý tiền sử</span>
+                  </button>
+                )}
+              </div>
               <p>
-                <strong className="text-slate-700">Tiền sử bệnh:</strong>{' '}
                 {safeOverview?.medicalHistories && safeOverview.medicalHistories.length > 0 ? (
                   <span className="text-slate-800 font-semibold">
                     {safeOverview.medicalHistories.map((h) => h.conditionName).join(', ')}

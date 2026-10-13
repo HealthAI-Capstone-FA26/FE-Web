@@ -47,7 +47,8 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
     {
       groupName: 'Không gian Nghiệp vụ',
       items: [
-        { id: 'nurse_workspace_vitals', label: 'Tiếp nhận', path: '/dieu-duong/hang-cho-sinh-hieu', iconName: 'UserCheck', requiredPermission: 'observation:read:all' }
+        { id: 'nurse_workspace_vitals', label: 'Tiếp nhận & Đo sinh hiệu', path: '/dieu-duong/hang-cho-sinh-hieu', iconName: 'UserCheck', requiredPermission: 'observation:read:all' },
+        { id: 'nurse_workspace_alerts', label: 'Cảnh báo sinh hiệu Realtime', path: '/dieu-duong/canh-bao', iconName: 'ShieldAlert', badge: 'Live', requiredPermission: 'observation:read:all' }
       ]
     }
   ],

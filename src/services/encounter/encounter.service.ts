@@ -63,7 +63,7 @@ export interface EncounterItem {
   doctorId?: string;
   encounterCode: string;
   patientType: string; // 'new' | 'returning'
-  status: 'arrived' | 'registered' | 'waiting_for_doctor' | 'in_progress' | 'finished' | 'cancelled';
+  status: 'arrived' | 'registered' | 'waiting_for_doctor' | 'in_progress' | 'finished' | 'cancelled' | 'awaiting_review' | string;
   arrivedAt: string;
   chiefComplaint?: EncounterChiefComplaint;
   patient?: EncounterPatient;
@@ -176,6 +176,13 @@ export const encounterService = {
   async getEncounterById(id: string): Promise<EncounterItem> {
     return apiFetch<EncounterItem>(`/encounters/${id}`, {
       method: 'GET',
+    });
+  },
+
+  // Điều phối ca khám vào Bác sĩ Tim mạch trực (POST /encounters/:id/route-doctor)
+  async routeDoctor(encounterId: string): Promise<any> {
+    return apiFetch(`/encounters/${encounterId}/route-doctor`, {
+      method: 'POST',
     });
   },
 

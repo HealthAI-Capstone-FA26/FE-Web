@@ -59,37 +59,31 @@ export interface AssignDepartmentData {
   isPrimary?: boolean;
 }
 
-let cachedDepartments: DepartmentResponse[] | null = null;
-let departmentsFetchPromise: Promise<DepartmentResponse[]> | null = null;
+export const CARDIOLOGY_SPECIALIZATIONS: Record<string, string> = {
+  general_cardiology: 'Nội Tim mạch tổng quát',
+  interventional: 'Can thiệp Tim mạch',
+  electrophysiology: 'Rối loạn nhịp tim',
+  echocardiography: 'Siêu âm & Thăm dò chức năng tim',
+  preventive: 'Tim mạch dự phòng',
+};
+
+export function getSpecializationLabel(spec?: string | null): string {
+  if (!spec) return 'Bác sĩ chuyên khoa Tim mạch';
+  return CARDIOLOGY_SPECIALIZATIONS[spec] || spec;
+}
 
 export const doctorService = {
-  // GET /departments — Danh sách khoa phòng (có memory cache)
-  async getDepartments(forceRefresh = false): Promise<DepartmentResponse[]> {
-    if (!forceRefresh && cachedDepartments) {
-      return cachedDepartments;
-    }
-    if (!forceRefresh && departmentsFetchPromise) {
-      return departmentsFetchPromise;
-    }
-    departmentsFetchPromise = apiFetch<DepartmentResponse[]>('/departments', { method: 'GET' })
-      .then((data) => {
-        cachedDepartments = data;
-        departmentsFetchPromise = null;
-        return data;
-      })
-      .catch((err) => {
-        departmentsFetchPromise = null;
-        throw err;
-      });
-    return departmentsFetchPromise;
+  // Bỏ department theo kiến trúc phòng khám Tim mạch mới (SE01-SE07)
+  async getDepartments(): Promise<DepartmentResponse[]> {
+    return [];
   },
 
   getCachedDepartments(): DepartmentResponse[] | null {
-    return cachedDepartments;
+    return [];
   },
 
   async prefetchDepartments(): Promise<DepartmentResponse[]> {
-    return this.getDepartments();
+    return [];
   },
 
   // POST /doctors/:id/departments — Gán bác sĩ vào khoa

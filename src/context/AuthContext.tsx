@@ -175,7 +175,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('4am_is_logged_in', 'true');
 
       if (currentRole === 'RECEPTIONIST' || currentRole === 'ADMIN') {
-        doctorService.getDepartments().catch(() => {});
         patientService.getAllPatients().catch(() => {});
         appointmentService.getAppointments().catch(() => {});
       }
@@ -198,7 +197,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('4am_user_data', JSON.stringify(mockUser));
 
     if (role === 'RECEPTIONIST' || role === 'ADMIN') {
-      doctorService.getDepartments(true).catch(() => {});
       patientService.getAllPatients(undefined, true).catch(() => {});
       appointmentService.getAppointments().catch(() => {});
     }
@@ -264,7 +262,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('4am_user_name', userProfile.name);
 
     if (mappedRole === 'RECEPTIONIST' || mappedRole === 'ADMIN') {
-      doctorService.getDepartments(true).catch(() => {});
       patientService.getAllPatients(undefined, true).catch(() => {});
       appointmentService.getAppointments().catch(() => {});
     }
