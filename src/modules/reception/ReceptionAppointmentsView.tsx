@@ -844,10 +844,18 @@ export const ReceptionAppointmentsView: React.FC = () => {
                               )}
                               <span>Check-in</span>
                             </button>
-                          ) : app.queueTicket ? (
+                          ) : app.status === 'checked_in' || app.status === 'in_progress' || app.status === 'completed' ? (
                             <div className="w-[130px] h-8 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-center gap-1">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                               <span>Đã check-in</span>
+                            </div>
+                          ) : app.queueTicket ? (
+                            <div
+                              className="w-[130px] h-8 text-xs font-bold text-teal-800 bg-teal-50 rounded-xl border border-teal-200 flex items-center justify-center gap-1"
+                              title="Bệnh nhân đã có số thứ tự, đang đợi gọi tại quầy tiếp nhận"
+                            >
+                              <Ticket className="w-3.5 h-3.5 text-teal-600" />
+                              <span>Chờ gọi số</span>
                             </div>
                           ) : (
                             <div className="w-[130px] h-8" />

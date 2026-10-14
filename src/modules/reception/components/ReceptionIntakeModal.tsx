@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Stethoscope,
   ShieldCheck,
@@ -44,7 +44,7 @@ interface ReceptionIntakeModalProps {
   onClose: () => void;
   ticket: QueueTicketItem | null;
   doctors: DoctorResponse[];
-  onSuccess: () => void;
+  onSuccess: (encounterId?: string) => void;
   showToast: (message: string, type?: 'success' | 'info' | 'error') => void;
 }
 
@@ -80,12 +80,28 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  useEffect(() => {
-    if (isOpen && ticket) {
-      const deptDocs = doctors.filter((d) =>
+  // Danh sách bác sĩ khả dụng:
+  // Schema v2 phòng khám chỉ còn 1 chuyên khoa Tim mạch duy nhất (không còn doctorDepartments),
+  // nên nếu không có lọc theo khoa hoặc khoa rỗng thì hiển thị toàn bộ bác sĩ active của phòng khám.
+  const availableDoctors = useMemo(() => {
+    const activeDocs = doctors.filter((d) => d.isActive !== false);
+    if (ticket?.departmentId) {
+      const byDept = activeDocs.filter((d) =>
         d.doctorDepartments?.some((dept) => dept.departmentId === ticket.departmentId)
       );
-      setSelectedDoctorId(ticket.appointment?.doctorId || deptDocs[0]?.doctorId || doctors[0]?.doctorId || '');
+      if (byDept.length > 0) return byDept;
+    }
+    return activeDocs;
+  }, [doctors, ticket?.departmentId]);
+
+  useEffect(() => {
+    if (isOpen && ticket) {
+      setSelectedDoctorId(
+        ticket.appointment?.doctorId ||
+        availableDoctors[0]?.doctorId ||
+        doctors[0]?.doctorId ||
+        ''
+      );
       setReasonForVisit(ticket.appointment?.reasonForVisit || '');
       setSymptoms('');
       setSymptomOnsetDate(new Date().toISOString().slice(0, 10));
@@ -325,7 +341,7 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
         `Đã tiếp nhận thành công số ${code}, ghi nhận cam kết y tế & chuyển hàng đợi điều dưỡng!`,
         'success'
       );
-      onSuccess();
+      onSuccess(encounterId);
       onClose();
     } catch (err: any) {
       console.error('Lỗi khi hoàn tất tiếp nhận:', err);
@@ -478,15 +494,11 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
             >
               <option value="" disabled>-- Chọn bác sĩ --</option>
-              {doctors
-                .filter((d) =>
-                  d.doctorDepartments?.some((dept) => dept.departmentId === ticket.departmentId)
-                )
-                .map((doc) => (
-                  <option key={doc.doctorId} value={doc.doctorId}>
-                    {doc.fullName} ({doc.title || 'Bác sĩ chuyên khoa'})
-                  </option>
-                ))}
+              {availableDoctors.map((doc) => (
+                <option key={doc.doctorId} value={doc.doctorId}>
+                  {doc.title ? `${doc.title} ` : 'BS. '}{doc.fullName} ({doc.specialization || 'Khoa Tim Mạch'})
+                </option>
+              ))}
             </select>
           </div>
 

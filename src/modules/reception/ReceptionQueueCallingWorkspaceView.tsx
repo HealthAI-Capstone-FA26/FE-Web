@@ -388,61 +388,57 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   /**
    * Điểm vào chính khi lễ tân bấm "Tiếp nhận xong" trên một ticket đang ở 'called'.
    *
-   * Luồng:
-   * 1. Kiểm tra invoice phí khám (consultation) của appointmentId.
-   * 2. Nếu chưa có invoice → gọi API tạo invoice (generate với appointmentId).
-   * 3. Nếu invoice đã 'paid' → mở thẳng ReceptionIntakeModal.
-   * 4. Nếu invoice còn 'pending' → mở ReceptionPaymentModal để thu tiền trước.
+   * Quy trình chuẩn:
+   * 1. Mở ReceptionIntakeModal để đối chiếu danh tính, ghi nhận triệu chứng & tạo Encounter.
+   * 2. Sau khi tạo Encounter thành công, handleIntakeSuccess sẽ tự động kiểm tra/tạo hóa đơn và mở modal thanh toán.
    */
-  const handleServeTicket = async (ticket: QueueTicketItem) => {
+  const handleServeTicket = (ticket: QueueTicketItem) => {
     const appointmentId = ticket.appointmentId;
     if (!appointmentId) {
       showToast('Không tìm thấy thông tin lịch hẹn', 'error');
       return;
     }
 
-    setIsCheckingInvoice(ticket.ticketId);
+    // Mở trực tiếp Modal Tiếp Đón & Khai Báo Lâm Sàng Ban Đầu
+    setIntakeModalTicket(ticket);
+  };
+
+  /** Sau khi tiếp nhận thành công và đã tạo Encounter -> tự động tạo/mở hóa đơn phí khám để thu tiền */
+  const handleIntakeSuccess = async (createdEncounterId?: string) => {
+    fetchTickets(true);
+    if (!createdEncounterId) return;
+
     try {
-      // 1. Tìm invoice consultation của appointment này
       let invoice: InvoiceData | null = null;
-      const invoices = await invoiceService.findMany({ appointmentId });
+      const invoices = await invoiceService.findMany({ encounterId: createdEncounterId });
       const consultInv = invoices.find(
         (inv) => inv.invoiceType === 'consultation' && inv.status !== 'cancelled'
       );
 
       if (!consultInv) {
-        // 2. Chưa có invoice → tạo mới
-        invoice = await invoiceService.generate({ appointmentId });
+        // Tạo hóa đơn phí khám theo đúng encounterId vừa tạo
+        invoice = await invoiceService.generate({ encounterId: createdEncounterId });
       } else {
         invoice = consultInv;
       }
 
-      // 3. Đã paid → mở thẳng intake modal
-      if (invoice.status === 'paid') {
-        setIntakeModalTicket(ticket);
-        return;
+      // Nếu hóa đơn chưa thanh toán -> mở modal thu tiền viện phí
+      if (invoice && invoice.status !== 'paid') {
+        setConsultationInvoice(invoice);
+        setIsPaymentModalOpen(true);
       }
-
-      // 4. Còn pending → mở modal thanh toán trước
-      setPendingPaymentTicket(ticket);
-      setConsultationInvoice(invoice);
-      setIsPaymentModalOpen(true);
     } catch (err: any) {
-      showToast(err?.message || 'Lỗi khi kiểm tra hóa đơn phí khám', 'error');
-    } finally {
-      setIsCheckingInvoice(null);
+      console.warn('Lỗi kiểm tra/tạo hóa đơn sau khi tiếp nhận:', err);
     }
   };
 
-  /** Sau khi thanh toán thành công → đóng payment modal, mở intake modal */
+  /** Sau khi thanh toán thành công → đóng payment modal */
   const handlePaymentSuccess = () => {
     setIsPaymentModalOpen(false);
-    const ticket = pendingPaymentTicket;
     setPendingPaymentTicket(null);
     setConsultationInvoice(null);
-    if (ticket) {
-      setIntakeModalTicket(ticket);
-    }
+    showToast('Thu tiền viện phí thành công! Bệnh nhân đã được chuyển sang phòng Điều dưỡng đo sinh hiệu.', 'success');
+    fetchTickets(true);
   };
 
   return (
@@ -1137,7 +1133,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
         onClose={() => setIntakeModalTicket(null)}
         ticket={intakeModalTicket}
         doctors={doctors}
-        onSuccess={() => fetchTickets(true)}
+        onSuccess={handleIntakeSuccess}
         showToast={showToast}
       />
 
