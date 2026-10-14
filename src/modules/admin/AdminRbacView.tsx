@@ -19,6 +19,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  X,
+  Filter,
 } from 'lucide-react';
 import { rbacService, type RoleItemResponse, type PermissionItem } from '../../services/rbac/rbac.service';
 import { Mascot } from 'page-mascot';
@@ -80,7 +82,10 @@ const RESOURCE_LABELS: Record<string, { title: string; desc: string }> = {
   medication: { title: 'Đơn Thuốc & Dược Phẩm (Medication)', desc: 'Kê đơn thuốc điện tử, hướng dẫn liều dùng' },
   allergy: { title: 'Dị Ứng & Cảnh Báo (Allergy)', desc: 'Lịch sử dị ứng thuốc, thức ăn của bệnh nhân' },
   'imaging-study': { title: 'Hình Ảnh Y Khoa & DICOM', desc: 'Quản lý chụp X-Quang, CT, MRI và ảnh chuẩn DICOM' },
+  'diagnostic-report': { title: 'Báo Cáo Cận Lâm Sàng & Kết Quả', desc: 'Xem và quản lý phiếu kết quả chẩn đoán cận lâm sàng' },
+  'care-plan': { title: 'Kế Hoạch Điều Trị & Chăm Sóc (Care Plan)', desc: 'Lộ trình chăm sóc và theo dõi điều trị y tế' },
   claim: { title: 'Thu Phí & Thanh Toán BHYT (Claims)', desc: 'Lập phiếu thu viện phí và giám định BHYT' },
+  invoice: { title: 'Hóa Đơn & Thu Viện Phí (Invoice)', desc: 'Tạo, thu tiền viện phí và quản lý trạng thái thanh toán' },
   user: { title: 'Tài Khoản Đăng Nhập (User)', desc: 'Quản lý thông tin đăng nhập, hồ sơ tài khoản' },
   role: { title: 'Vai Trò Hệ Thống (Role)', desc: 'Cấu hình vai trò và gán quyền' },
   'security-config': { title: 'Bảo Mật & Cấu Hình Hệ Thống', desc: 'Cài đặt thời gian khóa tài khoản, thời hạn Token, MFA' },
@@ -100,6 +105,7 @@ export const AdminRbacView: React.FC = () => {
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedResourceFilter, setSelectedResourceFilter] = useState<string>('all');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -144,7 +150,7 @@ export const AdminRbacView: React.FC = () => {
   // Reset page when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedRoleId, pageSize]);
+  }, [searchQuery, selectedResourceFilter, selectedRoleId, pageSize]);
 
   // Khi chọn một Role khác
   const handleSelectRole = (role: RoleItemResponse) => {
@@ -176,28 +182,84 @@ export const AdminRbacView: React.FC = () => {
     });
   };
 
-  // Group permissions by resource
+  // Danh sách các nhóm tài nguyên có sẵn để hiển thị trong dropdown bộ lọc
+  const availableResourceOptions = useMemo(() => {
+    const map = new Map<string, number>();
+    allPermissions.forEach((p) => {
+      const parts = p.permissionCode.split(':');
+      const res = p.resource || parts[0] || 'other';
+      map.set(res, (map.get(res) || 0) + 1);
+    });
+
+    return Array.from(map.entries())
+      .map(([key, count]) => {
+        const info = RESOURCE_LABELS[key];
+        const label = info ? info.title : `Tài nguyên: ${key.toUpperCase()}`;
+        return { key, label, count };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+  }, [allPermissions]);
+
+  // Group permissions by resource with intelligent search by group and permission
   const groupedPermissions = useMemo(() => {
     const groups: Record<string, PermissionItem[]> = {};
+    const query = searchQuery.trim().toLowerCase();
 
     allPermissions.forEach((p) => {
       const parts = p.permissionCode.split(':');
       const res = p.resource || parts[0] || 'other';
-      if (!groups[res]) groups[res] = [];
 
-      const matchesSearch =
-        !searchQuery ||
-        p.permissionCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (RESOURCE_LABELS[res]?.title && RESOURCE_LABELS[res].title.toLowerCase().includes(searchQuery.toLowerCase()));
+      // 1. Nếu đang chọn lọc theo 1 nhóm cụ thể trong dropdown
+      if (selectedResourceFilter !== 'all' && res !== selectedResourceFilter) {
+        return;
+      }
 
-      if (matchesSearch) {
+      const resInfo = RESOURCE_LABELS[res];
+      const resTitle = (resInfo?.title || '').toLowerCase();
+      const resDesc = (resInfo?.desc || '').toLowerCase();
+      const resKey = res.toLowerCase();
+
+      // Kiểm tra nếu query khớp với tên nhóm, mã nhóm, hoặc mô tả nhóm
+      const groupMatchesQuery =
+        !query ||
+        resKey.includes(query) ||
+        resTitle.includes(query) ||
+        resDesc.includes(query);
+
+      // Kiểm tra nếu query khớp với mã quyền, mô tả quyền, hành động (create/read/update/delete) hoặc scope
+      const permMatchesQuery =
+        !query ||
+        p.permissionCode.toLowerCase().includes(query) ||
+        (p.description && p.description.toLowerCase().includes(query)) ||
+        (p.action && p.action.toLowerCase().includes(query)) ||
+        (p.scope && p.scope.toLowerCase().includes(query));
+
+      // Quyền hợp lệ nếu:
+      // (a) Từ khóa khớp với Tên nhóm -> hiển thị tất cả quyền của nhóm đó
+      // (b) Hoặc bản thân quyền đó khớp với từ khóa
+      if (groupMatchesQuery || permMatchesQuery) {
+        if (!groups[res]) {
+          groups[res] = [];
+        }
         groups[res].push(p);
       }
     });
 
-    return groups;
-  }, [allPermissions, searchQuery]);
+    // CHỈ GIỮ LẠI CÁC NHÓM CÓ QUYỀN KHỚP (loại bỏ hoàn toàn các nhóm rỗng)
+    const nonEmptyGroups: Record<string, PermissionItem[]> = {};
+    Object.entries(groups).forEach(([key, list]) => {
+      if (list.length > 0) {
+        nonEmptyGroups[key] = list;
+      }
+    });
+
+    return nonEmptyGroups;
+  }, [allPermissions, searchQuery, selectedResourceFilter]);
+
+  // Tổng số quyền tìm thấy sau khi lọc
+  const totalMatchingPerms = useMemo(() => {
+    return Object.values(groupedPermissions).reduce((acc, list) => acc + list.length, 0);
+  }, [groupedPermissions]);
 
   // Pagination calculation
   const groupEntries = useMemo(() => Object.entries(groupedPermissions), [groupedPermissions]);
@@ -378,7 +440,7 @@ export const AdminRbacView: React.FC = () => {
       {/* Main Content Area: Active Role Details + Permissions Matrix */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
         {/* Top Filter Bar */}
-        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-3 items-center justify-between bg-slate-50/30">
+        <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between bg-slate-50/40">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-700">Đang chỉnh sửa phân quyền cho:</span>
             <span className="text-xs font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
@@ -386,17 +448,84 @@ export const AdminRbacView: React.FC = () => {
             </span>
           </div>
 
-          <div className="relative w-full md:w-80">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm kiếm mã quyền, mô tả..."
-              className="w-full pl-9 pr-3.5 py-2 text-xs font-medium rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white"
-            />
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full lg:w-auto">
+            {/* Lọc trực tiếp theo nhóm */}
+            <div className="relative w-full sm:w-64 shrink-0">
+              <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none">
+                <Filter className="w-3.5 h-3.5" />
+              </div>
+              <select
+                value={selectedResourceFilter}
+                onChange={(e) => setSelectedResourceFilter(e.target.value)}
+                className="w-full pl-8 pr-7 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 cursor-pointer shadow-2xs"
+              >
+                <option value="all">📂 Tất cả nhóm ({availableResourceOptions.length})</option>
+                {availableResourceOptions.map((opt) => (
+                  <option key={opt.key} value={opt.key}>
+                    {opt.label} ({opt.count})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Ô tìm kiếm đa năng: tìm theo nhóm hoặc mã quyền/mô tả */}
+            <div className="relative w-full sm:w-80">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Tìm theo nhóm, mã quyền, mô tả..."
+                className="w-full pl-9 pr-8 py-2 text-xs font-medium rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white shadow-2xs"
+              />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  title="Xóa tìm kiếm"
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer border-none bg-transparent"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Thanh trạng thái bộ lọc / Thông báo kết quả tìm kiếm */}
+        {(searchQuery || selectedResourceFilter !== 'all') && (
+          <div className="px-5 py-2.5 bg-blue-50/80 border-b border-blue-100 flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-blue-900 font-medium flex-wrap">
+              <span className="font-bold">Kết quả lọc:</span>
+              <span>
+                Tìm thấy <strong className="text-blue-700 font-bold">{totalGroups}</strong> nhóm (
+                <strong className="text-blue-700 font-bold">{totalMatchingPerms}</strong> quyền)
+              </span>
+              {searchQuery && (
+                <span className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-md border border-blue-200 text-blue-800 text-[11px]">
+                  Từ khóa: &quot;<strong>{searchQuery}</strong>&quot;
+                </span>
+              )}
+              {selectedResourceFilter !== 'all' && (
+                <span className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-md border border-blue-200 text-blue-800 text-[11px]">
+                  Nhóm: <strong>{RESOURCE_LABELS[selectedResourceFilter]?.title || selectedResourceFilter}</strong>
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedResourceFilter('all');
+              }}
+              className="text-[11px] font-bold text-blue-700 hover:text-blue-800 hover:underline shrink-0 bg-transparent border-none cursor-pointer flex items-center gap-1"
+            >
+              <X className="w-3 h-3" />
+              <span>Xóa bộ lọc</span>
+            </button>
+          </div>
+        )}
 
         {/* Content Matrix */}
         {isLoading ? (
@@ -415,11 +544,24 @@ export const AdminRbacView: React.FC = () => {
               Thử lại
             </button>
           </div>
-        ) : Object.keys(groupedPermissions).length === 0 ? (
-          <div className="p-12 text-center text-slate-400 space-y-2">
+        ) : totalGroups === 0 ? (
+          <div className="p-12 text-center text-slate-400 space-y-3">
             <Shield className="w-10 h-10 mx-auto text-slate-300" />
-            <div className="text-xs font-bold text-slate-700">Không tìm thấy quyền nào phù hợp</div>
-            <p className="text-[11px] text-slate-400">Hãy thử đổi từ khóa tìm kiếm.</p>
+            <div className="text-xs font-bold text-slate-700">Không tìm thấy nhóm hoặc quyền nào phù hợp</div>
+            <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+              Không có quyền nào khớp với từ khóa tìm kiếm hoặc nhóm bạn đã chọn.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedResourceFilter('all');
+              }}
+              className="mt-1 px-3.5 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Xóa bộ lọc & Hiển thị tất cả</span>
+            </button>
           </div>
         ) : (
           <div className="p-5 space-y-4">

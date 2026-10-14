@@ -593,8 +593,8 @@ export const AdminExaminationFeesView: React.FC = () => {
                   </label>
                   <input
                     type="number"
-                    min="1000"
-                    step="5000"
+                    min="0"
+                    step="1000"
                     required
                     placeholder="150000"
                     value={formData.price}
