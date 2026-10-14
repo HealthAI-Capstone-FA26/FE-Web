@@ -374,7 +374,7 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                         <div className="flex flex-col min-w-0">
                           <span className="text-xs font-bold truncate">{p.fullName}</span>
                           <span className="text-[10px] opacity-75 font-mono">
-                            Mã BN: {p.patientCode} • ({isSelf ? 'Bản thân' : p.relationship || 'Người thân'})
+                            Mã BN: {p.patientCode}
                           </span>
                         </div>
                       </label>

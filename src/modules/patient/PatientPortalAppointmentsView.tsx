@@ -152,7 +152,7 @@ export const PatientPortalAppointmentsView: React.FC = () => {
                 <option value="all">Tất cả hồ sơ ({appointments.length} lịch hẹn)</option>
                 {patients.map((p) => (
                   <option key={p.patientId} value={p.patientId}>
-                    {p.fullName} ({p.relationship === 'self' || !p.relationship ? 'Bản thân' : p.relationship})
+                    {p.fullName} (Mã BN: {p.patientCode || 'N/A'})
                   </option>
                 ))}
               </select>

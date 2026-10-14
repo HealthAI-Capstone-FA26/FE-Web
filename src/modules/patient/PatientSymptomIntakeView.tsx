@@ -420,7 +420,7 @@ export const PatientSymptomIntakeView: React.FC = () => {
               ) : (
                 patients.map((p) => (
                   <option key={p.patientId} value={p.patientId}>
-                    {p.fullName} ({p.relationship || 'Bản thân'}) - Mã BN: {p.patientCode}
+                    {p.fullName} - Mã BN: {p.patientCode}
                   </option>
                 ))
               )}

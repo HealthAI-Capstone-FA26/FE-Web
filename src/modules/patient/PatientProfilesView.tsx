@@ -149,33 +149,46 @@ export const PatientProfilesView: React.FC = () => {
         <div>
           <h2 className="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
-              <Users className="w-5 h-5" />
+              <User className="w-5 h-5" />
             </div>
-            <span>Profile Thông Tin Hành Chính Cá Nhân & Người Thân</span>
+            <span>Hồ Sơ Y Tế Cá Nhân</span>
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Quản lý danh sách các hồ sơ đăng ký khám bệnh cho Bản thân và Người thân trong gia đình.
+            Quản lý thông tin định danh và hồ sơ hành chính gắn với tài khoản của bạn tại Phòng Khám Tim Mạch.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => setIsLinkModalOpen(true)}
-            className="px-3.5 py-2.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer border border-slate-200/80 active:scale-95"
-          >
-            <Link2 className="w-4 h-4 text-blue-600" />
-            <span>Tra Cứu & Liên Kết Hồ Sơ</span>
-          </button>
+          {!hasSelfProfile ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsLinkModalOpen(true)}
+                className="px-3.5 py-2.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer border border-slate-200/80 active:scale-95"
+              >
+                <Link2 className="w-4 h-4 text-blue-600" />
+                <span>Tra Cứu & Liên Kết Hồ Sơ Cũ</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 shrink-0 cursor-pointer border-none"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Tạo Hồ Sơ Bệnh Nhân Mới</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 shrink-0 cursor-pointer border-none"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Khai Báo Hồ Sơ Bản Thân</span>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => activeProfile && setEditingProfile(activeProfile)}
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 shrink-0 cursor-pointer border-none"
+            >
+              <Edit3 className="w-4 h-4" />
+              <span>Chỉnh Sửa Thông Tin Hồ Sơ</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -251,17 +264,19 @@ export const PatientProfilesView: React.FC = () => {
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-blue-600" />
-                <span>Hồ sơ đã tạo ({profiles.length})</span>
+                <span>Hồ sơ cá nhân ({profiles.length})</span>
                 {isRefreshing && <Loader2 className="w-3 h-3 text-blue-600 animate-spin ml-1" />}
               </h3>
-              <button
-                type="button"
-                onClick={() => setIsCreateModalOpen(true)}
-                className="p-1 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors cursor-pointer border-none bg-transparent"
-                title="Thêm hồ sơ mới"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+              {!hasSelfProfile && (
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="p-1 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors cursor-pointer border-none bg-transparent"
+                  title="Khai báo hồ sơ bản thân"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             {isInitialLoading && profiles.length === 0 ? (
@@ -317,16 +332,12 @@ export const PatientProfilesView: React.FC = () => {
                           </h4>
                           <span
                             className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold mt-0.5 ${
-                              p.relationship === 'Bản thân'
-                                ? isSelected
-                                  ? 'bg-blue-200/80 text-blue-900'
-                                  : 'bg-blue-50 text-blue-700'
-                                : isSelected
-                                ? 'bg-slate-200 text-slate-800'
-                                : 'bg-slate-100 text-slate-600'
+                              isSelected
+                                ? 'bg-blue-200/80 text-blue-900'
+                                : 'bg-blue-50 text-blue-700'
                             }`}
                           >
-                            {p.relationship}
+                            Chính chủ
                           </span>
                         </div>
                       </div>
@@ -365,15 +376,10 @@ export const PatientProfilesView: React.FC = () => {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-extrabold text-lg sm:text-xl text-slate-900">{activeProfile.fullName}</h3>
-                      <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-xs font-bold">
-                        {activeProfile.relationship}
+                      <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold inline-flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        Hồ sơ chính chủ
                       </span>
-                      {activeProfile.relationship === 'Bản thân' && (
-                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-bold inline-flex items-center gap-1">
-                          <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                          Hồ sơ chính
-                        </span>
-                      )}
                     </div>
                     <p className="text-xs text-slate-500 font-medium mt-1 flex items-center gap-1.5">
                       <span className="text-slate-400">Mã Bệnh Nhân:</span>
@@ -409,8 +415,11 @@ export const PatientProfilesView: React.FC = () => {
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-100 space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Mối quan hệ</span>
-                    <p className="text-xs font-bold text-slate-900">{activeProfile.relationship}</p>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Trạng thái hồ sơ</span>
+                    <p className="text-xs font-bold text-emerald-700 flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Đã liên kết tài khoản</span>
+                    </p>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-100 space-y-1">

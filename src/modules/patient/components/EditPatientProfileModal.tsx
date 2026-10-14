@@ -128,24 +128,7 @@ export const EditPatientProfileModal: React.FC<EditPatientProfileModalProps> = (
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-slate-700 font-bold mb-1">Quan hệ với chủ tài khoản (*)</label>
-              <select
-                value={formData.relationship}
-                onChange={(e) => handleFormChange('relationship', e.target.value)}
-                className="w-full bg-slate-50 text-slate-900 p-2.5 rounded-xl border border-slate-200 outline-none focus:bg-white focus:border-blue-700 transition-all font-semibold"
-              >
-                <option value="Bản thân" disabled={hasOtherSelfProfile}>
-                  Bản thân {hasOtherSelfProfile ? '(Đã có 1 hồ sơ Bản thân)' : ''}
-                </option>
-                <option value="Con cái">Con cái</option>
-                <option value="Bố/Mẹ">Bố/Mẹ</option>
-                <option value="Vợ/Chồng">Vợ/Chồng</option>
-                <option value="Người thân">Người thân khác</option>
-              </select>
-            </div>
-
-            <div>
+            <div className="sm:col-span-2">
               <label className="block text-slate-700 font-bold mb-1">Họ và tên bệnh nhân (*)</label>
               <input
                 type="text"

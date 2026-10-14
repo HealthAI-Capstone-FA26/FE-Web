@@ -43,7 +43,7 @@ export const CreatePatientProfileModal: React.FC<CreatePatientProfileModalProps>
 }) => {
   const [formData, setFormData] = useState<ProfileItem>({
     id: '',
-    relationship: hasSelfProfile ? 'Con cái' : 'Bản thân',
+    relationship: 'Bản thân',
     fullName: '',
     dob: '',
     gender: 'Nam',
@@ -62,7 +62,7 @@ export const CreatePatientProfileModal: React.FC<CreatePatientProfileModalProps>
     if (isOpen) {
       setFormData({
         id: '',
-        relationship: hasSelfProfile ? 'Con cái' : 'Bản thân',
+        relationship: 'Bản thân',
         fullName: '',
         dob: '',
         gender: 'Nam',
@@ -75,7 +75,7 @@ export const CreatePatientProfileModal: React.FC<CreatePatientProfileModalProps>
       });
       setFormError(null);
     }
-  }, [isOpen, hasSelfProfile, userPhone, userEmail]);
+  }, [isOpen, userPhone, userEmail]);
 
   if (!isOpen) return null;
 
@@ -115,7 +115,7 @@ export const CreatePatientProfileModal: React.FC<CreatePatientProfileModalProps>
         insuranceNumber: formData.insuranceCard?.trim() || undefined,
         email: formData.email.trim() || undefined,
         address: formData.address.trim() || undefined,
-        relationship: formData.relationship,
+        relationship: 'self',
       };
 
       let newPatientId: string | undefined;
@@ -157,11 +157,11 @@ export const CreatePatientProfileModal: React.FC<CreatePatientProfileModalProps>
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-100 p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
             <Plus className="w-5 h-5 text-blue-700" />
-            <span>Tạo Hồ Sơ Bệnh Nhân Mới</span>
+            <span>Khai Báo Hồ Sơ Bệnh Nhân</span>
           </h3>
           <button
             type="button"
@@ -180,25 +180,13 @@ export const CreatePatientProfileModal: React.FC<CreatePatientProfileModalProps>
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-slate-700 font-bold mb-1">Quan hệ với chủ tài khoản (*)</label>
-              <select
-                value={formData.relationship}
-                onChange={(e) => handleFormChange('relationship', e.target.value)}
-                className="w-full bg-slate-50 text-slate-900 p-2.5 rounded-xl border border-slate-200 outline-none focus:bg-white focus:border-blue-700 transition-all font-semibold"
-              >
-                <option value="Bản thân" disabled={hasSelfProfile}>
-                  Bản thân {hasSelfProfile ? '(Đã có 1 hồ sơ Bản thân)' : ''}
-                </option>
-                <option value="Con cái">Con cái</option>
-                <option value="Bố/Mẹ">Bố/Mẹ</option>
-                <option value="Vợ/Chồng">Vợ/Chồng</option>
-                <option value="Người thân">Người thân khác</option>
-              </select>
-            </div>
+          <div className="p-3 bg-blue-50/80 border border-blue-200/80 rounded-xl text-blue-900 text-xs flex items-center gap-2 font-medium">
+            <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+            <span>Hồ sơ này sẽ được liên kết trực tiếp và bảo mật với tài khoản của bạn tại phòng khám.</span>
+          </div>
 
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="sm:col-span-2">
               <label className="block text-slate-700 font-bold mb-1">Họ và tên bệnh nhân (*)</label>
               <input
                 type="text"
