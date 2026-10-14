@@ -96,14 +96,14 @@ export const PatientMedicalRecordView: React.FC = () => {
       </div>
 
       {/* Patient Code & BHYT Identifier Banner */}
-      <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-5 rounded-2xl shadow-md flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-4 sm:p-5 rounded-2xl shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="text-[10px] font-extrabold uppercase tracking-widest text-blue-300">
             Hồ sơ Bệnh nhân Điện tử chính thức (EMR)
           </div>
-          <div className="text-lg font-black tracking-tight flex items-center gap-3">
+          <div className="text-base sm:text-lg font-black tracking-tight flex flex-wrap items-center gap-2 sm:gap-3">
             <span>Mã Bệnh Nhân: <strong className="text-amber-400 font-mono">{medicalRecord.patientId}</strong></span>
-            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
+            <span className="hidden sm:inline w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
             <span>BHYT: <strong className="text-blue-200 font-mono">{medicalRecord.bhytNumber}</strong></span>
           </div>
         </div>

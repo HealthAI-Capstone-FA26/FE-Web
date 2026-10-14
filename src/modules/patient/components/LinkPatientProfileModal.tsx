@@ -281,7 +281,7 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
                       </div>
                     </div>
 
-                    <div className="pt-2 border-t border-blue-100 flex items-center justify-between gap-3">
+                    <div className="pt-2 border-t border-blue-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                       <p className="text-[11px] text-slate-600 italic">
                         Xác nhận để liên kết toàn bộ lịch sử khám bệnh và đơn thuốc về tài khoản này.
                       </p>
@@ -289,7 +289,7 @@ export const LinkPatientProfileModal: React.FC<LinkPatientProfileModalProps> = (
                         type="button"
                         onClick={handleConfirmLinkSelf}
                         disabled={isLinkingSelf || hasSelfProfile}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 shrink-0 cursor-pointer border-none disabled:opacity-50"
+                        className="w-full sm:w-auto justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 shrink-0 cursor-pointer border-none disabled:opacity-50"
                       >
                         {isLinkingSelf ? (
                           <>

@@ -42,7 +42,12 @@ interface DashboardLayoutProps {
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const { user, currentRole, logout, can } = useAuth();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024;
+    }
+    return true;
+  });
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -67,9 +72,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     }, 3000);
   }, [clearInactivityTimer]);
 
-  // Initial load & route change: start 3s countdown if sidebar is open and user isn't hovering
+  // Initial load & route change: on mobile automatically close sidebar; on desktop handle countdown
   useEffect(() => {
-    if (isSidebarOpen && !isHoveringSidebarRef.current) {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+      clearInactivityTimer();
+    } else if (isSidebarOpen && !isHoveringSidebarRef.current) {
       resetInactivityTimer();
     }
     return () => {
@@ -156,11 +164,21 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               <div className="w-10 h-10 rounded-full bg-white border border-slate-200 p-1 flex items-center justify-center shadow-xs group-hover:border-blue-600 transition-colors shrink-0">
                 <img src="/images/logo.png" alt="Logo 4AM" className="w-full h-full object-contain" />
               </div>
-              <div className="flex flex-col">
-                <span className="font-black text-sm text-blue-950 uppercase tracking-tight whitespace-nowrap">
-                  {currentRole === 'PATIENT' ? 'CỔNG THÔNG TIN BỆNH NHÂN (PATIENT PORTAL)' : 'HỆ THỐNG QUẢN LÝ NỘI BỘ (EMR & AI)'}
+              <div className="flex flex-col min-w-0">
+                <span className="font-black text-xs sm:text-sm text-blue-950 uppercase tracking-tight truncate">
+                  {currentRole === 'PATIENT' ? (
+                    <>
+                      <span className="sm:hidden">Cổng Bệnh Nhân</span>
+                      <span className="hidden sm:inline">CỔNG THÔNG TIN BỆNH NHÂN (PATIENT PORTAL)</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="sm:hidden">Hệ Thống Y Tế</span>
+                      <span className="hidden sm:inline">HỆ THỐNG QUẢN LÝ NỘI BỘ (EMR & AI)</span>
+                    </>
+                  )}
                 </span>
-                <span className="text-[10px] text-slate-500 font-semibold whitespace-nowrap">
+                <span className="text-[10px] text-slate-500 font-semibold whitespace-nowrap hidden sm:block">
                   Phòng khám Tim mạch 4AM • Chuẩn HL7 FHIR R4
                 </span>
               </div>
@@ -271,7 +289,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
       {/* Main Screen Container with Flush Left Sidebar */}
       <div className="flex-1 flex w-full relative">
-        {/* Floating Arrow Tab on Left Edge when sidebar is collapsed (Vertically Centered) */}
+        {/* Floating Arrow Tab on Left Edge when sidebar is collapsed (Desktop Only) */}
         {!isSidebarOpen && (
           <button
             onClick={() => {
@@ -284,7 +302,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               resetInactivityTimer();
             }}
             title="Mở menu điều hướng (Hover hoặc Click)"
-            className="fixed left-0 top-1/2 -translate-y-1/2 z-30 flex items-center justify-center w-6 sm:w-7 h-14 bg-white hover:bg-blue-600 text-slate-400 hover:text-white border border-l-0 border-slate-200/90 hover:border-blue-600 shadow-md hover:shadow-lg rounded-r-xl transition-all cursor-pointer group"
+            className="hidden lg:flex fixed left-0 top-1/2 -translate-y-1/2 z-30 items-center justify-center w-6 sm:w-7 h-14 bg-white hover:bg-blue-600 text-slate-400 hover:text-white border border-l-0 border-slate-200/90 hover:border-blue-600 shadow-md hover:shadow-lg rounded-r-xl transition-all cursor-pointer group"
           >
             <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </button>
@@ -414,10 +432,138 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         </aside>
 
         {/* Content Outlet */}
-        <main className={`flex-1 p-3 sm:p-5 lg:p-6 overflow-x-hidden min-w-0 transition-all duration-300 ${!isSidebarOpen ? 'pl-8 sm:pl-10 lg:pl-12' : ''}`}>
+        <main className={`flex-1 p-3 sm:p-5 lg:p-6 overflow-x-hidden min-w-0 transition-all duration-300 ${!isSidebarOpen ? 'pl-3 sm:pl-8 lg:pl-12' : ''} ${currentRole === 'PATIENT' ? 'pb-24 lg:pb-6' : ''}`}>
           {children || <Outlet />}
         </main>
       </div>
+
+      {/* Floating Mobile Bottom Navigation Bar for PATIENT role (Facebook / iOS Floating Dock style) */}
+      {currentRole === 'PATIENT' && (
+        <div className="fixed bottom-3 inset-x-3 sm:bottom-4 sm:inset-x-6 z-40 max-w-md mx-auto lg:hidden">
+          <nav className="bg-white/90 backdrop-blur-2xl border border-white/80 shadow-[0_12px_36px_rgba(15,23,42,0.16),0_2px_6px_rgba(15,23,42,0.06),inset_0_1px_1px_rgba(255,255,255,0.9)] rounded-[26px] px-2 py-1.5 flex items-center justify-between">
+            <NavLink
+              to="/benh-nhan/ho-so"
+              className={({ isActive }) =>
+                `group relative flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-2xl transition-all duration-200 active:scale-90 ${
+                  isActive ? 'text-blue-600 font-extrabold' : 'text-slate-500 hover:text-slate-800 font-medium'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div
+                    className={`p-1.5 rounded-xl transition-all duration-200 ${
+                      isActive ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30 -translate-y-0.5' : 'bg-transparent text-slate-500 group-hover:text-slate-800'
+                    }`}
+                  >
+                    <User className="w-4 h-4" />
+                  </div>
+                  <span className={`text-[10px] mt-0.5 tracking-tight transition-colors ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
+                    Hồ sơ
+                  </span>
+                  {isActive && (
+                    <span className="w-1 h-1 rounded-full bg-blue-600 mt-0.5 animate-pulse" />
+                  )}
+                </>
+              )}
+            </NavLink>
+
+            <NavLink
+              to="/benh-nhan/ho-so-y-te"
+              className={({ isActive }) =>
+                `group relative flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-2xl transition-all duration-200 active:scale-90 ${
+                  isActive ? 'text-blue-600 font-extrabold' : 'text-slate-500 hover:text-slate-800 font-medium'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div
+                    className={`p-1.5 rounded-xl transition-all duration-200 ${
+                      isActive ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30 -translate-y-0.5' : 'bg-transparent text-slate-500 group-hover:text-slate-800'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <span className={`text-[10px] mt-0.5 tracking-tight transition-colors ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
+                    Bệnh án
+                  </span>
+                  {isActive && (
+                    <span className="w-1 h-1 rounded-full bg-blue-600 mt-0.5 animate-pulse" />
+                  )}
+                </>
+              )}
+            </NavLink>
+
+            <NavLink
+              to="/benh-nhan/trieu-chung"
+              className={({ isActive }) =>
+                `group relative flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-2xl transition-all duration-200 active:scale-90 ${
+                  isActive ? 'text-blue-600 font-extrabold' : 'text-slate-500 hover:text-slate-800 font-medium'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div
+                    className={`p-1.5 rounded-xl transition-all duration-200 ${
+                      isActive ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30 -translate-y-0.5' : 'bg-transparent text-slate-500 group-hover:text-slate-800'
+                    }`}
+                  >
+                    <Activity className="w-4 h-4" />
+                  </div>
+                  <span className={`text-[10px] mt-0.5 tracking-tight transition-colors ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
+                    Khai báo
+                  </span>
+                  {isActive && (
+                    <span className="w-1 h-1 rounded-full bg-blue-600 mt-0.5 animate-pulse" />
+                  )}
+                </>
+              )}
+            </NavLink>
+
+            <NavLink
+              to="/benh-nhan/lich-hen"
+              className={({ isActive }) =>
+                `group relative flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-2xl transition-all duration-200 active:scale-90 ${
+                  isActive ? 'text-blue-600 font-extrabold' : 'text-slate-500 hover:text-slate-800 font-medium'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div
+                    className={`p-1.5 rounded-xl transition-all duration-200 ${
+                      isActive ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30 -translate-y-0.5' : 'bg-transparent text-slate-500 group-hover:text-slate-800'
+                    }`}
+                  >
+                    <CalendarDays className="w-4 h-4" />
+                  </div>
+                  <span className={`text-[10px] mt-0.5 tracking-tight transition-colors ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
+                    Lịch khám
+                  </span>
+                  {isActive && (
+                    <span className="w-1 h-1 rounded-full bg-blue-600 mt-0.5 animate-pulse" />
+                  )}
+                </>
+              )}
+            </NavLink>
+
+            <button
+              type="button"
+              onClick={() => setIsProfileOpen(true)}
+              className="group relative flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-2xl transition-all duration-200 active:scale-90 text-slate-500 hover:text-slate-800 font-medium cursor-pointer border-none bg-transparent"
+            >
+              <div className="p-1.5 rounded-xl bg-transparent text-slate-500 group-hover:text-slate-800 transition-all">
+                <UserCheck className="w-4 h-4" />
+              </div>
+              <span className="text-[10px] mt-0.5 tracking-tight text-slate-500">
+                Tài khoản
+              </span>
+            </button>
+          </nav>
+        </div>
+      )}
     </div>
   );
 };
