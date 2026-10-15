@@ -7,21 +7,23 @@ export type AllergyStatus = 'active' | 'resolved' | 'entered_in_error';
 export interface PatientAllergyItem {
   allergyId: string;
   patientId: string;
+  allergyText: string;
   encounterId?: string;
-  allergyType: AllergyType;
-  allergenName: string;
+  allergyType?: AllergyType;
+  allergenName?: string;
   reactionDescription?: string;
-  severity: AllergySeverity;
+  severity?: AllergySeverity;
   status: AllergyStatus;
   recordedByUserId?: string;
   recordedAt: string;
 }
 
 export interface CreatePatientAllergyPayload {
-  allergyType: AllergyType;
-  allergenName: string;
+  allergyText?: string;
+  allergyType?: AllergyType;
+  allergenName?: string;
   reactionDescription?: string;
-  severity: AllergySeverity;
+  severity?: AllergySeverity;
   encounterId?: string;
 }
 
@@ -31,9 +33,21 @@ export const patientAllergyService = {
     patientId: string,
     payload: CreatePatientAllergyPayload
   ): Promise<PatientAllergyItem> {
+    // Chuẩn hóa thành allergyText theo format Backend: "[NHÓM] tác_nhân (Mức độ: ..., Phản ứng: ...)"
+    let allergyText = payload.allergyText;
+    if (!allergyText && payload.allergenName) {
+      const typeTag = (payload.allergyType || 'other').toUpperCase();
+      const details = [
+        payload.severity ? `Mức độ: ${payload.severity}` : null,
+        payload.reactionDescription ? `Phản ứng: ${payload.reactionDescription}` : null,
+      ].filter(Boolean).join(' - ');
+
+      allergyText = `[${typeTag}] ${payload.allergenName}${details ? ` (${details})` : ''}`;
+    }
+
     return apiFetch<PatientAllergyItem>(`/patients/${patientId}/allergies`, {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ allergyText: allergyText || 'Chưa rõ' }),
     });
   },
 

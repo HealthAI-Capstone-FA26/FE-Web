@@ -4,13 +4,10 @@ import {
   Clock,
   User,
   Phone,
-  Building2,
   Stethoscope,
   History,
   Loader2,
   Eye,
-  ShieldAlert,
-  GitFork,
 } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import { DataTable, type Column } from '../../../components/common/DataTable';
@@ -22,9 +19,8 @@ interface NurseQueueTableProps {
   onOpenMeasure: (row: NursePatientRow) => void;
   onOpenHistory: (row: NursePatientRow) => void;
   onOpenDetail: (row: NursePatientRow) => void;
-  onOpenAllergy: (row: NursePatientRow) => void;
+  onOpenAllergy?: (row: NursePatientRow) => void;
   onOpenMedicalHistory?: (row: NursePatientRow) => void;
-  onOpenChangeDept?: (row: NursePatientRow) => void;
   onStartProcessing?: (row: NursePatientRow) => void;
 }
 
@@ -36,7 +32,6 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
   onOpenDetail,
   onOpenAllergy,
   onOpenMedicalHistory,
-  onOpenChangeDept,
   onStartProcessing,
 }) => {
   const formatTimeAgo = (dateStr?: string) => {
@@ -164,16 +159,12 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
       ),
     },
     {
-      header: 'Chuyên Khoa & Bác Sĩ',
+      header: 'Bác Sĩ Phụ Trách',
       cell: (row) => (
         <div className="text-xs">
-          <div className="font-bold text-slate-800 flex items-center gap-1">
-            <Building2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-            <span>{row.departmentName}</span>
-          </div>
-          <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-            <Stethoscope className="w-3 h-3 text-teal-600 shrink-0" />
-            <span>{row.doctorName}</span>
+          <div className="font-bold text-slate-800 flex items-center gap-1.5">
+            <Stethoscope className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+            <span>{row.doctorName || 'BS. Trực chuyên khoa'}</span>
           </div>
         </div>
       ),
@@ -229,37 +220,15 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
       header: 'Thao Tác',
       cell: (row) => (
         <div className="flex items-center gap-1.5 whitespace-nowrap">
-          {/* Nút Xem chi tiết ca khám */}
+          {/* Nút Xem chi tiết ca khám, Tiền sử dị ứng & Tiền sử bệnh */}
           <button
             type="button"
             onClick={() => onOpenDetail(row)}
-            title="Xem chi tiết hồ sơ ca khám (Lý do khám, Bác sĩ, Sinh hiệu)"
+            title="Xem chi tiết ca khám, Tiền sử dị ứng & Tiền sử bệnh"
             className="p-1.5 rounded-xl text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 transition-colors cursor-pointer"
           >
             <Eye className="w-3.5 h-3.5" />
           </button>
-
-          {/* Nút Khai báo dị ứng */}
-          <button
-            type="button"
-            onClick={() => onOpenAllergy(row)}
-            title="Khai báo & quản lý dị ứng của bệnh nhân"
-            className="p-1.5 rounded-xl text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer"
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Nút Khai báo & quản lý tiền sử bệnh */}
-          {onOpenMedicalHistory && (
-            <button
-              type="button"
-              onClick={() => onOpenMedicalHistory(row)}
-              title="Khai báo & quản lý tiền sử bệnh án của bệnh nhân"
-              className="p-1.5 rounded-xl text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer"
-            >
-              <History className="w-3.5 h-3.5" />
-            </button>
-          )}
 
           {row.triageStatus === 'called' && onStartProcessing && (
             <button
@@ -287,26 +256,14 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
           </button>
 
           {row.status === 'Measured' && (
-            <>
-              {onOpenChangeDept && (
-                <button
-                  type="button"
-                  onClick={() => onOpenChangeDept(row)}
-                  title="Đổi khoa khám & tự động chọn bác sĩ rảnh nhất"
-                  className="p-1.5 rounded-xl text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer"
-                >
-                  <GitFork className="w-3.5 h-3.5" />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => onOpenHistory(row)}
-                title="Xem lịch sử các lần đo"
-                className="p-1.5 rounded-xl text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
-              >
-                <History className="w-3.5 h-3.5" />
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => onOpenHistory(row)}
+              title="Xem lịch sử các lần đo"
+              className="p-1.5 rounded-xl text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+            >
+              <History className="w-3.5 h-3.5" />
+            </button>
           )}
         </div>
       ),

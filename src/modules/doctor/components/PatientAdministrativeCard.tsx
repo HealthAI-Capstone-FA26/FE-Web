@@ -315,10 +315,10 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
                     >
                       <div className="flex items-center justify-between gap-1">
                         <div className="text-[11px] leading-tight flex items-center gap-1.5 flex-wrap">
-                          {getTypeLabel(item.allergyType)}
-                          <span className="font-extrabold text-rose-900">{item.allergenName}</span>
+                          {getTypeLabel(item.allergyType || 'other')}
+                          <span className="font-extrabold text-rose-900">{item.allergenName || (item as any).allergyText}</span>
                         </div>
-                        {getSeverityBadge(item.severity)}
+                        {getSeverityBadge(item.severity || 'moderate')}
                       </div>
                       {item.reactionDescription && (
                         <p className="text-[10px] text-slate-500 italic pl-1 leading-snug">
@@ -496,9 +496,11 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
                       <div className="flex items-center justify-between font-semibold text-slate-800">
                         <span className="flex items-center gap-1.5">
                           <Stethoscope className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          <span>{enc.department?.departmentName || 'Khoa Nội Tổng hợp'}</span>
+                          <span>{enc.doctor?.fullName || 'BS. Trực chuyên khoa'}</span>
                         </span>
-                        <span className="text-slate-700 font-bold">{enc.doctor?.fullName || 'BS. Trực khoa'}</span>
+                        {enc.doctor?.title && (
+                          <span className="text-[10px] text-slate-500 font-medium">{enc.doctor.title}</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                         <Calendar className="w-3 h-3 text-slate-400 shrink-0" />

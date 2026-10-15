@@ -333,12 +333,12 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
           }
         }
 
-        // 5. Hoàn tất đăng ký tiếp đón để xếp vào Hàng đợi Triage của Điều dưỡng (Cấp STT chính thức)
-        await encounterService.completeRegistration(encounterId);
+        // Lưu ý: completeRegistration sẽ được gọi SAU KHI thanh toán phí khám thành công
+        // tại ReceptionQueueCallingWorkspaceView -> handlePaymentSuccess
       }
 
       showToast(
-        `Đã tiếp nhận thành công số ${code}, ghi nhận cam kết y tế & chuyển hàng đợi điều dưỡng!`,
+        `Đã tiếp nhận hồ sơ số ${code}, vui lòng thu phí khám ban đầu!`,
         'success'
       );
       onSuccess(encounterId);

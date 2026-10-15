@@ -428,11 +428,15 @@ export const NurseAllergyModal: React.FC<NurseAllergyModalProps> = ({
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-slate-900 text-sm">{item.allergenName}</span>
-                      {getSeverityBadge(item.severity)}
-                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                        {getTypeLabel(item.allergyType)}
+                      <span className="font-extrabold text-slate-900 text-sm">
+                        {item.allergenName || item.allergyText}
                       </span>
+                      {item.severity && getSeverityBadge(item.severity)}
+                      {item.allergyType && (
+                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                          {getTypeLabel(item.allergyType)}
+                        </span>
+                      )}
                     </div>
 
                     {item.reactionDescription && (

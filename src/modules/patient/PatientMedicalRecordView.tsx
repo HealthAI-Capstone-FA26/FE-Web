@@ -155,7 +155,7 @@ export const PatientMedicalRecordView: React.FC = () => {
                     </span>
                     <span className="flex items-center gap-1 text-slate-600 font-semibold">
                       <Stethoscope className="w-3.5 h-3.5 text-blue-600" />
-                      {enc.department?.departmentName || 'Khoa Nội Tổng hợp'}
+                      {enc.doctor?.fullName || 'BS. Trực chuyên khoa'}
                     </span>
                   </div>
                   <Badge variant={getStatusVariant(enc.status)} size="sm">
