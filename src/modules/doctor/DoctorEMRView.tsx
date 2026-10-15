@@ -1160,9 +1160,20 @@ export const DoctorEMRView: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 columns: Patient EMR, AI & Actions */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column (4 cols): Patient Queue Sidebar */}
+        <div className="lg:col-span-4 space-y-4">
+          <PatientQueueSidebar
+            patients={combinedPatientsMap}
+            selectedPatientId={selectedPatientId}
+            onSelectPatient={handleSelectPatientId}
+            isLoading={isLoadingApi}
+            patientWorkflowStates={patientWorkflowStates}
+          />
+        </div>
+
+        {/* Right Column (8 cols): Patient EMR, AI & Actions */}
+        <div className="lg:col-span-8 space-y-6">
           {!currentPatient ? (
             <div className="bg-white rounded-3xl p-12 border border-slate-200/90 shadow-xs text-center space-y-3">
               <User className="w-12 h-12 text-slate-300 mx-auto" />
@@ -1317,17 +1328,6 @@ export const DoctorEMRView: React.FC = () => {
               )}
             </>
           )}
-        </div>
-
-        {/* Right 1 column: Patient Queue Sidebar */}
-        <div className="lg:col-span-1 space-y-4">
-          <PatientQueueSidebar
-            patients={combinedPatientsMap}
-            selectedPatientId={selectedPatientId}
-            onSelectPatient={handleSelectPatientId}
-            isLoading={isLoadingApi}
-            patientWorkflowStates={patientWorkflowStates}
-          />
         </div>
       </div>
 

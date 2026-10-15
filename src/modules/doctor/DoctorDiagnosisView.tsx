@@ -542,8 +542,8 @@ export const DoctorDiagnosisView: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        {/* Left column: Patient Queue & EMR Timeline (5 cols) */}
-        <div className="lg:col-span-5 space-y-6">
+        {/* Left column: Patient Queue & EMR Timeline (4 cols) */}
+        <div className="lg:col-span-4 space-y-6">
 
           {/* Patient Selector */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
@@ -824,8 +824,8 @@ export const DoctorDiagnosisView: React.FC = () => {
 
         </div>
 
-        {/* Right column: Paraclinical Readiness, ICD-10 Diagnosis & Treatment Consultation (7 cols) */}
-        <div className="lg:col-span-7 space-y-6">
+        {/* Right column: Paraclinical Readiness, ICD-10 Diagnosis & Treatment Consultation (8 cols) */}
+        <div className="lg:col-span-8 space-y-6">
           {!currentPatient ? (
             <div className="bg-white p-12 rounded-3xl border border-slate-200/90 text-center space-y-4 shadow-xs">
               <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 mx-auto flex items-center justify-center">
