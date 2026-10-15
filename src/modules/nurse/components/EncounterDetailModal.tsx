@@ -5,12 +5,12 @@ import {
   FileText,
   Stethoscope,
   ShieldCheck,
+  ShieldAlert,
+  History,
   AlertCircle,
   Loader2,
-  Building2,
   CheckCircle2,
   XCircle,
-  GitFork,
 } from 'lucide-react';
 import { Modal } from '../../../components/common/Modal';
 import { Badge } from '../../../components/common/Badge';
@@ -20,26 +20,33 @@ import {
   type EncounterVitalSession,
 } from '../../../services/encounter/encounter.service';
 import { IdentityVerificationHistoryModal } from '../../reception/components/IdentityVerificationHistoryModal';
-import { ChangeEncounterDepartmentModal } from './ChangeEncounterDepartmentModal';
+import { EncounterDetailAllergiesTab } from './tabs/EncounterDetailAllergiesTab';
+import { EncounterDetailMedicalHistoryTab } from './tabs/EncounterDetailMedicalHistoryTab';
 
 interface EncounterDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   encounterId: string | null;
+  initialTab?: 'overview' | 'allergies' | 'medical_history';
   onOpenMeasure?: (encounterId: string) => void;
+  onSuccess?: (message: string) => void;
+  onError?: (message: string) => void;
 }
 
 export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
   isOpen,
   onClose,
   encounterId,
+  initialTab = 'overview',
   onOpenMeasure,
+  onSuccess,
+  onError,
 }) => {
   const [encounter, setEncounter] = useState<EncounterItem | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'allergies' | 'medical_history'>(initialTab);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
-  const [isChangeDeptModalOpen, setIsChangeDeptModalOpen] = useState<boolean>(false);
 
   const loadEncounter = () => {
     if (!encounterId) return;
@@ -61,11 +68,12 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
 
   useEffect(() => {
     if (isOpen && encounterId) {
+      setActiveTab(initialTab || 'overview');
       loadEncounter();
     } else {
       setEncounter(null);
     }
-  }, [isOpen, encounterId]);
+  }, [isOpen, encounterId, initialTab]);
 
 
   // Format date helper
@@ -231,244 +239,289 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
             </div>
           </div>
 
-          {/* KHỐI 1: Lý do khám & Triệu chứng ban đầu (Chief Complaint) */}
-          <div className="p-4 bg-amber-50/70 border border-amber-200/90 rounded-2xl space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-amber-900 flex items-center gap-1.5 text-xs">
-                <FileText className="w-4 h-4 text-amber-700" />
-                <span>Tiếp Đón Lâm Sàng (Chief Complaint):</span>
-              </span>
-              {typeof encounter.chiefComplaint?.painLevel === 'number' && (
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                    encounter.chiefComplaint.painLevel >= 7
-                      ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                      : encounter.chiefComplaint.painLevel >= 4
-                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                      : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                  }`}
-                >
-                  🔥 Mức đau: {encounter.chiefComplaint.painLevel}/10
-                </span>
-              )}
-            </div>
+          {/* TAB NAVIGATION CHUYỂN ĐỔI: TỔNG QUAN, TIỀN SỬ DỊ ỨNG, TIỀN SỬ BỆNH */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-2xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setActiveTab('overview')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                activeTab === 'overview'
+                  ? 'bg-white text-teal-800 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5 text-teal-600" />
+              <span>Tổng Quan & Sinh Hiệu</span>
+            </button>
 
-            {encounter.chiefComplaint ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-slate-800">
-                <div>
-                  <span className="text-[11px] font-bold text-slate-500 block">Lý do đến khám:</span>
-                  <span className="text-sm font-bold text-slate-900">
-                    {encounter.chiefComplaint.reasonForVisit || 'Khám bệnh'}
-                  </span>
-                </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('allergies')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                activeTab === 'allergies'
+                  ? 'bg-white text-rose-800 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+              <span>Tiền Sử Dị Ứng</span>
+            </button>
 
-                <div>
-                  <span className="text-[11px] font-bold text-slate-500 block">Ngày bắt đầu triệu chứng:</span>
-                  <span className="font-semibold text-slate-800">
-                    {encounter.chiefComplaint.symptomOnsetDate
-                      ? encounter.chiefComplaint.symptomOnsetDate.slice(0, 10)
-                      : 'Chưa ghi nhận'}
-                  </span>
-                </div>
-
-                <div className="sm:col-span-2">
-                  <span className="text-[11px] font-bold text-slate-500 block">Triệu chứng lâm sàng mô tả:</span>
-                  <p className="mt-0.5 p-2 bg-white/80 rounded-xl border border-amber-200/60 font-medium text-slate-800 leading-relaxed">
-                    {encounter.chiefComplaint.symptoms || 'Không có ghi chú triệu chứng đặc biệt.'}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-amber-800/80 italic py-1">
-                Ca khám này chưa được ghi nhận lý do khám lâm sàng (Chief Complaint).
-              </p>
-            )}
+            <button
+              type="button"
+              onClick={() => setActiveTab('medical_history')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                activeTab === 'medical_history'
+                  ? 'bg-white text-indigo-800 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <History className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Tiền Sử Bệnh & Tim Mạch</span>
+            </button>
           </div>
 
-          {/* KHỐI 2: Khoa phòng & Bác sĩ */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1 relative">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-teal-600" />
-                  <span>Khoa phụ trách:</span>
-                </span>
-                {hasVitals && (
-                  <button
-                    type="button"
-                    onClick={() => setIsChangeDeptModalOpen(true)}
-                    className="px-2 py-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                    title="Đổi khoa khám & tự động chọn bác sĩ rảnh nhất"
-                  >
-                    <GitFork className="w-3 h-3 text-blue-600" />
-                    <span>Đổi khoa</span>
-                  </button>
-                )}
-              </div>
-              <p className="font-bold text-slate-900 text-xs">
-                {encounter.department?.departmentName || '---'}
-              </p>
-              {encounter.department?.roomLocation && (
-                <p className="text-[10px] text-slate-400">
-                  Vị trí: {encounter.department.roomLocation}
-                </p>
-              )}
-            </div>
-
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
-                <Stethoscope className="w-3.5 h-3.5 text-teal-600" />
-                <span>Bác sĩ phụ trách:</span>
-              </span>
-              <p className="font-bold text-slate-900 text-xs">
-                {encounter.doctor?.fullName
-                  ? `${encounter.doctor.title ? `${encounter.doctor.title} ` : ''}${encounter.doctor.fullName}`
-                  : 'Bác sĩ trực chuyên khoa'}
-              </p>
-              {encounter.doctor?.specialization && (
-                <p className="text-[10px] text-slate-400">
-                  Chuyên môn: {encounter.doctor.specialization}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* KHỐI 3: Chỉ số sinh hiệu đo gần nhất (Vital Signs) */}
-          <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                <Activity className="w-4 h-4 text-blue-600" />
-                <span>Kết quả đo sinh hiệu gần nhất:</span>
-              </span>
-              {hasVitals ? (
-                <span className="text-[10px] text-slate-400 font-medium">
-                  Đo lúc: {formatDateTime(latestVitalSession?.measuredAt || latestVitalSession?.createdAt)}
-                </span>
-              ) : (
-                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                  Chưa đo sinh hiệu
-                </span>
-              )}
-            </div>
-
-            {hasVitals ? (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-                {/* Huyết áp */}
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] text-slate-500 font-medium block">Huyết áp</span>
-                  <span className="text-sm font-extrabold text-blue-900">
-                    {bpSys && bpDia ? `${bpSys}/${bpDia}` : '---'}{' '}
-                    <span className="text-[10px] font-normal text-slate-400">mmHg</span>
+          {/* TAB 1: TỔNG QUAN, LÝ DO KHÁM, SINH HIỆU & XÁC MINH DANH TÍNH */}
+          {activeTab === 'overview' && (
+            <div className="space-y-4">
+              {/* KHỐI 1: Lý do khám & Triệu chứng ban đầu (Chief Complaint) */}
+              <div className="p-4 bg-amber-50/70 border border-amber-200/90 rounded-2xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-amber-900 flex items-center gap-1.5 text-xs">
+                    <FileText className="w-4 h-4 text-amber-700" />
+                    <span>Tiếp Đón Lâm Sàng (Chief Complaint):</span>
                   </span>
-                </div>
-
-                {/* Nhịp tim / Mạch */}
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] text-slate-500 font-medium block">Mạch (Nhịp tim)</span>
-                  <span className="text-sm font-extrabold text-rose-700">
-                    {pulse ?? '---'}{' '}
-                    <span className="text-[10px] font-normal text-slate-400">bpm</span>
-                  </span>
-                </div>
-
-                {/* Thân nhiệt */}
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] text-slate-500 font-medium block">Thân nhiệt</span>
-                  <span className="text-sm font-extrabold text-amber-700">
-                    {temp ?? '---'}{' '}
-                    <span className="text-[10px] font-normal text-slate-400">°C</span>
-                  </span>
-                </div>
-
-                {/* SpO2 */}
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] text-slate-500 font-medium block">SpO2 (Oxy máu)</span>
-                  <span className={`text-sm font-extrabold ${spo2 && Number(spo2) < 95 ? 'text-rose-600' : 'text-teal-700'}`}>
-                    {spo2 ?? '---'}{' '}
-                    <span className="text-[10px] font-normal text-slate-400">%</span>
-                  </span>
-                </div>
-
-                {/* Chiều cao & Cân nặng */}
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] text-slate-500 font-medium block">Chiều cao</span>
-                  <span className="text-xs font-bold text-slate-800">
-                    {height ?? '---'} <span className="text-[10px] font-normal text-slate-400">cm</span>
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] text-slate-500 font-medium block">Cân nặng</span>
-                  <span className="text-xs font-bold text-slate-800">
-                    {weight ?? '---'} <span className="text-[10px] font-normal text-slate-400">kg</span>
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] text-slate-500 font-medium block">Chỉ số BMI</span>
-                  <span className="text-xs font-bold text-slate-800">
-                    {bmi ?? '---'}
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] text-slate-500 font-medium block">Nhịp thở</span>
-                  <span className="text-xs font-bold text-slate-800">
-                    {resp ?? '---'} <span className="text-[10px] font-normal text-slate-400">lần/phút</span>
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs">
-                Bệnh nhân chưa thực hiện đo sinh hiệu cho lượt khám này.
-              </div>
-            )}
-          </div>
-
-          {/* KHỐI 4: Xác thực danh tính & Đồng ý điều trị nếu có */}
-          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
-                <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-                <span>Xác minh giấy tờ & danh tính bệnh nhân:</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsHistoryModalOpen(true)}
-                className="px-2.5 py-1 text-[11px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition cursor-pointer flex items-center gap-1"
-              >
-                <span>Xem chi tiết / Xác minh lại</span>
-              </button>
-            </div>
-
-            {encounter.identityVerifications && encounter.identityVerifications.length > 0 ? (
-              <div className="space-y-1.5">
-                {encounter.identityVerifications.map((iv) => (
-                  <div key={iv.verificationId} className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-200/60 text-[11px]">
-                    <span className="font-semibold text-slate-700">
-                      Phương thức: <strong className="uppercase">{iv.verificationMethod.replace(/_/g, ' ')}</strong>
+                  {typeof encounter.chiefComplaint?.painLevel === 'number' && (
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                        encounter.chiefComplaint.painLevel >= 7
+                          ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                          : encounter.chiefComplaint.painLevel >= 4
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      }`}
+                    >
+                      🔥 Mức đau: {encounter.chiefComplaint.painLevel}/10
                     </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400">{formatDateTime(iv.verifiedAt)}</span>
-                      {iv.verificationStatus === 'verified' ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                          <CheckCircle2 className="w-3 h-3" /> Đã xác thực
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
-                          <XCircle className="w-3 h-3" /> Không khớp
-                        </span>
-                      )}
+                  )}
+                </div>
+
+                {encounter.chiefComplaint ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-slate-800">
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-500 block">Lý do đến khám:</span>
+                      <span className="text-sm font-bold text-slate-900">
+                        {encounter.chiefComplaint.reasonForVisit || 'Khám bệnh'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-500 block">Ngày bắt đầu triệu chứng:</span>
+                      <span className="font-semibold text-slate-800">
+                        {encounter.chiefComplaint.symptomOnsetDate
+                          ? encounter.chiefComplaint.symptomOnsetDate.slice(0, 10)
+                          : 'Chưa ghi nhận'}
+                      </span>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <span className="text-[11px] font-bold text-slate-500 block">Triệu chứng lâm sàng mô tả:</span>
+                      <p className="mt-0.5 p-2 bg-white/80 rounded-xl border border-amber-200/60 font-medium text-slate-800 leading-relaxed">
+                        {encounter.chiefComplaint.symptoms || 'Không có ghi chú triệu chứng đặc biệt.'}
+                      </p>
                     </div>
                   </div>
-                ))}
+                ) : (
+                  <p className="text-xs text-amber-800/80 italic py-1">
+                    Ca khám này chưa được ghi nhận lý do khám lâm sàng (Chief Complaint).
+                  </p>
+                )}
               </div>
-            ) : (
-              <div className="p-3 text-center bg-white rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs">
-                Chưa có lượt xác minh danh tính nào được ghi nhận cho ca khám này.
+
+              {/* KHỐI 2: Bác sĩ phụ trách */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
+                    <Stethoscope className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
+                      Bác sĩ phụ trách ca khám:
+                    </span>
+                    <p className="font-bold text-slate-900 text-xs">
+                      {encounter.doctor?.fullName
+                        ? `${encounter.doctor.title ? `${encounter.doctor.title} ` : ''}${encounter.doctor.fullName}`
+                        : 'Bác sĩ trực chuyên khoa Tim mạch'}
+                    </p>
+                  </div>
+                </div>
+                {encounter.doctor?.specialization && (
+                  <span className="text-[11px] font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200 shrink-0 self-start sm:self-auto">
+                    Chuyên môn: {encounter.doctor.specialization}
+                  </span>
+                )}
               </div>
-            )}
-          </div>
+
+              {/* KHỐI 3: Chỉ số sinh hiệu đo gần nhất (Vital Signs) */}
+              <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <Activity className="w-4 h-4 text-blue-600" />
+                    <span>Kết quả đo sinh hiệu gần nhất:</span>
+                  </span>
+                  {hasVitals ? (
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      Đo lúc: {formatDateTime(latestVitalSession?.measuredAt || latestVitalSession?.createdAt)}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                      Chưa đo sinh hiệu
+                    </span>
+                  )}
+                </div>
+
+                {hasVitals ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+                    {/* Huyết áp */}
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
+                      <span className="text-[10px] text-slate-500 font-medium block">Huyết áp</span>
+                      <span className="text-sm font-extrabold text-blue-900">
+                        {bpSys && bpDia ? `${bpSys}/${bpDia}` : '---'}{' '}
+                        <span className="text-[10px] font-normal text-slate-400">mmHg</span>
+                      </span>
+                    </div>
+
+                    {/* Nhịp tim / Mạch */}
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
+                      <span className="text-[10px] text-slate-500 font-medium block">Mạch (Nhịp tim)</span>
+                      <span className="text-sm font-extrabold text-rose-700">
+                        {pulse ?? '---'}{' '}
+                        <span className="text-[10px] font-normal text-slate-400">bpm</span>
+                      </span>
+                    </div>
+
+                    {/* Thân nhiệt */}
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
+                      <span className="text-[10px] text-slate-500 font-medium block">Thân nhiệt</span>
+                      <span className="text-sm font-extrabold text-amber-700">
+                        {temp ?? '---'}{' '}
+                        <span className="text-[10px] font-normal text-slate-400">°C</span>
+                      </span>
+                    </div>
+
+                    {/* SpO2 */}
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
+                      <span className="text-[10px] text-slate-500 font-medium block">SpO2 (Oxy máu)</span>
+                      <span className={`text-sm font-extrabold ${spo2 && Number(spo2) < 95 ? 'text-rose-600' : 'text-teal-700'}`}>
+                        {spo2 ?? '---'}{' '}
+                        <span className="text-[10px] font-normal text-slate-400">%</span>
+                      </span>
+                    </div>
+
+                    {/* Chiều cao & Cân nặng */}
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
+                      <span className="text-[10px] text-slate-500 font-medium block">Chiều cao</span>
+                      <span className="text-xs font-bold text-slate-800">
+                        {height ?? '---'} <span className="text-[10px] font-normal text-slate-400">cm</span>
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
+                      <span className="text-[10px] text-slate-500 font-medium block">Cân nặng</span>
+                      <span className="text-xs font-bold text-slate-800">
+                        {weight ?? '---'} <span className="text-[10px] font-normal text-slate-400">kg</span>
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
+                      <span className="text-[10px] text-slate-500 font-medium block">Chỉ số BMI</span>
+                      <span className="text-xs font-bold text-slate-800">
+                        {bmi ?? '---'}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
+                      <span className="text-[10px] text-slate-500 font-medium block">Nhịp thở</span>
+                      <span className="text-xs font-bold text-slate-800">
+                        {resp ?? '---'} <span className="text-[10px] font-normal text-slate-400">lần/phút</span>
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                    Bệnh nhân chưa thực hiện đo sinh hiệu cho lượt khám này.
+                  </div>
+                )}
+              </div>
+
+              {/* KHỐI 4: Xác thực danh tính & Đồng ý điều trị nếu có */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                    <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Xác minh giấy tờ & danh tính bệnh nhân:</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsHistoryModalOpen(true)}
+                    className="px-2.5 py-1 text-[11px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition cursor-pointer flex items-center gap-1"
+                  >
+                    <span>Xem chi tiết / Xác minh lại</span>
+                  </button>
+                </div>
+
+                {encounter.identityVerifications && encounter.identityVerifications.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {encounter.identityVerifications.map((iv) => (
+                      <div key={iv.verificationId} className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-200/60 text-[11px]">
+                        <span className="font-semibold text-slate-700">
+                          Phương thức: <strong className="uppercase">{iv.verificationMethod.replace(/_/g, ' ')}</strong>
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-400">{formatDateTime(iv.verifiedAt)}</span>
+                          {iv.verificationStatus === 'verified' ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3" /> Đã xác thực
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                              <XCircle className="w-3 h-3" /> Không khớp
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 text-center bg-white rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                    Chưa có lượt xác minh danh tính nào được ghi nhận cho ca khám này.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: TIỀN SỬ DỊ ỨNG */}
+          {activeTab === 'allergies' && encounter && (
+            <EncounterDetailAllergiesTab
+              patientId={encounter.patientId}
+              patientName={encounter.patient?.fullName}
+              encounterId={encounter.encounterId}
+              onSuccess={onSuccess}
+              onError={onError}
+            />
+          )}
+
+          {/* TAB 3: TIỀN SỬ BỆNH & TIM MẠCH */}
+          {activeTab === 'medical_history' && encounter && (
+            <EncounterDetailMedicalHistoryTab
+              patientId={encounter.patientId}
+              patientName={encounter.patient?.fullName}
+              encounterId={encounter.encounterId}
+              onSuccess={onSuccess}
+              onError={onError}
+            />
+          )}
         </div>
       )}
 
@@ -480,19 +533,6 @@ export const EncounterDetailModal: React.FC<EncounterDetailModalProps> = ({
         patientName={encounter?.patient?.fullName}
         encounterCode={encounter?.encounterCode}
         onVerificationCreated={loadEncounter}
-      />
-
-      {/* MODAL ĐỔI KHOA KHÁM & PHÂN BỔ BÁC SĨ (PATCH /api/v1/encounters/:id/department) */}
-      <ChangeEncounterDepartmentModal
-        isOpen={isChangeDeptModalOpen}
-        onClose={() => setIsChangeDeptModalOpen(false)}
-        encounterId={encounter?.encounterId || null}
-        patientName={encounter?.patient?.fullName}
-        currentDepartmentName={encounter?.department?.departmentName}
-        currentDepartmentId={encounter?.departmentId}
-        onSuccess={() => {
-          loadEncounter();
-        }}
       />
     </Modal>
   );

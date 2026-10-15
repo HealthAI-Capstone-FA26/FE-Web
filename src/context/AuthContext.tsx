@@ -101,7 +101,7 @@ const MOCK_USERS: Record<UserRole, UserProfile> = {
     role: 'DOCTOR',
     roleTitle: 'Bác sĩ Thăm khám & Chẩn đoán',
     staffCode: 'DOC-088',
-    department: 'Khoa Nội Tổng Hợp - Phòng 305',
+    department: 'Phòng khám Tim Mạch - Phòng 305',
     permissions: DEFAULT_ROLE_PERMISSIONS.DOCTOR,
   },
   LAB: {

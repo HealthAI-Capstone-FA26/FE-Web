@@ -29,7 +29,6 @@ import { NurseVitalHistoryModal } from './components/NurseVitalHistoryModal';
 import { EncounterDetailModal } from './components/EncounterDetailModal';
 import { NurseAllergyModal } from './components/NurseAllergyModal';
 import { NurseMedicalHistoryModal } from './components/NurseMedicalHistoryModal';
-import { ChangeEncounterDepartmentModal } from './components/ChangeEncounterDepartmentModal';
 
 export const NurseQueueView: React.FC = () => {
   const { user } = useAuth();
@@ -46,7 +45,6 @@ export const NurseQueueView: React.FC = () => {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
   const [isAllergyModalOpen, setIsAllergyModalOpen] = useState<boolean>(false);
   const [isMedicalHistoryModalOpen, setIsMedicalHistoryModalOpen] = useState<boolean>(false);
-  const [isChangeDeptModalOpen, setIsChangeDeptModalOpen] = useState<boolean>(false);
   const [selectedDetailEncounterId, setSelectedDetailEncounterId] = useState<string | null>(null);
 
   // Toast notification
@@ -380,12 +378,6 @@ export const NurseQueueView: React.FC = () => {
     }
   };
 
-  // Xử lý mở Modal Đổi khoa khám
-  const handleOpenChangeDept = (row: NursePatientRow) => {
-    setSelectedRow(row);
-    setIsChangeDeptModalOpen(true);
-  };
-
   return (
     <div className="space-y-6 pb-12">
       {/* Toast Notification */}
@@ -514,11 +506,10 @@ export const NurseQueueView: React.FC = () => {
         onOpenDetail={handleOpenDetail}
         onOpenAllergy={handleOpenAllergy}
         onOpenMedicalHistory={handleOpenMedicalHistory}
-        onOpenChangeDept={handleOpenChangeDept}
         onStartProcessing={handleStartProcessing}
       />
 
-      {/* Modal Chi tiết ca khám (Encounter Detail) */}
+      {/* Modal Chi tiết ca khám (Encounter Detail) - Bao gồm cả Tiền sử dị ứng & Tiền sử bệnh */}
       <EncounterDetailModal
         isOpen={!!selectedDetailEncounterId}
         encounterId={selectedDetailEncounterId}
@@ -529,6 +520,8 @@ export const NurseQueueView: React.FC = () => {
             handleOpenMeasure(row);
           }
         }}
+        onSuccess={(msg) => showToast(msg, 'success')}
+        onError={(err) => showToast(err, 'error')}
       />
 
       {/* Modal Khai báo & Quản lý dị ứng */}
@@ -579,22 +572,6 @@ export const NurseQueueView: React.FC = () => {
           setSelectedRow(null);
         }}
         patientRow={selectedRow}
-      />
-
-      {/* Modal Đổi khoa khám & Tự động xếp bác sĩ (PATCH /api/v1/encounters/:id/department) */}
-      <ChangeEncounterDepartmentModal
-        isOpen={isChangeDeptModalOpen}
-        onClose={() => {
-          setIsChangeDeptModalOpen(false);
-          setSelectedRow(null);
-        }}
-        encounterId={selectedRow?.encounterId || null}
-        patientName={selectedRow?.name}
-        currentDepartmentName={selectedRow?.departmentName}
-        onSuccess={(msg) => {
-          showToast(msg, 'success');
-          fetchData(true);
-        }}
       />
     </div>
   );

@@ -403,10 +403,15 @@ const ReceptionQueueCallingBoard: React.FC = () => {
     setIntakeModalTicket(ticket);
   };
 
+  // Lưu encounterId đang chờ thanh toán để gọi completeRegistration sau khi thu tiền thành công
+  const [pendingEncounterId, setPendingEncounterId] = useState<string | null>(null);
+
   /** Sau khi tiếp nhận thành công và đã tạo Encounter -> tự động tạo/mở hóa đơn phí khám để thu tiền */
   const handleIntakeSuccess = async (createdEncounterId?: string) => {
     fetchTickets(true);
     if (!createdEncounterId) return;
+
+    setPendingEncounterId(createdEncounterId);
 
     try {
       let invoice: InvoiceData | null = null;
@@ -426,18 +431,41 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       if (invoice && invoice.status !== 'paid') {
         setConsultationInvoice(invoice);
         setIsPaymentModalOpen(true);
+      } else if (invoice && invoice.status === 'paid') {
+        // Nếu đã thanh toán từ trước (online), tự động hoàn tất tiếp đón sang Triage
+        try {
+          await encounterService.completeRegistration(createdEncounterId);
+          showToast('Hồ sơ đã thanh toán, đã tự động chuyển sang phòng Điều dưỡng đo sinh hiệu!', 'success');
+          fetchTickets(true);
+        } catch (regErr: any) {
+          console.warn('Lỗi tự động hoàn tất tiếp đón:', regErr);
+        }
       }
     } catch (err: any) {
       console.warn('Lỗi kiểm tra/tạo hóa đơn sau khi tiếp nhận:', err);
+      showToast('Đã lưu thông tin tiếp đón, nhưng chưa tạo được hóa đơn phí khám. Vui lòng thử lại!', 'error');
     }
   };
 
-  /** Sau khi thanh toán thành công → đóng payment modal */
-  const handlePaymentSuccess = () => {
+  /** Sau khi thanh toán thành công → gọi completeRegistration và đóng payment modal */
+  const handlePaymentSuccess = async () => {
+    const encId = pendingEncounterId || consultationInvoice?.encounterId;
+    if (encId) {
+      try {
+        await encounterService.completeRegistration(encId);
+        showToast('Thu tiền viện phí thành công! Bệnh nhân đã được chuyển sang phòng Điều dưỡng đo sinh hiệu.', 'success');
+      } catch (err: any) {
+        console.error('Lỗi khi hoàn tất chuyển hàng đợi điều dưỡng:', err);
+        showToast('Thanh toán thành công nhưng chưa hoàn tất chuyển hàng đợi điều dưỡng. Vui lòng kiểm tra lại!', 'error');
+      }
+    } else {
+      showToast('Thu tiền viện phí thành công!', 'success');
+    }
+
     setIsPaymentModalOpen(false);
     setPendingPaymentTicket(null);
     setConsultationInvoice(null);
-    showToast('Thu tiền viện phí thành công! Bệnh nhân đã được chuyển sang phòng Điều dưỡng đo sinh hiệu.', 'success');
+    setPendingEncounterId(null);
     fetchTickets(true);
   };
 
