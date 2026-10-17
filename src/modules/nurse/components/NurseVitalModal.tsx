@@ -10,6 +10,8 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  Activity,
+  History,
 } from 'lucide-react';
 import { Modal } from '../../../components/common/Modal';
 import { Badge } from '../../../components/common/Badge';
@@ -19,6 +21,8 @@ import {
   type VitalReferenceRangeResponse,
 } from '../../../services/vital/vital.service';
 import { encounterService, type NursePatientRow } from '../../../services/encounter/encounter.service';
+import { EncounterDetailAllergiesTab } from './tabs/EncounterDetailAllergiesTab';
+import { EncounterDetailMedicalHistoryTab } from './tabs/EncounterDetailMedicalHistoryTab';
 
 interface NurseVitalModalProps {
   isOpen: boolean;
@@ -47,6 +51,7 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
   const [weight, setWeight] = useState<number | string>('');
   const [notes, setNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'vitals' | 'allergies' | 'medical_history'>('vitals');
   const [_vitalItems, setVitalItems] = useState<VitalItemResponse[]>([]);
   const [refRangesList, setRefRangesList] = useState<VitalReferenceRangeResponse[]>([]);
   const [showRefTable, setShowRefTable] = useState<boolean>(true);
@@ -55,6 +60,7 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
   // Tải danh mục chỉ số sinh hiệu active & khoảng tham chiếu sinh hiệu riêng cho bệnh nhân theo tuổi/giới tính
   useEffect(() => {
     if (isOpen) {
+      setActiveTab('vitals');
       vitalService
         .getVitalItems()
         .then((items) => setVitalItems(items))
@@ -225,37 +231,110 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
       isOpen={isOpen}
       onClose={() => !isSubmitting && onClose()}
       maxWidth="4xl"
-      title={patientRow ? `Ghi Nhận Sinh Hiệu: ${patientRow.name}` : 'Ghi Nhận Sinh Hiệu'}
+      title={
+        patientRow
+          ? activeTab === 'vitals'
+            ? `Ghi Nhận Sinh Hiệu: ${patientRow.name}`
+            : activeTab === 'allergies'
+            ? `Kê Khai Dị Ứng: ${patientRow.name}`
+            : `Kê Khai Tiền Sử Bệnh: ${patientRow.name}`
+          : 'Ghi Nhận Sinh Hiệu'
+      }
       subtitle={patientRow ? `Mã ca: ${patientRow.encounterCode} • ${patientRow.age} tuổi • ${patientRow.gender}` : ''}
       footer={
-        <>
+        activeTab === 'vitals' ? (
+          <>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border-none transition-colors"
+            >
+              Hủy
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSubmitting}
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl cursor-pointer border-none shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50"
+              title="Lưu một phiên đo mới vào lịch sử"
+            >
+              {isSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4" />
+              )}
+              <span>Lưu Sinh Hiệu & Đồng Bộ Bác Sĩ</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border-none transition-colors"
+            >
+              Đóng
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('vitals')}
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl cursor-pointer border-none shadow-sm flex items-center gap-1.5 transition-all"
+            >
+              <Activity className="w-4 h-4" />
+              <span>Quay lại Đo Sinh Hiệu</span>
+            </button>
+          </>
+        )
+      }
+    >
+      <div className="space-y-4 text-xs">
+        {/* TAB NAVIGATION CHUYỂN ĐỔI: ĐO SINH HIỆU, TIỀN SỬ DỊ ỨNG, TIỀN SỬ BỆNH */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-2xl border border-slate-200">
           <button
             type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border-none transition-colors"
+            onClick={() => setActiveTab('vitals')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+              activeTab === 'vitals'
+                ? 'bg-white text-blue-700 shadow-xs border border-slate-200/80'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
           >
-            Hủy
+            <Activity className="w-3.5 h-3.5 text-blue-600" />
+            <span>Đo Sinh Hiệu</span>
           </button>
 
           <button
             type="button"
-            onClick={handleSave}
-            disabled={isSubmitting}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl cursor-pointer border-none shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50"
-            title="Lưu một phiên đo mới vào lịch sử"
+            onClick={() => setActiveTab('allergies')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+              activeTab === 'allergies'
+                ? 'bg-white text-rose-800 shadow-xs border border-slate-200/80'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
           >
-            {isSubmitting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4" />
-            )}
-            <span>Lưu Sinh Hiệu & Đồng Bộ Bác Sĩ</span>
+            <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+            <span>Tiền Sử Dị Ứng</span>
           </button>
-        </>
-      }
-    >
-      <div className="space-y-4 text-xs">
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('medical_history')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+              activeTab === 'medical_history'
+                ? 'bg-white text-indigo-800 shadow-xs border border-slate-200/80'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <History className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Tiền Sử Bệnh & Tim Mạch</span>
+          </button>
+        </div>
+
+        {activeTab === 'vitals' && (
+          <div className="space-y-4">
         {patientRow?.chiefComplaint && (
           <div className="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -601,6 +680,34 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
           )}
         </div>
       </div>
-    </Modal>
-  );
+      )}
+
+      {/* TAB 2: TIỀN SỬ DỊ ỨNG */}
+      {activeTab === 'allergies' && patientRow && (
+        <div className="py-1">
+          <EncounterDetailAllergiesTab
+            patientId={patientRow.patientId}
+            patientName={patientRow.name}
+            encounterId={patientRow.encounterId}
+            onSuccess={onSuccess}
+            onError={onError}
+          />
+        </div>
+      )}
+
+      {/* TAB 3: TIỀN SỬ BỆNH & TIM MẠCH */}
+      {activeTab === 'medical_history' && patientRow && (
+        <div className="py-1">
+          <EncounterDetailMedicalHistoryTab
+            patientId={patientRow.patientId}
+            patientName={patientRow.name}
+            encounterId={patientRow.encounterId}
+            onSuccess={onSuccess}
+            onError={onError}
+          />
+        </div>
+      )}
+    </div>
+  </Modal>
+);
 };

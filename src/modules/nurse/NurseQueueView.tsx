@@ -37,7 +37,8 @@ export const NurseQueueView: React.FC = () => {
   const [encounters, setEncounters] = useState<EncounterItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isTakingNext, setIsTakingNext] = useState<boolean>(false);
-  const [filterTab, setFilterTab] = useState<'my_waiting' | 'all_waiting' | 'done' | 'all'>('my_waiting');
+  const [filterTab, setFilterTab] = useState<'my_waiting' | 'all_waiting' | 'done' | 'abnormal' | 'all'>('my_waiting');
+  const [dateScope, setDateScope] = useState<'all' | 'today'>('all');
 
   // State các Modal
   const [selectedRow, setSelectedRow] = useState<NursePatientRow | null>(null);
@@ -222,32 +223,57 @@ export const NurseQueueView: React.FC = () => {
       const prioDiff = getPriorityWeight(b.priority) - getPriorityWeight(a.priority);
       if (prioDiff !== 0) return prioDiff;
 
-      // 3. Thứ tự xếp hàng queueOrder tăng dần
+      // 3. FIFO theo Ngày & Giờ tiếp nhận: Ca đến trước (ngày cũ hơn hoặc giờ sớm hơn) phải xếp TRƯỚC!
+      const timeA = new Date(a.arrivedAt || 0).getTime();
+      const timeB = new Date(b.arrivedAt || 0).getTime();
+      if (timeA !== timeB) {
+        return timeA - timeB;
+      }
+
+      // 4. Nếu cùng thời gian thì mới xét đến số thứ tự trong ngày
       if (a.queueOrder !== undefined && b.queueOrder !== undefined) {
         return a.queueOrder - b.queueOrder;
       }
-      if (a.queueOrder !== undefined) return -1;
-      if (b.queueOrder !== undefined) return 1;
-
-      // 4. Ai đến trước xếp trước (arrivedAt)
-      const timeA = new Date(a.arrivedAt || 0).getTime();
-      const timeB = new Date(b.arrivedAt || 0).getTime();
-      return timeA - timeB;
+      return 0;
     });
   }, [triageEntries, encounters]);
+
+  // Kiểm tra ca có thuộc ngày hôm nay không
+  const isSameDayAsToday = (dateStr?: string) => {
+    if (!dateStr) return false;
+    try {
+      const d = new Date(dateStr);
+      const now = new Date();
+      return (
+        d.getDate() === now.getDate() &&
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear()
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  // Dữ liệu theo phạm vi ngày
+  const scopedData = useMemo(() => {
+    if (dateScope === 'today') {
+      return tableData.filter((r) => isSameDayAsToday(r.arrivedAt));
+    }
+    return tableData;
+  }, [tableData, dateScope]);
 
   // Bộ lọc dữ liệu hiển thị theo Tab
   const filteredData = useMemo(() => {
     const currentUserId = user?.id;
     switch (filterTab) {
       case 'my_waiting':
-        return tableData.filter(
+        return scopedData.filter(
           (r) =>
             r.assignedNurseUserId === currentUserId &&
             (r.triageStatus === 'waiting' || r.triageStatus === 'called' || r.triageStatus === 'in_progress')
         );
       case 'all_waiting':
-        return tableData.filter(
+        return scopedData.filter(
           (r) =>
             r.triageStatus === 'waiting' ||
             r.triageStatus === 'called' ||
@@ -255,25 +281,28 @@ export const NurseQueueView: React.FC = () => {
             r.status === 'Pending'
         );
       case 'done':
-        return tableData.filter((r) => r.triageStatus === 'done' || r.status === 'Measured');
+        return scopedData.filter((r) => r.triageStatus === 'done' || r.status === 'Measured');
+      case 'abnormal':
+        return scopedData.filter((r) => r.vitals?.isAbnormal);
       default:
-        return tableData;
+        return scopedData;
     }
-  }, [tableData, filterTab, user?.id]);
+  }, [scopedData, filterTab, user?.id]);
 
-  // Thống kê nhanh
+  // Thống kê nhanh (theo phạm vi ngày đang chọn)
   const stats = useMemo(() => {
-    const total = tableData.length;
-    const myWaiting = tableData.filter(
+    const total = scopedData.length;
+    const myWaiting = scopedData.filter(
       (r) =>
         r.assignedNurseUserId === user?.id &&
         (r.triageStatus === 'waiting' || r.triageStatus === 'called' || r.triageStatus === 'in_progress')
     ).length;
-    const pending = tableData.filter((r) => r.status === 'Pending' || r.triageStatus === 'waiting').length;
-    const measured = tableData.filter((r) => r.status === 'Measured' || r.triageStatus === 'done').length;
-    const abnormal = tableData.filter((r) => r.vitals?.isAbnormal).length;
-    return { total, myWaiting, pending, measured, abnormal };
-  }, [tableData, user?.id]);
+    const pending = scopedData.filter((r) => r.status === 'Pending' || r.triageStatus === 'waiting').length;
+    const measured = scopedData.filter((r) => r.status === 'Measured' || r.triageStatus === 'done').length;
+    const abnormal = scopedData.filter((r) => r.vitals?.isAbnormal).length;
+    const backlogCount = tableData.filter((r) => !isSameDayAsToday(r.arrivedAt) && r.status === 'Pending').length;
+    return { total, myWaiting, pending, measured, abnormal, backlogCount };
+  }, [scopedData, tableData, user?.id]);
 
   // HÀNH ĐỘNG: "LẤY HỒ SƠ TIẾP THEO" (Chỉ bấm là lấy đúng ca tiếp theo theo thứ tự và mở form đo ngay)
   const handleTakeNextPatient = async () => {
@@ -398,7 +427,7 @@ export const NurseQueueView: React.FC = () => {
         </div>
       )}
 
-      {/* Header & Thẻ thống kê */}
+      {/* Header & Thẻ thống kê - bấm thẻ để lọc nhanh */}
       <NurseStatsHeader
         totalCount={stats.total}
         pendingCount={stats.pending}
@@ -406,6 +435,8 @@ export const NurseQueueView: React.FC = () => {
         abnormalCount={stats.abnormal}
         isLoading={isLoading}
         onRefresh={() => fetchData()}
+        activeTab={filterTab}
+        onSelectTab={(tab) => setFilterTab(tab)}
       />
 
       {/* THANH THAO TÁC TIẾP NHẬN HỒ SƠ & BỘ LỌC DANH SÁCH */}
@@ -438,7 +469,34 @@ export const NurseQueueView: React.FC = () => {
         </div>
 
         {/* Tab lọc danh sách & Nút làm mới */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Toggle chọn phạm vi ngày */}
+          <div className="flex items-center gap-1 bg-slate-200/70 p-1 rounded-xl text-xs font-bold text-slate-700">
+            <button
+              type="button"
+              onClick={() => setDateScope('all')}
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                dateScope === 'all'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Tất cả ca {stats.backlogCount > 0 ? `(${stats.backlogCount} tồn đọng)` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateScope('today')}
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                dateScope === 'today'
+                  ? 'bg-white text-blue-700 shadow-2xs font-extrabold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Hôm nay
+            </button>
+          </div>
+
+          {/* Các tab trạng thái */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
             <button
               type="button"
@@ -472,6 +530,18 @@ export const NurseQueueView: React.FC = () => {
               }`}
             >
               Đã đo xong ({stats.measured})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTab('abnormal')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                filterTab === 'abnormal'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'text-rose-700 hover:bg-rose-50'
+              }`}
+              title="Lọc các ca có chỉ số sinh hiệu bất thường"
+            >
+              Cảnh báo ({stats.abnormal})
             </button>
             <button
               type="button"

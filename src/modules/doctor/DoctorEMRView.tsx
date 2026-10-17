@@ -37,7 +37,15 @@ interface PatientEncounterCache {
   caseOverview: CaseOverviewData | null;
   encounterDetail: EncounterItem | null;
   allergies?: PatientAllergyItem[];
-  clinicalExam?: { examinationFindings?: string; clinicalNotes?: string } | null;
+  clinicalExam?: {
+    patientPosition?: string;
+    inspectionFindings?: string;
+    palpationFindings?: string;
+    percussionFindings?: string;
+    auscultationFindings?: string;
+    examinationFindings?: string;
+    clinicalNotes?: string;
+  } | null;
 }
 
 // Bộ nhớ đệm cấp Module duy trì xuyên suốt phiên làm việc ngay cả khi component unmount do chuyển Route Sidebar
@@ -197,6 +205,24 @@ export const DoctorEMRView: React.FC = () => {
   }, [apiEncounters]);
 
   const handleSelectPatientId = (id: string, forceRefresh = false) => {
+    // Lưu nháp ca khám hiện tại vào cache trước khi chuyển sang ca khác
+    if (selectedPatientId && selectedPatientId !== id) {
+      const prevEncId = currentPatient?.encounterId || selectedPatientId;
+      encounterCacheRef.current[prevEncId] = {
+        ...encounterCacheRef.current[prevEncId],
+        clinicalExam: {
+          patientPosition,
+          inspectionFindings,
+          palpationFindings,
+          percussionFindings,
+          auscultationFindings,
+          examinationFindings: auscultationFindings,
+          clinicalNotes,
+        },
+      };
+      encounterCacheRef.current[selectedPatientId] = encounterCacheRef.current[prevEncId];
+    }
+
     setSelectedPatientId(id);
     globalLastSelectedPatientId = id;
     localStorage.setItem('doctor_selected_patient_id', id);
@@ -217,7 +243,12 @@ export const DoctorEMRView: React.FC = () => {
       setSelectedEncounterDetail(cached.encounterDetail);
       const patId = cached.encounterDetail?.patientId || cached.encounterDetail?.patient?.patientId || cached.caseOverview?.patient?.patientId || combinedPatientsMap[id]?.patientId;
       setPatientAllergiesState(cached.allergies ? { patientId: patId || '', list: cached.allergies } : { patientId: patId || '', list: [] });
-      setClinicalExamNote(cached.clinicalExam?.examinationFindings || '');
+      setPatientPosition(cached.clinicalExam?.patientPosition || '');
+      setInspectionFindings(cached.clinicalExam?.inspectionFindings || '');
+      setPalpationFindings(cached.clinicalExam?.palpationFindings || '');
+      setPercussionFindings(cached.clinicalExam?.percussionFindings || '');
+      setAuscultationFindings(cached.clinicalExam?.auscultationFindings || cached.clinicalExam?.examinationFindings || '');
+      setClinicalNotes(cached.clinicalExam?.clinicalNotes || '');
       setPreliminaryDiag(cached.clinicalExam?.clinicalNotes || '');
       setIsLoadingOverview(false);
       setIsLoadingAllergies(false);
@@ -228,7 +259,12 @@ export const DoctorEMRView: React.FC = () => {
       setCurrentAppointment(null);
       setPatientAllergiesState(null);
       setExistingTestOrders([]);
-      setClinicalExamNote('');
+      setPatientPosition('');
+      setInspectionFindings('');
+      setPalpationFindings('');
+      setPercussionFindings('');
+      setAuscultationFindings('');
+      setClinicalNotes('');
       setPreliminaryDiag('');
       setIsLoadingOverview(true);
     }
@@ -486,8 +522,13 @@ export const DoctorEMRView: React.FC = () => {
           caseOverview: newOverview || encounterCacheRef.current[targetId]?.caseOverview || null,
           clinicalExam: newExam
             ? {
-                examinationFindings: newExam.examinationFindings,
-                clinicalNotes: newExam.clinicalNotes,
+                patientPosition: newExam.patientPosition || '',
+                inspectionFindings: newExam.inspectionFindings || '',
+                palpationFindings: newExam.palpationFindings || '',
+                percussionFindings: newExam.percussionFindings || '',
+                auscultationFindings: newExam.auscultationFindings || newExam.examinationFindings || '',
+                examinationFindings: newExam.auscultationFindings || newExam.examinationFindings || '',
+                clinicalNotes: newExam.clinicalNotes || '',
               }
             : encounterCacheRef.current[targetId]?.clinicalExam || null,
         };
@@ -496,12 +537,30 @@ export const DoctorEMRView: React.FC = () => {
         globalEncounterCache[targetId] = updatedCache;
         globalEncounterCache[selectedPatientId] = updatedCache;
 
-        // Cập nhật state nếu Bác sĩ vẫn đang mở ca này
+        // Cập nhật state nếu Bác sĩ vẫn đang mở ca này (chỉ điền vào nếu ô còn trống, không ghi đè dữ liệu đang nhập)
         if (newDetail) setSelectedEncounterDetail(newDetail);
         if (newOverview) setCaseOverview(newOverview);
         if (newExam) {
-          if (newExam.examinationFindings) setClinicalExamNote(newExam.examinationFindings);
-          if (newExam.clinicalNotes) setPreliminaryDiag(newExam.clinicalNotes);
+          if (newExam.patientPosition) {
+            setPatientPosition((prev) => prev || newExam.patientPosition || '');
+          }
+          if (newExam.inspectionFindings) {
+            setInspectionFindings((prev) => prev || newExam.inspectionFindings || '');
+          }
+          if (newExam.palpationFindings) {
+            setPalpationFindings((prev) => prev || newExam.palpationFindings || '');
+          }
+          if (newExam.percussionFindings) {
+            setPercussionFindings((prev) => prev || newExam.percussionFindings || '');
+          }
+          const aus = newExam.auscultationFindings || newExam.examinationFindings || '';
+          if (aus) {
+            setAuscultationFindings((prev) => prev || aus);
+          }
+          if (newExam.clinicalNotes) {
+            setClinicalNotes((prev) => prev || newExam.clinicalNotes || '');
+            setPreliminaryDiag((prev) => prev || newExam.clinicalNotes || '');
+          }
         }
         setIsLoadingOverview(false);
       });
@@ -699,9 +758,16 @@ export const DoctorEMRView: React.FC = () => {
       ? `${currentPatient.vitals.temp}°C`
       : undefined;
 
-  // Form & Test Order States
-  const [clinicalExamNote, setClinicalExamNote] = useState<string>(() => initCached?.clinicalExam?.examinationFindings || '');
+  // Form & Test Order States - Đầy đủ các trường SE02 Tim Mạch
+  const [patientPosition, setPatientPosition] = useState<string>(() => initCached?.clinicalExam?.patientPosition || '');
+  const [inspectionFindings, setInspectionFindings] = useState<string>(() => initCached?.clinicalExam?.inspectionFindings || '');
+  const [palpationFindings, setPalpationFindings] = useState<string>(() => initCached?.clinicalExam?.palpationFindings || '');
+  const [percussionFindings, setPercussionFindings] = useState<string>(() => initCached?.clinicalExam?.percussionFindings || '');
+  const [auscultationFindings, setAuscultationFindings] = useState<string>(() => initCached?.clinicalExam?.auscultationFindings || initCached?.clinicalExam?.examinationFindings || '');
+  const [clinicalNotes, setClinicalNotes] = useState<string>(() => initCached?.clinicalExam?.clinicalNotes || '');
   const [preliminaryDiag, setPreliminaryDiag] = useState<string>(() => initCached?.clinicalExam?.clinicalNotes || '');
+  const clinicalExamNote = auscultationFindings;
+  const setClinicalExamNote = setAuscultationFindings;
   const [selectedTestTypeIds, setSelectedTestTypeIds] = useState<string[]>([]);
   const [orderNotes, setOrderNotes] = useState('');
   const [existingTestOrders, setExistingTestOrders] = useState<TestOrderDetail[]>([]);
@@ -869,21 +935,8 @@ export const DoctorEMRView: React.FC = () => {
     }
   };
 
+  // Đồng bộ phiếu chỉ định CLS khi activeEncounterId thay đổi (không xóa trắng form khám)
   useEffect(() => {
-    if (verifiedCaseOverview?.clinicalExamination) {
-      setClinicalExamNote(verifiedCaseOverview.clinicalExamination.examinationFindings || '');
-      setPreliminaryDiag(verifiedCaseOverview.clinicalExamination.clinicalNotes || '');
-    } else {
-      const targetId = currentPatient?.encounterId;
-      const cached = (targetId ? globalEncounterCache[targetId] : undefined) || (selectedPatientId ? globalEncounterCache[selectedPatientId] : undefined);
-      if (cached?.clinicalExam) {
-        setClinicalExamNote(cached.clinicalExam.examinationFindings || '');
-        setPreliminaryDiag(cached.clinicalExam.clinicalNotes || '');
-      } else {
-        setClinicalExamNote('');
-        setPreliminaryDiag('');
-      }
-    }
     setSubmitSuccessMsg(null);
     setSubmitErrorMsg(null);
     setExamWarningMsg(null);
@@ -893,7 +946,7 @@ export const DoctorEMRView: React.FC = () => {
     } else {
       setExistingTestOrders([]);
     }
-  }, [currentPatient, activeEncounterId, selectedPatientId, verifiedCaseOverview?.clinicalExamination]);
+  }, [activeEncounterId]);
 
   // Tự động tải hình ảnh xét nghiệm thực tế từ Timeline nếu có
   const [latestLabImage, setLatestLabImage] = useState<{ url: string; description?: string } | null>(null);
@@ -1020,11 +1073,24 @@ export const DoctorEMRView: React.FC = () => {
     try {
       // 1. Lưu khám lâm sàng & chẩn đoán sơ bộ
       let initialDiagnosisId: string | undefined;
-      if (clinicalExamNote.trim() || preliminaryDiag.trim()) {
+      const hasExamData = Boolean(
+        patientPosition.trim() ||
+        inspectionFindings.trim() ||
+        palpationFindings.trim() ||
+        percussionFindings.trim() ||
+        auscultationFindings.trim() ||
+        clinicalNotes.trim() ||
+        preliminaryDiag.trim()
+      );
+      if (hasExamData) {
         try {
           await clinicalExamService.upsertClinicalExamination(activeEncounterId, {
-            examinationFindings: clinicalExamNote.trim() || undefined,
-            clinicalNotes: preliminaryDiag.trim() || undefined,
+            patientPosition: patientPosition.trim() || undefined,
+            inspectionFindings: inspectionFindings.trim() || undefined,
+            palpationFindings: palpationFindings.trim() || undefined,
+            percussionFindings: percussionFindings.trim() || undefined,
+            auscultationFindings: auscultationFindings.trim() || undefined,
+            clinicalNotes: (clinicalNotes.trim() || preliminaryDiag.trim()) || undefined,
           });
         } catch (examErr: any) {
           const errMsg = examErr?.data?.message || examErr?.message || '';
@@ -1275,8 +1341,20 @@ export const DoctorEMRView: React.FC = () => {
                   {/* Component 4: Doctor Clinical Examination & Preliminary Diagnosis */}
                   <ClinicalExamForm
                     encounterId={activeEncounterId}
-                    clinicalExamNote={clinicalExamNote}
-                    setClinicalExamNote={setClinicalExamNote}
+                    patientPosition={patientPosition}
+                    setPatientPosition={setPatientPosition}
+                    inspectionFindings={inspectionFindings}
+                    setInspectionFindings={setInspectionFindings}
+                    palpationFindings={palpationFindings}
+                    setPalpationFindings={setPalpationFindings}
+                    percussionFindings={percussionFindings}
+                    setPercussionFindings={setPercussionFindings}
+                    auscultationFindings={auscultationFindings}
+                    setAuscultationFindings={setAuscultationFindings}
+                    clinicalNotes={clinicalNotes}
+                    setClinicalNotes={setClinicalNotes}
+                    clinicalExamNote={auscultationFindings}
+                    setClinicalExamNote={setAuscultationFindings}
                     preliminaryDiag={preliminaryDiag}
                     setPreliminaryDiag={setPreliminaryDiag}
                     dynamicAiDiagnosisList={dynamicAiDiagnosisList}

@@ -10,6 +10,8 @@ interface NurseStatsHeaderProps {
   abnormalCount: number;
   isLoading: boolean;
   onRefresh: () => void;
+  activeTab?: string;
+  onSelectTab?: (tab: 'my_waiting' | 'all_waiting' | 'done' | 'abnormal' | 'all') => void;
 }
 
 export const NurseStatsHeader: React.FC<NurseStatsHeaderProps> = ({
@@ -19,6 +21,8 @@ export const NurseStatsHeader: React.FC<NurseStatsHeaderProps> = ({
   abnormalCount,
   isLoading,
   onRefresh,
+  activeTab,
+  onSelectTab,
 }) => {
   return (
     <div className="space-y-4">
@@ -57,9 +61,15 @@ export const NurseStatsHeader: React.FC<NurseStatsHeaderProps> = ({
         </button>
       </div>
 
-      {/* 4 Thẻ Thống kê nhanh */}
+      {/* 4 Thẻ Thống kê nhanh - Bấm trực tiếp để chuyển bộ lọc */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+        <div
+          onClick={() => onSelectTab?.('all')}
+          className={`p-4 bg-white rounded-2xl border transition-all cursor-pointer shadow-2xs flex items-center justify-between hover:scale-[1.01] active:scale-[0.99] ${
+            activeTab === 'all' ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200/80 hover:border-slate-300'
+          }`}
+          title="Bấm để xem tất cả ca"
+        >
           <div>
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Tổng ca tiếp nhận</span>
             <div className="text-2xl font-black text-slate-900 mt-1">{totalCount}</div>
@@ -69,7 +79,13 @@ export const NurseStatsHeader: React.FC<NurseStatsHeaderProps> = ({
           </div>
         </div>
 
-        <div className="p-4 bg-amber-50/70 rounded-2xl border border-amber-200/80 shadow-2xs flex items-center justify-between">
+        <div
+          onClick={() => onSelectTab?.('all_waiting')}
+          className={`p-4 bg-amber-50/70 rounded-2xl border transition-all cursor-pointer shadow-2xs flex items-center justify-between hover:scale-[1.01] active:scale-[0.99] ${
+            activeTab === 'all_waiting' ? 'border-amber-500 ring-2 ring-amber-200' : 'border-amber-200/80 hover:border-amber-300'
+          }`}
+          title="Bấm để xem các ca đang chờ đo"
+        >
           <div>
             <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider block">Chờ đo sinh hiệu</span>
             <div className="text-2xl font-black text-amber-900 mt-1">{pendingCount}</div>
@@ -79,7 +95,13 @@ export const NurseStatsHeader: React.FC<NurseStatsHeaderProps> = ({
           </div>
         </div>
 
-        <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200/80 shadow-2xs flex items-center justify-between">
+        <div
+          onClick={() => onSelectTab?.('done')}
+          className={`p-4 bg-emerald-50/70 rounded-2xl border transition-all cursor-pointer shadow-2xs flex items-center justify-between hover:scale-[1.01] active:scale-[0.99] ${
+            activeTab === 'done' ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-emerald-200/80 hover:border-emerald-300'
+          }`}
+          title="Bấm để xem các ca đã đo xong"
+        >
           <div>
             <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider block">Đã hoàn tất đo</span>
             <div className="text-2xl font-black text-emerald-900 mt-1">{measuredCount}</div>
@@ -89,7 +111,13 @@ export const NurseStatsHeader: React.FC<NurseStatsHeaderProps> = ({
           </div>
         </div>
 
-        <div className="p-4 bg-rose-50/70 rounded-2xl border border-rose-200/80 shadow-2xs flex items-center justify-between">
+        <div
+          onClick={() => onSelectTab?.('abnormal')}
+          className={`p-4 bg-rose-50/70 rounded-2xl border transition-all cursor-pointer shadow-2xs flex items-center justify-between hover:scale-[1.01] active:scale-[0.99] ${
+            activeTab === 'abnormal' ? 'border-rose-500 ring-2 ring-rose-200' : 'border-rose-200/80 hover:border-rose-300'
+          }`}
+          title="Bấm để lọc ca có chỉ số sinh hiệu bất thường"
+        >
           <div>
             <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider block">Cảnh báo bất thường</span>
             <div className="text-2xl font-black text-rose-900 mt-1">{abnormalCount}</div>

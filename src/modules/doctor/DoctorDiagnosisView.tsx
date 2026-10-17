@@ -82,6 +82,7 @@ export const DoctorDiagnosisView: React.FC = () => {
   const [selectedLabEvent, setSelectedLabEvent] = useState<TimelineEvent | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Cache timeline data theo encounterId
   const timelineCache = useRef<Map<string, PostTestTimelineResponse>>(new Map());
@@ -146,6 +147,20 @@ export const DoctorDiagnosisView: React.FC = () => {
   }, [apiEncounters, selectedPatientId]);
 
   const activeEncounterId = activeEncounter?.encounterId || (selectedPatientId.includes('-') && selectedPatientId.length > 30 ? selectedPatientId : undefined);
+
+  // Lọc danh sách ca khám theo từ khóa tìm kiếm (Tên, mã LK, mã BN, SĐT)
+  const filteredEncounters = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return apiEncounters;
+    return apiEncounters.filter((enc) => {
+      const nameMatch = enc.patient?.fullName?.toLowerCase().includes(term);
+      const encCodeMatch = enc.encounterCode?.toLowerCase().includes(term);
+      const patCodeMatch = enc.patient?.patientCode?.toLowerCase().includes(term);
+      const phoneMatch = enc.patient?.phoneNumber?.toLowerCase().includes(term);
+      const idMatch = enc.encounterId?.toLowerCase().includes(term);
+      return Boolean(nameMatch || encCodeMatch || patCodeMatch || phoneMatch || idMatch);
+    });
+  }, [apiEncounters, searchTerm]);
 
   // Fetch timeline có cache
   const fetchTimeline = useCallback(async (encounterId: string, forceRefresh = false) => {
@@ -284,10 +299,17 @@ export const DoctorDiagnosisView: React.FC = () => {
       activeEncounter?.chiefComplaint?.reasonForVisit ||
       'Chưa ghi nhận triệu chứng';
 
-    const clinicalExam =
-      clinicalExamEvent?.data?.examinationFindings ||
-      clinicalExamEvent?.data?.clinicalNotes ||
-      'Chưa có kết quả khám lâm sàng';
+    const clinicalExamParts = [
+      clinicalExamEvent?.data?.auscultationFindings ? `Nghe tim phổi: ${clinicalExamEvent.data.auscultationFindings}` : '',
+      clinicalExamEvent?.data?.inspectionFindings ? `Nhìn: ${clinicalExamEvent.data.inspectionFindings}` : '',
+      clinicalExamEvent?.data?.palpationFindings ? `Sờ: ${clinicalExamEvent.data.palpationFindings}` : '',
+      clinicalExamEvent?.data?.percussionFindings ? `Gõ: ${clinicalExamEvent.data.percussionFindings}` : '',
+      clinicalExamEvent?.data?.patientPosition ? `Tư thế: ${clinicalExamEvent.data.patientPosition}` : '',
+      clinicalExamEvent?.data?.clinicalNotes ? `Nhận định: ${clinicalExamEvent.data.clinicalNotes}` : '',
+      clinicalExamEvent?.data?.examinationFindings,
+    ].filter(Boolean);
+
+    const clinicalExam = clinicalExamParts.length > 0 ? clinicalExamParts.join(' | ') : 'Chưa có kết quả khám lâm sàng';
 
     const existingDiagnosis = diagEvent?.data?.icd10Code || diagEvent?.data?.icd10?.icd10Code
       ? {
@@ -495,49 +517,38 @@ export const DoctorDiagnosisView: React.FC = () => {
     <div className="space-y-6 max-w-7xl mx-auto text-slate-800 animate-in fade-in duration-200">
 
       {/* Module Title Banner */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-3">
           <Mascot
             directions="/mascots/mydoctor-directions.png"
             reactions="/mascots/mydoctor-reactions.png"
-            size={110}
+            size={120}
             className="shrink-0"
           />
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-rose-900 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 flex items-center gap-1.5">
-                <HeartPulse className="w-3.5 h-3.5 text-rose-600" />
-                Chuyên Khoa Tim Mạch (Cardiology Clinic)
-              </span>
-              <Badge variant="normal" size="sm">
-                Mô-đun 8: Sau Cận Lâm Sàng (SE05)
-              </Badge>
-            </div>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <span>Kết Luận Chẩn Đoán & Tư Vấn Phác Đồ Tim Mạch</span>
+            <h2 className="text-xl font-bold text-slate-900">
+              Kết Luận Chẩn Đoán & Tư Vấn Phác Đồ Tim Mạch
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Đối chiếu kết quả xét nghiệm men tim, điện tim ECG, siêu âm Doppler tim; ra quyết định chẩn đoán ICD-10 và thiết lập tư vấn tái khám.
+              Đối chiếu kết quả xét nghiệm, điện tim ECG; ra quyết định chẩn đoán ICD-10 và tư vấn điều trị.
             </p>
           </div>
         </div>
 
-        {currentPatient ? (
-          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-xs font-extrabold text-slate-900">
-            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black">
-              {currentPatient.name.charAt(0)}
-            </div>
-            <div>
-              <div className="text-slate-900 font-extrabold">{currentPatient.name} ({currentPatient.age}t • {currentPatient.gender})</div>
-              <div className="text-[10px] text-slate-500 font-mono">Mã ca: {currentPatient.id}</div>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2 text-xs font-bold text-slate-500">
-            <User className="w-4 h-4 text-slate-400" />
-            <span>Chưa chọn ca khám</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-1.5 text-xs font-bold text-blue-900 shrink-0">
+          <User className="w-4 h-4 text-blue-700" />
+          <span>
+            {activeEncounter || currentPatient
+              ? (() => {
+                  const name = timelineData?.patient?.fullName || activeEncounter?.patient?.fullName || currentPatient?.name;
+                  const pCode = timelineData?.patient?.patientCode || activeEncounter?.patient?.patientCode;
+                  const encCode = timelineData?.encounter?.encounterCode || activeEncounter?.encounterCode;
+                  const codeDetails = [pCode, encCode].filter(Boolean).join(' • ');
+                  return `Bệnh nhân: ${name}${codeDetails ? ` (${codeDetails})` : ''}`;
+                })()
+              : 'Chưa chọn bệnh nhân'}
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -552,15 +563,43 @@ export const DoctorDiagnosisView: React.FC = () => {
                 <Stethoscope className="w-4 h-4 text-rose-600" />
                 <span>Hàng đợi khám Bác sĩ Tim mạch</span>
               </h3>
-              <button
-                type="button"
-                onClick={fetchEncounters}
-                disabled={isLoadingEncounters}
-                className="text-slate-400 hover:text-blue-600 transition-colors cursor-pointer p-1"
-                title="Làm mới danh sách"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingEncounters ? 'animate-spin text-blue-600' : ''}`} />
-              </button>
+              <div className="flex items-center gap-2">
+                <Badge variant="info" size="sm">
+                  {searchTerm
+                    ? `${filteredEncounters.length}/${apiEncounters.length} Ca`
+                    : `${String(apiEncounters.length).padStart(2, '0')} Ca`}
+                </Badge>
+                <button
+                  type="button"
+                  onClick={fetchEncounters}
+                  disabled={isLoadingEncounters}
+                  className="text-slate-400 hover:text-blue-600 transition-colors cursor-pointer p-1"
+                  title="Làm mới danh sách"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingEncounters ? 'animate-spin text-blue-600' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Ô tìm kiếm bệnh nhân nhanh */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Tìm tên, mã LK, mã BN, SĐT..."
+                className="w-full pl-8 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-blue-600 transition-colors"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1">
@@ -571,13 +610,13 @@ export const DoctorDiagnosisView: React.FC = () => {
                 </div>
               )}
 
-              {!isLoadingEncounters && apiEncounters.length === 0 && (
+              {!isLoadingEncounters && filteredEncounters.length === 0 && (
                 <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  Chưa có ca khám nào trong hàng đợi
+                  {searchTerm ? `Không tìm thấy ca khám nào khớp với "${searchTerm}"` : 'Chưa có ca khám nào trong hàng đợi'}
                 </div>
               )}
 
-              {apiEncounters.map((enc) => {
+              {filteredEncounters.map((enc) => {
                 const patName = enc.patient?.fullName || 'Bệnh nhân';
                 const patCode = enc.encounterCode || enc.patient?.patientCode || enc.encounterId.slice(0, 8);
                 const isSelected = selectedPatientId === enc.encounterId || selectedPatientId === enc.encounterCode;
@@ -710,12 +749,31 @@ export const DoctorDiagnosisView: React.FC = () => {
                         <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">
                           {eventTime} — Khám lâm sàng tim mạch (Mô-đun 5)
                         </span>
-                        <div className="space-y-0.5">
-                          <p className="font-extrabold text-slate-800">
-                            {event.data?.examinationFindings || 'Đã ghi nhận khám lâm sàng.'}
-                          </p>
+                        <div className="space-y-0.5 text-xs">
+                          {event.data?.auscultationFindings && (
+                            <p className="font-extrabold text-slate-800">
+                              Nghe tim phổi: {event.data.auscultationFindings}
+                            </p>
+                          )}
+                          {event.data?.inspectionFindings && (
+                            <p className="text-slate-700">Nhìn: {event.data.inspectionFindings}</p>
+                          )}
+                          {event.data?.palpationFindings && (
+                            <p className="text-slate-700">Sờ: {event.data.palpationFindings}</p>
+                          )}
+                          {event.data?.percussionFindings && (
+                            <p className="text-slate-700">Gõ: {event.data.percussionFindings}</p>
+                          )}
+                          {event.data?.patientPosition && (
+                            <p className="text-slate-500 text-[11px]">Tư thế: {event.data.patientPosition}</p>
+                          )}
+                          {!event.data?.auscultationFindings && !event.data?.inspectionFindings && (
+                            <p className="font-extrabold text-slate-800">
+                              {event.data?.examinationFindings || 'Đã ghi nhận khám lâm sàng.'}
+                            </p>
+                          )}
                           {event.data?.clinicalNotes && (
-                            <p className="text-slate-500 italic">Chẩn đoán sơ bộ: {event.data.clinicalNotes}</p>
+                            <p className="text-slate-500 italic">Nhận định / Chẩn đoán sơ bộ: {event.data.clinicalNotes}</p>
                           )}
                         </div>
                       </div>
