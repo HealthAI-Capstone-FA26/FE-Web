@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Pill, CheckCircle2, AlertTriangle, FileCheck, Printer,
   Download, Calendar, Search, Plus, Trash2, ShieldAlert,
-  Award, Check, RefreshCw
+  Award, Check, RefreshCw, User, X
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
@@ -54,6 +54,7 @@ export const DoctorPrescriptionView: React.FC = () => {
   const [apiEncounters, setApiEncounters] = useState<EncounterItem[]>([]);
   const [isLoadingEncounters, setIsLoadingEncounters] = useState(false);
   const [timelineData, setTimelineData] = useState<CaseTimelineResponse | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Tải danh sách ca khám thực tế
   const fetchEncounters = async () => {
@@ -82,6 +83,22 @@ export const DoctorPrescriptionView: React.FC = () => {
     fetchEncounters();
   }, [user?.doctorId]);
 
+  // Đồng bộ selectedPatientId từ localStorage (khi chọn bệnh nhân ở Tab khác)
+  useEffect(() => {
+    const handleStorage = () => {
+      const val = localStorage.getItem('doctor_selected_patient_id');
+      if (val && val !== selectedPatientId) {
+        setSelectedPatientId(val);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    const interval = setInterval(handleStorage, 1000);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(interval);
+    };
+  }, [selectedPatientId]);
+
   // Tìm ca khám thật
   const activeEncounter = useMemo(() => {
     return apiEncounters.find(
@@ -94,6 +111,20 @@ export const DoctorPrescriptionView: React.FC = () => {
   }, [apiEncounters, selectedPatientId]);
 
   const activeEncounterId = activeEncounter?.encounterId || (selectedPatientId.includes('-') && selectedPatientId.length > 30 ? selectedPatientId : undefined);
+
+  // Lọc danh sách ca khám theo từ khóa tìm kiếm (Tên, mã LK, mã BN, SĐT)
+  const filteredEncounters = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return apiEncounters;
+    return apiEncounters.filter((enc) => {
+      const nameMatch = enc.patient?.fullName?.toLowerCase().includes(term);
+      const encCodeMatch = enc.encounterCode?.toLowerCase().includes(term);
+      const patCodeMatch = enc.patient?.patientCode?.toLowerCase().includes(term);
+      const phoneMatch = enc.patient?.phoneNumber?.toLowerCase().includes(term);
+      const idMatch = enc.encounterId?.toLowerCase().includes(term);
+      return Boolean(nameMatch || encCodeMatch || patCodeMatch || phoneMatch || idMatch);
+    });
+  }, [apiEncounters, searchTerm]);
 
   useEffect(() => {
     if (!activeEncounterId) {
@@ -358,7 +389,8 @@ export const DoctorPrescriptionView: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+      {/* Module Title Banner */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-3">
           <Mascot
             directions="/mascots/mydoctor-directions.png"
@@ -375,9 +407,21 @@ export const DoctorPrescriptionView: React.FC = () => {
             </p>
           </div>
         </div>
-        <Badge variant="ai" size="sm">
-          CA Digital Signature
-        </Badge>
+
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-1.5 text-xs font-bold text-blue-900 shrink-0">
+          <User className="w-4 h-4 text-blue-700" />
+          <span>
+            {activeEncounter || currentPatient
+              ? (() => {
+                  const name = timelineData?.patient?.fullName || activeEncounter?.patient?.fullName || currentPatient?.name;
+                  const pCode = timelineData?.patient?.patientCode || activeEncounter?.patient?.patientCode;
+                  const encCode = timelineData?.encounter?.encounterCode || activeEncounter?.encounterCode;
+                  const codeDetails = [pCode, encCode].filter(Boolean).join(' • ');
+                  return `Bệnh nhân: ${name}${codeDetails ? ` (${codeDetails})` : ''}`;
+                })()
+              : 'Chưa chọn bệnh nhân'}
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -388,16 +432,46 @@ export const DoctorPrescriptionView: React.FC = () => {
           {/* Patient queue card */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Bệnh nhân đang chờ đơn thuốc</h3>
-              <button
-                type="button"
-                onClick={fetchEncounters}
-                disabled={isLoadingEncounters}
-                className="text-slate-400 hover:text-blue-600 transition-colors cursor-pointer p-1"
-                title="Làm mới danh sách"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingEncounters ? 'animate-spin text-blue-600' : ''}`} />
-              </button>
+              <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+                Bệnh nhân đang chờ đơn thuốc
+              </h3>
+              <div className="flex items-center gap-2">
+                <Badge variant="info" size="sm">
+                  {searchTerm
+                    ? `${filteredEncounters.length}/${apiEncounters.length} Ca`
+                    : `${String(apiEncounters.length).padStart(2, '0')} Ca`}
+                </Badge>
+                <button
+                  type="button"
+                  onClick={fetchEncounters}
+                  disabled={isLoadingEncounters}
+                  className="text-slate-400 hover:text-blue-600 transition-colors cursor-pointer p-1"
+                  title="Làm mới danh sách"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingEncounters ? 'animate-spin text-blue-600' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Ô tìm kiếm bệnh nhân nhanh */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Tìm tên, mã LK, mã BN, SĐT..."
+                className="w-full pl-8 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-blue-600 transition-colors"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1">
@@ -405,13 +479,13 @@ export const DoctorPrescriptionView: React.FC = () => {
                 <div className="p-4 text-center text-xs text-slate-400">Đang tải danh sách ca khám...</div>
               )}
 
-              {!isLoadingEncounters && apiEncounters.length === 0 && (
+              {!isLoadingEncounters && filteredEncounters.length === 0 && (
                 <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  Chưa có ca khám nào trong hàng đợi
+                  {searchTerm ? `Không tìm thấy ca khám nào khớp với "${searchTerm}"` : 'Chưa có ca khám nào trong hàng đợi'}
                 </div>
               )}
 
-              {apiEncounters.map((enc) => {
+              {filteredEncounters.map((enc) => {
                 const patName = enc.patient?.fullName || 'Bệnh nhân';
                 const patCode = enc.encounterCode || enc.patient?.patientCode || enc.encounterId.slice(0, 8);
                 const isSelected = selectedPatientId === enc.encounterId || selectedPatientId === enc.encounterCode;
