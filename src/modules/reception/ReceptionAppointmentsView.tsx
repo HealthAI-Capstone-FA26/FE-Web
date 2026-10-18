@@ -27,7 +27,6 @@ import { Mascot } from 'page-mascot';
 import { ReceptionCancelAppointmentModal } from './components/ReceptionCancelAppointmentModal';
 import { SyncPatientModal } from './components/SyncPatientModal';
 import { Badge } from '../../components/common/Badge';
-import { DepartmentIcon } from '../../components/common/DepartmentIcon';
 import { ConfirmMainPatientModal } from './components/ConfirmMainPatientModal';
 
 type DatePreset = 'today' | 'tomorrow' | 'this_week' | 'all' | 'custom';
@@ -596,7 +595,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
                 <tr>
                   <th className="py-3.5 px-4">Mã Lịch Hẹn</th>
                   <th className="py-3.5 px-4">Bệnh Nhân</th>
-                  <th className="py-3.5 px-4">Chuyên Khoa & Bác Sĩ</th>
+                  <th className="py-3.5 px-4">Bác Sĩ Phụ Trách</th>
                   <th className="py-3.5 px-4">Thời Gian Hẹn</th>
                   <th className="py-3.5 px-4 text-center">Số Phiếu (STT)</th>
                   <th className="py-3.5 px-4 text-center">Trạng Thái</th>
@@ -693,26 +692,28 @@ export const ReceptionAppointmentsView: React.FC = () => {
                         )}
                       </td>
 
-                      {/* Department & Doctor */}
+                      {/* Doctor */}
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-800 flex items-center gap-1">
-                          <DepartmentIcon className="w-4 h-4 shrink-0" />
-                          <span>{app.department?.departmentName || 'Khoa khám'}</span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
-                          {app.doctor?.fullName ? (
-                            <span>
-                              {app.doctor.title ? `${app.doctor.title} ` : ''}
-                              {app.doctor.fullName}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 italic">Bác sĩ trực chuyên khoa</span>
-                          )}
-                        </div>
-                        {app.department?.roomLocation && (
-                          <div className="text-[10px] text-indigo-600 font-semibold mt-0.5">
-                            Phòng: {app.department.roomLocation}
+                        {app.doctor?.fullName ? (
+                          <div>
+                            <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                              <Stethoscope className="w-4 h-4 text-blue-600 shrink-0" />
+                              <span>
+                                {app.doctor.title ? `${app.doctor.title} ` : ''}
+                                {app.doctor.fullName}
+                              </span>
+                            </div>
+                            {app.doctor.specialization && (
+                              <div className="text-[11px] text-slate-500 mt-0.5">
+                                {app.doctor.specialization}
+                              </div>
+                            )}
                           </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            <Clock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                            Chưa tạo phiếu tiếp nhận khám
+                          </span>
                         )}
                       </td>
 

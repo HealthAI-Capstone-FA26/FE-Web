@@ -5,11 +5,12 @@ import {
 } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import {
-  AVAILABLE_TEST_CATALOG,
   type TestCatalogItem
 } from '../../../services/doctor';
 
 interface TestOrderCreationCardProps {
+  services?: TestCatalogItem[];
+  isLoadingServices?: boolean;
   selectedTestTypeIds: string[];
   onToggleCatalogItem: (typeId: string) => void;
   aiRecommendedCodes: Set<string>;
@@ -23,6 +24,8 @@ interface TestOrderCreationCardProps {
 }
 
 export const TestOrderCreationCard: React.FC<TestOrderCreationCardProps> = ({
+  services,
+  isLoadingServices,
   selectedTestTypeIds,
   onToggleCatalogItem,
   aiRecommendedCodes,
@@ -34,6 +37,8 @@ export const TestOrderCreationCard: React.FC<TestOrderCreationCardProps> = ({
   submitErrorMsg,
   onSubmitOrder,
 }) => {
+  const displayCatalog = services || [];
+
   return (
     <form onSubmit={onSubmitOrder} className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-5">
       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -49,9 +54,17 @@ export const TestOrderCreationCard: React.FC<TestOrderCreationCardProps> = ({
       {/* Test Catalog List */}
       <div className="space-y-3 text-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-          <span className="font-extrabold text-slate-800">
-            Danh mục dịch vụ Cận lâm sàng & Xét nghiệm:
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="font-extrabold text-slate-800">
+              Danh mục dịch vụ Cận lâm sàng & Xét nghiệm:
+            </span>
+            {isLoadingServices && (
+              <span className="text-[10px] text-slate-400 flex items-center gap-1 font-normal">
+                <Loader2 className="w-3 h-3 animate-spin text-blue-600" />
+                Đang tải từ CSDL...
+              </span>
+            )}
+          </div>
           <span className="text-[10px] text-purple-700 font-bold bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 flex items-center gap-1 self-start sm:self-auto">
             <Sparkles className="w-3 h-3 text-purple-600" />
             <span>AI tự động đề xuất theo triệu chứng & chẩn đoán</span>
@@ -59,7 +72,17 @@ export const TestOrderCreationCard: React.FC<TestOrderCreationCardProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {AVAILABLE_TEST_CATALOG.map((item: TestCatalogItem) => {
+          {isLoadingServices ? (
+            <div className="col-span-full py-8 flex flex-col items-center justify-center gap-2 text-slate-500 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+              <span className="text-xs font-medium">Đang tải danh mục xét nghiệm từ cơ sở dữ liệu...</span>
+            </div>
+          ) : displayCatalog.length === 0 ? (
+            <div className="col-span-full py-8 text-center text-slate-500 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <p className="text-xs">Không có danh mục cận lâm sàng nào khả dụng từ hệ thống.</p>
+            </div>
+          ) : (
+            displayCatalog.map((item: TestCatalogItem) => {
             const isChecked = selectedTestTypeIds.includes(item.testTypeId);
             const isAiSuggested = aiRecommendedCodes.has(item.testCode);
 
@@ -91,12 +114,22 @@ export const TestOrderCreationCard: React.FC<TestOrderCreationCardProps> = ({
                     </div>
                   </div>
 
-                  {isAiSuggested && (
-                    <span className="text-[9px] bg-purple-100 text-purple-800 border border-purple-200 px-1.5 py-0.5 rounded font-bold uppercase shrink-0 flex items-center gap-0.5">
-                      <Sparkles className="w-2.5 h-2.5 text-purple-600" />
-                      <span>AI khuyên dùng</span>
-                    </span>
-                  )}
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {isAiSuggested && (
+                      <span className="text-[9px] bg-purple-100 text-purple-800 border border-purple-200 px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-0.5">
+                        <Sparkles className="w-2.5 h-2.5 text-purple-600" />
+                        <span>AI khuyên dùng</span>
+                      </span>
+                    )}
+                    {item.requiresFasting && (
+                      <span
+                        className="text-[9px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-bold"
+                        title={item.preparationNote || 'Yêu cầu nhịn ăn trước khi lấy máu'}
+                      >
+                        Cần nhịn ăn
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[11px]">
@@ -107,7 +140,7 @@ export const TestOrderCreationCard: React.FC<TestOrderCreationCardProps> = ({
                 </div>
               </div>
             );
-          })}
+          }))}
         </div>
 
         {/* Order Fee Summary */}

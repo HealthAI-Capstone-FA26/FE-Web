@@ -21,7 +21,7 @@ import {
   doctorAiService,
   caseTimelineService,
   initialDiagnosisService,
-  AVAILABLE_TEST_CATALOG,
+  type TestCatalogItem,
   type TestOrderDetail,
   type CaseOverviewData,
 } from '../../services/doctor';
@@ -768,6 +768,8 @@ export const DoctorEMRView: React.FC = () => {
   const [preliminaryDiag, setPreliminaryDiag] = useState<string>(() => initCached?.clinicalExam?.clinicalNotes || '');
   const clinicalExamNote = auscultationFindings;
   const setClinicalExamNote = setAuscultationFindings;
+  const [servicesCatalog, setServicesCatalog] = useState<TestCatalogItem[]>([]);
+  const [isLoadingServices, setIsLoadingServices] = useState<boolean>(true);
   const [selectedTestTypeIds, setSelectedTestTypeIds] = useState<string[]>([]);
   const [orderNotes, setOrderNotes] = useState('');
   const [existingTestOrders, setExistingTestOrders] = useState<TestOrderDetail[]>([]);
@@ -777,6 +779,29 @@ export const DoctorEMRView: React.FC = () => {
   const [submitSuccessMsg, setSubmitSuccessMsg] = useState<string | null>(null);
   const [submitErrorMsg, setSubmitErrorMsg] = useState<string | null>(null);
   const [examWarningMsg, setExamWarningMsg] = useState<string | null>(null);
+
+  // Tải danh mục dịch vụ xét nghiệm cận lâm sàng thực tế từ Database qua API Backend
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingServices(true);
+    testOrderService
+      .getAvailableServices()
+      .then((list) => {
+        if (isMounted && list && list.length > 0) {
+          setServicesCatalog(list);
+        }
+      })
+      .catch((err) => {
+        console.warn('Không thể nạp danh mục dịch vụ từ database:', err);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingServices(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const activeEncounterId = currentPatient?.encounterId;
 
@@ -980,47 +1005,54 @@ export const DoctorEMRView: React.FC = () => {
   // Trạng thái quy trình ca khám hiện tại
   const currentWorkflowState = patientWorkflowStates[selectedPatientId] || 'initial';
 
-  // Thuật toán AI gợi ý chỉ định cận lâm sàng dựa trên Chẩn đoán sơ bộ & Triệu chứng
+  // Thuật toán AI gợi ý chỉ định cận lâm sàng tim mạch dựa trên Chẩn đoán sơ bộ & Triệu chứng
   const aiRecommendedCodes = useMemo(() => {
     const diag = ((preliminaryDiag || '') + ' ' + (currentPatient?.symptoms || '')).toLowerCase();
     const codes = new Set<string>();
 
+    // Đau ngực, nhồi máu cơ tim, mạch vành, ho khó thở cấp
     if (
-      diag.includes('phổi') ||
-      diag.includes('phế quản') ||
-      diag.includes('ho') ||
-      diag.includes('thở') ||
       diag.includes('ngực') ||
-      diag.includes('sốt')
+      diag.includes('tim') ||
+      diag.includes('vành') ||
+      diag.includes('nhồi máu') ||
+      diag.includes('khó thở') ||
+      diag.includes('hội chứng vành')
     ) {
-      codes.add('XQ-NGUC');
+      codes.add('HSTNT');
+      codes.add('CKMB');
+      codes.add('NTPROBNP');
       codes.add('CBC');
     }
 
+    // Tăng huyết áp, mỡ máu, xơ vữa, rối loạn lipid, tiểu đường
     if (
-      diag.includes('dạ dày') ||
-      diag.includes('tiêu hóa') ||
-      diag.includes('bụng') ||
-      diag.includes('tiêu chảy') ||
-      diag.includes('ruột') ||
-      diag.includes('phân')
-    ) {
-      codes.add('MICRO01');
-      codes.add('CBC');
-      codes.add('BIOC01');
-    }
-
-    if (
-      diag.includes('tiểu') ||
-      diag.includes('thận') ||
+      diag.includes('huyết áp') ||
+      diag.includes('mỡ máu') ||
+      diag.includes('lipid') ||
+      diag.includes('cholesterol') ||
+      diag.includes('xơ vữa') ||
       diag.includes('đường huyết') ||
-      diag.includes('chuyển hóa') ||
-      diag.includes('mỡ máu')
+      diag.includes('thận')
     ) {
-      codes.add('URI01');
+      codes.add('LIPID01');
       codes.add('BIOC01');
+      codes.add('ELEC01');
     }
 
+    // Suy tim, phù, hồi hộp loạn nhịp
+    if (
+      diag.includes('suy tim') ||
+      diag.includes('phù') ||
+      diag.includes('loạn nhịp') ||
+      diag.includes('hồi hộp')
+    ) {
+      codes.add('NTPROBNP');
+      codes.add('ELEC01');
+      codes.add('HSTNT');
+    }
+
+    // Mặc định an toàn: Tổng phân tích tế bào máu + Sinh hóa máu cơ bản
     if (codes.size === 0) {
       codes.add('CBC');
       codes.add('BIOC01');
@@ -1030,11 +1062,11 @@ export const DoctorEMRView: React.FC = () => {
   }, [preliminaryDiag, currentPatient?.symptoms]);
 
   useEffect(() => {
-    const recommendedIds = AVAILABLE_TEST_CATALOG.filter((item) =>
-      aiRecommendedCodes.has(item.testCode)
-    ).map((item) => item.testTypeId);
+    const recommendedIds = servicesCatalog
+      .filter((item) => aiRecommendedCodes.has(item.testCode))
+      .map((item) => item.testTypeId);
     setSelectedTestTypeIds(recommendedIds);
-  }, [aiRecommendedCodes]);
+  }, [aiRecommendedCodes, servicesCatalog]);
 
   const handleToggleCatalogItem = (testTypeId: string) => {
     setSelectedTestTypeIds((prev) =>
@@ -1048,10 +1080,10 @@ export const DoctorEMRView: React.FC = () => {
 
   // Tính tổng chi phí cận lâm sàng dự tính
   const totalEstimatedCost = useMemo(() => {
-    return AVAILABLE_TEST_CATALOG.filter((item) =>
-      selectedTestTypeIds.includes(item.testTypeId)
-    ).reduce((sum, item) => sum + item.price, 0);
-  }, [selectedTestTypeIds]);
+    return servicesCatalog
+      .filter((item) => selectedTestTypeIds.includes(item.testTypeId))
+      .reduce((sum, item) => sum + item.price, 0);
+  }, [selectedTestTypeIds, servicesCatalog]);
 
   // Gửi chỉ định cận lâm sàng lên API POST /api/v1/doctor-examination/encounters/:encounterId/test-orders
   const handleConfirmDiagnosis = async (e: React.FormEvent) => {
@@ -1123,9 +1155,10 @@ export const DoctorEMRView: React.FC = () => {
 
       // 2. Tạo phiếu chỉ định cận lâm sàng
       const itemsPayload = selectedTestTypeIds.map((typeId) => {
-        const catalogItem = AVAILABLE_TEST_CATALOG.find((c) => c.testTypeId === typeId);
+        const catalogItem = servicesCatalog.find((c) => c.testTypeId === typeId);
         const wasAiSuggested = catalogItem ? aiRecommendedCodes.has(catalogItem.testCode) : false;
         return {
+          serviceId: catalogItem?.serviceId || typeId,
           testTypeId: typeId,
           wasAiSuggested,
         };
@@ -1366,6 +1399,8 @@ export const DoctorEMRView: React.FC = () => {
 
                   {/* Component 5: Test Order Creation Form */}
                   <TestOrderCreationCard
+                    services={servicesCatalog}
+                    isLoadingServices={isLoadingServices}
                     selectedTestTypeIds={selectedTestTypeIds}
                     onToggleCatalogItem={handleToggleCatalogItem}
                     aiRecommendedCodes={aiRecommendedCodes}

@@ -5,7 +5,6 @@ import {
 } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import {
-  AVAILABLE_TEST_CATALOG,
   type TestOrderDetail,
   type TestOrderItemDetail,
 } from '../../../services/doctor';
@@ -168,12 +167,9 @@ export const TestOrderHistoryList: React.FC<TestOrderHistoryListProps> = ({
                 {/* Items in this order */}
                 <div className="space-y-2">
                   {order.items?.map((item) => {
-                    const catalogMatch = AVAILABLE_TEST_CATALOG.find(
-                      (c) => c.testTypeId === item.testTypeId
-                    );
-                    const testName = item.testType?.testName || catalogMatch?.testName || 'Xét nghiệm';
-                    const testCode = item.testType?.testCode || catalogMatch?.testCode || '---';
-                    const room = catalogMatch?.room;
+                    const testName = item.service?.serviceName || item.testType?.testName || 'Xét nghiệm';
+                    const testCode = item.service?.serviceCode || item.testType?.testCode || '---';
+                    const room = item.service ? 'Phòng Xét nghiệm Máu (BLOOD-LAB)' : undefined;
                     const isPaid = Boolean(item.labTask?.paymentVerified || item.labTask?.status === 'ready' || item.labTask?.status === 'completed' || item.labTask?.status === 'in_progress');
                     const isCancelable =
                       !isPaid &&

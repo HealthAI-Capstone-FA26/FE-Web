@@ -13,15 +13,19 @@ import {
   VolumeX,
   Calendar,
   ShieldCheck,
+  Eye,
+  Stethoscope,
 } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { queueTicketService, type QueueTicketItem } from '../../services/queue/queue-ticket.service';
 import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { encounterService } from '../../services/encounter/encounter.service';
 import { invoiceService, type InvoiceData } from '../../services/payment/invoice.service';
+import { type AppointmentItem } from '../../services/appointment/appointment.service';
 import { IdentityVerificationHistoryModal } from './components/IdentityVerificationHistoryModal';
 import { ReceptionIntakeModal } from './components/ReceptionIntakeModal';
 import { ReceptionPaymentModal } from './components/ReceptionPaymentModal';
+import { ReceptionAppointmentDetailModal } from './components/ReceptionAppointmentDetailModal';
 
 // Helper phát tiếng chuông phát thanh bệnh viện (3 nốt nhạc) dùng Web Audio API
 const playQueueChime = (): Promise<void> => {
@@ -60,7 +64,7 @@ const playQueueChime = (): Promise<void> => {
       });
 
       setTimeout(() => {
-        ctx.close().catch(() => {});
+        ctx.close().catch(() => { });
         resolve();
       }, 800);
     } catch (e) {
@@ -220,6 +224,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   const [historyModalPatientName, setHistoryModalPatientName] = useState<string>('');
   const [historyModalEncounterCode, setHistoryModalEncounterCode] = useState<string>('');
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+
+  // State Modal Xem Chi Tiết Lịch Khám & Gọi Số
+  const [detailModalAppointment, setDetailModalAppointment] = useState<AppointmentItem | null>(null);
+  const [detailModalTicket, setDetailModalTicket] = useState<QueueTicketItem | null>(null);
 
 
   const [notification, setNotification] = useState<{ type: 'success' | 'info' | 'error'; message: string } | null>(null);
@@ -474,13 +482,12 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       {/* Toast notification */}
       {notification && (
         <div
-          className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl text-sm font-medium transition-all duration-300 ${
-            notification.type === 'success'
-              ? 'bg-emerald-600 text-white shadow-emerald-500/20'
-              : notification.type === 'error'
+          className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl text-sm font-medium transition-all duration-300 ${notification.type === 'success'
+            ? 'bg-emerald-600 text-white shadow-emerald-500/20'
+            : notification.type === 'error'
               ? 'bg-rose-600 text-white shadow-rose-500/20'
               : 'bg-slate-800 text-white shadow-slate-900/20'
-          }`}
+            }`}
         >
           {notification.type === 'success' && <CheckCircle2 className="w-5 h-5 flex-shrink-0" />}
           {notification.type === 'error' && <AlertCircle className="w-5 h-5 flex-shrink-0" />}
@@ -523,23 +530,6 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 <option value="Quầy 02">Quầy 02 (Khám trực tiếp)</option>
                 <option value="Quầy 03">Quầy 03 (Khám hẹn Online)</option>
                 <option value="Quầy Ưu Tiên">Quầy Ưu Tiên (Cấp cứu / Người già)</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-              <Building2 className="w-4 h-4 text-slate-400" />
-              <select
-                value={selectedDepartmentId}
-                onChange={(e) => setSelectedDepartmentId(e.target.value)}
-                aria-label="Lọc theo chuyên khoa phòng"
-                className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer"
-              >
-                <option value="all">Tất cả chuyên khoa</option>
-                {departments.map((d) => (
-                  <option key={d.departmentId} value={d.departmentId}>
-                    {d.departmentName}
-                  </option>
-                ))}
               </select>
             </div>
 
@@ -588,11 +578,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 }
               }}
               title={isAudioEnabled ? 'Âm thanh tự động: Đang BẬT (Bấm để TẮT)' : 'Âm thanh tự động: Đang TẮT (Bấm để BẬT)'}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
-                isAudioEnabled
-                  ? 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100'
-                  : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer ${isAudioEnabled
+                ? 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100'
+                : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
+                }`}
             >
               {isAudioEnabled ? <Volume2 className="w-4 h-4 text-teal-600" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
               <span>{isAudioEnabled ? 'Âm loa: Bật' : 'Âm loa: Tắt'}</span>
@@ -638,11 +627,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-3">
                       <span
-                        className={`text-5xl font-black tracking-tight font-mono px-4 py-1.5 rounded-2xl shadow-inner ${
-                          stats.currentServingTicket.ticketPrefix === 'A'
-                            ? 'bg-teal-500/20 text-teal-300 border border-teal-400/30'
-                            : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
-                        }`}
+                        className={`text-5xl font-black tracking-tight font-mono px-4 py-1.5 rounded-2xl shadow-inner ${stats.currentServingTicket.ticketPrefix === 'A'
+                          ? 'bg-teal-500/20 text-teal-300 border border-teal-400/30'
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
+                          }`}
                       >
                         {formatTicketCode(stats.currentServingTicket)}
                       </span>
@@ -660,11 +648,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                   </div>
 
                   <span
-                    className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider ${
-                      stats.currentServingTicket.ticketPrefix === 'A'
-                        ? 'bg-teal-900/60 text-teal-300 border border-teal-600/40'
-                        : 'bg-amber-900/60 text-amber-300 border border-amber-600/40'
-                    }`}
+                    className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider ${stats.currentServingTicket.ticketPrefix === 'A'
+                      ? 'bg-teal-900/60 text-teal-300 border border-teal-600/40'
+                      : 'bg-amber-900/60 text-amber-300 border border-amber-600/40'
+                      }`}
                   >
                     {stats.currentServingTicket.ticketPrefix === 'A' ? (
                       <>
@@ -683,9 +670,9 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 {/* Thông tin khám */}
                 <div className="bg-slate-800/60 backdrop-blur-xs rounded-xl p-3.5 border border-slate-700/50 grid grid-cols-2 gap-3 text-xs">
                   <div>
-                    <span className="text-slate-400 block mb-0.5">Chuyên khoa:</span>
-                    <span className="font-semibold text-teal-200">
-                      {stats.currentServingTicket.department?.departmentName || 'Chưa chọn khoa'}
+                    <span className="text-slate-400 block mb-0.5">Mã lịch hẹn:</span>
+                    <span className="font-mono font-bold text-teal-300">
+                      {stats.currentServingTicket.appointment?.appointmentCode || '---'}
                     </span>
                   </div>
                   <div>
@@ -763,11 +750,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span
-                      className={`text-2xl font-bold font-mono px-3 py-1 rounded-xl ${
-                        stats.nextTicket.ticketPrefix === 'A'
-                          ? 'bg-teal-100 text-teal-800 border border-teal-200'
-                          : 'bg-amber-100 text-amber-800 border border-amber-200'
-                      }`}
+                      className={`text-2xl font-bold font-mono px-3 py-1 rounded-xl ${stats.nextTicket.ticketPrefix === 'A'
+                        ? 'bg-teal-100 text-teal-800 border border-teal-200'
+                        : 'bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}
                     >
                       {formatTicketCode(stats.nextTicket)}
                     </span>
@@ -775,18 +761,19 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                       <h4 className="text-sm font-bold text-slate-800">
                         {stats.nextTicket.appointment?.patient?.fullName || 'Bệnh nhân'}
                       </h4>
-                      <p className="text-xs text-slate-500">
-                        {stats.nextTicket.department?.departmentName || 'Đang cập nhật'}
+                      <p className="text-xs text-slate-500 font-mono">
+                        {stats.nextTicket.appointment?.appointmentCode
+                          ? `Mã lịch hẹn: ${stats.nextTicket.appointment.appointmentCode}`
+                          : 'Lấy số tại quầy'}
                       </p>
                     </div>
                   </div>
 
                   <span
-                    className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded ${
-                      stats.nextTicket.ticketPrefix === 'A'
-                        ? 'bg-teal-50 text-teal-700'
-                        : 'bg-amber-50 text-amber-700'
-                    }`}
+                    className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded ${stats.nextTicket.ticketPrefix === 'A'
+                      ? 'bg-teal-50 text-teal-700'
+                      : 'bg-amber-50 text-amber-700'
+                      }`}
                   >
                     {stats.nextTicket.ticketPrefix === 'A' ? (
                       <>
@@ -813,11 +800,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
           <button
             onClick={handleCallNext}
             disabled={!stats.nextTicket || isCallingNext}
-            className={`w-full py-4 px-6 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 shadow-lg transition transform active:scale-98 cursor-pointer ${
-              stats.nextTicket
-                ? 'bg-gradient-to-r from-teal-600 via-cyan-600 to-teal-700 hover:from-teal-700 hover:to-cyan-700 text-white shadow-teal-600/30'
-                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-            }`}
+            className={`w-full py-4 px-6 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 shadow-lg transition transform active:scale-98 cursor-pointer ${stats.nextTicket
+              ? 'bg-gradient-to-r from-teal-600 via-cyan-600 to-teal-700 hover:from-teal-700 hover:to-cyan-700 text-white shadow-teal-600/30'
+              : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+              }`}
           >
             <Megaphone className={`w-5 h-5 ${isCallingNext ? 'animate-bounce' : ''}`} />
             <span>{isCallingNext ? 'Đang kích hoạt gọi số...' : '🔊 GỌI SỐ TIẾP THEO'}</span>
@@ -875,41 +861,37 @@ const ReceptionQueueCallingBoard: React.FC = () => {
           <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                activeTab === 'all'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${activeTab === 'all'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               Tất cả ({stats.totalCount})
             </button>
             <button
               onClick={() => setActiveTab('waiting')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                activeTab === 'waiting'
-                  ? 'bg-white text-amber-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${activeTab === 'waiting'
+                ? 'bg-white text-amber-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               Đang chờ ({stats.waitingCount})
             </button>
             <button
               onClick={() => setActiveTab('called')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                activeTab === 'called'
-                  ? 'bg-white text-teal-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${activeTab === 'called'
+                ? 'bg-white text-teal-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               Đang gọi ({stats.calledCount})
             </button>
             <button
               onClick={() => setActiveTab('done')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                activeTab === 'done'
-                  ? 'bg-white text-emerald-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${activeTab === 'done'
+                ? 'bg-white text-emerald-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               Đã xong ({stats.doneCount})
             </button>
@@ -935,7 +917,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 <th className="py-3 px-4">Số Phiếu (STT)</th>
                 <th className="py-3 px-4">Bệnh Nhân</th>
                 <th className="py-3 px-4">Kênh Đặt</th>
-                <th className="py-3 px-4">Chuyên Khoa & Bác Sĩ</th>
+                <th className="py-3 px-4">Lịch Khám & Bác Sĩ</th>
                 <th className="py-3 px-4">Quầy / Thời Gian</th>
                 <th className="py-3 px-4">Trạng Thái</th>
                 <th className="py-3 px-4 text-center">Thao Tác</th>
@@ -966,17 +948,15 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                   return (
                     <tr
                       key={ticket.ticketId}
-                      className={`hover:bg-slate-50/80 transition ${
-                        isCalled ? 'bg-teal-50/40' : ''
-                      }`}
+                      className={`hover:bg-slate-50/80 transition ${isCalled ? 'bg-teal-50/40' : ''
+                        }`}
                     >
                       <td className="py-3.5 px-4">
                         <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-lg font-mono font-bold text-xs ${
-                            ticket.ticketPrefix === 'A'
-                              ? 'bg-teal-100 text-teal-800 border border-teal-200'
-                              : 'bg-amber-100 text-amber-800 border border-amber-200'
-                          }`}
+                          className={`inline-flex items-center px-2.5 py-1 rounded-lg font-mono font-bold text-xs ${ticket.ticketPrefix === 'A'
+                            ? 'bg-teal-100 text-teal-800 border border-teal-200'
+                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                            }`}
                         >
                           {code}
                         </span>
@@ -993,11 +973,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
 
                       <td className="py-3.5 px-4">
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold ${
-                            ticket.ticketPrefix === 'A'
-                              ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                              : 'bg-slate-100 text-slate-700 border border-slate-200'
-                          }`}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold ${ticket.ticketPrefix === 'A'
+                            ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
                         >
                           {ticket.ticketPrefix === 'A' ? (
                             <>
@@ -1014,14 +993,40 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-800">
-                          {ticket.department?.departmentName || '---'}
-                        </div>
-                        <div className="text-[11px] text-slate-500">
+                        {ticket.appointment?.appointmentCode ? (
+                          <div className="font-mono font-bold text-blue-900 text-[11px] flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-teal-600 shrink-0" />
+                            <span>{ticket.appointment.appointmentCode}</span>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-slate-400 font-medium">
+                            Khám tại quầy
+                          </div>
+                        )}
+                        <div className="mt-0.5">
                           {ticket.appointment?.doctor?.user?.fullName ||
-                            ticket.appointment?.doctor?.fullName ||
-                            'Chưa gán bác sĩ'}
+                            ticket.appointment?.doctor?.fullName ? (
+                            <div className="text-[11px] font-medium text-slate-700 flex items-center gap-1">
+                              <Stethoscope className="w-3 h-3 text-blue-600 shrink-0" />
+                              <span>
+                                {ticket.appointment.doctor.user?.fullName || ticket.appointment.doctor.fullName}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              <Clock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                              Chưa tạo phiếu tiếp nhận khám
+                            </span>
+                          )}
                         </div>
+                        {ticket.appointment?.reasonForVisit && (
+                          <div
+                            className="text-[10px] text-slate-400 truncate max-w-[200px] mt-0.5"
+                            title={ticket.appointment.reasonForVisit}
+                          >
+                            Lý do: {ticket.appointment.reasonForVisit}
+                          </div>
+                        )}
                       </td>
 
                       <td className="py-3.5 px-4">
@@ -1057,7 +1062,22 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <div className="inline-flex items-center justify-center gap-2">
+                        <div className="inline-flex items-center justify-center gap-1.5">
+                          {/* Nút Xem chi tiết lịch khám để gọi số */}
+                          {ticket.appointment && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDetailModalTicket(ticket);
+                                setDetailModalAppointment(ticket.appointment || null);
+                              }}
+                              title="Xem chi tiết lịch hẹn để gọi số"
+                              className="p-1.5 text-slate-500 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          )}
+
                           {isWaiting && (
                             <button
                               onClick={() => handleCallSpecificTicket(ticket)}
@@ -1101,7 +1121,6 @@ const ReceptionQueueCallingBoard: React.FC = () => {
 
                           {isDone && (
                             <div className="inline-flex items-center gap-2">
-                              <span className="text-[11px] text-slate-400 italic">Đã vào khám</span>
                               <button
                                 type="button"
                                 onClick={async () => {
@@ -1188,6 +1207,24 @@ const ReceptionQueueCallingBoard: React.FC = () => {
           fetchTickets(true);
         }}
       />
+
+      {/* MODAL XEM CHI TIẾT LỊCH HẸN & GỌI SỐ */}
+      {detailModalAppointment && (
+        <ReceptionAppointmentDetailModal
+          isOpen={!!detailModalAppointment}
+          appointment={detailModalAppointment}
+          onClose={() => {
+            setDetailModalAppointment(null);
+            setDetailModalTicket(null);
+          }}
+          onCallQueueTicket={
+            detailModalTicket && detailModalTicket.status === 'waiting'
+              ? () => handleCallSpecificTicket(detailModalTicket)
+              : undefined
+          }
+          queueTicketCode={detailModalTicket ? formatTicketCode(detailModalTicket) : undefined}
+        />
+      )}
     </div>
   );
 };

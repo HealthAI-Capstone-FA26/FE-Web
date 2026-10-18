@@ -83,7 +83,7 @@ export const ReceptionCancelAppointmentModal: React.FC<ReceptionCancelAppointmen
               Bệnh nhân: <span className="font-bold text-slate-800">{appointment.patient?.fullName || '---'}</span>
             </div>
             <div className="text-slate-500">
-              Khoa khám: <span className="font-bold text-slate-800">{appointment.department?.departmentName || '---'}</span>
+              Bác sĩ: <span className="font-bold text-slate-800">{appointment.doctor?.fullName || 'Chưa tạo phiếu tiếp nhận'}</span>
             </div>
             <div className="text-slate-500">
               Thời gian hẹn:{' '}

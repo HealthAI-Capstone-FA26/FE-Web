@@ -8,21 +8,28 @@ export type { AiReferenceSource, AiClinicalSummaryData, AiDiagnosisSuggestionIte
 
 export interface TestCatalogItem {
   testTypeId: string;
+  serviceId?: string;
   testCode: string;
   testName: string;
-  category: string;
+  category?: string;
   price: number;
   room?: string;
+  requiresFasting?: boolean;
+  preparationNote?: string | null;
+  panelGroup?: string;
 }
 
 export interface TestOrderItemInput {
-  testTypeId: string;
+  serviceId?: string;
+  testTypeId?: string;
   wasAiSuggested?: boolean;
 }
 
 export interface CreateTestOrderPayload {
   diagnosisId?: string;
   notes?: string;
+  clinicalIndication?: string;
+  priority?: 'routine' | 'urgent' | 'stat';
   items: TestOrderItemInput[];
 }
 
@@ -44,6 +51,12 @@ export interface TestOrderItemDetail {
     category: string;
     price: number;
   };
+  service?: {
+    serviceId: string;
+    serviceCode: string;
+    serviceName: string;
+    price: number;
+  };
   labTask?: {
     taskId: string;
     status: string;
@@ -63,61 +76,56 @@ export interface TestOrderDetail {
   items: TestOrderItemDetail[];
 }
 
-// 5 danh mục xét nghiệm chuẩn từ cơ sở dữ liệu bệnh viện
-export const AVAILABLE_TEST_CATALOG: TestCatalogItem[] = [
-  {
-    testTypeId: 'a9a04ea8-d3fd-44ab-83b5-91dac083020a',
-    testCode: 'XQ-NGUC',
-    testName: 'Chụp X-quang ngực thẳng',
-    category: 'imaging',
-    price: 120000,
-    room: 'Phòng Chẩn đoán hình ảnh (IMAGING)',
-  },
-  {
-    testTypeId: 'ef6a0f10-fe0f-4ae2-8735-3b85fc758e96',
-    testCode: 'CBC',
-    testName: 'Tổng phân tích tế bào máu (CBC)',
-    category: 'blood',
-    price: 150000,
-    room: 'Phòng Huyết học (HEMA)',
-  },
-  {
-    testTypeId: '31b17480-2d77-4938-8e6e-316a03220324',
-    testCode: 'BIOC01',
-    testName: 'Sinh hóa máu cơ bản (Glucose, Creatinine)',
-    category: 'biochemistry',
-    price: 180000,
-    room: 'Phòng Sinh hóa (BIOCHEM)',
-  },
-  {
-    testTypeId: 'd482d559-bb5f-4f54-a7a7-2f39e27d4ad6',
-    testCode: 'URI01',
-    testName: 'Tổng phân tích nước tiểu (10 thông số)',
-    category: 'urinalysis',
-    price: 90000,
-    room: 'Phòng Nước tiểu (URINE)',
-  },
-  {
-    testTypeId: '5264b4d1-0e8a-4ced-941a-1fddc8c4eb59',
-    testCode: 'MICRO01',
-    testName: 'Cấy phân tìm vi khuẩn gây bệnh',
-    category: 'microbiology',
-    price: 250000,
-    room: 'Phòng Vi sinh (MICRO)',
-  },
-];
+// Danh mục dịch vụ được nạp 100% động từ Database qua API GET /doctor-examination/services
+export const AVAILABLE_TEST_CATALOG: TestCatalogItem[] = [];
 
 export const testOrderService = {
+  // 0. GET /api/v1/doctor-examination/services (Lấy danh mục dịch vụ cận lâm sàng từ database)
+  async getAvailableServices(): Promise<TestCatalogItem[]> {
+    try {
+      const res = await apiFetch<{ total: number; items: any[] }>(
+        '/doctor-examination/services',
+        { method: 'GET' }
+      );
+      if (res && Array.isArray(res.items) && res.items.length > 0) {
+        return res.items.map((item) => ({
+          testTypeId: item.serviceId,
+          serviceId: item.serviceId,
+          testCode: item.serviceCode,
+          testName: item.serviceName,
+          category: item.panelGroup || item.modality || 'blood',
+          price: Number(item.price) || 0,
+          room: item.defaultRoom?.diagnosticRoomName || 'Phòng Xét nghiệm Máu (BLOOD-LAB)',
+          requiresFasting: Boolean(item.requiresFasting),
+          preparationNote: item.preparationNote,
+          panelGroup: item.panelGroup,
+        }));
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải danh mục dịch vụ từ backend /doctor-examination/services:', err);
+    }
+    return [];
+  },
+
   // 1. POST /api/v1/doctor-examination/encounters/:encounterId/test-orders
   async createTestOrder(
     encounterId: string,
     payload: CreateTestOrderPayload
   ): Promise<TestOrderDetail> {
+    const formattedItems = payload.items.map((it) => ({
+      serviceId: it.serviceId || it.testTypeId,
+    }));
     return apiFetch<TestOrderDetail>(
       `/doctor-examination/encounters/${encounterId}/test-orders`,
       {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          diagnosisId: payload.diagnosisId,
+          notes: payload.notes,
+          clinicalIndication: payload.clinicalIndication,
+          priority: payload.priority || 'routine',
+          items: formattedItems,
+        }),
       }
     );
   },
