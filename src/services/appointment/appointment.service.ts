@@ -182,9 +182,16 @@ export interface FindAppointmentsQuery {
   status?: string;
   from?: string;
   to?: string;
+  search?: string;
 }
 
-let cachedAppointmentsMap: Map<string, AppointmentItem[]> = new Map();
+interface CacheEntry {
+  data: AppointmentItem[];
+  timestamp: number;
+}
+
+let cachedAppointmentsMap: Map<string, CacheEntry> = new Map();
+const CACHE_TTL_MS = 5000; // 5s
 
 function getAppointmentQueryKey(query?: FindAppointmentsQuery): string {
   const params = new URLSearchParams();
@@ -192,6 +199,7 @@ function getAppointmentQueryKey(query?: FindAppointmentsQuery): string {
   if (query?.status) params.append('status', query.status);
   if (query?.from) params.append('from', query.from);
   if (query?.to) params.append('to', query.to);
+  if (query?.search) params.append('search', query.search);
   return params.toString();
 }
 
@@ -233,21 +241,28 @@ export const appointmentService = {
     return res;
   },
 
-  // Lấy dữ liệu cache đồng bộ nếu đã có
+  // Lấy dữ liệu cache đồng bộ nếu đã có (và chưa hết hạn TTL)
   getCachedAppointments(query?: FindAppointmentsQuery): AppointmentItem[] | null {
     const key = getAppointmentQueryKey(query);
-    return cachedAppointmentsMap.get(key) || null;
+    const entry = cachedAppointmentsMap.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+      cachedAppointmentsMap.delete(key);
+      return null;
+    }
+    return entry.data;
   },
 
   invalidateCache() {
     cachedAppointmentsMap.clear();
   },
 
-  // Lấy danh sách lịch hẹn (hỗ trợ Memory Cache + Background Refresh)
+  // Lấy danh sách lịch hẹn (hỗ trợ Memory Cache ngắn hạn + Background Refresh)
   async getAppointments(query?: FindAppointmentsQuery, forceRefresh = false): Promise<AppointmentItem[]> {
     const key = getAppointmentQueryKey(query);
-    if (!forceRefresh && cachedAppointmentsMap.has(key)) {
-      return cachedAppointmentsMap.get(key)!;
+    const entry = cachedAppointmentsMap.get(key);
+    if (!forceRefresh && entry && Date.now() - entry.timestamp < CACHE_TTL_MS) {
+      return entry.data;
     }
 
     const queryParams = new URLSearchParams();
@@ -255,13 +270,14 @@ export const appointmentService = {
     if (query?.status) queryParams.append('status', query.status);
     if (query?.from) queryParams.append('from', query.from);
     if (query?.to) queryParams.append('to', query.to);
+    if (query?.search) queryParams.append('search', query.search);
 
     const queryString = queryParams.toString();
     const url = `/appointments${queryString ? `?${queryString}` : ''}`;
     const data = await apiFetch<AppointmentItem[]>(url, {
       method: 'GET',
     });
-    cachedAppointmentsMap.set(key, data);
+    cachedAppointmentsMap.set(key, { data, timestamp: Date.now() });
     return data;
   },
 

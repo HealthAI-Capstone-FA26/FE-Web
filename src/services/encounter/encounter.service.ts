@@ -231,6 +231,13 @@ export const encounterService = {
     });
   },
 
+  // Tạo Encounter sau khi examination fee của Appointment đã thanh toán
+  async createFromPaidAppointment(appointmentId: string): Promise<EncounterItem> {
+    return apiFetch<EncounterItem>(`/encounters/from-paid-appointment/${appointmentId}`, {
+      method: 'POST',
+    });
+  },
+
   // Hoàn tất tiếp đón: kiểm tra chief complaint + xác minh danh tính + consent, chuyển sang registered và xếp vào hàng đợi triage
   async completeRegistration(encounterId: string): Promise<{
     encounter: EncounterItem;

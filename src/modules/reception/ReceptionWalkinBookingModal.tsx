@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { patientService } from '../../services/patient/patient.service';
 import { appointmentService } from '../../services/appointment/appointment.service';
+import { queueTicketService } from '../../services/queue/queue-ticket.service';
 
 export interface PatientOption {
   patientId: string;
@@ -142,15 +143,21 @@ export const ReceptionWalkinBookingModal: React.FC<ReceptionWalkinBookingModalPr
 
     setIsSubmitting(true);
     try {
-      const res = await appointmentService.createAtHospitalAppointment({
+      // 1. Cấp số thứ tự vãng lai
+      const newTicket = await queueTicketService.issueAtHospitalTicket();
+      // 2. Chuyển sang called
+      await queueTicketService.callTicket(newTicket.ticketId, '01');
+      // 3. Hoàn tất tiếp nhận gắn thông tin bệnh nhân
+      const doneRes = await queueTicketService.serveDoneTicket(newTicket.ticketId, {
         patientId: selectedPatient.patientId,
         reasonForVisit: reasonForVisit.trim() || undefined,
-        priority: priority,
+        priority: priority as any,
       });
 
       const result = {
-        appointment: res.appointment,
-        queueTicket: res.queueTicket,
+        appointment: doneRes.appointment,
+        queueTicket: doneRes.queueTicket || newTicket,
+        invoice: doneRes.invoice,
       };
       setSuccessResult(result);
       if (onSuccess) {

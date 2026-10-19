@@ -87,10 +87,13 @@ export const consentService = {
       const policies = await this.getEffectivePolicies();
       let targetPolicies = policies;
 
+      const mandatoryTypes = ['data_processing', 'treatment_consent'];
       if (options?.policyIds && options.policyIds.length > 0) {
-        targetPolicies = policies.filter((p) => options.policyIds!.includes(p.policyId));
+        // Luôn đảm bảo các chính sách bắt buộc được cam kết
+        targetPolicies = policies.filter(
+          (p) => options.policyIds!.includes(p.policyId) || mandatoryTypes.includes(p.policyType)
+        );
       } else {
-        const mandatoryTypes = ['data_processing', 'treatment_consent'];
         targetPolicies = policies.filter((p) => mandatoryTypes.includes(p.policyType));
       }
 

@@ -106,7 +106,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
   }, [datePreset, customFromDate, customToDate]);
 
   // Fetch appointments
-  const fetchAppointments = useCallback(async () => {
+  const fetchAppointments = useCallback(async (force = true) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -115,7 +115,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
         from: dateRange.from,
         to: dateRange.to,
         status: selectedStatus === 'ALL' ? undefined : selectedStatus,
-      });
+      }, force);
       setAppointments(data);
     } catch (err: any) {
       console.error('Lỗi khi tải danh sách lịch hẹn:', err);
@@ -126,7 +126,22 @@ export const ReceptionAppointmentsView: React.FC = () => {
   }, [getDateRange, selectedStatus]);
 
   useEffect(() => {
-    fetchAppointments();
+    fetchAppointments(true);
+  }, [fetchAppointments]);
+
+  // Tự động làm mới khi người dùng chuyển lại tab (window focus)
+  useEffect(() => {
+    const handleFocus = () => fetchAppointments(true);
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchAppointments]);
+
+  // Định kỳ tự động đồng bộ mỗi 20 giây để phát hiện lịch hẹn online mới
+  useEffect(() => {
+    const timer = setInterval(() => {
+      fetchAppointments(true);
+    }, 20000);
+    return () => clearInterval(timer);
   }, [fetchAppointments]);
 
   // Filtered appointments on client side (for search, channel, and sorted by newest first)
@@ -387,7 +402,10 @@ export const ReceptionAppointmentsView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={fetchAppointments}
+            onClick={() => {
+              appointmentService.invalidateCache();
+              fetchAppointments(true);
+            }}
             disabled={isLoading}
             className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all flex items-center gap-1.5 border-none cursor-pointer disabled:opacity-50"
             title="Tải lại dữ liệu mới nhất"
@@ -570,7 +588,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
             <AlertTriangle className="w-8 h-8 mx-auto text-rose-500" />
             <div className="text-sm font-bold">{error}</div>
             <button
-              onClick={fetchAppointments}
+              onClick={() => fetchAppointments(true)}
               className="mt-2 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl cursor-pointer border-none"
             >
               Thử lại

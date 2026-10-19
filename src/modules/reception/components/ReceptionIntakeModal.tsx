@@ -17,6 +17,9 @@ import {
   RefreshCw,
   PenTool,
   Eraser,
+  Search,
+  UserPlus,
+  X,
 } from 'lucide-react';
 import { type QueueTicketItem, queueTicketService } from '../../../services/queue/queue-ticket.service';
 import { type DoctorResponse } from '../../../services/doctor/doctor.service';
@@ -27,6 +30,8 @@ import {
   type VerificationStatus,
 } from '../../../services/encounter/encounter.service';
 import { consentService, type ConsentPolicyItem, type ConsentItem } from '../../../services/consent/consent.service';
+import { patientService, type PatientResponse } from '../../../services/patient/patient.service';
+import { appointmentService, type AppointmentItem } from '../../../services/appointment/appointment.service';
 
 const QUICK_SYMPTOM_TAGS = [
   'Đau đầu / Chóng mặt',
@@ -39,12 +44,42 @@ const QUICK_SYMPTOM_TAGS = [
   'Đau lưng / Mỏi khớp',
 ];
 
+export interface IntakeData {
+  patientId?: string;
+  chiefComplaint: {
+    reasonForVisit: string;
+    symptoms?: string;
+    symptomOnsetDate?: string;
+    painLevel?: number;
+    inputChannel: 'receptionist_assisted';
+  };
+  identityVerification: {
+    verificationMethod: VerificationMethod;
+    verificationStatus: VerificationStatus;
+    mismatchNotes?: string;
+  };
+  consents: {
+    policyIds: string[];
+    signatureType: 'checkbox_click' | 'e_signature_draw';
+    signatureDataUrl?: string;
+    witnessedAtCounter: boolean;
+  };
+}
+
+export interface IntakeSuccessResult {
+  queueTicket?: QueueTicketItem;
+  appointment?: any;
+  invoice?: any;
+  encounterId?: string;
+  intakeData?: IntakeData;
+}
+
 interface ReceptionIntakeModalProps {
   isOpen: boolean;
   onClose: () => void;
   ticket: QueueTicketItem | null;
   doctors: DoctorResponse[];
-  onSuccess: (encounterId?: string) => void;
+  onSuccess: (result: IntakeSuccessResult | string) => void;
   showToast: (message: string, type?: 'success' | 'info' | 'error') => void;
 }
 
@@ -63,6 +98,29 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
   const [symptomOnsetDate, setSymptomOnsetDate] = useState<string>('');
   const [painLevel, setPainLevel] = useState<number>(0);
 
+  // Phân biệt lượt khám Online (Prefix A) hay Vãng lai (Prefix B / chưa có appointment)
+  const isWalkIn = !ticket?.appointment || ticket.ticketPrefix === 'B';
+  const [walkinMode, setWalkinMode] = useState<'search' | 'online_appointment' | 'create'>('search');
+  const [searchPatientKeyword, setSearchPatientKeyword] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<PatientResponse[]>([]);
+  const [isSearchingPatients, setIsSearchingPatients] = useState<boolean>(false);
+  const [selectedWalkinPatient, setSelectedWalkinPatient] = useState<PatientResponse | null>(null);
+
+  // Tìm kiếm Lịch hẹn Online đã đặt trước
+  const [searchAppointmentKeyword, setSearchAppointmentKeyword] = useState<string>('');
+  const [isSearchingAppointments, setIsSearchingAppointments] = useState<boolean>(false);
+  const [appointmentResults, setAppointmentResults] = useState<AppointmentItem[]>([]);
+  const [selectedOnlineAppointment, setSelectedOnlineAppointment] = useState<AppointmentItem | null>(null);
+
+  // Form tạo nhanh bệnh nhân mới (Walk-in)
+  const [newFullName, setNewFullName] = useState<string>('');
+  const [newPhoneNumber, setNewPhoneNumber] = useState<string>('');
+  const [newDateOfBirth, setNewDateOfBirth] = useState<string>('');
+  const [newGender, setNewGender] = useState<'male' | 'female' | 'other'>('male');
+  const [newIdentityNumber, setNewIdentityNumber] = useState<string>('');
+  const [newInsuranceNumber, setNewInsuranceNumber] = useState<string>('');
+  const [newAddress, setNewAddress] = useState<string>('');
+
   // State Xác Minh Danh Tính
   const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>('national_id_card');
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('verified');
@@ -80,9 +138,7 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Danh sách bác sĩ khả dụng:
-  // Schema v2 phòng khám chỉ còn 1 chuyên khoa Tim mạch duy nhất (không còn doctorDepartments),
-  // nên nếu không có lọc theo khoa hoặc khoa rỗng thì hiển thị toàn bộ bác sĩ active của phòng khám.
+  // Danh sách bác sĩ khả dụng
   const availableDoctors = useMemo(() => {
     const activeDocs = doctors.filter((d) => d.isActive !== false);
     if (ticket?.departmentId) {
@@ -110,6 +166,24 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
       setWitnessedAtCounter(true);
       setSignatureDataUrl('');
 
+      // Reset walkin states
+      setWalkinMode('search');
+      setSearchPatientKeyword('');
+      setSearchResults([]);
+      setIsSearchingPatients(false);
+      setSelectedWalkinPatient(null);
+      setSearchAppointmentKeyword('');
+      setAppointmentResults([]);
+      setIsSearchingAppointments(false);
+      setSelectedOnlineAppointment(null);
+      setNewFullName('');
+      setNewPhoneNumber('');
+      setNewDateOfBirth('');
+      setNewGender('male');
+      setNewIdentityNumber('');
+      setNewInsuranceNumber('');
+      setNewAddress('');
+
       // Tính tuổi bệnh nhân để tự động nhận diện Bệnh Nhi nhỏ tuổi (< 15 tuổi)
       const dob = ticket.appointment?.patient?.dateOfBirth;
       let isChild = false;
@@ -125,16 +199,17 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
       setVerificationStatus('verified');
       setMismatchNotes('');
 
-      // Nạp danh sách chính sách Consent & Consent active của bệnh nhân
+      // Nạp danh sách chính sách Consent
+      consentService.getEffectivePolicies()
+        .then((fetchedPolicies) => {
+          setPolicies(fetchedPolicies);
+          setSelectedPolicyIds(fetchedPolicies.map((p) => p.policyId));
+        })
+        .catch((err) => console.warn('Lỗi tải danh sách policy:', err));
+
+      // Nạp active consent nếu đã có patientId
       const patientId = ticket.appointment?.patientId;
       if (patientId) {
-        consentService.getEffectivePolicies()
-          .then((fetchedPolicies) => {
-            setPolicies(fetchedPolicies);
-            setSelectedPolicyIds(fetchedPolicies.map((p) => p.policyId));
-          })
-          .catch((err) => console.warn('Lỗi tải danh sách policy:', err));
-
         consentService.getConsents({ patientId, status: 'active' })
           .then((fetchedConsents) => {
             setActiveConsents(fetchedConsents);
@@ -143,6 +218,77 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
       }
     }
   }, [isOpen, ticket, doctors]);
+
+  const handleSearchPatient = async () => {
+    if (!searchPatientKeyword.trim()) {
+      showToast('Vui lòng nhập SĐT, CCCD hoặc Tên bệnh nhân', 'info');
+      return;
+    }
+    setIsSearchingPatients(true);
+    try {
+      const data = await patientService.getAllPatients(searchPatientKeyword.trim());
+      setSearchResults(Array.isArray(data) ? data : []);
+      if (!data || data.length === 0) {
+        showToast('Không tìm thấy hồ sơ nào phù hợp', 'info');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Lỗi tìm kiếm bệnh nhân', 'error');
+    } finally {
+      setIsSearchingPatients(false);
+    }
+  };
+
+  const handleSearchOnlineAppointment = async () => {
+    if (!searchAppointmentKeyword.trim()) {
+      showToast('Vui lòng nhập SĐT, CCCD, Họ tên hoặc Mã lịch hẹn (APP-...)', 'info');
+      return;
+    }
+    setIsSearchingAppointments(true);
+    try {
+      const data = await appointmentService.getAppointments({
+        search: searchAppointmentKeyword.trim(),
+      }, true);
+      const activeAppts = (Array.isArray(data) ? data : []).filter(
+        (a) => a.status === 'confirmed' || a.status === 'pending'
+      );
+      setAppointmentResults(activeAppts);
+      if (activeAppts.length === 0) {
+        showToast('Không tìm thấy lịch hẹn online nào phù hợp hoặc lịch đã hoàn tất/hủy', 'info');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Lỗi tìm kiếm lịch hẹn online', 'error');
+    } finally {
+      setIsSearchingAppointments(false);
+    }
+  };
+
+  const handleSelectOnlineAppointment = (appt: AppointmentItem) => {
+    setSelectedOnlineAppointment(appt);
+    setAppointmentResults([]);
+    if (appt.doctorId) {
+      setSelectedDoctorId(appt.doctorId);
+    }
+    if (appt.reasonForVisit) {
+      setReasonForVisit(appt.reasonForVisit);
+    }
+    const dob = appt.patient?.dateOfBirth;
+    let isChild = false;
+    if (dob) {
+      const birthYear = new Date(dob).getFullYear();
+      const currentYear = new Date().getFullYear();
+      if (!isNaN(birthYear)) {
+        isChild = currentYear - birthYear < 15;
+      }
+    }
+    setIsPediatricPatient(isChild);
+    setVerificationMethod(isChild ? 'health_insurance_card' : 'national_id_card');
+
+    if (appt.patientId) {
+      consentService.getConsents({ patientId: appt.patientId, status: 'active' })
+        .then((fetchedConsents) => setActiveConsents(fetchedConsents))
+        .catch((err) => console.warn('Lỗi tải active consent:', err));
+    }
+  };
 
   // Xử lý vẽ chữ ký điện tử trên Canvas
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -229,124 +375,109 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
       return;
     }
 
-    // 2. Kiểm tra Lý do khám (Chief Complaint)
-    const finalReason = reasonForVisit.trim() || ticket.appointment?.reasonForVisit?.trim();
-    if (!finalReason) {
-      showToast('Vui lòng nhập lý do khám / triệu chứng ban đầu của bệnh nhân trước khi tiếp nhận', 'error');
-      return;
-    }
-
-    // 3. Kiểm tra Xác minh danh tính
-    const patientVerified = ticket.appointment?.patient?.identityVerified;
-    if (verificationStatus === 'failed') {
-      if (!mismatchNotes.trim()) {
-        showToast('Vui lòng nhập lý do không khớp khi kết quả xác minh thất bại', 'error');
-        return;
+    // 2. Kiểm tra Bệnh nhân đối với lượt khám vãng lai (Prefix B)
+    if (isWalkIn) {
+      if (walkinMode === 'online_appointment') {
+        if (!selectedOnlineAppointment) {
+          showToast('Vui lòng tìm và chọn một lịch hẹn online đã đặt', 'error');
+          return;
+        }
+      } else if (walkinMode === 'search') {
+        if (!selectedWalkinPatient) {
+          showToast('Vui lòng tìm và chọn một hồ sơ bệnh nhân hoặc chuyển sang tab khác', 'error');
+          return;
+        }
+      } else {
+        if (!newFullName.trim()) {
+          showToast('Vui lòng nhập họ tên bệnh nhân', 'error');
+          return;
+        }
+        if (!newPhoneNumber.trim()) {
+          showToast('Vui lòng nhập số điện thoại bệnh nhân', 'error');
+          return;
+        }
+        if (!newDateOfBirth) {
+          showToast('Vui lòng chọn ngày sinh bệnh nhân', 'error');
+          return;
+        }
       }
-      if (!patientVerified) {
-        showToast('Xác minh danh tính thất bại và bệnh nhân chưa có lịch sử xác minh. Không thể chuyển ca sang Điều dưỡng.', 'error');
-        return;
-      }
     }
 
-    // 4. Kiểm tra Cam kết đồng ý y tế (Consent)
-    if (policies.length > 0 && selectedPolicyIds.length === 0) {
-      showToast('Vui lòng tích chọn đồng ý các chính sách y tế bắt buộc trước khi tiếp nhận', 'error');
-      return;
-    }
-
-    if (signatureType === 'e_signature_draw' && !signatureDataUrl) {
-      showToast('Vui lòng yêu cầu bệnh nhân/người nhà vẽ chữ ký xác nhận trên bảng vẽ chữ ký', 'error');
-      return;
-    }
+    // 3. Kiểm tra Lý do khám (Chief Complaint)
+    const finalReason = reasonForVisit.trim() || symptoms.trim() || ticket.appointment?.reasonForVisit?.trim() || 'Khám bệnh';
 
     setIsSubmitting(true);
     try {
-      // 1. Chuyển trạng thái ticket -> done, appointment -> checked_in, tạo Encounter
-      const res = await queueTicketService.serveDoneTicket(ticket.ticketId, {
+      const payload: any = {
         doctorId: selectedDoctorId,
-      });
+        reasonForVisit: finalReason,
+        symptoms: symptoms.trim() || undefined,
+        priority: 'normal',
+      };
 
-      const encounterId = res.encounter?.encounterId;
-      const code = formatTicketCode(ticket);
-
-      // 2. Ghi nhận Log Xác Minh Danh Tính (Chức năng 5: POST /encounters/:id/identity-verifications)
-      if (encounterId) {
-        try {
-          const isBhyt = verificationMethod === 'health_insurance_card';
-          const apiMethod = isBhyt ? 'manual' : verificationMethod;
-          const prefix = isBhyt ? '[BHYT/VssID]' : '';
-          const finalNotes = prefix
-            ? (verificationStatus === 'failed' && mismatchNotes.trim()
-                ? `${prefix} ${mismatchNotes.trim()}`
-                : prefix)
-            : (verificationStatus === 'failed' ? mismatchNotes.trim() : undefined);
-
-          await encounterService.recordIdentityVerification(encounterId, {
-            verificationMethod: apiMethod,
-            verificationStatus,
-            mismatchNotes: finalNotes,
-          });
-        } catch (idErr: any) {
-          console.warn('Ghi nhận log xác minh danh tính thất bại:', idErr);
-        }
-
-        // 3. Ghi nhận Chief Complaint vào lượt khám Encounter
-        try {
-          await chiefComplaintService.upsert(encounterId, {
-            reasonForVisit: finalReason,
-            symptoms: symptoms.trim() || undefined,
-            symptomOnsetDate: symptomOnsetDate || undefined,
-            painLevel: painLevel,
-            inputChannel: 'receptionist_assisted',
-          });
-        } catch (ccErr: any) {
-          console.warn('Lưu Chief Complaint thất bại:', ccErr);
-        }
-
-        // 4. Ký cam kết đồng ý xử lý dữ liệu và điều trị (data_processing, treatment_consent, ...)
-        const patientId = ticket.appointment?.patientId;
-        if (patientId) {
-          try {
-            if (selectedPolicyIds.length > 0) {
-              for (const policyId of selectedPolicyIds) {
-                try {
-                  await consentService.createConsent({
-                    patientId,
-                    encounterId,
-                    policyId,
-                    signatureType,
-                    signatureDataUrl: signatureType === 'e_signature_draw' ? signatureDataUrl : undefined,
-                    witnessedAtCounter,
-                  });
-                } catch (cErr) {
-                  console.warn(`Lỗi tạo consent cho policy ${policyId}:`, cErr);
-                  throw cErr;
-                }
-              }
-            } else {
-              await consentService.ensureMandatoryConsents(patientId, encounterId);
-            }
-          } catch (consentErr) {
-            console.warn('Ghi nhận cam kết đồng ý y tế thất bại:', consentErr);
-            throw consentErr;
+      if (isWalkIn) {
+        if (walkinMode === 'online_appointment' && selectedOnlineAppointment) {
+          payload.appointmentId = selectedOnlineAppointment.appointmentId;
+          if (selectedOnlineAppointment.patientId) {
+            payload.patientId = selectedOnlineAppointment.patientId;
           }
+        } else if (walkinMode === 'search' && selectedWalkinPatient) {
+          payload.patientId = selectedWalkinPatient.patientId;
+        } else {
+          payload.patient = {
+            fullName: newFullName.trim(),
+            phoneNumber: newPhoneNumber.trim(),
+            dateOfBirth: newDateOfBirth,
+            gender: newGender,
+            identityNumber: newIdentityNumber.trim() || undefined,
+            insuranceNumber: newInsuranceNumber.trim() || undefined,
+            address: newAddress.trim() || undefined,
+          };
         }
-
-        // Lưu ý: completeRegistration sẽ được gọi SAU KHI thanh toán phí khám thành công
-        // tại ReceptionQueueCallingWorkspaceView -> handlePaymentSuccess
       }
+
+      // 1. Chuyển trạng thái ticket -> done, tạo appointment & lập invoice phí khám
+      const res = await queueTicketService.serveDoneTicket(ticket.ticketId, payload);
+      const code = formatTicketCode(ticket);
 
       showToast(
         `Đã tiếp nhận hồ sơ số ${code}, vui lòng thu phí khám ban đầu!`,
         'success'
       );
-      onSuccess(encounterId);
+      const intakeData: IntakeData = {
+        patientId: res.appointment?.patientId || payload.patientId || patient?.patientId,
+        chiefComplaint: {
+          reasonForVisit: finalReason,
+          symptoms: symptoms.trim() || undefined,
+          symptomOnsetDate: symptomOnsetDate || undefined,
+          painLevel: painLevel,
+          inputChannel: 'receptionist_assisted',
+        },
+        identityVerification: {
+          verificationMethod,
+          verificationStatus,
+          mismatchNotes: mismatchNotes.trim() || undefined,
+        },
+        consents: {
+          policyIds: selectedPolicyIds,
+          signatureType,
+          signatureDataUrl: signatureDataUrl || undefined,
+          witnessedAtCounter,
+        },
+      };
+
+      onSuccess({
+        queueTicket: res.queueTicket || ticket,
+        appointment: res.appointment,
+        invoice: res.invoice,
+        encounterId: res.encounter?.encounterId,
+        intakeData,
+      });
       onClose();
     } catch (err: any) {
       console.error('Lỗi khi hoàn tất tiếp nhận:', err);
 
-      // Nếu tiếp nhận/đăng ký triage thất bại, lập tức hoàn tác đưa ticket về trạng thái 'called'
+      // Nếu tiếp nhận thất bại, lập tức hoàn tác đưa ticket về trạng thái 'called'
       if (ticket?.ticketId) {
         try {
           await queueTicketService.callTicket(ticket.ticketId, ticket.counterNumber || '01');
@@ -365,7 +496,13 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
     }
   };
 
-  const patient = ticket.appointment?.patient;
+  const patient = isWalkIn
+    ? (walkinMode === 'online_appointment'
+        ? selectedOnlineAppointment?.patient
+        : (walkinMode === 'search'
+            ? selectedWalkinPatient
+            : (newFullName ? { fullName: newFullName, phoneNumber: newPhoneNumber, dateOfBirth: newDateOfBirth, gender: newGender, identityNumber: newIdentityNumber, insuranceNumber: newInsuranceNumber, identityVerified: false } as any : null)))
+    : ticket.appointment?.patient;
   const birthYear = patient?.dateOfBirth ? new Date(patient.dateOfBirth).getFullYear() : null;
   const age = birthYear && !isNaN(birthYear) ? new Date().getFullYear() - birthYear : null;
 
@@ -397,89 +534,382 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
 
         {/* Modal Body */}
         <div className="p-6 space-y-4 overflow-y-auto text-xs flex-1">
-          {/* THÔNG TIN HỒ SƠ BỆNH NHÂN ĐỂ ĐỐI CHIẾU TẠI QUẦY */}
-          <div className="p-3.5 bg-gradient-to-br from-slate-50 to-teal-50/40 rounded-2xl border border-teal-100/90 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs text-teal-950">
-                <User className="w-3.5 h-3.5 text-teal-600" />
-                <span>Hồ sơ lưu trữ hệ thống (Dùng để đối chiếu giấy tờ thực tế):</span>
-              </span>
-              {patient?.identityVerified ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  <span>Đã từng xác minh danh tính</span>
-                </span>
+          {/* THÔNG TIN BỆNH NHÂN: VÃNG LAI (TÌM HOẶC TẠO MỚI) HOẶC ONLINE (ĐÃ CÓ SẴN) */}
+          {isWalkIn ? (
+            <div className="p-4 bg-gradient-to-br from-slate-50 to-teal-50/50 rounded-2xl border border-teal-200/90 space-y-3.5 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-teal-100 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                    Khách Vãng Lai / Bốc Số Tại Chỗ ({formatTicketCode(ticket)})
+                  </span>
+                </div>
+                <div className="flex bg-slate-200/80 p-0.5 rounded-xl text-xs font-semibold overflow-x-auto">
+                  <button
+                    type="button"
+                    onClick={() => { setWalkinMode('search'); }}
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${walkinMode === 'search' ? 'bg-white text-teal-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>Tìm hồ sơ cũ</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setWalkinMode('online_appointment'); }}
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${walkinMode === 'online_appointment' ? 'bg-white text-teal-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Đã đặt lịch Online</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setWalkinMode('create'); }}
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${walkinMode === 'create' ? 'bg-white text-teal-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Tạo hồ sơ mới</span>
+                  </button>
+                </div>
+              </div>
+
+              {walkinMode === 'online_appointment' ? (
+                <div className="space-y-3">
+                  {!selectedOnlineAppointment ? (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={searchAppointmentKeyword}
+                            onChange={(e) => setSearchAppointmentKeyword(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSearchOnlineAppointment()}
+                            placeholder="Nhập SĐT, CCCD, Họ tên hoặc Mã lịch hẹn (APP-...)"
+                            className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
+                          />
+                          <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleSearchOnlineAppointment}
+                          disabled={isSearchingAppointments}
+                          className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          {isSearchingAppointments ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                          <span>Tìm lịch hẹn</span>
+                        </button>
+                      </div>
+
+                      {appointmentResults.length > 0 && (
+                        <div className="max-h-56 overflow-y-auto space-y-2 bg-white p-2 rounded-xl border border-slate-200 shadow-xs">
+                          {appointmentResults.map((appt) => {
+                            const pName = appt.patient?.fullName || 'Khách chưa đồng bộ';
+                            const pPhone = appt.patient?.phoneNumber;
+                            const dName = appt.doctor?.user?.fullName || appt.doctor?.fullName || 'Chưa gán bác sĩ';
+                            const dateStr = appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString('vi-VN') : '';
+                            const timeStr = appt.slot ? `${appt.slot.slotStartTime} - ${appt.slot.slotEndTime}` : appt.appointmentTime || '';
+
+                            return (
+                              <div
+                                key={appt.appointmentId}
+                                onClick={() => handleSelectOnlineAppointment(appt)}
+                                className="p-3 hover:bg-teal-50/80 rounded-xl border border-slate-200 hover:border-teal-300 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                              >
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-teal-800 text-xs px-2 py-0.5 rounded-md bg-teal-100/70 border border-teal-200">
+                                      {appt.appointmentCode}
+                                    </span>
+                                    <span className="font-bold text-slate-900 text-xs">{pName}</span>
+                                    {pPhone && <span className="text-[11px] text-slate-500">SĐT: {pPhone}</span>}
+                                  </div>
+                                  <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                                    <span>Bác sĩ: <strong className="text-slate-800">{dName}</strong></span>
+                                    {dateStr && <span>Ngày: <strong>{dateStr}</strong></span>}
+                                    {timeStr && <span>Khung giờ: <strong>{timeStr}</strong></span>}
+                                  </div>
+                                  {appt.reasonForVisit && (
+                                    <p className="text-[11px] text-slate-500 italic line-clamp-1">
+                                      Lý do: "{appt.reasonForVisit}"
+                                    </p>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  className="self-start sm:self-center text-xs font-bold text-teal-700 hover:text-white px-3 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-600 border border-teal-300 transition shrink-0"
+                                >
+                                  Chọn lịch này
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-3.5 bg-emerald-50/90 rounded-xl border border-emerald-300 flex items-center justify-between shadow-2xs">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="font-bold text-emerald-900 text-xs">
+                            Đã liên kết Lịch hẹn: {selectedOnlineAppointment.appointmentCode}
+                          </span>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            {selectedOnlineAppointment.status === 'confirmed' ? 'Đã xác nhận' : 'Chờ xác nhận'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-emerald-800 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                          <span>Bệnh nhân: <strong>{selectedOnlineAppointment.patient?.fullName || 'Chưa đồng bộ'}</strong></span>
+                          <span>SĐT: <strong>{selectedOnlineAppointment.patient?.phoneNumber || 'N/A'}</strong></span>
+                          <span>Bác sĩ: <strong>{selectedOnlineAppointment.doctor?.user?.fullName || selectedOnlineAppointment.doctor?.fullName || 'N/A'}</strong></span>
+                        </div>
+                        {selectedOnlineAppointment.reasonForVisit && (
+                          <div className="text-[11px] text-emerald-700 italic">
+                            Lý do khám: {selectedOnlineAppointment.reasonForVisit}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOnlineAppointment(null)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer shrink-0 ml-2"
+                        title="Hủy liên kết / Chọn lịch khác"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : walkinMode === 'search' ? (
+                <div className="space-y-3">
+                  {!selectedWalkinPatient ? (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={searchPatientKeyword}
+                            onChange={(e) => setSearchPatientKeyword(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSearchPatient()}
+                            placeholder="Nhập Số điện thoại, CCCD hoặc Họ tên bệnh nhân..."
+                            className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
+                          />
+                          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleSearchPatient}
+                          disabled={isSearchingPatients}
+                          className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          {isSearchingPatients ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                          <span>Tìm kiếm</span>
+                        </button>
+                      </div>
+
+                      {searchResults.length > 0 && (
+                        <div className="max-h-48 overflow-y-auto space-y-1.5 bg-white p-2 rounded-xl border border-slate-200 shadow-xs">
+                          {searchResults.map((p) => (
+                            <div
+                              key={p.patientId}
+                              onClick={() => { setSelectedWalkinPatient(p); setSearchResults([]); }}
+                              className="p-2.5 hover:bg-teal-50 rounded-lg border border-transparent hover:border-teal-200 transition cursor-pointer flex items-center justify-between"
+                            >
+                              <div>
+                                <span className="font-bold text-slate-900 text-xs">{p.fullName}</span>
+                                <span className="text-[11px] text-slate-500 ml-2">SĐT: {p.phoneNumber}</span>
+                                {p.identityNumber && <span className="text-[11px] text-slate-500 ml-2">• CCCD: {p.identityNumber}</span>}
+                              </div>
+                              <span className="text-[10px] font-bold text-teal-600 px-2 py-0.5 rounded-full bg-teal-50 border border-teal-200">
+                                Chọn
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span className="font-bold text-emerald-950 text-xs">{selectedWalkinPatient.fullName}</span>
+                          <span className="text-[11px] text-emerald-700">({selectedWalkinPatient.gender === 'male' ? 'Nam' : 'Nữ'}, sinh {new Date(selectedWalkinPatient.dateOfBirth).toLocaleDateString('vi-VN')})</span>
+                        </div>
+                        <div className="text-[11px] text-emerald-700 mt-1 flex items-center gap-3">
+                          <span>SĐT: <strong>{selectedWalkinPatient.phoneNumber}</strong></span>
+                          <span>CCCD: <strong>{selectedWalkinPatient.identityNumber || 'Chưa có'}</strong></span>
+                          <span>Mã BN: <strong>{selectedWalkinPatient.patientCode}</strong></span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedWalkinPatient(null)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                        title="Chọn bệnh nhân khác"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                  <AlertCircle className="w-3 h-3 text-amber-600" />
-                  <span>Chưa từng xác minh danh tính</span>
-                </span>
+                /* walkinMode === 'create' */
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700">Họ và tên <span className="text-rose-500">*</span></label>
+                    <input
+                      type="text"
+                      value={newFullName}
+                      onChange={(e) => setNewFullName(e.target.value)}
+                      placeholder="Nguyễn Văn A"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs mt-0.5 focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700">Số điện thoại <span className="text-rose-500">*</span></label>
+                    <input
+                      type="tel"
+                      value={newPhoneNumber}
+                      onChange={(e) => setNewPhoneNumber(e.target.value)}
+                      placeholder="0912345678"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs mt-0.5 focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700">Ngày sinh <span className="text-rose-500">*</span></label>
+                    <input
+                      type="date"
+                      value={newDateOfBirth}
+                      onChange={(e) => setNewDateOfBirth(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs mt-0.5 focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700">Giới tính <span className="text-rose-500">*</span></label>
+                    <select
+                      value={newGender}
+                      onChange={(e) => setNewGender(e.target.value as any)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs mt-0.5 focus:border-teal-500 focus:outline-none"
+                    >
+                      <option value="male">Nam</option>
+                      <option value="female">Nữ</option>
+                      <option value="other">Khác</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700">Số CCCD / Định danh</label>
+                    <input
+                      type="text"
+                      value={newIdentityNumber}
+                      onChange={(e) => setNewIdentityNumber(e.target.value)}
+                      placeholder="12 chữ số"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs mt-0.5 focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700">Mã thẻ BHYT</label>
+                    <input
+                      type="text"
+                      value={newInsuranceNumber}
+                      onChange={(e) => setNewInsuranceNumber(e.target.value)}
+                      placeholder="VD: GD401..."
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs mt-0.5 focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="sm:col-span-2 lg:col-span-3">
+                    <label className="text-[10px] font-bold text-slate-700">Địa chỉ cư trú</label>
+                    <input
+                      type="text"
+                      value={newAddress}
+                      onChange={(e) => setNewAddress(e.target.value)}
+                      placeholder="Số nhà, tên đường, phường/xã..."
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs mt-0.5 focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
               )}
             </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {/* Số CCCD / CMND */}
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
-                <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
-                  <CreditCard className="w-3 h-3 text-blue-500" />
-                  <span>Số CCCD / CMND</span>
-                </div>
-                <div className="font-mono font-bold text-slate-800 text-xs mt-1">
-                  {patient?.identityNumber || (
-                    <span className="text-slate-400 font-normal italic text-[11px]">Chưa cập nhật CCCD</span>
-                  )}
-                </div>
+          ) : (
+            /* THÔNG TIN HỒ SƠ BỆNH NHÂN ĐẶT ONLINE ĐỂ ĐỐI CHIẾU TẠI QUẦY */
+            <div className="p-3.5 bg-gradient-to-br from-slate-50 to-teal-50/40 rounded-2xl border border-teal-100/90 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs text-teal-950">
+                  <User className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Hồ sơ đặt hẹn Online (Dùng để đối chiếu giấy tờ thực tế):</span>
+                </span>
+                {patient?.identityVerified ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    <span>Đã từng xác minh danh tính</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                    <AlertCircle className="w-3 h-3 text-amber-600" />
+                    <span>Chưa từng xác minh danh tính</span>
+                  </span>
+                )}
               </div>
 
-              {/* Mã số thẻ BHYT */}
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
-                <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
-                  <FileCheck2 className="w-3 h-3 text-emerald-500" />
-                  <span>Mã Thẻ BHYT</span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                  <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                    <CreditCard className="w-3 h-3 text-blue-500" />
+                    <span>Số CCCD / CMND</span>
+                  </div>
+                  <div className="font-mono font-bold text-slate-800 text-xs mt-1">
+                    {patient?.identityNumber || (
+                      <span className="text-slate-400 font-normal italic text-[11px]">Chưa cập nhật CCCD</span>
+                    )}
+                  </div>
                 </div>
-                <div className="font-mono font-bold text-emerald-700 text-xs mt-1">
-                  {patient?.insuranceNumber || (
-                    <span className="text-slate-400 font-normal italic text-[11px]">Chưa đăng ký BHYT</span>
-                  )}
-                </div>
-              </div>
 
-              {/* Ngày sinh / Tuổi */}
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
-                <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-purple-500" />
-                  <span>Ngày sinh & Tuổi</span>
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                  <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                    <FileCheck2 className="w-3 h-3 text-emerald-500" />
+                    <span>Mã Thẻ BHYT</span>
+                  </div>
+                  <div className="font-mono font-bold text-emerald-700 text-xs mt-1">
+                    {patient?.insuranceNumber || (
+                      <span className="text-slate-400 font-normal italic text-[11px]">Chưa đăng ký BHYT</span>
+                    )}
+                  </div>
                 </div>
-                <div className="font-semibold text-slate-800 text-xs mt-1">
-                  {patient?.dateOfBirth ? (
-                    <>
-                      <span>{new Date(patient.dateOfBirth).toLocaleDateString('vi-VN')}</span>
-                      {age !== null && (
-                        <span className="text-slate-500 font-normal text-[11px] ml-1">
-                          ({age} tuổi)
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-slate-400 font-normal italic text-[11px]">Chưa có ngày sinh</span>
-                  )}
-                </div>
-              </div>
 
-              {/* Giới tính & Số điện thoại */}
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
-                <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
-                  <Users className="w-3 h-3 text-amber-500" />
-                  <span>Giới tính / SĐT</span>
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                  <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-purple-500" />
+                    <span>Ngày sinh & Tuổi</span>
+                  </div>
+                  <div className="font-semibold text-slate-800 text-xs mt-1">
+                    {patient?.dateOfBirth ? (
+                      <>
+                        <span>{new Date(patient.dateOfBirth).toLocaleDateString('vi-VN')}</span>
+                        {age !== null && (
+                          <span className="text-slate-500 font-normal text-[11px] ml-1">
+                            ({age} tuổi)
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-slate-400 font-normal italic text-[11px]">Chưa có ngày sinh</span>
+                    )}
+                  </div>
                 </div>
-                <div className="font-semibold text-slate-800 text-xs mt-1">
-                  <span>{patient?.gender === 'male' ? 'Nam' : patient?.gender === 'female' ? 'Nữ' : 'Khác'}</span>
-                  <span className="text-slate-300 font-normal mx-1">•</span>
-                  <span className="text-slate-600 font-mono text-[11px]">{patient?.phoneNumber || '---'}</span>
+
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                  <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                    <Users className="w-3 h-3 text-amber-500" />
+                    <span>Giới tính / SĐT</span>
+                  </div>
+                  <div className="font-semibold text-slate-800 text-xs mt-1">
+                    <span>{patient?.gender === 'male' ? 'Nam' : patient?.gender === 'female' ? 'Nữ' : 'Khác'}</span>
+                    <span className="text-slate-300 font-normal mx-1">•</span>
+                    <span className="text-slate-600 font-mono text-[11px]">{patient?.phoneNumber || '---'}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Chọn Bác Sĩ */}
           <div className="space-y-1.5">
