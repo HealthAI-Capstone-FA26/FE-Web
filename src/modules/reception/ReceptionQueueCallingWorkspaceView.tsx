@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Eye,
   Stethoscope,
+  Ticket,
 } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { queueTicketService, type QueueTicketItem } from '../../services/queue/queue-ticket.service';
@@ -22,8 +23,10 @@ import { doctorService, type DepartmentResponse, type DoctorResponse } from '../
 import { encounterService } from '../../services/encounter/encounter.service';
 import { invoiceService, type InvoiceData } from '../../services/payment/invoice.service';
 import { type AppointmentItem } from '../../services/appointment/appointment.service';
+import { chiefComplaintService } from '../../services/reception/chief-complaint.service';
+import { consentService } from '../../services/consent/consent.service';
 import { IdentityVerificationHistoryModal } from './components/IdentityVerificationHistoryModal';
-import { ReceptionIntakeModal } from './components/ReceptionIntakeModal';
+import { ReceptionIntakeModal, type IntakeData } from './components/ReceptionIntakeModal';
 import { ReceptionPaymentModal } from './components/ReceptionPaymentModal';
 import { ReceptionAppointmentDetailModal } from './components/ReceptionAppointmentDetailModal';
 
@@ -108,9 +111,10 @@ const speakQueueAnnouncement = (
   // Đọc mã số tách rời ký tự để rõ ràng hơn (VD: "B001" -> "B 0 0 1")
   const formattedCode = ticketCode.split('').join(' ');
   const counterStr = counterName || 'Quầy tiếp nhận';
-  const nameStr = patientName && patientName !== 'Bệnh nhân chưa đặt tên' ? `bệnh nhân ${patientName}` : 'bệnh nhân';
+  const isGeneric = !patientName || patientName === 'Bệnh nhân chưa đặt tên' || patientName.includes('vãng lai');
+  const nameStr = isGeneric ? 'quý khách' : `bệnh nhân ${patientName}`;
 
-  // Câu phát thanh chuẩn bệnh viện: "Xin mời bệnh nhân Nguyễn Văn A, số thứ tự B 0 0 1, đến Quầy 01"
+  // Câu phát thanh chuẩn bệnh viện: "Xin mời quý khách / bệnh nhân Nguyễn Văn A, số thứ tự B 0 0 1, đến Quầy 01"
   const textToSpeak = `Xin mời ${nameStr}, số thứ tự ${formattedCode}, đến ${counterStr}.`;
 
   const nativeViVoice = getVietnameseVoice(selectedVoiceURI);
@@ -401,80 +405,201 @@ const ReceptionQueueCallingBoard: React.FC = () => {
    * 2. Sau khi tạo Encounter thành công, handleIntakeSuccess sẽ tự động kiểm tra/tạo hóa đơn và mở modal thanh toán.
    */
   const handleServeTicket = (ticket: QueueTicketItem) => {
-    const appointmentId = ticket.appointmentId;
-    if (!appointmentId) {
-      showToast('Không tìm thấy thông tin lịch hẹn', 'error');
-      return;
-    }
-
-    // Mở trực tiếp Modal Tiếp Đón & Khai Báo Lâm Sàng Ban Đầu
+    // Mở trực tiếp Modal Tiếp Đón & Khai Báo Lâm Sàng Ban Đầu (hỗ trợ cả Online A-xxx và Vãng lai B-xxx)
     setIntakeModalTicket(ticket);
   };
 
-  // Lưu encounterId đang chờ thanh toán để gọi completeRegistration sau khi thu tiền thành công
+  // Lưu appointmentId và encounterId đang chờ thanh toán để tạo Encounter / hoàn tất tiếp đón
+  const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(null);
   const [pendingEncounterId, setPendingEncounterId] = useState<string | null>(null);
+  const [pendingIntakeData, setPendingIntakeData] = useState<IntakeData | null>(null);
+  const [isIssuingWalkinTicket, setIsIssuingWalkinTicket] = useState<boolean>(false);
 
-  /** Sau khi tiếp nhận thành công và đã tạo Encounter -> tự động tạo/mở hóa đơn phí khám để thu tiền */
-  const handleIntakeSuccess = async (createdEncounterId?: string) => {
-    fetchTickets(true);
-    if (!createdEncounterId) return;
-
-    setPendingEncounterId(createdEncounterId);
-
+  /** Cấp nhanh số vãng lai tại quầy (dành cho lễ tân cấp hộ) */
+  const handleQuickIssueWalkInTicket = async () => {
+    setIsIssuingWalkinTicket(true);
     try {
-      let invoice: InvoiceData | null = null;
-      const invoices = await invoiceService.findMany({ encounterId: createdEncounterId });
-      const consultInv = invoices.find(
-        (inv) => inv.invoiceType === 'consultation' && inv.status !== 'cancelled'
-      );
-
-      if (!consultInv) {
-        // Tạo hóa đơn phí khám theo đúng encounterId vừa tạo
-        invoice = await invoiceService.generate({ encounterId: createdEncounterId });
-      } else {
-        invoice = consultInv;
-      }
-
-      // Nếu hóa đơn chưa thanh toán -> mở modal thu tiền viện phí
-      if (invoice && invoice.status !== 'paid') {
-        setConsultationInvoice(invoice);
-        setIsPaymentModalOpen(true);
-      } else if (invoice && invoice.status === 'paid') {
-        // Nếu đã thanh toán từ trước (online), tự động hoàn tất tiếp đón sang Triage
-        try {
-          await encounterService.completeRegistration(createdEncounterId);
-          showToast('Hồ sơ đã thanh toán, đã tự động chuyển sang phòng Điều dưỡng đo sinh hiệu!', 'success');
-          fetchTickets(true);
-        } catch (regErr: any) {
-          console.warn('Lỗi tự động hoàn tất tiếp đón:', regErr);
-        }
-      }
+      const newT = await queueTicketService.issueAtHospitalTicket();
+      const code = `${newT.ticketPrefix}${String(newT.ticketNumber).padStart(3, '0')}`;
+      showToast(`Đã cấp số thứ tự mới: ${code}`, 'success');
+      fetchTickets(true);
     } catch (err: any) {
-      console.warn('Lỗi kiểm tra/tạo hóa đơn sau khi tiếp nhận:', err);
-      showToast('Đã lưu thông tin tiếp đón, nhưng chưa tạo được hóa đơn phí khám. Vui lòng thử lại!', 'error');
+      showToast(err.message || 'Lỗi cấp số thứ tự', 'error');
+    } finally {
+      setIsIssuingWalkinTicket(false);
     }
   };
 
-  /** Sau khi thanh toán thành công → gọi completeRegistration và đóng payment modal */
-  const handlePaymentSuccess = async () => {
-    const encId = pendingEncounterId || consultationInvoice?.encounterId;
-    if (encId) {
+  /**
+   * Helper nạp đầy đủ thông tin lâm sàng, xác minh danh tính và chính sách cam kết (Consent)
+   * vào Encounter trước khi gọi completeRegistration để chuyển sang hàng đợi Điều dưỡng
+   */
+  const completeEncounterRegistration = async (
+    targetEncounter: { encounterId: string; patientId?: string },
+    intakeData?: IntakeData | null
+  ) => {
+    const encId = targetEncounter.encounterId;
+    let pId = targetEncounter.patientId || intakeData?.patientId;
+
+    if (!pId) {
       try {
-        await encounterService.completeRegistration(encId);
-        showToast('Thu tiền viện phí thành công! Bệnh nhân đã được chuyển sang phòng Điều dưỡng đo sinh hiệu.', 'success');
-      } catch (err: any) {
-        console.error('Lỗi khi hoàn tất chuyển hàng đợi điều dưỡng:', err);
-        showToast('Thanh toán thành công nhưng chưa hoàn tất chuyển hàng đợi điều dưỡng. Vui lòng kiểm tra lại!', 'error');
+        const encDetail = await encounterService.getEncounterById(encId);
+        pId = encDetail?.patientId;
+      } catch (e) {
+        console.warn('Không thể tra cứu chi tiết encounter để lấy patientId:', e);
       }
-    } else {
-      showToast('Thu tiền viện phí thành công!', 'success');
     }
 
-    setIsPaymentModalOpen(false);
-    setPendingPaymentTicket(null);
-    setConsultationInvoice(null);
-    setPendingEncounterId(null);
+    if (intakeData) {
+      // 1. Ghi nhận lý do khám & triệu chứng ban đầu (Chief Complaint)
+      if (intakeData.chiefComplaint?.reasonForVisit) {
+        try {
+          await chiefComplaintService.upsert(encId, intakeData.chiefComplaint);
+        } catch (ccErr) {
+          console.warn('Lỗi ghi nhận lý do khám ban đầu:', ccErr);
+        }
+      }
+
+      // 2. Ghi nhận log xác minh danh tính
+      if (intakeData.identityVerification) {
+        try {
+          await encounterService.recordIdentityVerification(encId, intakeData.identityVerification);
+        } catch (idErr) {
+          console.warn('Lỗi ghi nhận xác minh danh tính:', idErr);
+        }
+      }
+
+      // 3. Ghi nhận các cam kết/chính sách bắt buộc (Consents)
+      if (pId) {
+        try {
+          await consentService.ensureMandatoryConsents(
+            pId,
+            encId,
+            intakeData.consents
+          );
+        } catch (csErr) {
+          console.warn('Lỗi lưu chính sách cam kết của bệnh nhân:', csErr);
+        }
+      }
+    } else {
+      // Fallback nếu không có intakeData (thanh toán từ bên ngoài danh sách)
+      if (pId) {
+        try {
+          await consentService.ensureMandatoryConsents(pId, encId);
+        } catch (csErr) {
+          console.warn('Lỗi lưu cam kết mặc định:', csErr);
+        }
+      }
+      try {
+        await chiefComplaintService.upsert(encId, {
+          reasonForVisit: 'Khám bệnh',
+          inputChannel: 'receptionist_assisted',
+        });
+      } catch (ccErr) {
+        console.warn('Lỗi upsert lý do khám mặc định:', ccErr);
+      }
+      try {
+        await encounterService.recordIdentityVerification(encId, {
+          verificationMethod: 'national_id_card',
+          verificationStatus: 'verified',
+        });
+      } catch (idErr) {
+        console.warn('Lỗi ghi nhận xác minh danh tính mặc định:', idErr);
+      }
+    }
+
+    // 4. Kiểm tra đầy đủ điều kiện và chuyển trạng thái Encounter: arrived -> registered, tự động đẩy vào TriageQueueEntry
+    await encounterService.completeRegistration(encId);
+  };
+
+  /** Sau khi tiếp nhận thành công -> tự động mở hóa đơn phí khám để thu tiền */
+  const handleIntakeSuccess = async (result?: any) => {
     fetchTickets(true);
+    if (!result) return;
+
+    const appointmentId = typeof result === 'object' ? result.appointment?.appointmentId : null;
+    const invoice = typeof result === 'object' ? result.invoice : null;
+    const encounterId = typeof result === 'object' ? (result.encounterId || result.encounter?.encounterId) : (typeof result === 'string' ? result : null);
+    const intakeData = typeof result === 'object' ? result.intakeData : null;
+
+    if (intakeData) setPendingIntakeData(intakeData);
+    if (appointmentId) setPendingAppointmentId(appointmentId);
+    if (encounterId) setPendingEncounterId(encounterId);
+
+    try {
+      let finalInvoice: InvoiceData | null = invoice || null;
+
+      // Nếu trong result chưa có invoice, tìm theo appointmentId hoặc encounterId
+      if (!finalInvoice) {
+        if (appointmentId) {
+          const invoices = await invoiceService.findMany({ appointmentId });
+          finalInvoice = invoices.find((inv) => inv.status !== 'cancelled') || null;
+          if (!finalInvoice) {
+            finalInvoice = await invoiceService.generate({ appointmentId });
+          }
+        } else if (encounterId) {
+          const invoices = await invoiceService.findMany({ encounterId });
+          finalInvoice = invoices.find((inv) => inv.status !== 'cancelled') || null;
+          if (!finalInvoice) {
+            finalInvoice = await invoiceService.generate({ encounterId });
+          }
+        }
+      }
+
+      // Nếu hóa đơn chưa thanh toán -> mở modal thu tiền viện phí
+      if (finalInvoice && finalInvoice.status !== 'paid') {
+        setConsultationInvoice(finalInvoice);
+        setIsPaymentModalOpen(true);
+      } else if (finalInvoice && finalInvoice.status === 'paid') {
+        // Nếu đã thanh toán từ trước (online)
+        if (appointmentId) {
+          const createdEnc = await encounterService.createFromPaidAppointment(appointmentId);
+          await completeEncounterRegistration(createdEnc, intakeData);
+          showToast('Hồ sơ đã thanh toán, đã tự động chuyển sang phòng Điều dưỡng đo sinh hiệu!', 'success');
+          fetchTickets(true);
+        } else if (encounterId) {
+          await completeEncounterRegistration({ encounterId, patientId: intakeData?.patientId }, intakeData);
+          showToast('Hồ sơ đã thanh toán, đã tự động chuyển sang phòng Điều dưỡng đo sinh hiệu!', 'success');
+          fetchTickets(true);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Lỗi kiểm tra/mở hóa đơn sau khi tiếp nhận:', err);
+      showToast('Đã lưu thông tin tiếp đón, nhưng chưa mở được hóa đơn phí khám. Vui lòng thử lại!', 'error');
+    }
+  };
+
+  /** Sau khi thanh toán thành công → tạo encounter từ appointment và hoàn tất chuyển hàng đợi điều dưỡng */
+  const handlePaymentSuccess = async () => {
+    const apptId = pendingAppointmentId || consultationInvoice?.appointmentId;
+    const encId = pendingEncounterId || consultationInvoice?.encounterId;
+    const pId = consultationInvoice?.patientId || pendingIntakeData?.patientId;
+
+    try {
+      if (apptId) {
+        // Tạo Encounter chính thức sau khi examination fee của Appointment đã thanh toán
+        const createdEnc = await encounterService.createFromPaidAppointment(apptId);
+        // Hoàn tất thủ tục tiếp đón & chuyển sang phòng Điều dưỡng triage
+        await completeEncounterRegistration(createdEnc, pendingIntakeData);
+        showToast('Thu tiền viện phí thành công! Bệnh nhân đã được chuyển sang phòng Điều dưỡng đo sinh hiệu.', 'success');
+      } else if (encId) {
+        await completeEncounterRegistration({ encounterId: encId, patientId: pId }, pendingIntakeData);
+        showToast('Thu tiền viện phí thành công! Bệnh nhân đã được chuyển sang phòng Điều dưỡng đo sinh hiệu.', 'success');
+      } else {
+        showToast('Thu tiền viện phí thành công!', 'success');
+      }
+    } catch (err: any) {
+      console.error('Lỗi khi hoàn tất chuyển hàng đợi điều dưỡng:', err);
+      showToast('Thanh toán thành công nhưng chưa hoàn tất chuyển hàng đợi điều dưỡng. Vui lòng kiểm tra lại!', 'error');
+    } finally {
+      setIsPaymentModalOpen(false);
+      setPendingPaymentTicket(null);
+      setConsultationInvoice(null);
+      setPendingEncounterId(null);
+      setPendingAppointmentId(null);
+      setPendingIntakeData(null);
+      fetchTickets(true);
+    }
   };
 
   return (
@@ -588,6 +713,16 @@ const ReceptionQueueCallingBoard: React.FC = () => {
             </button>
 
             <button
+              onClick={handleQuickIssueWalkInTicket}
+              disabled={isIssuingWalkinTicket}
+              title="Phát nhanh số thứ tự cho khách vãng lai tại quầy"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-xs transition cursor-pointer disabled:opacity-50"
+            >
+              <Ticket className="w-3.5 h-3.5" />
+              <span>{isIssuingWalkinTicket ? 'Đang cấp số...' : '+ Cấp số vãng lai'}</span>
+            </button>
+
+            <button
               onClick={() => fetchTickets(false)}
               disabled={isLoading}
               title="Làm mới hàng đợi"
@@ -636,12 +771,20 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                       </span>
                       <div>
                         <h3 className="text-2xl font-bold text-white tracking-tight">
-                          {stats.currentServingTicket.appointment?.patient?.fullName || 'Bệnh nhân chưa đặt tên'}
+                          {stats.currentServingTicket.ticketPrefix === 'B' && !stats.currentServingTicket.appointment
+                            ? 'Khách vãng lai (Lấy số tại quầy/Kiosk)'
+                            : (stats.currentServingTicket.appointment?.patient?.fullName || 'Bệnh nhân chưa đặt tên')}
                         </h3>
                         <div className="flex items-center gap-3 text-xs text-slate-300 mt-1">
-                          <span>CCCD: {stats.currentServingTicket.appointment?.patient?.identityNumber || '---'}</span>
-                          <span>•</span>
-                          <span>SĐT: {stats.currentServingTicket.appointment?.patient?.phoneNumber || '---'}</span>
+                          {stats.currentServingTicket.ticketPrefix === 'B' && !stats.currentServingTicket.appointment ? (
+                            <span className="text-amber-300 font-semibold">Chưa có hồ sơ • Bấm "Xử lý tiếp nhận" để chọn/tạo hồ sơ</span>
+                          ) : (
+                            <>
+                              <span>CCCD: {stats.currentServingTicket.appointment?.patient?.identityNumber || '---'}</span>
+                              <span>•</span>
+                              <span>SĐT: {stats.currentServingTicket.appointment?.patient?.phoneNumber || '---'}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -964,10 +1107,16 @@ const ReceptionQueueCallingBoard: React.FC = () => {
 
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-800">
-                          {ticket.appointment?.patient?.fullName || 'Chưa có thông tin'}
+                          {ticket.ticketPrefix === 'B' && !ticket.appointment?.patient?.fullName
+                            ? 'Khách vãng lai (Lấy số tại chỗ)'
+                            : (ticket.appointment?.patient?.fullName || 'Chưa có thông tin')}
                         </div>
                         <div className="text-[11px] text-slate-500">
-                          {ticket.appointment?.patient?.phoneNumber || '---'}
+                          {ticket.appointment?.patient?.phoneNumber ? (
+                            <span>SĐT: {ticket.appointment.patient.phoneNumber}</span>
+                          ) : (
+                            <span className="text-amber-600 font-medium">Chờ quầy khai báo hồ sơ</span>
+                          )}
                         </div>
                       </td>
 

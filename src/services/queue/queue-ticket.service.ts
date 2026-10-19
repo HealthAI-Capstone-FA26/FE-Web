@@ -5,8 +5,8 @@ export type QueueTicketStatus = 'waiting' | 'called' | 'done' | 'skipped' | 'can
 
 export interface QueueTicketItem {
   ticketId: string;
-  appointmentId: string;
-  departmentId: string;
+  appointmentId?: string | null;
+  departmentId?: string | null;
   ticketPrefix: 'A' | 'B';
   ticketNumber: number;
   ticketDate: string;
@@ -35,6 +35,12 @@ export interface CallTicketPayload {
 
 export interface ServeTicketPayload {
   doctorId?: string;
+  appointmentId?: string;
+  patientId?: string;
+  patient?: any;
+  reasonForVisit?: string;
+  symptoms?: string;
+  priority?: 'normal' | 'urgent';
 }
 
 export const queueTicketService = {
@@ -50,6 +56,13 @@ export const queueTicketService = {
     return apiFetch<QueueTicketItem[]>(url, { method: 'GET' });
   },
 
+  // [MỚI] Bước 1 luồng at-hospital: bốc số trước, chưa cần thông tin bệnh nhân / appointment
+  async issueAtHospitalTicket(): Promise<QueueTicketItem> {
+    return apiFetch<QueueTicketItem>('/queue-tickets/at-hospital', {
+      method: 'POST',
+    });
+  },
+
   // Tiếp tân bấm gọi số đến quầy (chuyển sang 'called')
   async callTicket(ticketId: string, counterNumber: string): Promise<QueueTicketItem> {
     return apiFetch<QueueTicketItem>(`/queue-tickets/${ticketId}/call`, {
@@ -58,12 +71,12 @@ export const queueTicketService = {
     });
   },
 
-  // Tiếp tân hoàn tất tiếp nhận (chuyển 'called' -> 'done', gán bác sĩ, sinh Encounter khám)
+  // Tiếp tân hoàn tất tiếp nhận (chuyển 'called' -> 'done', gắn Appointment & lập invoice phí khám)
   async serveDoneTicket(
     ticketId: string,
     payload: ServeTicketPayload = {}
-  ): Promise<{ queueTicket: QueueTicketItem; appointment: any; encounter: any }> {
-    return apiFetch<{ queueTicket: QueueTicketItem; appointment: any; encounter: any }>(
+  ): Promise<{ queueTicket: QueueTicketItem; appointment: AppointmentItem; invoice?: any; encounter?: any }> {
+    return apiFetch<{ queueTicket: QueueTicketItem; appointment: AppointmentItem; invoice?: any; encounter?: any }>(
       `/queue-tickets/${ticketId}/done`,
       {
         method: 'PATCH',
@@ -72,3 +85,4 @@ export const queueTicketService = {
     );
   },
 };
+

@@ -11,6 +11,7 @@ import { NewsPage } from './pages/NewsPage';
 import NewsDetailPage from './pages/NewsDetailPage';
 import { CustomerPage } from './pages/CustomerPage';
 import { ExpertsPage } from './pages/ExpertsPage';
+import { KioskQueueTicketPage } from './pages/KioskQueueTicketPage';
 
 // Consolidated Workspaces
 import { DoctorWorkspaceView } from './modules/doctor/DoctorWorkspaceView';
@@ -53,6 +54,8 @@ function App() {
           <Route path="/tin-tuc" element={<NewsPage />} />
           <Route path="/tin-tuc/:id" element={<NewsDetailPage />} />
           <Route path="/lien-he" element={<PlaceholderPage title="Liên hệ" />} />
+          <Route path="/kiosk" element={<KioskQueueTicketPage />} />
+          <Route path="/lay-so" element={<KioskQueueTicketPage />} />
 
           {/* Consolidated Internal Workspaces (Nested under DashboardOverview Layout) */}
           <Route element={<DashboardOverview />}>
