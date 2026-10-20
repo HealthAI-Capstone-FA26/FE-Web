@@ -31,6 +31,7 @@ import {
   type AppointmentSlotResponse,
   type AppointmentItem,
 } from '../../../services/appointment/appointment.service';
+import { getLocalDateString, filterFutureSlots } from '../../../utils/booking.utils';
 
 interface PatientBookingFormProps {
   onSuccess?: (newAppointment: AppointmentItem) => void;
@@ -49,7 +50,7 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+    return getLocalDateString(tomorrow);
   });
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
   const [reasonForVisit, setReasonForVisit] = useState<string>('');
@@ -63,8 +64,6 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successBooking, setSuccessBooking] = useState<AppointmentItem | null>(null);
 
-
-
   // Load initial patients & doctors
   useEffect(() => {
     const fetchInitData = async () => {
@@ -72,13 +71,9 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
         setLoadingInitial(true);
         setErrorMsg(null);
         const [myPatients, docList] = await Promise.all([
-          patientService.getMyPatients().catch(async (err) => {
-            console.warn('Lỗi getMyPatients, thử fallback sang getAllPatients:', err);
-            try {
-              return await patientService.getAllPatients();
-            } catch {
-              return [];
-            }
+          patientService.getMyPatients().catch((err) => {
+            console.warn('Lỗi getMyPatients:', err);
+            return [];
           }),
           doctorService.getDoctors().catch((err) => {
             console.warn('Lỗi getDoctors:', err);
@@ -86,18 +81,7 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
           }),
         ]);
 
-        let finalPatients = Array.isArray(myPatients) ? myPatients : [];
-        if (finalPatients.length === 0) {
-          try {
-            const all = await patientService.getAllPatients();
-            if (Array.isArray(all) && all.length > 0) {
-              finalPatients = all;
-            }
-          } catch {
-            // ignore
-          }
-        }
-
+        const finalPatients = Array.isArray(myPatients) ? myPatients : [];
         setPatients(finalPatients);
         if (finalPatients.length > 0) {
           setSelectedPatientId(finalPatients[0].patientId);
@@ -149,10 +133,9 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
         setErrorMsg(null);
         setSelectedSlotId('');
         const freeSlots = await appointmentService.getFreeSlots(selectedDoctorId, selectedDate);
-        setSlots(freeSlots);
-        if (freeSlots.length > 0) {
-          setSelectedSlotId(freeSlots[0].slotId);
-        }
+        const validSlots = filterFutureSlots(Array.isArray(freeSlots) ? freeSlots : [], selectedDate);
+        setSlots(validSlots);
+        // Bắt người dùng chủ động chọn khung giờ, không tự động chọn slot đầu tiên
       } catch (err: any) {
         setSlots([]);
         setSelectedSlotId('');
@@ -187,8 +170,6 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
     else if (rel === 'Bố/Mẹ' || rel === 'Cha mẹ') rel = 'parent';
     else if (rel === 'Vợ/Chồng') rel = 'spouse';
 
-    const finalPriority = serviceLevel === 'vip' ? 'urgent' : priority;
-
     try {
       setSubmitting(true);
       setErrorMsg(null);
@@ -198,15 +179,23 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
         relationship: rel,
         doctorId: selectedDoctorId,
         slotId: selectedSlotId,
-        reasonForVisit: reasonForVisit.trim()
-          ? `${serviceLevel === 'vip' ? '[Khám VIP] ' : ''}${reasonForVisit.trim()}`
-          : (serviceLevel === 'vip' ? 'Khám VIP Tim Mạch' : undefined),
-        priority: finalPriority,
+        reasonForVisit: reasonForVisit.trim() || undefined,
       });
 
       setSuccessBooking(res);
       if (onSuccess) onSuccess(res);
     } catch (err: any) {
+      const isConflict =
+        err?.status === 409 ||
+        err?.message?.toLowerCase()?.includes('đầy') ||
+        err?.message?.toLowerCase()?.includes('đã được đặt');
+      if (isConflict && selectedDoctorId && selectedDate) {
+        setSelectedSlotId('');
+        appointmentService
+          .getFreeSlots(selectedDoctorId, selectedDate)
+          .then((s) => setSlots(filterFutureSlots(Array.isArray(s) ? s : [], selectedDate)))
+          .catch(() => {});
+      }
       setErrorMsg(err?.message || 'Đặt lịch không thành công. Vui lòng kiểm tra lại thông tin.');
     } finally {
       setSubmitting(false);
@@ -282,9 +271,26 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
               </div>
             </div>
 
-            <p className="text-[11px] text-blue-200 leading-relaxed bg-black/10 p-3 rounded-xl border border-white/5">
-              💡 Vui lòng đến trước giờ khám 15 phút tại Quầy Lễ Tân để hoàn tất thủ tục và kiểm tra dấu hiệu sinh hiệu (huyết áp, nhịp tim, SpO2).
-            </p>
+            {/* Timeline hướng dẫn tiếp theo */}
+            <div className="bg-black/15 p-4 rounded-2xl border border-white/10 space-y-2.5 text-left">
+              <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider block">
+                📋 Các bước tiếp theo:
+              </span>
+              <div className="space-y-2 text-[11px] text-blue-100">
+                <div className="flex items-start gap-2">
+                  <span className="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[9px] shrink-0 mt-0.5">1</span>
+                  <span><strong>Chờ xác nhận:</strong> Nhân viên tiếp đón sẽ kiểm tra và xác nhận lịch hẹn của bạn.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[9px] shrink-0 mt-0.5">2</span>
+                  <span><strong>Đến quầy Tiếp đón:</strong> Có mặt trước 15 phút, xuất trình CCCD/BHYT để check-in và đo sinh hiệu ban đầu.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[9px] shrink-0 mt-0.5">3</span>
+                  <span><strong>Nhận số thứ tự A:</strong> Nhận phiếu khám và di chuyển đến phòng khám chuyên khoa theo hướng dẫn.</span>
+                </div>
+              </div>
+            </div>
 
             <button
               type="button"
@@ -517,7 +523,7 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                     <input
                       type="date"
                       value={selectedDate}
-                      min={new Date().toISOString().split('T')[0]}
+                      min={getLocalDateString()}
                       onChange={(e) => setSelectedDate(e.target.value)}
                       className="w-full bg-white text-slate-800 font-semibold py-2.5 px-3 rounded-lg border border-transparent focus:ring-2 focus:ring-yellow-400 outline-none text-xs cursor-pointer"
                     />

@@ -27,9 +27,12 @@ import {
 import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { appointmentService, type AppointmentSlotResponse, type AppointmentItem } from '../../services/appointment/appointment.service';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { getLocalDateString, filterFutureSlots } from '../../utils/booking.utils';
 
 export const BookingForm = () => {
   const location = useLocation();
+  const { isLoggedIn, user } = useAuth();
   const stateDoctorId = (location.state as any)?.doctorId;
   const stateDeptId = (location.state as any)?.departmentId;
 
@@ -44,7 +47,7 @@ export const BookingForm = () => {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+    return getLocalDateString(tomorrow);
   });
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
   const [serviceLevel, setServiceLevel] = useState<'tieu-chuan' | 'vip'>('tieu-chuan');
@@ -55,7 +58,7 @@ export const BookingForm = () => {
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [identityNumber, setIdentityNumber] = useState<string>('');
-  const [dateOfBirth, setDateOfBirth] = useState<string>('1995-01-01');
+  const [dateOfBirth, setDateOfBirth] = useState<string>('');
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
   const [verifyMethod, setVerifyMethod] = useState<'email' | 'sms'>('email');
 
@@ -63,6 +66,7 @@ export const BookingForm = () => {
   const [step, setStep] = useState<'form' | 'otp' | 'success'>('form');
   const [otp, setOtp] = useState<string>('');
   const [otpNotice, setOtpNotice] = useState<string>('');
+  const [resendCooldown, setResendCooldown] = useState<number>(0);
 
   // Loading & Error States
   const [loadingInit, setLoadingInit] = useState<boolean>(true);
@@ -70,6 +74,15 @@ export const BookingForm = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [successBooking, setSuccessBooking] = useState<AppointmentItem | null>(null);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
 
 
@@ -130,10 +143,9 @@ export const BookingForm = () => {
         setLoadingSlots(true);
         setSelectedSlotId('');
         const freeSlots = await appointmentService.getFreeSlots(selectedDoctorId, selectedDate);
-        setSlots(freeSlots);
-        if (freeSlots.length > 0) {
-          setSelectedSlotId(freeSlots[0].slotId);
-        }
+        const validSlots = filterFutureSlots(Array.isArray(freeSlots) ? freeSlots : [], selectedDate);
+        setSlots(validSlots);
+        // Bắt người dùng tự chọn khung giờ, không tự động chọn slot đầu tiên
       } catch (err) {
         setSlots([]);
         setSelectedSlotId('');
@@ -150,6 +162,7 @@ export const BookingForm = () => {
     const newErrors: { [key: string]: string } = {};
 
     if (!fullName.trim()) newErrors.fullName = 'Vui lòng nhập họ và tên';
+    if (!dateOfBirth) newErrors.dateOfBirth = 'Vui lòng chọn ngày sinh';
     if (!phoneNumber.trim()) {
       newErrors.phoneNumber = 'Vui lòng nhập số điện thoại';
     } else if (!/^[0-9]{9,11}$/.test(phoneNumber.trim())) {
@@ -184,8 +197,6 @@ export const BookingForm = () => {
       setIsSubmitting(true);
       setErrors({});
 
-      const priority = serviceLevel === 'vip' ? 'urgent' : 'normal';
-
       const res = await appointmentService.guestRequestOtp({
         fullName: fullName.trim(),
         phoneNumber: phoneNumber.trim(),
@@ -195,14 +206,13 @@ export const BookingForm = () => {
         gender,
         doctorId: selectedDoctorId,
         slotId: selectedSlotId,
-        reasonForVisit: reasonForVisit.trim()
-          ? `${serviceLevel === 'vip' ? '[Khám VIP] ' : ''}${reasonForVisit.trim()}`
-          : (serviceLevel === 'vip' ? 'Khám VIP' : undefined),
-        priority,
+        reasonForVisit: reasonForVisit.trim() || undefined,
+        priority: 'normal',
         verifyMethod,
       });
 
       setOtpNotice(res?.message || `Mã OTP đã được gửi đến ${verifyMethod === 'email' ? email : phoneNumber}`);
+      setResendCooldown(60);
       setStep('otp');
     } catch (err: any) {
       setErrors({ submit: err?.message || 'Không thể gửi yêu cầu đặt lịch. Vui lòng kiểm tra lại thông tin.' });
@@ -232,6 +242,17 @@ export const BookingForm = () => {
       setSuccessBooking(res);
       setStep('success');
     } catch (err: any) {
+      const isConflict =
+        err?.status === 409 ||
+        err?.message?.toLowerCase()?.includes('đầy') ||
+        err?.message?.toLowerCase()?.includes('đã được đặt');
+      if (isConflict && selectedDoctorId && selectedDate) {
+        setSelectedSlotId('');
+        appointmentService
+          .getFreeSlots(selectedDoctorId, selectedDate)
+          .then((s) => setSlots(filterFutureSlots(Array.isArray(s) ? s : [], selectedDate)))
+          .catch(() => { });
+      }
       setErrors({ otp: err?.message || 'Mã OTP không chính xác hoặc đã hết hạn. Vui lòng thử lại.' });
     } finally {
       setIsSubmitting(false);
@@ -281,6 +302,23 @@ export const BookingForm = () => {
                 onSubmit={handleRequestOtpSubmit}
                 className="p-6 space-y-4 flex flex-col"
               >
+                {isLoggedIn && (
+                  <div className="p-3 bg-blue-500/30 border border-blue-400/40 rounded-xl flex items-center justify-between text-xs text-blue-100 gap-2">
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-yellow-300 shrink-0" />
+                      <span>
+                        Bạn đang đăng nhập: <strong>{user?.name || user?.fullName}</strong>.
+                      </span>
+                    </div>
+                    <a
+                      href="/benh-nhan/lich-hen"
+                      className="bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-bold px-2.5 py-1 rounded-lg shrink-0 text-[11px] transition-colors"
+                    >
+                      Đặt qua tài khoản →
+                    </a>
+                  </div>
+                )}
+
                 {errors.submit && (
                   <div className="p-3 bg-yellow-400/20 border border-yellow-300/40 rounded-xl flex items-center gap-2 text-yellow-200 text-xs">
                     <ShieldAlert className="w-4 h-4 text-yellow-300 shrink-0" />
@@ -352,9 +390,11 @@ export const BookingForm = () => {
                       <input
                         type="date"
                         value={dateOfBirth}
+                        max={getLocalDateString()}
                         onChange={(e) => setDateOfBirth(e.target.value)}
-                        className="w-full bg-white text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs outline-none"
+                        className={`w-full bg-white text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs outline-none border ${errors.dateOfBirth ? 'border-yellow-400' : 'border-transparent'}`}
                       />
+                      {errors.dateOfBirth && <span className="text-[10px] text-yellow-300 block mt-0.5">{errors.dateOfBirth}</span>}
                     </div>
 
                     <div>
@@ -477,7 +517,7 @@ export const BookingForm = () => {
                       <input
                         type="date"
                         value={selectedDate}
-                        min={new Date().toISOString().split('T')[0]}
+                        min={getLocalDateString()}
                         onChange={(e) => setSelectedDate(e.target.value)}
                         className="w-full bg-white text-slate-800 font-semibold py-2 px-2.5 rounded-lg text-xs outline-none"
                       />
@@ -502,8 +542,8 @@ export const BookingForm = () => {
                                   type="button"
                                   onClick={() => setSelectedSlotId(s.slotId)}
                                   className={`py-1 px-2 rounded text-[11px] font-bold transition-all flex items-center justify-between border cursor-pointer ${isSelected
-                                      ? 'bg-white text-[#0b3c8f] border-white shadow-xs'
-                                      : 'bg-white/20 text-white border-white/20 hover:bg-white/30'
+                                    ? 'bg-white text-[#0b3c8f] border-white shadow-xs'
+                                    : 'bg-white/20 text-white border-white/20 hover:bg-white/30'
                                     }`}
                                 >
                                   <span>{startTime}-{endTime}</span>
@@ -597,12 +637,16 @@ export const BookingForm = () => {
                   <button
                     type="button"
                     onClick={handleRequestOtpSubmit}
-                    disabled={isSubmitting}
-                    className="hover:underline font-semibold text-yellow-300 flex items-center gap-1 cursor-pointer"
+                    disabled={isSubmitting || resendCooldown > 0}
+                    className="hover:underline font-semibold text-yellow-300 flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:no-underline"
                   >
-                    <RefreshCw className="w-3 h-3" /> Gửi lại mã
+                    <RefreshCw className={`w-3 h-3 ${resendCooldown > 0 ? 'animate-spin' : ''}`} />
+                    {resendCooldown > 0 ? `Gửi lại mã (${resendCooldown}s)` : 'Gửi lại mã'}
                   </button>
                 </div>
+                <p className="text-[10px] text-blue-200/80 text-center mt-2">
+                  (Mã OTP có thời hạn sử dụng trong 5 phút. Vui lòng không chia sẻ mã này cho người khác.)
+                </p>
               </motion.form>
             )}
 
@@ -656,11 +700,25 @@ export const BookingForm = () => {
                   </div>
                 </div>
 
-                <div className="bg-white/10 p-4 rounded-xl text-left border border-white/15 flex items-start gap-3 text-xs text-blue-100">
-                  <ShieldCheck className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
-                  <p>
-                    Quý khách vui lòng đến trước giờ hẹn <strong>15 phút</strong> và xuất trình mã <strong>{successBooking.appointmentCode}</strong> tại quầy Lễ tân để nhận thẻ thứ tự ưu tiên.
-                  </p>
+                {/* Timeline hướng dẫn tiếp theo (Issue 25) */}
+                <div className="bg-black/15 p-4 rounded-2xl border border-white/10 space-y-2.5 text-left">
+                  <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider block">
+                    📋 Các bước tiếp theo:
+                  </span>
+                  <div className="space-y-2 text-[11px] text-blue-100">
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[9px] shrink-0 mt-0.5">1</span>
+                      <span><strong>Chờ tiếp đón xác nhận:</strong> Lễ tân sẽ gọi điện hoặc kiểm tra và xác nhận lịch hẹn của bạn.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[9px] shrink-0 mt-0.5">2</span>
+                      <span><strong>Đến quầy Lễ tân trước 15 phút:</strong> Đọc mã lịch hẹn <strong>{successBooking.appointmentCode}</strong>, đối chiếu CCCD và đo sinh hiệu.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[9px] shrink-0 mt-0.5">3</span>
+                      <span><strong>Nhận số thứ tự A:</strong> Nhận phiếu khám để vào phòng khám chuyên khoa tim mạch.</span>
+                    </div>
+                  </div>
                 </div>
 
                 <button
