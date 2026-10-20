@@ -282,7 +282,9 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   useEffect(() => {
     fetchTickets();
     const interval = setInterval(() => {
-      fetchTickets(true);
+      if (!document.hidden) {
+        fetchTickets(true);
+      }
     }, 15000);
     return () => clearInterval(interval);
   }, [fetchTickets]);
@@ -481,31 +483,6 @@ const ReceptionQueueCallingBoard: React.FC = () => {
           console.warn('Lỗi lưu chính sách cam kết của bệnh nhân:', csErr);
         }
       }
-    } else {
-      // Fallback nếu không có intakeData (thanh toán từ bên ngoài danh sách)
-      if (pId) {
-        try {
-          await consentService.ensureMandatoryConsents(pId, encId);
-        } catch (csErr) {
-          console.warn('Lỗi lưu cam kết mặc định:', csErr);
-        }
-      }
-      try {
-        await chiefComplaintService.upsert(encId, {
-          reasonForVisit: 'Khám bệnh',
-          inputChannel: 'receptionist_assisted',
-        });
-      } catch (ccErr) {
-        console.warn('Lỗi upsert lý do khám mặc định:', ccErr);
-      }
-      try {
-        await encounterService.recordIdentityVerification(encId, {
-          verificationMethod: 'national_id_card',
-          verificationStatus: 'verified',
-        });
-      } catch (idErr) {
-        console.warn('Lỗi ghi nhận xác minh danh tính mặc định:', idErr);
-      }
     }
 
     // 4. Kiểm tra đầy đủ điều kiện và chuyển trạng thái Encounter: arrived -> registered, tự động đẩy vào TriageQueueEntry
@@ -590,7 +567,14 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Lỗi khi hoàn tất chuyển hàng đợi điều dưỡng:', err);
-      showToast('Thanh toán thành công nhưng chưa hoàn tất chuyển hàng đợi điều dưỡng. Vui lòng kiểm tra lại!', 'error');
+      const missingDetails = err?.data?.missing || err?.missing;
+      const missingText = Array.isArray(missingDetails) && missingDetails.length > 0
+        ? `Thiếu các bước: ${missingDetails.join(', ')}.`
+        : '';
+      showToast(
+        `Thanh toán thành công nhưng chưa hoàn tất chuyển hàng đợi điều dưỡng: ${err?.message || 'Có lỗi xảy ra'}. ${missingText}`,
+        'error'
+      );
     } finally {
       setIsPaymentModalOpen(false);
       setPendingPaymentTicket(null);

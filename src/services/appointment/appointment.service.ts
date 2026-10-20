@@ -87,7 +87,8 @@ export interface PatientDetail {
 export interface AppointmentItem {
   appointmentId: string;
   appointmentCode: string;
-  bookingChannel: 'online' | 'at_hospital';
+  bookingChannel: 'online' | 'at_hospital' | 'doctor_follow_up' | string;
+  appointmentType?: 'standard' | 'follow_up' | string;
   status: 'pending' | 'confirmed' | 'checked_in' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
   patientId: string | null;
   suggestedPatientId?: string | null;
@@ -161,9 +162,10 @@ export interface AppointmentItem {
   };
   queueTicket?: {
     ticketId: string;
-    ticketNumber: string;
+    ticketNumber: number | string;
     ticketPrefix: string;
-    queueStatus: string;
+    status?: string;
+    queueStatus?: string;
     issuedAt?: string;
     calledAt?: string;
   };
@@ -343,22 +345,19 @@ export const appointmentService = {
     return res;
   },
 
-  // Lễ tân tạo lịch khám trực tiếp tại quầy (bookingChannel = at_hospital)
-  async createAtHospitalAppointment(payload: {
-    patientId?: string;
-    departmentId?: string;
-    symptoms?: string;
-    reasonForVisit?: string;
-    priority?: 'normal' | 'urgent' | 'emergency';
-  }): Promise<{ appointment: AppointmentItem; queueTicket: any }> {
-    const { departmentId, ...rest } = payload as any;
-    const res = await apiFetch<{ appointment: AppointmentItem; queueTicket: any }>('/appointments/at-hospital', {
-      method: 'POST',
-      body: JSON.stringify(rest),
+  // Bệnh nhân tự đổi ngày hẹn tái khám (PATCH /appointments/:id/reschedule)
+  async rescheduleAppointment(
+    id: string,
+    payload: { slotId?: string; appointmentDate?: string; appointmentTime?: string; reason?: string }
+  ): Promise<AppointmentItem> {
+    const res = await apiFetch<AppointmentItem>(`/appointments/${id}/reschedule`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
     });
     this.invalidateCache();
     return res;
   },
+
 
   // Lễ tân đối chiếu CCCD cho case "matched" (appointment có suggestedPatientId, patientId=null)
   async syncPatient(payload: SyncPatientPayload): Promise<AppointmentItem> {

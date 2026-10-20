@@ -3,6 +3,7 @@ export type UserRole = 'PATIENT' | 'RECEPTIONIST' | 'NURSE' | 'DOCTOR' | 'LAB' |
 export type UserProfile = {
   id: string;
   name: string;
+  fullName?: string;
   email: string;
   role: UserRole;
   roleTitle: string;

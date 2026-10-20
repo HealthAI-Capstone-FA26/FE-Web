@@ -5,6 +5,7 @@ import {
   AlertCircle, Clock, X, Stethoscope, HeartPulse, UserPlus
 } from 'lucide-react';
 import { patientService } from '../../services/patient/patient.service';
+import { doctorService, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { appointmentService } from '../../services/appointment/appointment.service';
 import { queueTicketService } from '../../services/queue/queue-ticket.service';
 
@@ -47,6 +48,10 @@ export const ReceptionWalkinBookingModal: React.FC<ReceptionWalkinBookingModalPr
   const [reasonForVisit, setReasonForVisit] = useState('');
   const [priority, setPriority] = useState<'normal' | 'urgent' | 'emergency'>('normal');
 
+  // Doctors
+  const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
+
   // Submission & Result States
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -78,6 +83,16 @@ export const ReceptionWalkinBookingModal: React.FC<ReceptionWalkinBookingModalPr
       setSearchQuery('');
       setPatientResults([]);
       setShowPatientDropdown(false);
+
+      doctorService.getDoctors({ isActive: true })
+        .then((res) => {
+          const docs = Array.isArray(res) ? res : [];
+          setDoctors(docs);
+          if (docs.length > 0) {
+            setSelectedDoctorId((prev) => prev || docs[0].doctorId);
+          }
+        })
+        .catch((err) => console.error('Lỗi nạp danh sách bác sĩ:', err));
     }
   }, [isOpen, initialPatient]);
 
@@ -141,14 +156,20 @@ export const ReceptionWalkinBookingModal: React.FC<ReceptionWalkinBookingModalPr
       return;
     }
 
+    if (!selectedDoctorId) {
+      setErrorMsg('Vui lòng chọn bác sĩ phụ trách ca khám.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // 1. Cấp số thứ tự vãng lai
       const newTicket = await queueTicketService.issueAtHospitalTicket();
       // 2. Chuyển sang called
       await queueTicketService.callTicket(newTicket.ticketId, '01');
-      // 3. Hoàn tất tiếp nhận gắn thông tin bệnh nhân
+      // 3. Hoàn tất tiếp nhận gắn thông tin bệnh nhân & bác sĩ
       const doneRes = await queueTicketService.serveDoneTicket(newTicket.ticketId, {
+        doctorId: selectedDoctorId,
         patientId: selectedPatient.patientId,
         reasonForVisit: reasonForVisit.trim() || undefined,
         priority: priority as any,
@@ -549,6 +570,30 @@ export const ReceptionWalkinBookingModal: React.FC<ReceptionWalkinBookingModalPr
                     Sẵn sàng
                   </span>
                 </div>
+              </div>
+
+              {/* SECTION: BÁC SĨ PHỤ TRÁCH CA KHÁM */}
+              <div className="bg-slate-50/80 rounded-2xl border border-slate-200 p-4 space-y-2">
+                <div className="flex items-center gap-2 border-b border-slate-200/80 pb-2">
+                  <div className="w-6 h-6 rounded-lg bg-blue-600 text-white font-black text-xs flex items-center justify-center">
+                    <Stethoscope className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-tight">
+                    Bác Sĩ Phụ Trách Ca Khám <span className="text-rose-500">*</span>
+                  </span>
+                </div>
+                <select
+                  value={selectedDoctorId}
+                  onChange={(e) => setSelectedDoctorId(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-medium text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                >
+                  <option value="" disabled>-- Chọn bác sĩ phụ trách ca khám --</option>
+                  {doctors.map((doc) => (
+                    <option key={doc.doctorId} value={doc.doctorId}>
+                      {doc.title ? `${doc.title} ` : 'BS. '}{doc.fullName} ({doc.specialization || 'Khoa Tim Mạch'})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* SECTION 3: MỨC ĐỘ ƯU TIÊN */}
