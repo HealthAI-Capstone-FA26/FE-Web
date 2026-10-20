@@ -28,6 +28,7 @@ import { ReceptionCancelAppointmentModal } from './components/ReceptionCancelApp
 import { SyncPatientModal } from './components/SyncPatientModal';
 import { Badge } from '../../components/common/Badge';
 import { ConfirmMainPatientModal } from './components/ConfirmMainPatientModal';
+import { formatTicketCode, getLocalDateString } from '../../utils/booking.utils';
 
 type DatePreset = 'today' | 'tomorrow' | 'this_week' | 'all' | 'custom';
 
@@ -136,10 +137,12 @@ export const ReceptionAppointmentsView: React.FC = () => {
     return () => window.removeEventListener('focus', handleFocus);
   }, [fetchAppointments]);
 
-  // Định kỳ tự động đồng bộ mỗi 20 giây để phát hiện lịch hẹn online mới
+  // Định kỳ tự động đồng bộ mỗi 20 giây để phát hiện lịch hẹn online mới (tạm dừng khi tab ẩn)
   useEffect(() => {
     const timer = setInterval(() => {
-      fetchAppointments(true);
+      if (!document.hidden) {
+        fetchAppointments(true);
+      }
     }, 20000);
     return () => clearInterval(timer);
   }, [fetchAppointments]);
@@ -163,7 +166,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
           const appCode = app.appointmentCode?.toLowerCase() || '';
           const doctorName = app.doctor?.fullName?.toLowerCase() || '';
           const deptName = app.department?.departmentName?.toLowerCase() || '';
-          const ticketNum = app.queueTicket?.ticketNumber?.toLowerCase() || '';
+          const ticketNum = formatTicketCode(app.queueTicket).toLowerCase();
 
           const match =
             patientName.includes(query) ||
@@ -181,13 +184,19 @@ export const ReceptionAppointmentsView: React.FC = () => {
         return true;
       })
       .sort((a, b) => {
+        // Nếu xem ngày hôm nay, ưu tiên sắp xếp theo giờ khám tăng dần (chronological)
+        if (datePreset === 'today') {
+          const timeA = a.appointmentTime || '';
+          const timeB = b.appointmentTime || '';
+          if (timeA && timeB && timeA !== timeB) return timeA.localeCompare(timeB);
+        }
         // Đưa lịch hẹn tạo mới nhất (createdAt giảm dần) lên đầu danh sách
         const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         if (timeB !== timeA) return timeB - timeA;
         return (b.appointmentCode || '').localeCompare(a.appointmentCode || '');
       });
-  }, [appointments, selectedChannel, searchTerm]);
+  }, [appointments, selectedChannel, searchTerm, datePreset]);
 
   // Metric stats
   const stats = useMemo(() => {
@@ -849,20 +858,34 @@ export const ReceptionAppointmentsView: React.FC = () => {
                               <span>Xác nhận</span>
                             </button>
                           ) : isConfirmed && app.patientId && !app.queueTicket ? (
-                            <button
-                              type="button"
-                              onClick={() => handleCheckInAppointment(app)}
-                              disabled={isProcessing}
-                              className="w-[130px] h-8 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5 border-none cursor-pointer disabled:opacity-50"
-                              title="Tiếp nhận bệnh nhân & cấp số thứ tự vào hàng chờ khám"
-                            >
-                              {isProcessing ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <UserCheck className="w-3.5 h-3.5" />
-                              )}
-                              <span>Check-in</span>
-                            </button>
+                            (() => {
+                              const todayStr = getLocalDateString();
+                              const isToday = app.appointmentDate === todayStr;
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => isToday && handleCheckInAppointment(app)}
+                                  disabled={isProcessing || !isToday}
+                                  className={`w-[130px] h-8 text-xs font-bold rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5 border-none ${
+                                    isToday
+                                      ? 'text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer disabled:opacity-50'
+                                      : 'text-slate-400 bg-slate-100 cursor-not-allowed border border-slate-200 opacity-60'
+                                  }`}
+                                  title={
+                                    !isToday
+                                      ? `Chỉ tiếp nhận check-in trong ngày hôm nay (ngày hẹn: ${app.appointmentDate})`
+                                      : 'Tiếp nhận bệnh nhân & cấp số thứ tự vào hàng chờ khám'
+                                  }
+                                >
+                                  {isProcessing ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <UserCheck className="w-3.5 h-3.5" />
+                                  )}
+                                  <span>{isToday ? 'Check-in' : 'Chưa đến ngày'}</span>
+                                </button>
+                              );
+                            })()
                           ) : app.status === 'checked_in' || app.status === 'in_progress' || app.status === 'completed' ? (
                             <div className="w-[130px] h-8 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-center gap-1">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />

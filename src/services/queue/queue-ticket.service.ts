@@ -40,7 +40,7 @@ export interface ServeTicketPayload {
   patient?: any;
   reasonForVisit?: string;
   symptoms?: string;
-  priority?: 'normal' | 'urgent';
+  priority?: 'normal' | 'urgent' | 'emergency';
 }
 
 export const queueTicketService = {

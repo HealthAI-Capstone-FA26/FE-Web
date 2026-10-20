@@ -7,7 +7,7 @@ import {
   Stethoscope, HeartPulse,
 } from 'lucide-react';
 import { patientService } from '../../services/patient/patient.service';
-import { doctorService, type DepartmentResponse } from '../../services/doctor/doctor.service';
+import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { appointmentService } from '../../services/appointment/appointment.service';
 import { queueTicketService } from '../../services/queue/queue-ticket.service';
 
@@ -61,7 +61,9 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
   const [reasonForVisit, setReasonForVisit] = useState('');
   const [priority, setPriority] = useState<'normal' | 'urgent' | 'emergency'>('normal');
 
-
+  // Doctors
+  const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
 
   // Submission & Result States
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -100,6 +102,17 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
       }
     };
     fetchDepartments();
+
+    // Fetch doctors
+    doctorService.getDoctors({ isActive: true })
+      .then((res) => {
+        const docs = Array.isArray(res) ? res : [];
+        setDoctors(docs);
+        if (docs.length > 0) {
+          setSelectedDoctorId((prev) => prev || docs[0].doctorId);
+        }
+      })
+      .catch((err) => console.error('Lỗi tải danh sách bác sĩ:', err));
   }, []);
 
   // Debounced Patient Search
@@ -156,8 +169,6 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
     setErrorMsg(null);
   };
 
-
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -167,14 +178,20 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
       return;
     }
 
+    if (!selectedDoctorId) {
+      setErrorMsg('Vui lòng chọn bác sĩ phụ trách ca khám.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // 1. Cấp số thứ tự vãng lai
       const newTicket = await queueTicketService.issueAtHospitalTicket();
       // 2. Chuyển sang called
       await queueTicketService.callTicket(newTicket.ticketId, '01');
-      // 3. Hoàn tất tiếp nhận gắn thông tin bệnh nhân
+      // 3. Hoàn tất tiếp nhận gắn thông tin bệnh nhân & bác sĩ
       const doneRes = await queueTicketService.serveDoneTicket(newTicket.ticketId, {
+        doctorId: selectedDoctorId,
         patientId: selectedPatient.patientId,
         reasonForVisit: reasonForVisit.trim() || undefined,
         priority: priority as any,
@@ -607,6 +624,30 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
                 Sẵn sàng tiếp nhận
               </span>
             </div>
+          </div>
+
+          {/* BÁC SĨ PHỤ TRÁCH CA KHÁM */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-7 shadow-xs space-y-4">
+            <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+              <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 font-black text-xs flex items-center justify-center border border-blue-200">
+                <Stethoscope className="w-4 h-4" />
+              </div>
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">
+                Bác Sĩ Phụ Trách Ca Khám <span className="text-rose-500">*</span>
+              </h3>
+            </div>
+            <select
+              value={selectedDoctorId}
+              onChange={(e) => setSelectedDoctorId(e.target.value)}
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl font-semibold text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+            >
+              <option value="" disabled>-- Chọn bác sĩ phụ trách ca khám --</option>
+              {doctors.map((doc) => (
+                <option key={doc.doctorId} value={doc.doctorId}>
+                  {doc.title ? `${doc.title} ` : 'BS. '}{doc.fullName} ({doc.specialization || 'Khoa Tim Mạch'})
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* STEP 3: PRIORITY */}
