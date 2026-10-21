@@ -248,7 +248,7 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
       }, true);
       const todayStr = getLocalDateString();
       const activeAppts = (Array.isArray(data) ? data : []).filter(
-        (a) => (a.status === 'confirmed' || a.status === 'pending') && a.appointmentDate === todayStr
+        (a) => (a.status === 'confirmed' || a.status === 'pending') && (a.appointmentDate || '').slice(0, 10) === todayStr
       );
       setAppointmentResults(activeAppts);
       if (activeAppts.length === 0) {

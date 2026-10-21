@@ -43,6 +43,7 @@ export interface SearchDoctorQuery {
   search?: string;
   departmentId?: string;
   userId?: string;
+  isActive?: boolean;
 }
 
 export interface DepartmentResponse {
@@ -103,7 +104,11 @@ export const doctorService = {
 
     const queryString = params.toString();
     const url = `/doctors${queryString ? `?${queryString}` : ''}`;
-    return apiFetch<DoctorResponse[]>(url, { method: 'GET' });
+    const doctors = await apiFetch<DoctorResponse[]>(url, { method: 'GET' });
+    if (query?.isActive !== undefined && Array.isArray(doctors)) {
+      return doctors.filter((doc) => doc.isActive === query.isActive);
+    }
+    return doctors;
   },
 
   // Tra doctorId từ userId (gọi sau khi bác sĩ đăng nhập)

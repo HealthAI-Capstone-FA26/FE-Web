@@ -119,16 +119,19 @@ export const DoctorEMRView: React.FC = () => {
           .filter((i) => i.status !== 'cancelled');
 
         if (activeItems.length > 0) {
-          const allCompleted = activeItems.every((i) => i.labTask?.status === 'completed');
+          const allCompleted = activeItems.every((i) => (i.task?.status || i.labTask?.status) === 'completed');
           const isPaid =
             invoices.some((inv) => inv.status === 'paid') ||
-            activeItems.some(
-              (i) =>
-                i.labTask?.paymentVerified === true ||
-                i.labTask?.status === 'ready' ||
-                i.labTask?.status === 'in_progress' ||
-                i.labTask?.status === 'completed'
-            );
+            activeItems.some((i) => {
+              const task = i.task || i.labTask;
+              return (
+                task?.paymentVerified === true ||
+                task?.status === 'ready' ||
+                task?.status === 'sample_collected' ||
+                task?.status === 'in_progress' ||
+                task?.status === 'completed'
+              );
+            });
 
           let state: PatientWorkflowState = 'ordered';
           if (allCompleted) {
@@ -929,16 +932,19 @@ export const DoctorEMRView: React.FC = () => {
           .filter((i) => i.status !== 'cancelled');
 
         if (activeItems.length > 0) {
-          const allCompleted = activeItems.every((i) => i.labTask?.status === 'completed');
+          const allCompleted = activeItems.every((i) => (i.task?.status || i.labTask?.status) === 'completed');
           const isPaid =
             invoices.some((inv) => inv.status === 'paid') ||
-            activeItems.some(
-              (i) =>
-                i.labTask?.paymentVerified === true ||
-                i.labTask?.status === 'ready' ||
-                i.labTask?.status === 'in_progress' ||
-                i.labTask?.status === 'completed'
-            );
+            activeItems.some((i) => {
+              const task = i.task || i.labTask;
+              return (
+                task?.paymentVerified === true ||
+                task?.status === 'ready' ||
+                task?.status === 'sample_collected' ||
+                task?.status === 'in_progress' ||
+                task?.status === 'completed'
+              );
+            });
 
           let nextState: PatientWorkflowState = 'ordered';
           if (allCompleted) {

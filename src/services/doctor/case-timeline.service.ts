@@ -5,7 +5,11 @@ export type TimelineEventType =
   | 'vital_sign_session'
   | 'clinical_examination'
   | 'test_order'
+  | 'diagnostic_order'
   | 'lab_result'
+  | 'diagnostic_result'
+  | 'ecg_recording'
+  | 'ecg_ai_analysis'
   | 'diagnosis'
   | 'treatment_consultation';
 

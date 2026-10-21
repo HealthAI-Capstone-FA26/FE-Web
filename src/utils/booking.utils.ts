@@ -48,25 +48,45 @@ export const getQueueStatusLabel = (status?: string | null): string => {
 };
 
 /**
+ * Checks if a slot time has already passed on the specified date.
+ * Accurately aligns with UTC wall-clock hours stored in backend (e.g. 07:30Z = 07:30 local).
+ */
+export const isSlotPassed = (
+  slotStartTime?: string | null,
+  selectedDate?: string | null,
+  bufferMinutes: number = 0
+): boolean => {
+  if (!slotStartTime || !selectedDate) return false;
+
+  const todayStr = getLocalDateString();
+  if (selectedDate < todayStr) return true;
+  if (selectedDate > todayStr) return false;
+
+  try {
+    const slotDate = new Date(slotStartTime);
+    // Hours and minutes stored in slotStartTime (UTC wall-clock)
+    const slotHours = slotDate.getUTCHours();
+    const slotMinutes = slotDate.getUTCMinutes();
+    const slotTotalMinutes = slotHours * 60 + slotMinutes;
+
+    const now = new Date();
+    const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+
+    return slotTotalMinutes <= currentTotalMinutes + bufferMinutes;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Filters out slots that have already passed if the selected date is today
  */
 export const filterFutureSlots = <T extends { slotStartTime: string }>(
   slots: T[],
-  selectedDate: string
+  selectedDate: string,
+  bufferMinutes: number = 0
 ): T[] => {
-  const todayStr = getLocalDateString();
-  if (selectedDate !== todayStr) {
-    return slots;
-  }
-  const now = new Date();
-  return slots.filter((slot) => {
-    try {
-      const slotTime = new Date(slot.slotStartTime);
-      return slotTime.getTime() > now.getTime();
-    } catch {
-      return true;
-    }
-  });
+  return slots.filter((slot) => !isSlotPassed(slot.slotStartTime, selectedDate, bufferMinutes));
 };
 
 /**

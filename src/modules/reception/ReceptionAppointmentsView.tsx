@@ -860,7 +860,8 @@ export const ReceptionAppointmentsView: React.FC = () => {
                           ) : isConfirmed && app.patientId && !app.queueTicket ? (
                             (() => {
                               const todayStr = getLocalDateString();
-                              const isToday = app.appointmentDate === todayStr;
+                              const appDateStr = (app.appointmentDate || '').slice(0, 10);
+                              const isToday = appDateStr === todayStr;
                               return (
                                 <button
                                   type="button"
@@ -873,7 +874,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
                                   }`}
                                   title={
                                     !isToday
-                                      ? `Chỉ tiếp nhận check-in trong ngày hôm nay (ngày hẹn: ${app.appointmentDate})`
+                                      ? `Chỉ tiếp nhận check-in trong ngày hôm nay (ngày hẹn: ${formatDateDisplay(app.appointmentDate)})`
                                       : 'Tiếp nhận bệnh nhân & cấp số thứ tự vào hàng chờ khám'
                                   }
                                 >
