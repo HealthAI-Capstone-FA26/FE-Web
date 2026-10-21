@@ -57,6 +57,12 @@ export interface TestOrderItemDetail {
     serviceName: string;
     price: number;
   };
+  task?: {
+    taskId: string;
+    status: string;
+    paymentVerified: boolean;
+    labRoomId?: string;
+  };
   labTask?: {
     taskId: string;
     status: string;
@@ -134,22 +140,40 @@ export const testOrderService = {
   async getTestOrdersByEncounter(
     encounterId: string
   ): Promise<TestOrderDetail[]> {
-    return apiFetch<TestOrderDetail[]>(
+    const orders = await apiFetch<TestOrderDetail[]>(
       `/doctor-examination/encounters/${encounterId}/test-orders`,
       {
         method: 'GET',
       }
     );
+    if (Array.isArray(orders)) {
+      orders.forEach((order) => {
+        order.items?.forEach((item) => {
+          if (item.task && !item.labTask) {
+            item.labTask = item.task;
+          }
+        });
+      });
+    }
+    return orders;
   },
 
   // 3. GET /api/v1/doctor-examination/test-orders/:orderId
   async getTestOrderById(orderId: string): Promise<TestOrderDetail> {
-    return apiFetch<TestOrderDetail>(
+    const order = await apiFetch<TestOrderDetail>(
       `/doctor-examination/test-orders/${orderId}`,
       {
         method: 'GET',
       }
     );
+    if (order?.items) {
+      order.items.forEach((item) => {
+        if (item.task && !item.labTask) {
+          item.labTask = item.task;
+        }
+      });
+    }
+    return order;
   },
 
   // 4. PATCH /api/v1/doctor-examination/test-order-items/:orderItemId/cancel

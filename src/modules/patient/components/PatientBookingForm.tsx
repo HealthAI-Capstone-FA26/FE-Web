@@ -31,7 +31,7 @@ import {
   type AppointmentSlotResponse,
   type AppointmentItem,
 } from '../../../services/appointment/appointment.service';
-import { getLocalDateString, filterFutureSlots } from '../../../utils/booking.utils';
+import { getLocalDateString, isSlotPassed } from '../../../utils/booking.utils';
 
 interface PatientBookingFormProps {
   onSuccess?: (newAppointment: AppointmentItem) => void;
@@ -133,9 +133,7 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
         setErrorMsg(null);
         setSelectedSlotId('');
         const freeSlots = await appointmentService.getFreeSlots(selectedDoctorId, selectedDate);
-        const validSlots = filterFutureSlots(Array.isArray(freeSlots) ? freeSlots : [], selectedDate);
-        setSlots(validSlots);
-        // Bắt người dùng chủ động chọn khung giờ, không tự động chọn slot đầu tiên
+        setSlots(Array.isArray(freeSlots) ? freeSlots : []);
       } catch (err: any) {
         setSlots([]);
         setSelectedSlotId('');
@@ -160,6 +158,12 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
     }
     if (!selectedSlotId) {
       setErrorMsg('Vui lòng chọn khung giờ khám còn trống');
+      return;
+    }
+
+    const chosenSlot = slots.find((s) => s.slotId === selectedSlotId);
+    if (!chosenSlot || isSlotPassed(chosenSlot.slotStartTime, selectedDate)) {
+      setErrorMsg('Khung giờ bạn chọn đã kết thúc, vui lòng chọn khung giờ khác');
       return;
     }
 
@@ -193,7 +197,7 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
         setSelectedSlotId('');
         appointmentService
           .getFreeSlots(selectedDoctorId, selectedDate)
-          .then((s) => setSlots(filterFutureSlots(Array.isArray(s) ? s : [], selectedDate)))
+          .then((s) => setSlots(Array.isArray(s) ? s : []))
           .catch(() => {});
       }
       setErrorMsg(err?.message || 'Đặt lịch không thành công. Vui lòng kiểm tra lại thông tin.');
@@ -540,35 +544,57 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                         Không có slot trống ngày này
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-1">
-                        {slots.map((s) => {
-                          const startTime = new Date(s.slotStartTime).toLocaleTimeString('vi-VN', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            timeZone: 'UTC',
-                          });
-                          const endTime = new Date(s.slotEndTime).toLocaleTimeString('vi-VN', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            timeZone: 'UTC',
-                          });
-                          const isSelected = selectedSlotId === s.slotId;
-                          return (
-                            <button
-                              key={s.slotId}
-                              type="button"
-                              onClick={() => setSelectedSlotId(s.slotId)}
-                              className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between border cursor-pointer ${
-                                isSelected
-                                  ? 'bg-white text-[#0b3c8f] border-white shadow-md'
-                                  : 'bg-white/20 text-white border-white/20 hover:bg-white/30'
-                              }`}
-                            >
-                              <span>{startTime} - {endTime}</span>
-                              <span className="text-[10px] opacity-80 font-normal">({s.capacity - s.bookedCount})</span>
-                            </button>
-                          );
-                        })}
+                      <div>
+                        <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                          {slots.map((s) => {
+                            const startTime = new Date(s.slotStartTime).toLocaleTimeString('vi-VN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              timeZone: 'UTC',
+                            });
+                            const endTime = new Date(s.slotEndTime).toLocaleTimeString('vi-VN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              timeZone: 'UTC',
+                            });
+                            const isPassed = isSlotPassed(s.slotStartTime, selectedDate);
+                            const isSelected = selectedSlotId === s.slotId;
+
+                            if (isPassed) {
+                              return (
+                                <div
+                                  key={s.slotId}
+                                  title="Khung giờ này đã qua hoặc đã hết thời gian tiếp nhận"
+                                  className="py-1.5 px-2 rounded-lg text-xs font-medium transition-all flex items-center justify-between border bg-white/10 text-white/40 border-white/10 cursor-not-allowed select-none opacity-50"
+                                >
+                                  <span className="line-through decoration-white/30">{startTime} - {endTime}</span>
+                                  <span className="text-[10px] text-white/50 uppercase font-semibold">Hết giờ</span>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <button
+                                key={s.slotId}
+                                type="button"
+                                onClick={() => setSelectedSlotId(s.slotId)}
+                                className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between border cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-white text-[#0b3c8f] border-white shadow-md'
+                                    : 'bg-white/20 text-white border-white/20 hover:bg-white/30'
+                                }`}
+                              >
+                                <span>{startTime} - {endTime}</span>
+                                <span className="text-[10px] opacity-80 font-normal">({s.capacity - s.bookedCount})</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {slots.length > 0 && slots.every((s) => isSlotPassed(s.slotStartTime, selectedDate)) && (
+                          <p className="text-[10px] text-yellow-300 mt-1.5 italic">
+                            Các khung giờ hôm nay đã kết thúc, vui lòng chọn ngày tiếp theo.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>

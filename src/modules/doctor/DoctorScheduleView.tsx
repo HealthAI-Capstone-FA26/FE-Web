@@ -912,6 +912,9 @@ export const DoctorScheduleView: React.FC = () => {
                 <option value="pending">Chờ đến viện tiếp đón</option>
                 <option value="confirmed">Đã xác nhận</option>
                 <option value="checked_in">Đã có mặt tại viện</option>
+                <option value="in_progress">Đang khám</option>
+                <option value="completed">Hoàn tất</option>
+                <option value="cancelled">Đã hủy</option>
               </select>
             </div>
           </div>
@@ -946,6 +949,18 @@ export const DoctorScheduleView: React.FC = () => {
                 } else if (appointment.status === 'checked_in') {
                   statusLabel = 'Đã có mặt tại viện';
                   statusColor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+                } else if (appointment.status === 'in_progress') {
+                  statusLabel = 'Đang khám';
+                  statusColor = 'text-purple-700 bg-purple-50 border-purple-200';
+                } else if (appointment.status === 'completed') {
+                  statusLabel = 'Hoàn tất';
+                  statusColor = 'text-teal-700 bg-teal-50 border-teal-200';
+                } else if (appointment.status === 'cancelled') {
+                  statusLabel = 'Đã hủy';
+                  statusColor = 'text-rose-700 bg-rose-50 border-rose-200';
+                } else if (appointment.status === 'no_show') {
+                  statusLabel = 'Vắng mặt';
+                  statusColor = 'text-slate-600 bg-slate-100 border-slate-300';
                 }
 
                 const workDateObj = new Date(schedule.workDate);
@@ -1222,6 +1237,18 @@ export const DoctorScheduleView: React.FC = () => {
                                   } else if (appt.status === 'checked_in') {
                                     statusLabel = 'Đã có mặt tại viện';
                                     statusColor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+                                  } else if (appt.status === 'in_progress') {
+                                    statusLabel = 'Đang khám';
+                                    statusColor = 'text-purple-700 bg-purple-50 border-purple-200';
+                                  } else if (appt.status === 'completed') {
+                                    statusLabel = 'Hoàn tất';
+                                    statusColor = 'text-teal-700 bg-teal-50 border-teal-200';
+                                  } else if (appt.status === 'cancelled') {
+                                    statusLabel = 'Đã hủy';
+                                    statusColor = 'text-rose-700 bg-rose-50 border-rose-200';
+                                  } else if (appt.status === 'no_show') {
+                                    statusLabel = 'Vắng mặt';
+                                    statusColor = 'text-slate-600 bg-slate-100 border-slate-300';
                                   }
 
                                   return (

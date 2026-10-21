@@ -25,8 +25,10 @@ export const TestOrderHistoryList: React.FC<TestOrderHistoryListProps> = ({
   onCancelItem,
 }) => {
   const renderItemStatusBadge = (item: TestOrderItemDetail) => {
+    const task = item.task || item.labTask;
+
     // 1. Trạng thái kết thúc hoặc đang tiến hành
-    if (item.status === 'completed' || item.labTask?.status === 'completed') {
+    if (item.status === 'completed' || task?.status === 'completed') {
       return (
         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
           <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
@@ -35,7 +37,7 @@ export const TestOrderHistoryList: React.FC<TestOrderHistoryListProps> = ({
       );
     }
 
-    if (item.status === 'cancelled' || item.labTask?.status === 'cancelled') {
+    if (item.status === 'cancelled' || task?.status === 'cancelled') {
       return (
         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-300">
           Đã hủy
@@ -46,8 +48,8 @@ export const TestOrderHistoryList: React.FC<TestOrderHistoryListProps> = ({
     if (
       item.status === 'in_progress' ||
       item.status === 'sample_collected' ||
-      item.labTask?.status === 'in_progress' ||
-      item.labTask?.status === 'sample_collected'
+      task?.status === 'in_progress' ||
+      task?.status === 'sample_collected'
     ) {
       return (
         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center gap-1">
@@ -58,12 +60,12 @@ export const TestOrderHistoryList: React.FC<TestOrderHistoryListProps> = ({
     }
 
     // 2. Kiểm tra đã thanh toán viện phí chưa
-    const isPaid = Boolean(item.labTask?.paymentVerified || item.labTask?.status === 'ready');
+    const isPaid = Boolean(task?.paymentVerified || task?.status === 'ready');
 
     if (isPaid) {
       return (
-        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center gap-1">
-          <CheckCircle2 className="w-3 h-3 text-blue-600 shrink-0" />
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
+          <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
           <span>Đã thu phí • Chờ lấy mẫu</span>
         </span>
       );
@@ -122,14 +124,17 @@ export const TestOrderHistoryList: React.FC<TestOrderHistoryListProps> = ({
             const orderItems = order.items || [];
             const isOrderPaid =
               orderItems.length > 0 &&
-              orderItems.every(
-                (i) =>
+              orderItems.every((i) => {
+                const task = i.task || i.labTask;
+                return (
                   i.status === 'cancelled' ||
-                  i.labTask?.paymentVerified === true ||
-                  i.labTask?.status === 'ready' ||
-                  i.labTask?.status === 'in_progress' ||
-                  i.labTask?.status === 'completed'
-              );
+                  task?.paymentVerified === true ||
+                  task?.status === 'ready' ||
+                  task?.status === 'sample_collected' ||
+                  task?.status === 'in_progress' ||
+                  task?.status === 'completed'
+                );
+              });
 
             return (
               <div
@@ -170,7 +175,14 @@ export const TestOrderHistoryList: React.FC<TestOrderHistoryListProps> = ({
                     const testName = item.service?.serviceName || item.testType?.testName || 'Xét nghiệm';
                     const testCode = item.service?.serviceCode || item.testType?.testCode || '---';
                     const room = item.service ? 'Phòng Xét nghiệm Máu (BLOOD-LAB)' : undefined;
-                    const isPaid = Boolean(item.labTask?.paymentVerified || item.labTask?.status === 'ready' || item.labTask?.status === 'completed' || item.labTask?.status === 'in_progress');
+                    const task = item.task || item.labTask;
+                    const isPaid = Boolean(
+                      task?.paymentVerified ||
+                      task?.status === 'ready' ||
+                      task?.status === 'sample_collected' ||
+                      task?.status === 'completed' ||
+                      task?.status === 'in_progress'
+                    );
                     const isCancelable =
                       !isPaid &&
                       item.status !== 'completed' &&
