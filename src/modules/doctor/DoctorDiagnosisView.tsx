@@ -14,6 +14,7 @@ import {
 } from '../../services/doctor/post-test-consultation.service';
 import { type TimelineEvent } from '../../services/doctor/case-timeline.service';
 import { encounterService, type EncounterItem } from '../../services/encounter/encounter.service';
+import { resolveAttachmentUrl } from '../../services/lab/lab-result.service';
 import { useAuth } from '../../context/AuthContext';
 import { BorderBeam } from '../../components/ui/border-beam';
 import { Mascot } from 'page-mascot';
@@ -780,7 +781,7 @@ export const DoctorDiagnosisView: React.FC = () => {
                     );
                   }
 
-                  if (event.type === 'test_order') {
+                  if (event.type === 'test_order' || event.type === 'diagnostic_order') {
                     const items = event.data?.items || [];
                     return (
                       <div key={idx} className="relative">
@@ -791,16 +792,17 @@ export const DoctorDiagnosisView: React.FC = () => {
                           {eventTime} — Chỉ định CLS tim mạch (Mô-đun 5)
                         </span>
                         <p className="font-extrabold text-slate-800">
-                          {items.map((i: any) => i.testType?.testName).join(', ') || event.summary}
+                          {items.map((i: any) => i.service?.serviceName || i.testType?.testName).filter(Boolean).join(', ') || event.summary}
                         </p>
                       </div>
                     );
                   }
 
-                  if (event.type === 'lab_result') {
-                    const labRes = event.data?.labResult;
+                  if (event.type === 'lab_result' || event.type === 'diagnostic_result') {
+                    const labRes = event.data?.result || event.data?.labResult;
                     const values = labRes?.values || [];
                     const abnormalCount = values.filter((v: any) => v.isAbnormal).length;
+                    const testTitle = event.data?.serviceName || event.data?.testName || event.summary;
 
                     return (
                       <div key={idx} className="relative group">
@@ -823,7 +825,7 @@ export const DoctorDiagnosisView: React.FC = () => {
 
                         <div className="space-y-1 mt-1 bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/80">
                           <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-slate-900">{event.data?.testName || event.summary}</span>
+                            <span className="font-extrabold text-slate-900">{testTitle}</span>
                             <Badge variant={abnormalCount > 0 ? 'critical' : 'normal'} size="sm">
                               {abnormalCount > 0 ? `${abnormalCount} chỉ số bất thường` : 'Bình thường'}
                             </Badge>
@@ -1314,7 +1316,9 @@ export const DoctorDiagnosisView: React.FC = () => {
         }
       >
         {selectedLabEvent && (() => {
-          const labRes = selectedLabEvent.data?.labResult;
+          const labRes = selectedLabEvent.data?.result || selectedLabEvent.data?.labResult;
+          const testTitle = selectedLabEvent.data?.serviceName || selectedLabEvent.data?.testName || selectedLabEvent.summary;
+          const categoryName = selectedLabEvent.data?.modality || selectedLabEvent.data?.panelGroup || selectedLabEvent.data?.category || 'Chung';
           const values = labRes?.values || [];
           const attachments = labRes?.attachments || [];
           const abnormalCount = values.filter((v: any) => v.isAbnormal).length;
@@ -1324,8 +1328,8 @@ export const DoctorDiagnosisView: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-0.5">
                   <span className="text-[10px] font-extrabold text-slate-500 uppercase">Tên xét nghiệm</span>
-                  <div className="text-xs font-black text-slate-800">{selectedLabEvent.data?.testName}</div>
-                  <div className="text-[10px] text-slate-400 font-mono">Nhóm: {selectedLabEvent.data?.category || 'Chung'}</div>
+                  <div className="text-xs font-black text-slate-800">{testTitle}</div>
+                  <div className="text-[10px] text-slate-400 font-mono">Nhóm: {categoryName}</div>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-0.5">
@@ -1441,7 +1445,7 @@ export const DoctorDiagnosisView: React.FC = () => {
                           </div>
                           <button
                             type="button"
-                            onClick={() => setPreviewAttachmentUrl(att.fileUrl)}
+                            onClick={() => setPreviewAttachmentUrl(resolveAttachmentUrl(att.fileUrl))}
                             className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer border-none shrink-0"
                           >
                             <Eye className="w-3 h-3" />

@@ -36,15 +36,50 @@ export interface AssignLabStaffDto {
   isPrimary?: boolean;
 }
 
+export function normalizeLabRoom(r: any): LabRoomItem {
+  if (!r) return r;
+  const id = r.diagnosticRoomId || r.labRoomId;
+  const code = r.diagnosticRoomCode || r.labRoomCode;
+  const name = r.diagnosticRoomName || r.labRoomName;
+  const loc = r.location || r.roomLocation;
+  return {
+    ...r,
+    labRoomId: id,
+    diagnosticRoomId: id,
+    labRoomCode: code,
+    diagnosticRoomCode: code,
+    labRoomName: name,
+    diagnosticRoomName: name,
+    location: loc,
+    roomLocation: loc,
+    isActive: r.isActive ?? true,
+  };
+}
+
+export function normalizeLabAssignment(a: any): LabStaffRoomAssignment {
+  if (!a) return a;
+  const roomId = a.diagnosticRoomId || a.labRoomId;
+  const rawRoom = a.diagnosticRoom || a.labRoom;
+  const normalizedRoom = rawRoom ? normalizeLabRoom(rawRoom) : undefined;
+  return {
+    ...a,
+    labRoomId: roomId,
+    diagnosticRoomId: roomId,
+    diagnosticRoom: normalizedRoom,
+    labRoom: normalizedRoom,
+  };
+}
+
 export const labRoomService = {
   /**
    * GET /api/v1/lab-rooms
    * Trả về danh sách các phòng Lab đang active
    */
   async getLabRooms(): Promise<LabRoomItem[]> {
-    return apiFetch<LabRoomItem[]>('/lab-rooms', {
+    const rawList = await apiFetch<any[]>('/lab-rooms', {
       method: 'GET',
     });
+    return Array.isArray(rawList) ? rawList.map(normalizeLabRoom) : [];
   },
 
   /**
@@ -52,9 +87,10 @@ export const labRoomService = {
    * Trả về danh sách kỹ thuật viên thuộc phòng Lab tương ứng
    */
   async getLabRoomStaff(labRoomId: string): Promise<LabStaffRoomAssignment[]> {
-    return apiFetch<LabStaffRoomAssignment[]>(`/lab-rooms/${labRoomId}/staff`, {
+    const rawList = await apiFetch<any[]>(`/lab-rooms/${labRoomId}/staff`, {
       method: 'GET',
     });
+    return Array.isArray(rawList) ? rawList.map(normalizeLabAssignment) : [];
   },
 
   /**
@@ -62,10 +98,11 @@ export const labRoomService = {
    * Phân công kỹ thuật viên vào phòng Lab
    */
   async assignStaffToLabRoom(labRoomId: string, data: AssignLabStaffDto): Promise<LabStaffRoomAssignment> {
-    return apiFetch<LabStaffRoomAssignment>(`/lab-rooms/${labRoomId}/staff`, {
+    const raw = await apiFetch<any>(`/lab-rooms/${labRoomId}/staff`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    return normalizeLabAssignment(raw);
   },
 
   /**
@@ -83,8 +120,9 @@ export const labRoomService = {
    * Trả về danh sách phòng Lab mà KTV hiện tại được phân công
    */
   async getMyAssignments(): Promise<LabStaffRoomAssignment[]> {
-    return apiFetch<LabStaffRoomAssignment[]>('/lab-rooms/my-assignments', {
+    const rawList = await apiFetch<any[]>('/lab-rooms/my-assignments', {
       method: 'GET',
     });
+    return Array.isArray(rawList) ? rawList.map(normalizeLabAssignment) : [];
   },
 };
