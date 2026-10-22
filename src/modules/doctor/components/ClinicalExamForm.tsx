@@ -52,9 +52,10 @@ interface ClinicalExamFormProps {
   dynamicAiDiagnosisList: DynamicAiDiagnosis[];
   isGeneratingAiDiagnosis: boolean;
   onTriggerAiDiagnosis: () => void;
-  onQuickDiagnosisSelect: (diagText: string) => void;
+  onQuickDiagnosisSelect: (diagText: string, icd10Code?: string) => void;
   examWarningMsg?: string | null;
 }
+
 
 export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
   encounterId,
@@ -499,7 +500,7 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
                   <span className="text-[9px] text-slate-400 font-medium">Khuyến nghị chẩn đoán</span>
                   <button
                     type="button"
-                    onClick={() => onQuickDiagnosisSelect(item.diseaseName)}
+                    onClick={() => onQuickDiagnosisSelect(item.diseaseName, item.icd10Code)}
                     className={`px-2.5 py-1 text-[10px] font-bold rounded-lg cursor-pointer border flex items-center gap-1 transition-colors ${isCurrentlySelected
                         ? 'bg-purple-700 text-white border-purple-700'
                         : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'

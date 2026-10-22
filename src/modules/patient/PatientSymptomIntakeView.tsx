@@ -408,23 +408,26 @@ export const PatientSymptomIntakeView: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              Hồ sơ bệnh nhân *
+              Hồ sơ bệnh nhân
             </label>
-            <select
-              value={selectedPatientId}
-              onChange={(e) => setSelectedPatientId(e.target.value)}
-              className="w-full px-3.5 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/60"
-            >
-              {patients.length === 0 ? (
-                <option value="">Chưa có hồ sơ bệnh nhân</option>
-              ) : (
-                patients.map((p) => (
+            {patients.length <= 1 ? (
+              <div className="w-full px-3.5 py-2.5 text-xs font-bold rounded-xl border border-slate-200 bg-slate-50 text-slate-800 flex items-center justify-between">
+                <span>{currentPatient?.fullName || 'Chưa có hồ sơ'} (Mã BN: {currentPatient?.patientCode || '---'})</span>
+                <span className="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">Hồ sơ chính</span>
+              </div>
+            ) : (
+              <select
+                value={selectedPatientId}
+                onChange={(e) => setSelectedPatientId(e.target.value)}
+                className="w-full px-3.5 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-slate-50/60"
+              >
+                {patients.map((p) => (
                   <option key={p.patientId} value={p.patientId}>
                     {p.fullName} - Mã BN: {p.patientCode}
                   </option>
-                ))
-              )}
-            </select>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
