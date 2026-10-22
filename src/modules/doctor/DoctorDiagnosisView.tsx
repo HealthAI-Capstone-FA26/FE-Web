@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Search, CheckCircle2, Clock, FileText,
   Clipboard, BookOpen, AlertCircle, ArrowRight, User, Loader2,
   Eye, Image as ImageIcon, ExternalLink, RefreshCw, X, AlertTriangle, Check, FlaskConical,
   HeartPulse, Stethoscope, Calendar, Activity, CheckSquare, Square
 } from 'lucide-react';
+
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { icd10Service } from '../../services/icd10/icd10.service';
@@ -69,8 +71,29 @@ interface CurrentPatientInfo {
   };
 }
 
-export const DoctorDiagnosisView: React.FC = () => {
+export interface DoctorDiagnosisViewProps {
+  onNavigateTab?: (tabId: string) => void;
+}
+
+export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavigateTab }) => {
   const { user } = useAuth();
+  const [, setSearchParams] = useSearchParams();
+
+  const navigateTab = useCallback(
+    (tabId: string) => {
+      if (onNavigateTab) {
+        onNavigateTab(tabId);
+      } else {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.set('tab', tabId);
+          return next;
+        });
+      }
+    },
+    [onNavigateTab, setSearchParams]
+  );
+
   const [selectedPatientId, setSelectedPatientId] = useState(() => {
     return localStorage.getItem('doctor_selected_patient_id') || '';
   });
@@ -84,6 +107,19 @@ export const DoctorDiagnosisView: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'waiting' | 'in_progress' | 'awaiting_review' | 'finished'>('all');
+
+  // Thống kê số lượng theo nhóm trạng thái cho Hàng đợi
+  const queueCounts = useMemo(() => {
+    return {
+      all: apiEncounters.length,
+      waiting: apiEncounters.filter((e) => !e.status || e.status === 'waiting_for_doctor' || e.status === 'arrived' || e.status === 'pending').length,
+      in_progress: apiEncounters.filter((e) => e.status === 'in_progress' || e.status === 'awaiting_diagnostics' || e.status === 'diagnostics_in_progress').length,
+      awaiting_review: apiEncounters.filter((e) => e.status === 'awaiting_review').length,
+      finished: apiEncounters.filter((e) => e.status === 'finished' || e.status === 'completed').length,
+    };
+  }, [apiEncounters]);
+
 
   // Cache timeline data theo encounterId
   const timelineCache = useRef<Map<string, PostTestTimelineResponse>>(new Map());
@@ -149,11 +185,22 @@ export const DoctorDiagnosisView: React.FC = () => {
 
   const activeEncounterId = activeEncounter?.encounterId || (selectedPatientId.includes('-') && selectedPatientId.length > 30 ? selectedPatientId : undefined);
 
-  // Lọc danh sách ca khám theo từ khóa tìm kiếm (Tên, mã LK, mã BN, SĐT)
+  // Lọc danh sách ca khám theo trạng thái & từ khóa tìm kiếm (Tên, mã LK, mã BN, SĐT)
   const filteredEncounters = useMemo(() => {
+    let result = apiEncounters;
+    if (statusFilter === 'waiting') {
+      result = result.filter(e => !e.status || e.status === 'waiting_for_doctor' || e.status === 'arrived' || e.status === 'pending');
+    } else if (statusFilter === 'in_progress') {
+      result = result.filter(e => e.status === 'in_progress' || e.status === 'awaiting_diagnostics' || e.status === 'diagnostics_in_progress');
+    } else if (statusFilter === 'awaiting_review') {
+      result = result.filter(e => e.status === 'awaiting_review');
+    } else if (statusFilter === 'finished') {
+      result = result.filter(e => e.status === 'finished' || e.status === 'completed');
+    }
+
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return apiEncounters;
-    return apiEncounters.filter((enc) => {
+    if (!term) return result;
+    return result.filter((enc) => {
       const nameMatch = enc.patient?.fullName?.toLowerCase().includes(term);
       const encCodeMatch = enc.encounterCode?.toLowerCase().includes(term);
       const patCodeMatch = enc.patient?.patientCode?.toLowerCase().includes(term);
@@ -161,7 +208,40 @@ export const DoctorDiagnosisView: React.FC = () => {
       const idMatch = enc.encounterId?.toLowerCase().includes(term);
       return Boolean(nameMatch || encCodeMatch || patCodeMatch || phoneMatch || idMatch);
     });
-  }, [apiEncounters, searchTerm]);
+  }, [apiEncounters, statusFilter, searchTerm]);
+
+  // Gom toàn bộ kết quả cận lâm sàng từ EMR timeline
+  const labResultsSummary = useMemo(() => {
+    if (!timelineData?.timeline) return [];
+    return timelineData.timeline.filter((event) => event.type === 'lab_result');
+  }, [timelineData]);
+
+  // Gom tất cả các chỉ số đo có isAbnormal === true
+  const abnormalParameters = useMemo(() => {
+    return labResultsSummary.flatMap((event) => {
+      const values = event.data?.values || [];
+      const testTitle = event.data?.testType?.testName || event.data?.testName || event.summary || 'Xét nghiệm';
+      return values
+        .filter((v: any) => v.isAbnormal)
+        .map((v: any) => ({
+          ...v,
+          testTitle,
+        }));
+    });
+  }, [labResultsSummary]);
+
+  // Gom tất cả hình ảnh tệp đính kèm (ECG, X-quang, Siêu âm...)
+  const allParaclinicalAttachments = useMemo(() => {
+    return labResultsSummary.flatMap((event) => {
+      const attachments = event.data?.attachments || [];
+      const testTitle = event.data?.testType?.testName || event.data?.testName || event.summary || 'Hình ảnh CĐHA';
+      return attachments.map((att: any) => ({
+        ...att,
+        testTitle,
+      }));
+    });
+  }, [labResultsSummary]);
+
 
   // Fetch timeline có cache
   const fetchTimeline = useCallback(async (encounterId: string, forceRefresh = false) => {
@@ -502,10 +582,13 @@ export const DoctorDiagnosisView: React.FC = () => {
       timelineCache.current.delete(activeEncounterId);
       await fetchTimeline(activeEncounterId, true);
 
+      // Tự động chuyển tiếp sang Tab Kê đơn thuốc (Tab 3) sau 1.2s
       setTimeout(() => {
         setIsSubmitSuccess(false);
-      }, 5000);
+        navigateTab('prescription');
+      }, 1200);
     } catch (err: any) {
+
       console.error('Lỗi khi lưu kết luận chẩn đoán & tư vấn:', err);
       const errMsg = err?.data?.message || err?.message || 'Có lỗi xảy ra khi lưu kết luận chẩn đoán.';
       setSubmitError(errMsg);
@@ -603,6 +686,40 @@ export const DoctorDiagnosisView: React.FC = () => {
               )}
             </div>
 
+            {/* Bộ lọc nhanh trạng thái hàng chờ (Segmented Status Pills) */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar text-[11px]">
+              {[
+                { key: 'all', label: 'Tất cả', count: queueCounts.all },
+                { key: 'waiting', label: 'Chờ khám', count: queueCounts.waiting },
+                { key: 'in_progress', label: 'Đang khám', count: queueCounts.in_progress },
+                { key: 'awaiting_review', label: 'Đã có KQ', count: queueCounts.awaiting_review, highlight: true },
+                { key: 'finished', label: 'Đã xong', count: queueCounts.finished },
+              ].map((tab) => {
+                const isActive = statusFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setStatusFilter(tab.key as any)}
+                    className={`px-2.5 py-1 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1 border shrink-0 ${
+                      isActive
+                        ? tab.highlight
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                          : 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                        : tab.highlight && tab.count > 0
+                        ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 font-black animate-pulse'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span className={`text-[10px] px-1 rounded-full ${isActive ? 'bg-white/25 text-white' : 'bg-slate-200/70 text-slate-700'}`}>
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1">
               {isLoadingEncounters && (
                 <div className="p-4 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
@@ -612,8 +729,20 @@ export const DoctorDiagnosisView: React.FC = () => {
               )}
 
               {!isLoadingEncounters && filteredEncounters.length === 0 && (
-                <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  {searchTerm ? `Không tìm thấy ca khám nào khớp với "${searchTerm}"` : 'Chưa có ca khám nào trong hàng đợi'}
+                <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-1.5">
+                  <p>{searchTerm ? `Không tìm thấy ca khám nào khớp với "${searchTerm}"` : 'Chưa có ca khám nào trong hàng đợi'}</p>
+                  {(statusFilter !== 'all' || searchTerm) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchTerm('');
+                        setStatusFilter('all');
+                      }}
+                      className="text-[11px] text-blue-600 hover:text-blue-700 font-bold hover:underline cursor-pointer block mx-auto"
+                    >
+                      Đặt lại bộ lọc
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -621,7 +750,6 @@ export const DoctorDiagnosisView: React.FC = () => {
                 const patName = enc.patient?.fullName || 'Bệnh nhân';
                 const patCode = enc.encounterCode || enc.patient?.patientCode || enc.encounterId.slice(0, 8);
                 const isSelected = selectedPatientId === enc.encounterId || selectedPatientId === enc.encounterCode;
-                const isReady = enc.status === 'awaiting_review' || enc.status === 'in_progress' || enc.status === 'finished';
 
                 return (
                   <div
@@ -643,14 +771,35 @@ export const DoctorDiagnosisView: React.FC = () => {
                       </div>
                       <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{patCode}</div>
                     </div>
-                    <Badge variant={isReady ? 'normal' : 'warning'} size="sm">
-                      {isReady ? 'Đã có KQ CLS' : 'Đang thực hiện'}
-                    </Badge>
+                    <div>
+                      {enc.status === 'awaiting_review' ? (
+                        <span className="text-[9px] font-black px-2 py-0.5 rounded bg-purple-600 text-white animate-pulse shadow-xs">
+                          Đã có KQ CLS
+                        </span>
+                      ) : enc.status === 'in_progress' ? (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-blue-600 text-white">
+                          Đang khám
+                        </span>
+                      ) : enc.status === 'awaiting_diagnostics' || enc.status === 'diagnostics_in_progress' ? (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-indigo-500 text-white">
+                          Chờ CLS
+                        </span>
+                      ) : enc.status === 'finished' || enc.status === 'completed' ? (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">
+                          Đã xong
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                          Chờ khám
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
           </div>
+
 
           {/* EMR Timeline View */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
@@ -915,7 +1064,9 @@ export const DoctorDiagnosisView: React.FC = () => {
                         </span>
                       </div>
                       <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
-                        Tất cả 4 dịch vụ Cận lâm sàng Tim mạch (Xét nghiệm men tim, Điện tim ECG, Siêu âm tim Doppler, X-quang) đã có kết quả chính thức từ các phòng chức năng.
+                        {timelineData.paraclinicalProgress
+                          ? `Tất cả ${timelineData.paraclinicalProgress.totalOrders} dịch vụ Cận lâm sàng đã có kết quả chính thức từ các phòng chức năng.`
+                          : 'Tất cả các dịch vụ Cận lâm sàng đã có kết quả chính thức từ các phòng chức năng.'}
                       </p>
                     </div>
                   </div>
@@ -936,7 +1087,7 @@ export const DoctorDiagnosisView: React.FC = () => {
                         )}
                       </div>
                       <p className="text-xs text-amber-800 mt-1 leading-relaxed">
-                        Vẫn còn chỉ định cận lâm sàng đang trong quá trình thực hiện hoặc chờ phê duyệt tại phòng Lab. Bác sĩ có thể xem trước kết quả đã trả và lưu chẩn đoán tạm thời.
+                        Vẫn còn chỉ định cận lâm sàng đang trong quá trình thực hiện tại phòng chức năng. Nút kết luận chính thức sẽ mở khi tất cả kết quả đã hoàn tất.
                       </p>
                     </div>
                   </div>
@@ -969,6 +1120,158 @@ export const DoctorDiagnosisView: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Paraclinical Results & Imaging Summary Card */}
+              {labResultsSummary.length > 0 && (
+                <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <FlaskConical className="w-5 h-5 text-purple-600" />
+                      <div>
+                        <h4 className="text-sm font-extrabold text-slate-800">
+                          Tổng hợp Kết quả Cận lâm sàng & Hình ảnh
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          Gom tất cả {labResultsSummary.length} kết quả xét nghiệm máu, điện tim, siêu âm & chẩn đoán hình ảnh
+                        </p>
+                      </div>
+                    </div>
+                    {abnormalParameters.length > 0 ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-black self-start sm:self-auto">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600 animate-bounce" />
+                        <span>{abnormalParameters.length} chỉ số bất thường (Tô đỏ)</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold self-start sm:self-auto">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Tất cả chỉ số trong giới hạn an toàn</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 1. Bảng chỉ số bất thường cần lưu ý */}
+                  {abnormalParameters.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-[11px] font-extrabold text-rose-800 uppercase tracking-wider block">
+                        Các chỉ số ngoài khoảng tham chiếu:
+                      </span>
+                      <div className="overflow-x-auto rounded-2xl border border-rose-200/90 bg-rose-50/30">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-rose-100/60 text-rose-950 font-black border-b border-rose-200">
+                            <tr>
+                              <th className="py-2.5 px-3">Tên xét nghiệm / Chỉ số</th>
+                              <th className="py-2.5 px-3 text-center">Kết quả đo</th>
+                              <th className="py-2.5 px-3">Đơn vị</th>
+                              <th className="py-2.5 px-3">Khoảng tham chiếu</th>
+                              <th className="py-2.5 px-3 text-center">Đánh giá</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-rose-100">
+                            {abnormalParameters.map((p: any, idx: number) => (
+                              <tr key={idx} className="bg-white/80 hover:bg-rose-50/50">
+                                <td className="py-2 px-3 text-slate-800 font-bold">
+                                  <span>{p.parameter?.parameterName || p.parameter?.parameterCode || 'Chỉ số'}</span>
+                                  <span className="text-[10px] text-slate-400 block font-normal">{p.testTitle}</span>
+                                </td>
+                                <td className="py-2 px-3 text-center font-black text-rose-700 text-sm">
+                                  {p.valueNumeric ?? p.valueText ?? '—'}
+                                </td>
+                                <td className="py-2 px-3 text-slate-500 font-mono text-[11px]">
+                                  {p.parameter?.unit || '—'}
+                                </td>
+                                <td className="py-2 px-3 text-slate-500 font-mono text-[11px]">
+                                  {p.parameter?.referenceRange || '—'}
+                                </td>
+                                <td className="py-2 px-3 text-center">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+                                    <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                    Bất thường
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. Kết luận của Kỹ thuật viên / Bác sĩ phòng cận lâm sàng */}
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider block">
+                      Nhận xét & Kết luận kỹ thuật viên:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {labResultsSummary.map((event, idx) => {
+                        const testTitle = event.data?.testType?.testName || event.data?.testName || event.summary || 'Xét nghiệm';
+                        const conclusion = event.data?.labResult?.overallConclusion || event.data?.labResult?.technicianConclusion || event.data?.technicianConclusion || event.data?.labResult?.clinicalNote || event.summary || 'Chưa ghi nhận kết luận bổ sung.';
+                        const resultedAt = event.data?.labResult?.resultedAt || event.occurredAt;
+                        return (
+                          <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-xs font-bold text-slate-900">{testTitle}</span>
+                              {resultedAt && (
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {new Date(resultedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
+                              {conclusion}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 3. Thư viện hình ảnh cận lâm sàng (ECG, X-quang, Siêu âm tim) */}
+                  {allParaclinicalAttachments.length > 0 && (
+                    <div className="space-y-2 pt-1 border-t border-slate-100">
+                      <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <ImageIcon className="w-4 h-4 text-purple-600" />
+                        <span>Hình ảnh chẩn đoán & Sóng điện tim ({allParaclinicalAttachments.length}):</span>
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {allParaclinicalAttachments.map((att: any, idx: number) => {
+                          const resolvedUrl = resolveAttachmentUrl(att.fileUrl);
+                          const isImage = att.fileType?.includes('image') || att.fileUrl?.match(/\.(jpg|jpeg|png|webp|gif)/i);
+
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => setPreviewAttachmentUrl(resolvedUrl)}
+                              className="group relative rounded-2xl border border-slate-200 overflow-hidden bg-slate-100 cursor-pointer shadow-2xs hover:shadow-md hover:border-purple-400 transition-all aspect-video flex flex-col justify-end"
+                            >
+                              {isImage ? (
+                                <img
+                                  src={resolvedUrl}
+                                  alt={att.description || 'Ảnh kết quả'}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-1 p-2">
+                                  <FileText className="w-6 h-6 text-blue-600" />
+                                  <span className="text-[10px] text-center font-bold text-slate-600 truncate max-w-full">
+                                    {att.description || 'Tệp kết quả'}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-80 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 text-white">
+                                <div className="flex items-center justify-between text-[10px]">
+                                  <span className="font-bold truncate">{att.testTitle}</span>
+                                  <Eye className="w-3.5 h-3.5 shrink-0 opacity-80 group-hover:opacity-100" />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
 
               {/* 2. Form container: Official ICD-10 Diagnosis & Treatment Consultation */}
               <form onSubmit={handleSaveDiagnosis} className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-6">
@@ -1251,11 +1554,18 @@ export const DoctorDiagnosisView: React.FC = () => {
                 )}
 
                 {/* Submit button */}
-                <div className="pt-2 flex justify-end">
+                <div className="pt-2 flex flex-col sm:flex-row items-end sm:items-center justify-between gap-3">
+                  {!timelineData?.readyForConclusion && activeEncounter?.status !== 'finished' && (
+                    <div className="text-xs text-amber-800 bg-amber-50 px-3.5 py-2 rounded-xl border border-amber-200 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Chưa đủ điều kiện: Cần hoàn tất tất cả cận lâm sàng để ra kết luận chính thức.</span>
+                    </div>
+                  )}
+
                   <button
                     type="submit"
-                    disabled={isSubmitting}
-                    className="px-6 py-3.5 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer border-none flex items-center gap-2 uppercase tracking-wide transition-all active:scale-98"
+                    disabled={isSubmitting || (!timelineData?.readyForConclusion && activeEncounter?.status !== 'finished')}
+                    className="px-6 py-3.5 bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer border-none flex items-center gap-2 uppercase tracking-wide transition-all active:scale-98"
                   >
                     {isSubmitting ? (
                       <>
@@ -1270,6 +1580,7 @@ export const DoctorDiagnosisView: React.FC = () => {
                     )}
                   </button>
                 </div>
+
 
               </form>
             </>

@@ -19,6 +19,7 @@ import { DepartmentIcon } from '../../components/common/DepartmentIcon';
 import { PatientBookingForm } from './components/PatientBookingForm';
 import { CancelAppointmentModal } from './components/CancelAppointmentModal';
 import { AppointmentDetailModal } from './components/AppointmentDetailModal';
+import { RescheduleAppointmentModal } from './components/RescheduleAppointmentModal';
 import { appointmentService, type AppointmentItem } from '../../services/appointment/appointment.service';
 import { patientService, type PatientResponse } from '../../services/patient/patient.service';
 
@@ -35,6 +36,9 @@ export const PatientPortalAppointmentsView: React.FC = () => {
 
   // Cancel Modal
   const [cancellingAppointment, setCancellingAppointment] = useState<AppointmentItem | null>(null);
+
+  // Reschedule Modal
+  const [reschedulingAppointment, setReschedulingAppointment] = useState<AppointmentItem | null>(null);
 
   const fetchAppointments = async (forceRefresh = true) => {
     try {
@@ -142,21 +146,30 @@ export const PatientPortalAppointmentsView: React.FC = () => {
         <div className="space-y-4 animate-in fade-in duration-200">
           {/* Controls Bar */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-              <select
-                value={selectedFilterPatientId}
-                onChange={(e) => setSelectedFilterPatientId(e.target.value)}
-                className="text-xs p-2 rounded-xl border border-slate-200 bg-white font-medium text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 w-full sm:w-64"
-              >
-                <option value="all">Tất cả hồ sơ ({appointments.length} lịch hẹn)</option>
-                {patients.map((p) => (
-                  <option key={p.patientId} value={p.patientId}>
-                    {p.fullName} (Mã BN: {p.patientCode || 'N/A'})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {patients.length > 1 ? (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+                <select
+                  value={selectedFilterPatientId}
+                  onChange={(e) => setSelectedFilterPatientId(e.target.value)}
+                  className="text-xs p-2 rounded-xl border border-slate-200 bg-white font-medium text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 w-full sm:w-64"
+                >
+                  <option value="all">Tất cả hồ sơ ({appointments.length} lịch hẹn)</option>
+                  {patients.map((p) => (
+                    <option key={p.patientId} value={p.patientId}>
+                      {p.fullName} (Mã BN: {p.patientCode || 'N/A'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="text-xs text-slate-600 font-semibold flex items-center gap-2">
+                <User className="w-4 h-4 text-blue-600" />
+                <span>
+                  Bệnh nhân: <strong>{patients[0]?.fullName || 'Chưa có hồ sơ'}</strong> ({appointments.length} lịch hẹn)
+                </span>
+              </div>
+            )}
 
             <button
               onClick={() => fetchAppointments(true)}
@@ -302,15 +315,27 @@ export const PatientPortalAppointmentsView: React.FC = () => {
                         <span>Xem chi tiết hồ sơ</span>
                       </button>
 
-                      {isCancellable && (
-                        <button
-                          onClick={() => setCancellingAppointment(app)}
-                          className="px-3.5 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold transition-colors flex items-center gap-1"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          <span>Hủy lịch</span>
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {app.appointmentType === 'follow_up' && isCancellable && (
+                          <button
+                            onClick={() => setReschedulingAppointment(app)}
+                            className="px-3.5 py-2 rounded-xl border border-blue-200 text-blue-700 hover:bg-blue-50 text-xs font-bold transition-colors flex items-center gap-1"
+                          >
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>Đổi lịch</span>
+                          </button>
+                        )}
+
+                        {isCancellable && (
+                          <button
+                            onClick={() => setCancellingAppointment(app)}
+                            className="px-3.5 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold transition-colors flex items-center gap-1"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>Hủy lịch</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -342,6 +367,19 @@ export const PatientPortalAppointmentsView: React.FC = () => {
           onSuccess={() => {
             fetchAppointments();
             setCancellingAppointment(null);
+          }}
+        />
+      )}
+
+      {/* RESCHEDULE MODAL */}
+      {reschedulingAppointment && (
+        <RescheduleAppointmentModal
+          appointment={reschedulingAppointment}
+          isOpen={Boolean(reschedulingAppointment)}
+          onClose={() => setReschedulingAppointment(null)}
+          onSuccess={() => {
+            fetchAppointments();
+            setReschedulingAppointment(null);
           }}
         />
       )}

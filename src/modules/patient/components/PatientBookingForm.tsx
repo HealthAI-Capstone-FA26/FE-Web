@@ -339,65 +339,67 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
 
           <form onSubmit={handleSubmit} className="space-y-5">
 
-            {/* KHUNG 1: CHỌN HỒ SƠ BỆNH NHÂN */}
-            <div className="bg-white/5 p-4.5 rounded-xl border border-white/10 space-y-3 font-sans">
-              <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                * 1. Chọn hồ sơ bệnh nhân khám
-              </span>
+            {/* THÔNG TIN BỆNH NHÂN ĐĂNG KÝ KHÁM (1 tài khoản gắn liền với 1 bệnh nhân) */}
+            <div className="bg-white/10 p-4 rounded-2xl border border-white/15 font-sans space-y-2.5">
+              <div className="text-[11px] font-bold text-blue-200 uppercase tracking-wider flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-yellow-300" />
+                  <span>Thông tin bệnh nhân</span>
+                </span>
+                <span className="text-[10px] text-emerald-300 font-semibold bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/30 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  <span>Hồ sơ tài khoản</span>
+                </span>
+              </div>
 
               {patients.length === 0 ? (
-                <div className="p-3 bg-white/10 rounded-xl text-xs text-blue-100 flex items-center justify-between">
-                  <span>Chưa có hồ sơ bệnh nhân gắn với tài khoản.</span>
-                  <a href="/benh-nhan/ho-so" className="text-yellow-300 underline font-semibold hover:text-white">
-                    Cập nhật hồ sơ cá nhân →
+                <div className="p-3 bg-rose-500/20 border border-rose-400/40 rounded-xl text-xs text-rose-100 flex items-center justify-between gap-3">
+                  <span>Chưa có hồ sơ bệnh nhân gắn với tài khoản này.</span>
+                  <a
+                    href="/benh-nhan/ho-so"
+                    className="bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-bold px-3 py-1.5 rounded-lg text-[11px] transition-colors shrink-0"
+                  >
+                    Cập nhật hồ sơ →
                   </a>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {patients.map((p) => {
-                    const isSelected = selectedPatientId === p.patientId;
-                    const isSelf = p.relationship === 'self' || p.relationship === 'Bản thân' || !p.relationship;
-                    return (
-                      <label
-                        key={p.patientId}
-                        onClick={() => setSelectedPatientId(p.patientId)}
-                        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${
-                          isSelected
-                            ? 'bg-white text-[#0b3c8f] font-bold border-white shadow-md'
-                            : 'bg-white/90 text-slate-700 hover:bg-white border-transparent'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="patientProfile"
-                          checked={isSelected}
-                          onChange={() => setSelectedPatientId(p.patientId)}
-                          className="sr-only"
-                        />
-                        <div
-                          className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors shrink-0 ${
-                            isSelected ? 'border-[#0b3c8f] bg-[#0b3c8f] text-white' : 'border-slate-300 bg-transparent'
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3 h-3 stroke-[3] text-white" />}
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-xs font-bold truncate">{p.fullName}</span>
-                          <span className="text-[10px] opacity-75 font-mono">
-                            Mã BN: {p.patientCode}
+                <div className="bg-white rounded-xl p-3.5 text-slate-800 shadow-sm flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0b3c8f] to-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+                      {currentPatient?.fullName?.charAt(0).toUpperCase() || 'P'}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-extrabold text-slate-900 truncate">
+                          {currentPatient?.fullName}
+                        </span>
+                        <span className="text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
+                          Mã BN: {currentPatient?.patientCode}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mt-0.5">
+                        {currentPatient?.phoneNumber && <span>SĐT: {currentPatient.phoneNumber}</span>}
+                        {currentPatient?.gender && (
+                          <span>
+                            • Giới tính: {currentPatient.gender === 'male' || currentPatient.gender === 'Nam' ? 'Nam' : 'Nữ'}
                           </span>
-                        </div>
-                      </label>
-                    );
-                  })}
+                        )}
+                        {currentPatient?.dateOfBirth && (
+                          <span>
+                            • Sinh năm: {new Date(currentPatient.dateOfBirth).getFullYear()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* KHUNG 2: VẤN ĐỀ SỨC KHỎE CẦN KHÁM */}
+            {/* KHUNG 1: VẤN ĐỀ SỨC KHỎE CẦN KHÁM */}
             <div className="bg-white/5 p-4.5 rounded-xl border border-white/10 space-y-3 font-sans">
               <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                * 2. Vấn đề sức khỏe cần khám
+                * 1. Vấn đề sức khỏe cần khám
               </span>
 
               <textarea
@@ -418,12 +420,12 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
               </div>
             </div>
 
-            {/* KHUNG 3: THÔNG TIN LOẠI HÌNH & BÁC SĨ TIM MẠCH */}
+            {/* KHUNG 2: THÔNG TIN LOẠI HÌNH & BÁC SĨ TIM MẠCH */}
             <div className="bg-white/5 p-4.5 rounded-xl border border-white/10 space-y-4 font-sans">
               {/* Chọn loại hình khám (Tiêu chuẩn / VIP) */}
               <div className="space-y-2">
                 <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                  * 3. Chọn loại hình khám
+                  * 2. Chọn loại hình khám
                 </span>
                 <div className="grid grid-cols-2 bg-white p-1 rounded-xl border border-slate-200/50 text-center font-bold shadow-inner">
                   {[

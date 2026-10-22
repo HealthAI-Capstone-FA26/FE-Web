@@ -137,17 +137,29 @@ const speakQueueAnnouncement = (
         window.speechSynthesis.cancel();
       }
       const encodedText = encodeURIComponent(textToSpeak);
-      const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=vi&client=tw-ob`;
-      const audio = new Audio(audioUrl);
-      audio.play().catch((err) => {
-        console.warn('Lỗi phát Google TTS fallback, dùng giọng trình duyệt:', err);
-        if ('speechSynthesis' in window) {
-          const utterance = new SpeechSynthesisUtterance(textToSpeak);
-          utterance.lang = 'vi-VN';
-          const sysVoices = window.speechSynthesis.getVoices();
-          if (sysVoices.length > 0) utterance.voice = sysVoices[0];
-          window.speechSynthesis.speak(utterance);
-        }
+      // Ưu tiên 1: Sử dụng proxy /tts-proxy của Vite dev server (bảo đảm 100% không bị chặn Referer/CORS)
+      const proxyUrl = `/tts-proxy/translate_tts?ie=UTF-8&q=${encodedText}&tl=vi&client=tw-ob`;
+      const directUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=vi&client=tw-ob`;
+
+      const audio = new Audio(proxyUrl);
+      audio.play().catch(() => {
+        // Fallback 1: Thử phát trực tiếp qua audio element với referrerPolicy no-referrer
+        const directAudio = document.createElement('audio');
+        directAudio.setAttribute('referrerpolicy', 'no-referrer');
+        directAudio.src = directUrl;
+        directAudio.play().catch((err) => {
+          console.warn('Lỗi phát âm thanh Google TTS:', err);
+          // Fallback 2: Chỉ dùng Web Speech API nếu tìm thấy giọng Tiếng Việt (tránh giọng David/English đọc tiếng Việt)
+          if ('speechSynthesis' in window) {
+            const viVoice = getVietnameseVoice();
+            if (viVoice) {
+              const utterance = new SpeechSynthesisUtterance(textToSpeak);
+              utterance.lang = 'vi-VN';
+              utterance.voice = viVoice;
+              window.speechSynthesis.speak(utterance);
+            }
+          }
+        });
       });
     }
   };

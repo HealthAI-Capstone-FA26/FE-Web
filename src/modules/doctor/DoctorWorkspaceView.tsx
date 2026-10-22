@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Stethoscope, FileText, Pill } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { DoctorEMRView } from './DoctorEMRView';
@@ -95,27 +96,38 @@ export const DoctorWorkspaceView: React.FC = () => {
     fetchCount();
   }, [user?.doctorId]);
 
+  const [, setSearchParams] = useSearchParams();
+
+  const handleNavigateTab = useCallback((tabId: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tabId);
+      return next;
+    });
+  }, [setSearchParams]);
+
   const tabs: WorkspaceTab[] = useMemo(() => [
     {
       id: 'emr-ai',
       label: 'Hàng chờ & Hồ sơ',
       icon: Stethoscope,
       badge: encounterCount !== null ? `${String(encounterCount).padStart(2, '0')} Ca` : undefined,
-      component: <DoctorEMRView />
+      component: <DoctorEMRView onNavigateTab={handleNavigateTab} />
     },
     {
       id: 'icd10-diagnosis',
       label: 'Chuẩn đoán bệnh ',
       icon: FileText,
-      component: <DoctorDiagnosisView />
+      component: <DoctorDiagnosisView onNavigateTab={handleNavigateTab} />
     },
     {
       id: 'prescription',
       label: 'Kê đơn thuốc & Ký số',
       icon: Pill,
-      component: <DoctorPrescriptionView />
+      component: <DoctorPrescriptionView onNavigateTab={handleNavigateTab} />
     }
-  ], [encounterCount]);
+  ], [encounterCount, handleNavigateTab]);
+
 
   return (
     <WorkspaceContainer

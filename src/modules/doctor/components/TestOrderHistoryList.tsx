@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   FileText, RefreshCw, Loader2, FlaskConical, Trash2,
-  CheckCircle2, Clock
+  CheckCircle2, Clock, Eye
 } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import {
@@ -15,6 +15,7 @@ interface TestOrderHistoryListProps {
   onRefreshOrders: () => void;
   cancellingItemId: string | null;
   onCancelItem: (orderItemId: string, testName: string) => void;
+  onViewResult?: () => void;
 }
 
 export const TestOrderHistoryList: React.FC<TestOrderHistoryListProps> = ({
@@ -23,7 +24,9 @@ export const TestOrderHistoryList: React.FC<TestOrderHistoryListProps> = ({
   onRefreshOrders,
   cancellingItemId,
   onCancelItem,
+  onViewResult,
 }) => {
+
   const renderItemStatusBadge = (item: TestOrderItemDetail) => {
     const task = item.task || item.labTask;
 
@@ -218,6 +221,18 @@ export const TestOrderHistoryList: React.FC<TestOrderHistoryListProps> = ({
 
                           {renderItemStatusBadge(item)}
 
+                          {(item.status === 'completed' || task?.status === 'completed') && onViewResult && (
+                            <button
+                              type="button"
+                              onClick={onViewResult}
+                              className="px-2.5 py-1 text-[11px] font-extrabold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 cursor-pointer flex items-center gap-1 transition-colors shadow-2xs"
+                              title="Chuyển sang Tab Chẩn đoán bệnh để xem kết quả chi tiết và kết luận"
+                            >
+                              <Eye className="w-3 h-3 text-purple-600" />
+                              <span>Xem KQ</span>
+                            </button>
+                          )}
+
                           {isCancelable && (
                             <button
                               type="button"
@@ -234,6 +249,7 @@ export const TestOrderHistoryList: React.FC<TestOrderHistoryListProps> = ({
                               <span>Hủy</span>
                             </button>
                           )}
+
                         </div>
                       </div>
                     );
