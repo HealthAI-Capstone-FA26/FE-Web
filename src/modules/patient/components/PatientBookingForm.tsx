@@ -250,13 +250,9 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                 <span className="font-bold text-white">{currentPatient?.fullName} ({currentPatient?.patientCode})</span>
               </div>
               <div className="flex justify-between border-b border-white/10 pb-2">
-                <span className="opacity-75">Chuyên khoa:</span>
-                <span className="font-bold text-white">Phòng khám Chuyên khoa Tim Mạch</span>
-              </div>
-              <div className="flex justify-between border-b border-white/10 pb-2">
                 <span className="opacity-75">Bác sĩ khám:</span>
                 <span className="font-bold text-white">
-                  {currentDoctor ? `${currentDoctor.title ? currentDoctor.title + '. ' : ''}${currentDoctor.fullName} (${getSpecializationLabel(currentDoctor.specialization)})` : 'Bác sĩ Tim mạch trực'}
+                  {currentDoctor ? currentDoctor.fullName : 'Bác sĩ Tim mạch trực'}
                 </span>
               </div>
               <div className="flex justify-between border-b border-white/10 pb-2">
@@ -339,62 +335,14 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
 
           <form onSubmit={handleSubmit} className="space-y-5">
 
-            {/* THÔNG TIN BỆNH NHÂN ĐĂNG KÝ KHÁM (1 tài khoản gắn liền với 1 bệnh nhân) */}
-            <div className="bg-white/10 p-4 rounded-2xl border border-white/15 font-sans space-y-2.5">
-              <div className="text-[11px] font-bold text-blue-200 uppercase tracking-wider flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-yellow-300" />
-                  <span>Thông tin bệnh nhân</span>
-                </span>
-                <span className="text-[10px] text-emerald-300 font-semibold bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/30 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                  <span>Hồ sơ tài khoản</span>
-                </span>
+            {patients.length === 0 && (
+              <div className="p-3.5 bg-amber-500/20 border border-amber-400/40 rounded-xl text-xs text-amber-200 flex items-center justify-between">
+                <span>Tài khoản của bạn chưa có hồ sơ bệnh nhân.</span>
+                <a href="/benh-nhan/ho-so" className="text-yellow-300 underline font-bold hover:text-white">
+                  Cập nhật hồ sơ bệnh nhân ngay →
+                </a>
               </div>
-
-              {patients.length === 0 ? (
-                <div className="p-3 bg-rose-500/20 border border-rose-400/40 rounded-xl text-xs text-rose-100 flex items-center justify-between gap-3">
-                  <span>Chưa có hồ sơ bệnh nhân gắn với tài khoản này.</span>
-                  <a
-                    href="/benh-nhan/ho-so"
-                    className="bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-bold px-3 py-1.5 rounded-lg text-[11px] transition-colors shrink-0"
-                  >
-                    Cập nhật hồ sơ →
-                  </a>
-                </div>
-              ) : (
-                <div className="bg-white rounded-xl p-3.5 text-slate-800 shadow-sm flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0b3c8f] to-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
-                      {currentPatient?.fullName?.charAt(0).toUpperCase() || 'P'}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-extrabold text-slate-900 truncate">
-                          {currentPatient?.fullName}
-                        </span>
-                        <span className="text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
-                          Mã BN: {currentPatient?.patientCode}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mt-0.5">
-                        {currentPatient?.phoneNumber && <span>SĐT: {currentPatient.phoneNumber}</span>}
-                        {currentPatient?.gender && (
-                          <span>
-                            • Giới tính: {currentPatient.gender === 'male' || currentPatient.gender === 'Nam' ? 'Nam' : 'Nữ'}
-                          </span>
-                        )}
-                        {currentPatient?.dateOfBirth && (
-                          <span>
-                            • Sinh năm: {new Date(currentPatient.dateOfBirth).getFullYear()}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            )}
 
             {/* KHUNG 1: VẤN ĐỀ SỨC KHỎE CẦN KHÁM */}
             <div className="bg-white/5 p-4.5 rounded-xl border border-white/10 space-y-3 font-sans">
@@ -461,38 +409,6 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                 </div>
               </div>
 
-              {/* Lọc theo phân nhánh chuyên môn Tim mạch */}
-              <div className="space-y-2">
-                <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                  Phân nhánh chuyên khoa Tim mạch
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { id: 'all', label: 'Tất cả bác sĩ' },
-                    { id: 'general_cardiology', label: 'Nội Tim Mạch' },
-                    { id: 'interventional', label: 'Can Thiệp Mạch Vành' },
-                    { id: 'electrophysiology', label: 'Rối Loạn Nhịp' },
-                    { id: 'echocardiography', label: 'Siêu Âm & Cận Lâm Sàng' },
-                  ].map((spec) => {
-                    const isSpecActive = selectedSpecialization === spec.id;
-                    return (
-                      <button
-                        key={spec.id}
-                        type="button"
-                        onClick={() => setSelectedSpecialization(spec.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border cursor-pointer ${
-                          isSpecActive
-                            ? 'bg-yellow-400 text-blue-950 font-bold border-yellow-300 shadow-sm'
-                            : 'bg-white/10 text-blue-100 border-white/15 hover:bg-white/20'
-                        }`}
-                      >
-                        {spec.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               {/* Chọn bác sĩ tim mạch */}
               <div className="space-y-2">
                 <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
@@ -506,11 +422,11 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
                     className="w-full bg-white text-slate-800 font-semibold py-2.5 pl-4 pr-10 rounded-lg border border-transparent focus:ring-2 focus:ring-yellow-400 outline-none appearance-none cursor-pointer text-xs md:text-[13px] disabled:bg-white/90 disabled:text-slate-400"
                   >
                     {filteredDoctors.length === 0 ? (
-                      <option value="">Không có bác sĩ trong phân nhánh này</option>
+                      <option value="">Không có bác sĩ khả dụng</option>
                     ) : (
                       filteredDoctors.map((doc) => (
                         <option key={doc.doctorId} value={doc.doctorId} className="text-slate-800">
-                          {doc.title ? `${doc.title}. ` : ''}{doc.fullName} — {getSpecializationLabel(doc.specialization)} ({doc.doctorCode})
+                          {doc.fullName}
                         </option>
                       ))
                     )}

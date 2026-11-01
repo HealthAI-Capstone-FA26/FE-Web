@@ -506,7 +506,7 @@ export const BookingForm = () => {
                         ) : (
                           filteredDoctors.map((doc) => (
                             <option key={doc.doctorId} value={doc.doctorId}>
-                              {doc.title ? `${doc.title}. ` : ''}{doc.fullName} {doc.specialization ? `(${doc.specialization})` : ''}
+                              {doc.fullName}
                             </option>
                           ))
                         )}
@@ -704,13 +704,9 @@ export const BookingForm = () => {
                     <span className="font-bold text-white">{fullName} ({phoneNumber})</span>
                   </div>
                   <div className="flex justify-between border-b border-white/10 pb-2">
-                    <span className="opacity-75">Chuyên khoa:</span>
-                    <span className="font-bold text-white">{currentDept?.departmentName}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-white/10 pb-2">
                     <span className="opacity-75">Bác sĩ khám:</span>
                     <span className="font-bold text-white">
-                      {currentDoctor ? `${currentDoctor.title ? currentDoctor.title + '. ' : ''}${currentDoctor.fullName}` : 'Bác sĩ trực khoa'}
+                      {currentDoctor ? currentDoctor.fullName : 'Bác sĩ trực khoa'}
                     </span>
                   </div>
                   <div className="flex justify-between border-b border-white/10 pb-2">
@@ -723,7 +719,11 @@ export const BookingForm = () => {
                   </div>
                   <div className="flex justify-between pt-0.5">
                     <span className="opacity-75">Kênh xác thực:</span>
-                    <span className="font-bold text-white uppercase">{verifyMethod}</span>
+                    <span className="font-bold text-white">
+                      {verifyMethod === 'sms'
+                        ? `SMS (${phoneNumber})`
+                        : `Email (${email || '---'})`}
+                    </span>
                   </div>
                 </div>
 

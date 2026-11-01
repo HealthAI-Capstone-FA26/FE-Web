@@ -5,7 +5,6 @@ import {
   Info, Stethoscope, UserCheck, Zap, Building2, Trophy, Newspaper, PhoneCall
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LoginModal } from '../auth/LoginModal';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_DEFAULT_PATHS } from '../../types/dashboard';
@@ -23,7 +22,6 @@ const NAV_ITEMS = [
 ];
 
 export const Header = () => {
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -103,15 +101,7 @@ export const Header = () => {
                     [Thoát]
                   </button>
                 </div>
-              ) : (
-                <button
-                  onClick={() => setIsLoginOpen(true)}
-                  className="flex items-center space-x-1 text-xs text-[#0b3c8f] hover:text-white border border-[#0b3c8f] hover:bg-[#0b3c8f] transition-all font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-2xs cursor-pointer bg-transparent"
-                >
-                  <LogIn className="w-3.5 h-3.5" />
-                  <span>Đăng nhập</span>
-                </button>
-              )}
+              ) : null}
 
               <Link to="/dat-lich" className="flex items-center space-x-1 text-xs text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition-all font-bold uppercase tracking-wider px-4 py-1.5 rounded-full shadow-xs border border-orange-600/20">
                 <Calendar className="w-3.5 h-3.5" />
@@ -239,11 +229,6 @@ export const Header = () => {
       </div>
 
       {/* Render Modals */}
-      <LoginModal
-        isOpen={isLoginOpen}
-        onClose={() => setIsLoginOpen(false)}
-        onLoginSuccess={() => { }}
-      />
       <ChangePasswordModal
         isOpen={isChangePasswordOpen}
         onClose={() => setIsChangePasswordOpen(false)}

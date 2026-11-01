@@ -542,39 +542,43 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
           {/* THÔNG TIN BỆNH NHÂN: VÃNG LAI (TÌM HOẶC TẠO MỚI) HOẶC ONLINE (ĐÃ CÓ SẴN) */}
           {isWalkIn ? (
             <div className="p-4 bg-gradient-to-br from-slate-50 to-teal-50/50 rounded-2xl border border-teal-200/90 space-y-3.5 shadow-2xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-teal-100 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                  <span className="font-bold text-slate-900 text-xs sm:text-sm">
-                    Khách Vãng Lai / Bốc Số Tại Chỗ ({formatTicketCode(ticket)})
-                  </span>
-                </div>
-                <div className="flex bg-slate-200/80 p-0.5 rounded-xl text-xs font-semibold overflow-x-auto">
-                  <button
-                    type="button"
-                    onClick={() => { setWalkinMode('search'); }}
-                    className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${walkinMode === 'search' ? 'bg-white text-teal-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
-                  >
-                    <Search className="w-3.5 h-3.5" />
-                    <span>Tìm hồ sơ cũ</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setWalkinMode('online_appointment'); }}
-                    className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${walkinMode === 'online_appointment' ? 'bg-white text-teal-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
-                  >
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>Đã đặt lịch Online</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setWalkinMode('create'); }}
-                    className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${walkinMode === 'create' ? 'bg-white text-teal-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
-                  >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    <span>Tạo hồ sơ mới</span>
-                  </button>
-                </div>
+              <div className="grid grid-cols-3 bg-slate-200/80 p-1 rounded-xl text-xs font-semibold gap-1">
+                <button
+                  type="button"
+                  onClick={() => { setWalkinMode('search'); }}
+                  className={`py-2 px-3 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 text-xs font-bold ${
+                    walkinMode === 'search'
+                      ? 'bg-white text-teal-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+                  }`}
+                >
+                  <Search className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Tìm hồ sơ cũ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setWalkinMode('online_appointment'); }}
+                  className={`py-2 px-3 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 text-xs font-bold ${
+                    walkinMode === 'online_appointment'
+                      ? 'bg-white text-teal-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Đã đặt lịch</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setWalkinMode('create'); }}
+                  className={`py-2 px-3 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 text-xs font-bold ${
+                    walkinMode === 'create'
+                      ? 'bg-white text-teal-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+                  }`}
+                >
+                  <UserPlus className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Tạo hồ sơ mới</span>
+                </button>
               </div>
 
               {walkinMode === 'online_appointment' ? (
