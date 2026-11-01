@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   FileText, ShieldAlert, Heart, Thermometer, Activity,
   AlertTriangle, Loader2, PlayCircle, CheckCircle2, RefreshCw,
-  History, ChevronDown, ChevronUp, Calendar, Stethoscope, Clock
+  History, ChevronDown, ChevronUp, Calendar, Stethoscope, Clock,
+  ArrowRight
 } from 'lucide-react';
 import type { PatientEMR } from '../types';
 import type { CaseOverviewData } from '../../../services/doctor';
@@ -20,6 +21,9 @@ interface PatientAdministrativeCardProps {
   onStartConsultation?: () => void;
   onRefreshEncounter?: () => void;
   onOpenMedicalHistory?: () => void;
+  onNavigateToDiagnosis?: () => void;
+  onNavigateToPrescription?: () => void;
+
   activeAllergies: Array<PatientAllergyItem | {
     allergyId: string;
     allergyType: string;
@@ -46,6 +50,8 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
   onStartConsultation,
   onRefreshEncounter,
   onOpenMedicalHistory,
+  onNavigateToDiagnosis,
+  onNavigateToPrescription,
   activeAllergies,
   isLoadingAllergies,
   isLoadingOverview,
@@ -55,6 +61,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
   displayTemp,
   hasMeasuredVitals,
 }) => {
+
   const getSeverityBadge = (sev: AllergySeverity | string) => {
     switch (sev) {
       case 'life_threatening':
@@ -208,42 +215,72 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
           )}
         </div>
 
-        {/* Action Button: Bắt đầu khám / Trạng thái phiên khám */}
-        {onStartConsultation && (
-          <div className="flex items-center gap-2 shrink-0">
-            {currentAppointment?.status === 'in_progress' || safeEncounterDetail?.status === 'in_progress' ? (
+        {/* Action Button: Bắt đầu khám / Trạng thái phiên khám / Điều hướng */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {safeEncounterDetail?.status === 'awaiting_review' ? (
+            <>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 text-xs font-bold animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-purple-600" />
+                <span>Đã có KQ CLS</span>
+              </span>
+              {onNavigateToDiagnosis && (
+                <button
+                  type="button"
+                  onClick={onNavigateToDiagnosis}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-98 text-white text-xs font-extrabold shadow-xs transition-all cursor-pointer"
+                  title="Xem kết quả cận lâm sàng và kết luận chẩn đoán tại Tab 2"
+                >
+                  <span>Xem KQ CLS & Kết luận</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </>
+          ) : currentAppointment?.status === 'in_progress' || safeEncounterDetail?.status === 'in_progress' ? (
+            <>
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span>Đang khám</span>
               </span>
-            ) : currentAppointment?.status === 'completed' || safeEncounterDetail?.status === 'finished' ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
-                <span>Đã hoàn tất khám</span>
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={onStartConsultation}
-                disabled={isStartingAppointment || (!safeEncounterDetail?.appointmentId && !currentAppointment?.appointmentId && !currentPatient?.appointmentId)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Bác sĩ bắt đầu phiên khám lâm sàng (PATCH /appointments/:id/start)"
-              >
-                {isStartingAppointment ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Đang kết nối...</span>
-                  </>
-                ) : (
-                  <>
-                    <PlayCircle className="w-3.5 h-3.5" />
-                    <span>Bắt đầu khám</span>
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        )}
+              {onNavigateToPrescription && (
+                <button
+                  type="button"
+                  onClick={onNavigateToPrescription}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                  title="Ca khám nhẹ không cần CLS, chuyển thẳng sang kê đơn thuốc (Tab 3)"
+                >
+                  <span>Bỏ qua CLS → Kê đơn ngay</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </>
+          ) : currentAppointment?.status === 'completed' || safeEncounterDetail?.status === 'finished' ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
+              <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
+              <span>Đã hoàn tất khám</span>
+            </span>
+          ) : onStartConsultation ? (
+            <button
+              type="button"
+              onClick={onStartConsultation}
+              disabled={isStartingAppointment || (!safeEncounterDetail?.encounterId && !currentPatient?.encounterId && !safeEncounterDetail?.appointmentId && !currentAppointment?.appointmentId)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Bác sĩ bắt đầu phiên khám lâm sàng (POST /doctor-examination/encounters/:id/start)"
+            >
+              {isStartingAppointment ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Đang kết nối...</span>
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="w-3.5 h-3.5" />
+                  <span>Bắt đầu khám</span>
+                </>
+              )}
+            </button>
+          ) : null}
+        </div>
+
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">

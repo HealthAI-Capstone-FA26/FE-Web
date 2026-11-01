@@ -85,7 +85,8 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
         { id: 'pat_workspace_profile', label: 'Hồ sơ khách hàng', path: '/benh-nhan/ho-so', iconName: 'UserCheck', requiredPermission: 'patient:read:own' },
         { id: 'pat_workspace_medical', label: 'Hồ sơ Y tế & Tiền sử', path: '/benh-nhan/ho-so-y-te', iconName: 'FileText', badge: 'HL7 FHIR', requiredPermission: 'patient:read:own' },
         { id: 'pat_workspace_submission', label: 'Khai báo & Nộp dữ liệu', path: '/benh-nhan/trieu-chung', iconName: 'Activity', requiredPermission: 'observation:create:own' },
-        { id: 'pat_workspace_records', label: 'Đặt lịch khám', path: '/benh-nhan/lich-hen', iconName: 'Calendar', requiredPermission: 'appointment:read:own' }
+        { id: 'pat_workspace_records', label: 'Đặt lịch khám', path: '/benh-nhan/lich-hen', iconName: 'Calendar', requiredPermission: 'appointment:read:own' },
+        { id: 'pat_workspace_prescriptions', label: 'Đơn thuốc & Tái khám', path: '/benh-nhan/ho-so-don-thuoc', iconName: 'Pill', requiredPermission: 'appointment:read:own' }
       ]
     }
   ]

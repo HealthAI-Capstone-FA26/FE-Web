@@ -158,4 +158,15 @@ export const clinicalExamService = {
       }
     );
   },
+
+  // 4. POST /api/v1/doctor-examination/encounters/:encounterId/start
+  async startExamination(encounterId: string): Promise<any> {
+    return apiFetch<any>(
+      `/doctor-examination/encounters/${encounterId}/start`,
+      {
+        method: 'POST',
+      }
+    );
+  },
 };
+

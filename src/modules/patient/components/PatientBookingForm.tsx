@@ -368,7 +368,7 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
               </div>
             </div>
 
-            {/* KHUNG 3: THÔNG TIN LOẠI HÌNH & BÁC SĨ TIM MẠCH */}
+            {/* KHUNG 2: THÔNG TIN LOẠI HÌNH & BÁC SĨ TIM MẠCH */}
             <div className="bg-white/5 p-4.5 rounded-xl border border-white/10 space-y-4 font-sans">
               {/* Chọn loại hình khám (Tiêu chuẩn / VIP) */}
               <div className="space-y-2">

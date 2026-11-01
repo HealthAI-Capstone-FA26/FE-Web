@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { User, Stethoscope, Sparkles, FileText } from 'lucide-react';
 import { Mascot } from 'page-mascot';
 import {
@@ -61,11 +62,33 @@ import { TestOrderHistoryList } from './components/TestOrderHistoryList';
 
 import { useAuth } from '../../context/AuthContext';
 
-export const DoctorEMRView: React.FC = () => {
+export interface DoctorEMRViewProps {
+  onNavigateTab?: (tabId: string) => void;
+}
+
+export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) => {
   const { user } = useAuth();
+  const [, setSearchParams] = useSearchParams();
+
+  const navigateTab = useCallback(
+    (tabId: string) => {
+      if (onNavigateTab) {
+        onNavigateTab(tabId);
+      } else {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.set('tab', tabId);
+          return next;
+        });
+      }
+    },
+    [onNavigateTab, setSearchParams]
+  );
+
   const [selectedPatientId, setSelectedPatientId] = useState<string>(() => {
     return globalLastSelectedPatientId || localStorage.getItem('doctor_selected_patient_id') || '';
   });
+
   const [isMedicalHistoryModalOpen, setIsMedicalHistoryModalOpen] = useState<boolean>(false);
 
   // Tab con nội bộ: 'emr_summary' (Hồ sơ EMR & AI01) | 'clinical_orders' (Khám & Chỉ định) | 'ai_imaging' (Phân tích ảnh AI02)
@@ -605,18 +628,26 @@ export const DoctorEMRView: React.FC = () => {
     }
   }, [verifiedEncounterDetail?.appointmentId, currentPatient?.appointmentId, currentPatient?.encounterId]);
 
-  // Bác sĩ bấm nút bắt đầu phiên khám (gọi PATCH /appointments/:id/start)
+  // Bác sĩ bấm nút bắt đầu phiên khám (gọi POST /doctor-examination/encounters/:encounterId/start và PATCH /appointments/:id/start)
   const handleStartConsultation = async () => {
+    const encId = currentPatient?.encounterId || selectedEncounterDetail?.encounterId;
     const apptId = currentAppointment?.appointmentId || selectedEncounterDetail?.appointmentId || currentPatient?.appointmentId;
-    if (!apptId) {
-      alert('Không tìm thấy mã lịch hẹn (Appointment ID) để bắt đầu phiên khám.');
+    if (!encId && !apptId) {
+      alert('Không tìm thấy thông tin ca khám để bắt đầu phiên khám.');
       return;
     }
 
     setIsStartingAppointment(true);
     try {
-      const updatedAppt = await appointmentService.startAppointment(apptId);
-      setCurrentAppointment(updatedAppt);
+      if (encId) {
+        await clinicalExamService.startExamination(encId);
+      }
+      if (apptId) {
+        const updatedAppt = await appointmentService.startAppointment(apptId).catch(() => null);
+        if (updatedAppt) {
+          setCurrentAppointment(updatedAppt);
+        }
+      }
 
       // Cập nhật selectedEncounterDetail sang in_progress
       setSelectedEncounterDetail((prev) => (prev ? { ...prev, status: 'in_progress' } : null));
@@ -624,14 +655,13 @@ export const DoctorEMRView: React.FC = () => {
       // Cập nhật danh sách ca khám apiEncounters
       setApiEncounters((prev) =>
         prev.map((e) =>
-          e.appointmentId === apptId || e.encounterId === currentPatient?.encounterId
+          (encId && e.encounterId === encId) || (apptId && e.appointmentId === apptId)
             ? { ...e, status: 'in_progress' }
             : e
         )
       );
 
       // Tải lại tổng quan ca khám nếu có encounterId
-      const encId = currentPatient?.encounterId || selectedEncounterDetail?.encounterId;
       if (encId) {
         await fetchCaseOverview(encId);
       }
@@ -642,6 +672,7 @@ export const DoctorEMRView: React.FC = () => {
       setIsStartingAppointment(false);
     }
   };
+
 
   // 4. Fetch patient allergies via GET /api/v1/patients/{patientId}/allergies (Dùng bổ trợ)
   const [patientAllergiesState, setPatientAllergiesState] = useState<{ patientId: string; list: PatientAllergyItem[] } | null>(() => {
@@ -1080,8 +1111,12 @@ export const DoctorEMRView: React.FC = () => {
     );
   };
 
-  const handleQuickDiagnosisSelect = (diagText: string) => {
-    setPreliminaryDiag(diagText);
+  const handleQuickDiagnosisSelect = (diagText: string, icd10Code?: string) => {
+    if (icd10Code) {
+      setPreliminaryDiag(`[${icd10Code}] ${diagText}`);
+    } else {
+      setPreliminaryDiag(diagText);
+    }
   };
 
   // Tính tổng chi phí cận lâm sàng dự tính
@@ -1144,9 +1179,10 @@ export const DoctorEMRView: React.FC = () => {
           try {
             const matchedIcd = preliminaryDiag.match(/([A-Z]\d{2}(\.\d{1,2})?)/i);
             const icdCode = matchedIcd ? matchedIcd[1].toUpperCase() : 'I20.9';
+            const cleanDiagName = preliminaryDiag.replace(/\[[A-Z0-9.]+\]\s*/i, '').trim();
             const diagResult = await initialDiagnosisService.create(activeEncounterId, {
               icd10Code: icdCode,
-              diagnosisName: preliminaryDiag.trim(),
+              diagnosisName: cleanDiagName || preliminaryDiag.trim(),
               diagnosisType: 'initial',
               isPrimary: true,
             });
@@ -1158,6 +1194,7 @@ export const DoctorEMRView: React.FC = () => {
           }
         }
       }
+
 
       // 2. Tạo phiếu chỉ định cận lâm sàng
       const itemsPayload = selectedTestTypeIds.map((typeId) => {
@@ -1353,6 +1390,8 @@ export const DoctorEMRView: React.FC = () => {
                     isStartingAppointment={isStartingAppointment}
                     onStartConsultation={handleStartConsultation}
                     onRefreshEncounter={() => handleSelectPatientId(selectedPatientId, true)}
+                    onNavigateToDiagnosis={() => navigateTab('icd10-diagnosis')}
+                    onNavigateToPrescription={() => navigateTab('prescription')}
                     activeAllergies={activeAllergies}
                     isLoadingAllergies={isLoadingAllergies}
                     isLoadingOverview={isLoadingOverview}
@@ -1426,9 +1465,11 @@ export const DoctorEMRView: React.FC = () => {
                     onRefreshOrders={() => activeEncounterId && fetchEncounterTestOrders(activeEncounterId)}
                     cancellingItemId={cancellingItemId}
                     onCancelItem={handleCancelTestOrderItem}
+                    onViewResult={() => navigateTab('icd10-diagnosis')}
                   />
                 </div>
               )}
+
 
               {/* Tab 3: Mô-đun AI02 — Kết quả phân tích hình ảnh xét nghiệm & Đề xuất AI */}
               {activeSubTab === 'ai_imaging' && (
