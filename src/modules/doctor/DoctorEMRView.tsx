@@ -11,6 +11,7 @@ import { NurseMedicalHistoryModal } from '../nurse/components/NurseMedicalHistor
 import {
   patientAllergyService,
   type PatientAllergyItem,
+  formatAllergySummary,
 } from '../../services/patient/patient-allergy.service';
 import {
   appointmentService,
@@ -31,8 +32,7 @@ import { invoiceService } from '../../services/payment/invoice.service';
 // Modular Sub-Components
 import type { PatientEMR, PatientWorkflowState } from './types';
 import { PatientQueueSidebar } from './components/PatientQueueSidebar';
-import { PatientAdministrativeCard } from './components/PatientAdministrativeCard';
-import { AiClinicalSummaryCard } from './components/AiClinicalSummaryCard';
+import { PatientAdministrativeCard } from './components/PatientAdministrativeCard';
 
 interface PatientEncounterCache {
   caseOverview: CaseOverviewData | null;
@@ -460,8 +460,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
 
   // 3. Fetch full Case Overview payload via GET /api/v1/doctor-examination/encounters/{id}/overview
   const [caseOverview, setCaseOverview] = useState<CaseOverviewData | null>(() => initCached?.caseOverview || null);
-  const [isLoadingOverview, setIsLoadingOverview] = useState<boolean>(() => !initCached?.caseOverview);
-  const [isGeneratingAiSummary, setIsGeneratingAiSummary] = useState<boolean>(false);
+  const [isLoadingOverview, setIsLoadingOverview] = useState<boolean>(() => !initCached?.caseOverview);
   const [isGeneratingAiDiagnosis, setIsGeneratingAiDiagnosis] = useState<boolean>(false);
 
   // 3.1 Appointment State & Start Consultation Handler
@@ -839,19 +838,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
 
   const activeEncounterId = currentPatient?.encounterId;
 
-  // Gọi API kích hoạt AI tóm tắt diễn tiến lâm sàng
-  const handleTriggerAiSummary = async () => {
-    if (!activeEncounterId) return;
-    setIsGeneratingAiSummary(true);
-    try {
-      await doctorAiService.generateAiClinicalSummary(activeEncounterId);
-      await fetchCaseOverview(activeEncounterId);
-    } catch (err) {
-      console.warn('Kích hoạt AI tóm tắt hoàn tất:', err);
-    } finally {
-      setIsGeneratingAiSummary(false);
-    }
-  };
+
 
   // Gọi API kích hoạt AI gợi ý chẩn đoán sơ bộ
   const handleTriggerAiDiagnosis = async () => {
@@ -867,21 +854,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
     }
   };
 
-  // Bản tóm tắt diễn tiến lâm sàng do AI biên soạn (AI01)
-  const currentAiSummary = useMemo(() => {
-    if (verifiedCaseOverview?.aiClinicalSummary?.summaryText) {
-      return verifiedCaseOverview.aiClinicalSummary.summaryText;
-    }
-    const patName = verifiedCaseOverview?.patient?.fullName || verifiedEncounterDetail?.patient?.fullName || currentPatient?.name || 'Bệnh nhân';
-    const patAge = currentPatient?.age || 30;
-    const patGender = (verifiedCaseOverview?.patient?.gender === 'female' || verifiedEncounterDetail?.patient?.gender === 'female') ? 'Nữ' : 'Nam';
-    const symp = verifiedCaseOverview?.chiefComplaint?.symptoms || verifiedEncounterDetail?.chiefComplaint?.symptoms || currentPatient?.symptoms || 'Bình thường';
-    const allgs = activeAllergies.filter((a) => a.status === 'active');
-    const allgStr = allgs.length > 0 ? allgs.map((a) => `${a.allergenName} (${a.severity})`).join(', ') : 'Chưa ghi nhận dị ứng';
-    const histStr = verifiedCaseOverview?.medicalHistories?.length ? verifiedCaseOverview.medicalHistories.map((h) => h.conditionName).join(', ') : (currentPatient?.history || 'Chưa ghi nhận');
 
-    return `Bệnh nhân ${patName} (${patGender}, ${patAge} tuổi). Tiếp nhận tại phòng khám với lý do/triệu chứng: "${symp}". Chỉ số sinh hiệu lúc tiếp đón: Huyết áp ${displayBp || '---'}, nhịp tim ${displayHr || '---'}, SpO2 ${displaySpo2 || '---'}, thân nhiệt ${displayTemp || '---'}. Tiền sử bệnh lý: ${histStr}. Ghi nhận dị ứng: ${allgStr}. Đề xuất Bác sĩ thăm khám hô hấp/toàn thân và chỉ định cận lâm sàng đánh giá chuyên sâu.`;
-  }, [verifiedCaseOverview, verifiedEncounterDetail, currentPatient, activeAllergies, displayBp, displayHr, displaySpo2, displayTemp]);
 
   // Top chẩn đoán sơ bộ do AI đề xuất (kèm độ tin cậy và lập luận y khoa)
   const dynamicAiDiagnosisList: DynamicAiDiagnosis[] = useMemo(() => {
@@ -1281,7 +1254,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
               Hồ Sơ EMR & Phân Tích AI
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Xem hồ sơ bệnh án EMR, tóm tắt AI tự động (AI01) và khoanh vùng bất thường (AI02).
+              Xem hồ sơ bệnh án EMR và khoanh vùng bất thường AI (AI02).
             </p>
           </div>
         </div>
@@ -1338,7 +1311,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
                     }`}
                 >
                   <FileText className="w-4 h-4 text-blue-600" />
-                  <span>Hồ sơ EMR & Tóm tắt AI (AI01)</span>
+                  <span>Hồ sơ Bệnh Án Điện Tử (EMR)</span>
                 </button>
 
                 {/* Tab 2: Ghi nhận Khám lâm sàng & Chỉ định Cận lâm sàng */}
@@ -1403,13 +1376,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
                     hasMeasuredVitals={hasMeasuredVitals}
                   />
 
-                  {/* Component 2: AI01 Smart EMR Summary Widget */}
-                  <AiClinicalSummaryCard
-                    summaryText={currentAiSummary}
-                    caseOverview={verifiedCaseOverview}
-                    isGeneratingAiSummary={isGeneratingAiSummary}
-                    onTriggerAiSummary={handleTriggerAiSummary}
-                  />
+
                 </div>
               )}
 

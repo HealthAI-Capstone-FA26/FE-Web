@@ -139,7 +139,7 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
         })}
       </div>
 
-      <div className="space-y-2.5">
+      <div className="space-y-2.5 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
         {isLoading ? (
           <div className="p-6 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-blue-600" />

@@ -13,7 +13,6 @@ import {
   FlaskConical,
   FileText,
   ShieldCheck,
-  Bell,
   LogOut,
   ChevronDown,
   ChevronLeft,
@@ -35,6 +34,7 @@ import {
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { AccountInfoView } from '../../modules/patient/AccountInfoView';
 import { UserProfilePill } from '../common/UserProfilePill';
+import { NotificationDropdown } from './NotificationDropdown';
 
 interface DashboardLayoutProps {
   children?: React.ReactNode;
@@ -84,6 +84,40 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       clearInactivityTimer();
     };
   }, [location.pathname, isSidebarOpen, resetInactivityTimer, clearInactivityTimer]);
+
+  // Scroll direction detection for bottom navigator compact mode
+  const [isBottomNavCompact, setIsBottomNavCompact] = useState(false);
+  const lastScrollYRef = useRef(0);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || currentRole !== 'PATIENT') return;
+
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+          const diff = currentScrollY - lastScrollYRef.current;
+
+          // When scrolled down significantly and past top margin
+          if (diff > 12 && currentScrollY > 50) {
+            setIsBottomNavCompact(true);
+          } else if (diff < -8 || currentScrollY <= 30) {
+            // When scrolled up or back at top
+            setIsBottomNavCompact(false);
+          }
+
+          lastScrollYRef.current = currentScrollY;
+          ticking = false;
+        });
+        ticking = true;
+      };
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [currentRole]);
 
   const rawNavGroups = ROLE_NAV_CONFIG[currentRole] || ROLE_NAV_CONFIG.DOCTOR;
   const navGroups = rawNavGroups
@@ -187,11 +221,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
           {/* Right Topbar Action & Profile */}
           <div className="flex items-center space-x-3">
-            <button className="relative p-2 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer border-none bg-transparent">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full"></span>
-            </button>
+            <NotificationDropdown />
 
             {/* User Profile Card */}
             <div className="relative">
@@ -439,12 +469,22 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
       {/* Floating Mobile Bottom Navigation Bar for PATIENT role (Facebook / iOS Floating Dock style) */}
       {currentRole === 'PATIENT' && (
-        <div className="fixed bottom-3 inset-x-3 sm:bottom-4 sm:inset-x-6 z-40 max-w-md mx-auto lg:hidden">
-          <nav className="bg-white/90 backdrop-blur-2xl border border-white/80 shadow-[0_12px_36px_rgba(15,23,42,0.16),0_2px_6px_rgba(15,23,42,0.06),inset_0_1px_1px_rgba(255,255,255,0.9)] rounded-[26px] px-2 py-1.5 flex items-center justify-between">
+        <div className={`fixed z-40 mx-auto lg:hidden transition-all duration-300 ease-out ${
+          isBottomNavCompact
+            ? 'bottom-2.5 inset-x-8 max-w-[285px]'
+            : 'bottom-3 inset-x-3 sm:bottom-4 sm:inset-x-6 max-w-md'
+        }`}>
+          <nav className={`backdrop-blur-2xl border transition-all duration-300 flex items-center justify-between ${
+            isBottomNavCompact
+              ? 'bg-white/80 border-white/60 shadow-[0_8px_24px_rgba(15,23,42,0.12),inset_0_1px_1px_rgba(255,255,255,0.8)] rounded-full px-1.5 py-1'
+              : 'bg-white/95 border-white/80 shadow-[0_12px_36px_rgba(15,23,42,0.16),0_2px_6px_rgba(15,23,42,0.06),inset_0_1px_1px_rgba(255,255,255,0.9)] rounded-[26px] px-2 py-1.5'
+          }`}>
             <NavLink
               to="/benh-nhan/ho-so"
               className={({ isActive }) =>
-                `group relative flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-2xl transition-all duration-200 active:scale-90 ${
+                `group relative flex-1 flex flex-col items-center justify-center rounded-2xl transition-all duration-200 active:scale-90 ${
+                  isBottomNavCompact ? 'py-0.5 px-0.5' : 'py-1 px-1'
+                } ${
                   isActive ? 'text-blue-600 font-extrabold' : 'text-slate-500 hover:text-slate-800 font-medium'
                 }`
               }
@@ -452,16 +492,22 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               {({ isActive }) => (
                 <>
                   <div
-                    className={`p-1.5 rounded-xl transition-all duration-200 ${
+                    className={`rounded-xl transition-all duration-200 ${
+                      isBottomNavCompact ? 'p-1' : 'p-1.5'
+                    } ${
                       isActive ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30 -translate-y-0.5' : 'bg-transparent text-slate-500 group-hover:text-slate-800'
                     }`}
                   >
-                    <User className="w-4 h-4" />
+                    <User className={`${isBottomNavCompact ? "w-3.5 h-3.5" : "w-4 h-4"} transition-all`} />
                   </div>
-                  <span className={`text-[10px] mt-0.5 tracking-tight transition-colors ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
+                  <span className={`text-[10px] tracking-tight transition-all duration-200 overflow-hidden ${
+                    isBottomNavCompact
+                      ? 'max-h-0 opacity-0 -mt-0.5 pointer-events-none'
+                      : 'max-h-4 opacity-100 mt-0.5'
+                  } ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
                     Hồ sơ
                   </span>
-                  {isActive && (
+                  {isActive && !isBottomNavCompact && (
                     <span className="w-1 h-1 rounded-full bg-blue-600 mt-0.5 animate-pulse" />
                   )}
                 </>
@@ -471,7 +517,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
             <NavLink
               to="/benh-nhan/ho-so-y-te"
               className={({ isActive }) =>
-                `group relative flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-2xl transition-all duration-200 active:scale-90 ${
+                `group relative flex-1 flex flex-col items-center justify-center rounded-2xl transition-all duration-200 active:scale-90 ${
+                  isBottomNavCompact ? 'py-0.5 px-0.5' : 'py-1 px-1'
+                } ${
                   isActive ? 'text-blue-600 font-extrabold' : 'text-slate-500 hover:text-slate-800 font-medium'
                 }`
               }
@@ -479,16 +527,22 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               {({ isActive }) => (
                 <>
                   <div
-                    className={`p-1.5 rounded-xl transition-all duration-200 ${
+                    className={`rounded-xl transition-all duration-200 ${
+                      isBottomNavCompact ? 'p-1' : 'p-1.5'
+                    } ${
                       isActive ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30 -translate-y-0.5' : 'bg-transparent text-slate-500 group-hover:text-slate-800'
                     }`}
                   >
-                    <FileText className="w-4 h-4" />
+                    <FileText className={`${isBottomNavCompact ? "w-3.5 h-3.5" : "w-4 h-4"} transition-all`} />
                   </div>
-                  <span className={`text-[10px] mt-0.5 tracking-tight transition-colors ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
+                  <span className={`text-[10px] tracking-tight transition-all duration-200 overflow-hidden ${
+                    isBottomNavCompact
+                      ? 'max-h-0 opacity-0 -mt-0.5 pointer-events-none'
+                      : 'max-h-4 opacity-100 mt-0.5'
+                  } ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
                     Bệnh án
                   </span>
-                  {isActive && (
+                  {isActive && !isBottomNavCompact && (
                     <span className="w-1 h-1 rounded-full bg-blue-600 mt-0.5 animate-pulse" />
                   )}
                 </>
@@ -498,7 +552,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
             <NavLink
               to="/benh-nhan/trieu-chung"
               className={({ isActive }) =>
-                `group relative flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-2xl transition-all duration-200 active:scale-90 ${
+                `group relative flex-1 flex flex-col items-center justify-center rounded-2xl transition-all duration-200 active:scale-90 ${
+                  isBottomNavCompact ? 'py-0.5 px-0.5' : 'py-1 px-1'
+                } ${
                   isActive ? 'text-blue-600 font-extrabold' : 'text-slate-500 hover:text-slate-800 font-medium'
                 }`
               }
@@ -506,16 +562,22 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               {({ isActive }) => (
                 <>
                   <div
-                    className={`p-1.5 rounded-xl transition-all duration-200 ${
+                    className={`rounded-xl transition-all duration-200 ${
+                      isBottomNavCompact ? 'p-1' : 'p-1.5'
+                    } ${
                       isActive ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30 -translate-y-0.5' : 'bg-transparent text-slate-500 group-hover:text-slate-800'
                     }`}
                   >
-                    <Activity className="w-4 h-4" />
+                    <Activity className={`${isBottomNavCompact ? "w-3.5 h-3.5" : "w-4 h-4"} transition-all`} />
                   </div>
-                  <span className={`text-[10px] mt-0.5 tracking-tight transition-colors ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
+                  <span className={`text-[10px] tracking-tight transition-all duration-200 overflow-hidden ${
+                    isBottomNavCompact
+                      ? 'max-h-0 opacity-0 -mt-0.5 pointer-events-none'
+                      : 'max-h-4 opacity-100 mt-0.5'
+                  } ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
                     Khai báo
                   </span>
-                  {isActive && (
+                  {isActive && !isBottomNavCompact && (
                     <span className="w-1 h-1 rounded-full bg-blue-600 mt-0.5 animate-pulse" />
                   )}
                 </>
@@ -525,7 +587,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
             <NavLink
               to="/benh-nhan/lich-hen"
               className={({ isActive }) =>
-                `group relative flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-2xl transition-all duration-200 active:scale-90 ${
+                `group relative flex-1 flex flex-col items-center justify-center rounded-2xl transition-all duration-200 active:scale-90 ${
+                  isBottomNavCompact ? 'py-0.5 px-0.5' : 'py-1 px-1'
+                } ${
                   isActive ? 'text-blue-600 font-extrabold' : 'text-slate-500 hover:text-slate-800 font-medium'
                 }`
               }
@@ -533,16 +597,22 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               {({ isActive }) => (
                 <>
                   <div
-                    className={`p-1.5 rounded-xl transition-all duration-200 ${
+                    className={`rounded-xl transition-all duration-200 ${
+                      isBottomNavCompact ? 'p-1' : 'p-1.5'
+                    } ${
                       isActive ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30 -translate-y-0.5' : 'bg-transparent text-slate-500 group-hover:text-slate-800'
                     }`}
                   >
-                    <CalendarDays className="w-4 h-4" />
+                    <CalendarDays className={`${isBottomNavCompact ? "w-3.5 h-3.5" : "w-4 h-4"} transition-all`} />
                   </div>
-                  <span className={`text-[10px] mt-0.5 tracking-tight transition-colors ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
+                  <span className={`text-[10px] tracking-tight transition-all duration-200 overflow-hidden ${
+                    isBottomNavCompact
+                      ? 'max-h-0 opacity-0 -mt-0.5 pointer-events-none'
+                      : 'max-h-4 opacity-100 mt-0.5'
+                  } ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
                     Lịch khám
                   </span>
-                  {isActive && (
+                  {isActive && !isBottomNavCompact && (
                     <span className="w-1 h-1 rounded-full bg-blue-600 mt-0.5 animate-pulse" />
                   )}
                 </>
@@ -552,12 +622,21 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
             <button
               type="button"
               onClick={() => setIsProfileOpen(true)}
-              className="group relative flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-2xl transition-all duration-200 active:scale-90 text-slate-500 hover:text-slate-800 font-medium cursor-pointer border-none bg-transparent"
+              className={`group relative flex-1 flex flex-col items-center justify-center rounded-2xl transition-all duration-200 active:scale-90 text-slate-500 hover:text-slate-800 font-medium cursor-pointer border-none bg-transparent ${
+                isBottomNavCompact ? 'py-0.5 px-0.5' : 'py-1 px-1'
+              }`}
             >
-              <div className="p-1.5 rounded-xl bg-transparent text-slate-500 group-hover:text-slate-800 transition-all">
-                <UserCheck className="w-4 h-4" />
+              <div className={`rounded-xl bg-transparent text-slate-500 group-hover:text-slate-800 transition-all ${
+                isBottomNavCompact ? 'p-1' : 'p-1.5'
+              }`}
+              >
+                <UserCheck className={`${isBottomNavCompact ? "w-3.5 h-3.5" : "w-4 h-4"} transition-all`} />
               </div>
-              <span className="text-[10px] mt-0.5 tracking-tight text-slate-500">
+              <span className={`text-[10px] tracking-tight text-slate-500 transition-all duration-200 overflow-hidden ${
+                isBottomNavCompact
+                  ? 'max-h-0 opacity-0 -mt-0.5 pointer-events-none'
+                  : 'max-h-4 opacity-100 mt-0.5'
+              }`}>
                 Tài khoản
               </span>
             </button>

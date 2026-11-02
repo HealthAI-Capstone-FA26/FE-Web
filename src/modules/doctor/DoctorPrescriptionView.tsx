@@ -1,3 +1,4 @@
+import { formatAllergySummary, parseAllergyText } from '../../services/patient/patient-allergy.service';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -308,7 +309,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({ 
     const bloodType = pat?.bloodType || 'Chưa rõ';
 
     const allergies = timelineData?.allergies?.length
-      ? timelineData.allergies.map((a) => a.allergenName).join(', ')
+      ? timelineData.allergies.map((a: any) => formatAllergySummary(a.allergyText || a.allergenName)).join('; ')
       : 'Chưa ghi nhận dị ứng';
 
     const history = timelineData?.medicalHistories?.length
@@ -540,16 +541,20 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({ 
 
     prescribedList.forEach((drug) => {
       if (timelineData?.allergies && timelineData.allergies.length > 0) {
-        timelineData.allergies.forEach((al) => {
-          const allergen = (al.allergenName || '').toLowerCase();
-          const dName = (drug.name || '').toLowerCase();
-          const dClass = (drug.class || '').toLowerCase();
-          if (allergen && (dName.includes(allergen) || dClass.includes(allergen))) {
-            warnings.push({
-              type: 'danger',
-              text: `Cảnh báo dị ứng: Bệnh nhân có tiền sử dị ứng "${al.allergenName}". Nguy cơ phản ứng khi dùng "${drug.name}"!`,
-            });
-          }
+        timelineData.allergies.forEach((al: any) => {
+          const parsed = parseAllergyText(al.allergyText);
+          const drugAllergens = parsed.drug.length > 0 ? parsed.drug : (al.allergenName ? [al.allergenName] : []);
+          drugAllergens.forEach((allergenName) => {
+            const allergen = allergenName.toLowerCase();
+            const dName = (drug.name || '').toLowerCase();
+            const dClass = (drug.class || '').toLowerCase();
+            if (allergen && (dName.includes(allergen) || dClass.includes(allergen))) {
+              warnings.push({
+                type: 'danger',
+                text: `Cảnh báo dị ứng: Bệnh nhân có tiền sử dị ứng "${allergenName}". Nguy cơ phản ứng khi dùng "${drug.name}"!`,
+              });
+            }
+          });
         });
       }
     });

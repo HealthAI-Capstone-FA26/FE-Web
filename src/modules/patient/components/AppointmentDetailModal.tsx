@@ -12,7 +12,9 @@ import {
   Ticket,
   Loader2,
   XCircle,
-  CalendarClock
+  CalendarClock,
+  Copy,
+  Check
 } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import { appointmentService, type AppointmentItem } from '../../../services/appointment/appointment.service';
@@ -34,6 +36,16 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   const [appointment, setAppointment] = useState<AppointmentItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Copy code state
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const handleCopyCode = (code: string) => {
+    if (!code) return;
+    navigator.clipboard?.writeText(code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
 
   // Reschedule state
   const [showReschedule, setShowReschedule] = useState(false);
@@ -136,9 +148,30 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     window.print();
   };
 
+  const renderQueueTicketCard = (isMobileView = false) => {
+    if (!appointment?.queueTicket) return null;
+
+    return (
+      <div className={`bg-gradient-to-br from-blue-600 to-indigo-700 text-white text-center shadow-lg space-y-2 ${
+        isMobileView ? 'rounded-2xl p-4' : 'rounded-3xl p-5'
+      }`}>
+        <div className="flex items-center justify-center gap-1.5 text-blue-200 text-xs font-semibold">
+          <Ticket className="w-4 h-4" />
+          <span>Số Thứ Tự Hàng Đợi</span>
+        </div>
+        <div className="text-3xl sm:text-4xl font-black font-mono tracking-wider py-1 text-amber-300">
+          {formatTicketCode(appointment.queueTicket)}
+        </div>
+        <span className="inline-block px-2.5 py-0.5 bg-white/20 rounded-full text-[10px] font-medium">
+          Trạng thái: {getQueueStatusLabel(appointment.queueTicket.status || appointment.queueTicket.queueStatus)}
+        </span>
+      </div>
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 my-auto space-y-6 max-h-[92vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-3xl w-full p-4 sm:p-6 md:p-8 shadow-2xl border border-slate-100 my-auto space-y-5 sm:space-y-6 max-h-[92vh] overflow-y-auto">
         
         {/* HEADER */}
         <div className="flex items-start justify-between pb-4 border-b border-slate-100">
@@ -150,9 +183,23 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
             {appointment && (
               <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
                 <span>Mã lịch hẹn:</span>
-                <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
-                  {appointment.appointmentCode}
+                <span
+                  onClick={() => handleCopyCode(appointment.appointmentCode)}
+                  className="font-mono font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md inline-flex items-center gap-1.5 cursor-pointer transition-colors border border-blue-200/60"
+                  title="Bấm để sao chép mã lịch hẹn"
+                >
+                  <span>{appointment.appointmentCode}</span>
+                  {copiedCode ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5 text-blue-400 hover:text-blue-600" />
+                  )}
                 </span>
+                {copiedCode && (
+                  <span className="text-[11px] text-emerald-600 font-bold animate-in fade-in">
+                    (Đã chép)
+                  </span>
+                )}
                 <span className="text-slate-300">•</span>
                 <span>
                   Kênh:{' '}
@@ -247,6 +294,13 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               </div>
             )}
 
+            {/* MOBILE ONLY: SỐ THỨ TỰ HÀNG ĐỢI (NẾU ĐÃ ĐƯỢC TIẾP ĐÓN CẤP SỐ) */}
+            {appointment.queueTicket && (
+              <div className="block md:hidden">
+                {renderQueueTicketCard(true)}
+              </div>
+            )}
+
             {/* MAIN CONTENT GRID */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               
@@ -297,31 +351,17 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                   </div>
                 </div>
 
-                {/* 2. Thông tin Chuyên khoa & Bác sĩ */}
+                {/* 2. Thông tin Bác sĩ phụ trách (Chỉ giữ Bác sĩ Tim mạch & fullName) */}
                 <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-3">
                   <div className="flex items-center gap-2 text-slate-900 font-bold border-b border-slate-100 pb-2">
                     <Stethoscope className="w-4 h-4 text-blue-600" />
-                    <span>Chuyên Khoa & Bác Sĩ Phụ Trách</span>
+                    <span>Bác Sĩ Phụ Trách</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 text-slate-700">
-                    <div>
-                      <span className="text-slate-400 block text-[11px]">Chuyên khoa:</span>
-                      <strong className="text-slate-900">{appointment.department?.departmentName || 'Chuyên khoa tổng hợp'}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[11px]">Vị trí phòng khám:</span>
-                      <span className="text-slate-800 font-medium">
-                        {appointment.department?.roomLocation || appointment.department?.location || 'Phòng Khám Ngoại Trú'}
-                      </span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-slate-400 block text-[11px]">Bác sĩ phụ trách:</span>
-                      <strong className="text-blue-900 text-sm">
-                        {appointment.doctor?.title ? `${appointment.doctor.title}. ` : appointment.doctor?.academicRank ? `${appointment.doctor.academicRank}. ` : ''}
-                        {appointment.doctor?.fullName || appointment.doctor?.user?.fullName || 'Bác sĩ phụ trách chuyên khoa'}
-                        {appointment.doctor?.specialization ? ` (${appointment.doctor.specialization})` : ''}
-                      </strong>
-                    </div>
+                  <div className="text-slate-700">
+                    <span className="text-slate-400 block text-[11px] mb-0.5">Bác sĩ phụ trách:</span>
+                    <strong className="text-blue-900 text-sm md:text-base">
+                      {appointment.doctor?.fullName || appointment.doctor?.user?.fullName || 'Bác sĩ Tim mạch trực'}
+                    </strong>
                   </div>
                 </div>
 
@@ -376,32 +416,10 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               {/* RIGHT COLUMN: APPOINTMENT SUMMARY & QUEUE TICKET */}
               <div className="space-y-4 flex flex-col justify-between">
                 
-                {/* QUEUE TICKET (If issued) */}
-                {appointment.queueTicket ? (
-                  <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-5 text-white text-center shadow-lg space-y-2">
-                    <div className="flex items-center justify-center gap-1.5 text-blue-200 text-xs font-semibold">
-                      <Ticket className="w-4 h-4" />
-                      <span>Số Thứ Tự Hàng Đợi</span>
-                    </div>
-                    <div className="text-3xl sm:text-4xl font-black font-mono tracking-wider py-1 text-amber-300">
-                      {formatTicketCode(appointment.queueTicket)}
-                    </div>
-                    <span className="inline-block px-2.5 py-0.5 bg-white/20 rounded-full text-[10px] font-medium">
-                      Trạng thái: {getQueueStatusLabel(appointment.queueTicket.status || appointment.queueTicket.queueStatus)}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="bg-slate-900 rounded-3xl p-5 text-white text-center shadow-lg space-y-3">
-                    <span className="text-xs font-bold text-amber-300 block">Mã Tiếp Nhận Khám</span>
-                    <div className="p-4 bg-slate-800/90 rounded-2xl border border-slate-700 space-y-1">
-                      <span className="text-[11px] text-slate-400 block font-medium">Mã đặt lịch:</span>
-                      <span className="text-lg font-mono font-black text-blue-300 block tracking-wider">
-                        {appointment.appointmentCode}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">
-                      Vui lòng đọc mã này tại quầy Tiếp đón hoặc nhập vào Kiosk tự phục vụ khi đến bệnh viện.
-                    </p>
+                {/* DESKTOP ONLY: SỐ THỨ TỰ HÀNG ĐỢI (NẾU ĐÃ ĐƯỢC TIẾP ĐÓN CẤP SỐ) */}
+                {appointment.queueTicket && (
+                  <div className="hidden md:block">
+                    {renderQueueTicketCard(false)}
                   </div>
                 )}
 

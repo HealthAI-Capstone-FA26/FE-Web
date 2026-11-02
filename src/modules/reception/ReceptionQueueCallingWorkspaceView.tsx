@@ -16,6 +16,7 @@ import {
   Eye,
   Stethoscope,
   Ticket,
+  CreditCard,
 } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { queueTicketService, type QueueTicketItem } from '../../services/queue/queue-ticket.service';
@@ -281,7 +282,11 @@ const ReceptionQueueCallingBoard: React.FC = () => {
         date: queryDate,
         departmentId: selectedDepartmentId !== 'all' ? selectedDepartmentId : undefined,
       };
-      const data = await queueTicketService.getQueueTickets(query);
+      const [data, pendingInvs] = await Promise.all([
+        queueTicketService.getQueueTickets(query),
+        invoiceService.findMany({ status: 'pending' }).catch(() => [] as InvoiceData[]),
+      ]);
+      setPendingPaymentInvoices(Array.isArray(pendingInvs) ? pendingInvs : []);
       setTickets(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error('Lỗi tải danh sách hàng đợi:', err);
@@ -558,21 +563,106 @@ const ReceptionQueueCallingBoard: React.FC = () => {
     }
   };
 
+  const [isOpeningPaymentTicketId, setIsOpeningPaymentTicketId] = useState<string | null>(null);
+  const [paidTicketIds, setPaidTicketIds] = useState<Set<string>>(new Set());
+  const [pendingPaymentInvoices, setPendingPaymentInvoices] = useState<InvoiceData[]>([]);
+
+  /** Mở lại modal thu tiền phí khám cho một phiếu tiếp nhận đã xong nhưng chưa thanh toán */
+  const handleOpenPaymentForTicket = async (ticket: QueueTicketItem) => {
+    const apptId = ticket.appointmentId || ticket.appointment?.appointmentId;
+    const pId = ticket.appointment?.patientId || ticket.appointment?.patient?.patientId;
+
+    if (!apptId && !pId) {
+      showToast('Phiếu này chưa liên kết lịch hẹn hoặc hồ sơ bệnh nhân.', 'error');
+      return;
+    }
+
+    setIsOpeningPaymentTicketId(ticket.ticketId);
+    try {
+      // 1. Kiểm tra trước trong danh sách pendingPaymentInvoices đã có sẵn
+      let unpaidInvoice = pendingPaymentInvoices.find(
+        (inv) =>
+          inv.status === 'pending' &&
+          ((apptId && inv.appointmentId === apptId) ||
+            (pId && inv.patientId === pId && inv.invoiceType === 'consultation'))
+      );
+
+      // 2. Nếu chưa tìm thấy, gọi API findMany theo appointmentId hoặc patientId
+      if (!unpaidInvoice) {
+        let invoices = apptId ? await invoiceService.findMany({ appointmentId: apptId }) : [];
+        if ((!invoices || invoices.length === 0) && pId) {
+          invoices = await invoiceService.findMany({ patientId: pId });
+        }
+        unpaidInvoice = invoices.find((inv) => inv.status !== 'cancelled' && inv.status !== 'paid');
+
+        if (!unpaidInvoice) {
+          const paidInvoice = invoices.find((inv) => inv.status === 'paid');
+          if (paidInvoice) {
+            setPaidTicketIds((prev) => new Set(prev).add(ticket.ticketId));
+            showToast('Lượt khám này đã hoàn tất thanh toán.', 'info');
+            return;
+          }
+        }
+      }
+
+      if (unpaidInvoice) {
+        if (apptId) setPendingAppointmentId(apptId);
+        setPendingPaymentTicket(ticket);
+        setConsultationInvoice(unpaidInvoice);
+        try {
+          if (apptId) {
+            const stored = localStorage.getItem(`pending_intake_${apptId}`);
+            if (stored) {
+              setPendingIntakeData(JSON.parse(stored));
+            }
+          }
+        } catch (e) {
+          console.warn('Lỗi khôi phục intakeData từ localStorage:', e);
+        }
+        setIsPaymentModalOpen(true);
+      } else {
+        showToast('Chưa có hóa đơn viện phí cho lượt khám này.', 'info');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Không thể kiểm tra hóa đơn cho phiếu này.', 'error');
+    } finally {
+      setIsOpeningPaymentTicketId(null);
+    }
+  };
+
   /** Sau khi thanh toán thành công → tạo encounter từ appointment và hoàn tất chuyển hàng đợi điều dưỡng */
   const handlePaymentSuccess = async () => {
     const apptId = pendingAppointmentId || consultationInvoice?.appointmentId;
     const encId = pendingEncounterId || consultationInvoice?.encounterId;
     const pId = consultationInvoice?.patientId || pendingIntakeData?.patientId;
 
+    let intakeToApply = pendingIntakeData;
+    if (!intakeToApply && apptId) {
+      try {
+        const stored = localStorage.getItem(`pending_intake_${apptId}`);
+        if (stored) {
+          intakeToApply = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.warn('Lỗi đọc intakeData từ localStorage:', e);
+      }
+    }
+
     try {
       if (apptId) {
         // Tạo Encounter chính thức sau khi examination fee của Appointment đã thanh toán
         const createdEnc = await encounterService.createFromPaidAppointment(apptId);
         // Hoàn tất thủ tục tiếp đón & chuyển sang phòng Điều dưỡng triage
-        await completeEncounterRegistration(createdEnc, pendingIntakeData);
+        await completeEncounterRegistration(createdEnc, intakeToApply);
+        try {
+          localStorage.removeItem(`pending_intake_${apptId}`);
+        } catch { }
+        if (pendingPaymentTicket?.ticketId) {
+          setPaidTicketIds((prev) => new Set(prev).add(pendingPaymentTicket.ticketId));
+        }
         showToast('Thu tiền viện phí thành công! Bệnh nhân đã được chuyển sang phòng Điều dưỡng đo sinh hiệu.', 'success');
       } else if (encId) {
-        await completeEncounterRegistration({ encounterId: encId, patientId: pId }, pendingIntakeData);
+        await completeEncounterRegistration({ encounterId: encId, patientId: pId }, intakeToApply);
         showToast('Thu tiền viện phí thành công! Bệnh nhân đã được chuyển sang phòng Điều dưỡng đo sinh hiệu.', 'success');
       } else {
         showToast('Thu tiền viện phí thành công!', 'success');
@@ -603,7 +693,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       {/* Toast notification */}
       {notification && (
         <div
-          className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl text-sm font-medium transition-all duration-300 ${notification.type === 'success'
+          className={`fixed top-5 right-5 z-[9999] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl text-sm font-medium transition-all duration-300 ${notification.type === 'success'
             ? 'bg-emerald-600 text-white shadow-emerald-500/20'
             : notification.type === 'error'
               ? 'bg-rose-600 text-white shadow-rose-500/20'
@@ -1083,6 +1173,23 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                   const isWaiting = ticket.status === 'waiting';
                   const isCalled = ticket.status === 'called';
                   const isDone = ticket.status === 'done';
+                  const ticketApptId = ticket.appointmentId || ticket.appointment?.appointmentId;
+                  const ticketPatientId = ticket.appointment?.patientId || ticket.appointment?.patient?.patientId;
+                  const hasUnpaidInvoice = pendingPaymentInvoices.some(
+                    (inv) =>
+                      inv.status === 'pending' &&
+                      ((ticketApptId && inv.appointmentId === ticketApptId) ||
+                        (ticketPatientId && inv.patientId === ticketPatientId && inv.invoiceType === 'consultation'))
+                  );
+
+                  const isAlreadyPaid = Boolean(
+                    ticket.appointment?.encounter?.encounterId ||
+                    (ticket.appointment as any)?.encounterId ||
+                    ticket.appointment?.status === 'checked_in' ||
+                    ticket.appointment?.status === 'in_progress' ||
+                    ticket.appointment?.status === 'completed' ||
+                    paidTicketIds.has(ticket.ticketId)
+                  );
 
                   return (
                     <tr
@@ -1220,6 +1327,22 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                               className="p-1.5 text-slate-500 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 rounded-lg transition cursor-pointer"
                             >
                               <Eye className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          {isDone && hasUnpaidInvoice && ticket.appointment && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPaymentForTicket(ticket)}
+                              disabled={isOpeningPaymentTicketId === ticket.ticketId}
+                              title="Thu tiền viện phí"
+                              className="p-1.5 text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 rounded-lg transition cursor-pointer disabled:opacity-50"
+                            >
+                              {isOpeningPaymentTicketId === ticket.ticketId ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <CreditCard className="w-4 h-4" />
+                              )}
                             </button>
                           )}
 
