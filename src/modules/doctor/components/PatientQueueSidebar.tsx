@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { User, Loader2, Clock, Search, X } from 'lucide-react';
+import { User, Loader2, Clock, Search, X, AlertTriangle } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import type { PatientEMR, PatientWorkflowState } from '../types';
 
@@ -9,6 +9,7 @@ interface PatientQueueSidebarProps {
   onSelectPatient: (id: string) => void;
   isLoading: boolean;
   patientWorkflowStates: Record<string, PatientWorkflowState>;
+  onHoldEncounterIds?: string[];
 }
 
 export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
@@ -17,6 +18,7 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
   onSelectPatient,
   isLoading,
   patientWorkflowStates,
+  onHoldEncounterIds = [],
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'waiting' | 'in_progress' | 'awaiting_review' | 'finished'>('all');
@@ -174,6 +176,7 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
             const workflowState = patientWorkflowStates[p.id] || 'initial';
             const isSelected = selectedPatientId === p.id;
             const timeStr = formatTime(p.arrivedAt);
+            const hasOnHold = onHoldEncounterIds.includes(p.id) || onHoldEncounterIds.includes(p.encounterCode || '');
 
             return (
               <div
@@ -204,6 +207,15 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
                 </div>
 
                 <div className="flex flex-col items-end gap-1">
+                  {hasOnHold && (
+                    <span
+                      className="inline-flex items-center gap-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500 text-white shadow-xs animate-pulse"
+                      title="Chỉ định cận lâm sàng gặp sự cố cần bác sĩ quyết định"
+                    >
+                      <AlertTriangle className="w-2.5 h-2.5" />
+                      <span>Sự cố CLS</span>
+                    </span>
+                  )}
                   {p.status === 'awaiting_review' ? (
                     <span className="text-[9px] font-black px-2 py-0.5 rounded bg-purple-600 text-white animate-pulse shadow-xs">
                       Đã có KQ CLS

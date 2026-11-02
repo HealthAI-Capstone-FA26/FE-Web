@@ -16,6 +16,7 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   pageSize?: number;
   extraFilters?: React.ReactNode;
+  rowClassName?: (row: T, index: number) => string;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -26,6 +27,7 @@ export function DataTable<T extends Record<string, any>>({
   emptyMessage = 'Không tìm thấy dữ liệu phù hợp.',
   pageSize = 5,
   extraFilters,
+  rowClassName,
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -90,7 +92,7 @@ export function DataTable<T extends Record<string, any>>({
               paginatedData.map((row, rIdx) => (
                 <tr
                   key={rIdx}
-                  className="hover:bg-blue-50/40 transition-colors group"
+                  className={`hover:bg-blue-50/40 transition-colors group ${rowClassName ? rowClassName(row, rIdx) : ''}`}
                 >
                   {columns.map((col, cIdx) => (
                     <td key={cIdx} className={`py-3.5 px-4 align-middle ${col.className || ''}`}>

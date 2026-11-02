@@ -32,7 +32,7 @@ import { invoiceService } from '../../services/payment/invoice.service';
 // Modular Sub-Components
 import type { PatientEMR, PatientWorkflowState } from './types';
 import { PatientQueueSidebar } from './components/PatientQueueSidebar';
-import { PatientAdministrativeCard } from './components/PatientAdministrativeCard';
+import { PatientAdministrativeCard } from './components/PatientAdministrativeCard';
 
 interface PatientEncounterCache {
   caseOverview: CaseOverviewData | null;
@@ -59,6 +59,9 @@ import { AiImagingAnalysisCard } from './components/AiImagingAnalysisCard';
 import { ClinicalExamForm, type DynamicAiDiagnosis } from './components/ClinicalExamForm';
 import { TestOrderCreationCard } from './components/TestOrderCreationCard';
 import { TestOrderHistoryList } from './components/TestOrderHistoryList';
+import { OnHoldBanner, ResolveExceptionModal } from '../../components/lab-exception';
+import type { LabTaskItem } from '../../services/lab/lab-task.service';
+import { useOnHoldLabTasks } from '../../hooks/useOnHoldLabTasks';
 
 import { useAuth } from '../../context/AuthContext';
 
@@ -460,7 +463,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
 
   // 3. Fetch full Case Overview payload via GET /api/v1/doctor-examination/encounters/{id}/overview
   const [caseOverview, setCaseOverview] = useState<CaseOverviewData | null>(() => initCached?.caseOverview || null);
-  const [isLoadingOverview, setIsLoadingOverview] = useState<boolean>(() => !initCached?.caseOverview);
+  const [isLoadingOverview, setIsLoadingOverview] = useState<boolean>(() => !initCached?.caseOverview);
   const [isGeneratingAiDiagnosis, setIsGeneratingAiDiagnosis] = useState<boolean>(false);
 
   // 3.1 Appointment State & Start Consultation Handler
@@ -838,6 +841,26 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
 
   const activeEncounterId = currentPatient?.encounterId;
 
+  // Giám sát các chỉ định cận lâm sàng đang tạm dừng (on_hold) do sự cố
+  const { onHoldTasks: currentEncounterOnHoldTasks, refetch: refetchCurrentOnHoldTasks } = useOnHoldLabTasks(activeEncounterId);
+  const { allTasks: allOnHoldTasks, refetch: refetchAllOnHoldTasks } = useOnHoldLabTasks(undefined, { intervalMs: 25000 });
+  const [doctorResolvingTask, setDoctorResolvingTask] = useState<LabTaskItem | null>(null);
+
+  const onHoldEncounterIds = useMemo(() => {
+    return allOnHoldTasks
+      .map((t) => t.orderItem?.order?.encounter?.encounterId || t.orderItem?.order?.encounter?.encounterCode || (t.orderItem?.order as unknown as { encounterId?: string })?.encounterId || '')
+      .filter(Boolean);
+  }, [allOnHoldTasks]);
+
+  const displayedOnHoldTasks = useMemo(() => {
+    if (currentEncounterOnHoldTasks.length > 0) {
+      return currentEncounterOnHoldTasks;
+    }
+    return allOnHoldTasks;
+  }, [currentEncounterOnHoldTasks, allOnHoldTasks]);
+
+  const isForCurrentPatient = currentEncounterOnHoldTasks.length > 0;
+
 
 
   // Gọi API kích hoạt AI gợi ý chẩn đoán sơ bộ
@@ -924,8 +947,12 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
   const fetchEncounterTestOrders = async (encounterId: string) => {
     try {
       setIsLoadingTestOrders(true);
+      const timeoutPromise = new Promise<TestOrderDetail[]>((resolve) =>
+        setTimeout(() => resolve([]), 6000)
+      );
+      const ordersPromise = testOrderService.getTestOrdersByEncounter(encounterId).catch(() => []);
       const [orders, invoices] = await Promise.all([
-        testOrderService.getTestOrdersByEncounter(encounterId),
+        Promise.race([ordersPromise, timeoutPromise]),
         invoiceService.findMany({ encounterId }).catch(() => []),
       ]);
 
@@ -1284,6 +1311,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
             onSelectPatient={handleSelectPatientId}
             isLoading={isLoadingApi}
             patientWorkflowStates={patientWorkflowStates}
+            onHoldEncounterIds={onHoldEncounterIds}
           />
         </div>
 
@@ -1299,6 +1327,40 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
             </div>
           ) : (
             <>
+              {/* On-hold Exception Banner for Doctor */}
+              {displayedOnHoldTasks.length > 0 && (
+                <OnHoldBanner
+                  count={displayedOnHoldTasks.length}
+                  tasks={displayedOnHoldTasks}
+                  targetPatientName={
+                    isForCurrentPatient
+                      ? currentPatient?.name
+                      : displayedOnHoldTasks[0]?.orderItem?.order?.encounter?.patient?.fullName ||
+                        'Bệnh nhân'
+                  }
+                  isCurrentPatient={isForCurrentPatient}
+                  onResolveTask={(task) => setDoctorResolvingTask(task)}
+                  onActionClick={() => {
+                    if (!isForCurrentPatient) {
+                      const targetEncId =
+                        displayedOnHoldTasks[0]?.orderItem?.order?.encounter?.encounterId ||
+                        displayedOnHoldTasks[0]?.orderItem?.order?.encounter?.encounterCode;
+                      if (targetEncId) {
+                        handleSelectPatientId(targetEncId);
+                      }
+                    }
+                    setActiveSubTab('clinical_orders');
+                    setTimeout(() => {
+                      const el = document.getElementById('test-order-history-section');
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }, 120);
+                  }}
+                  className="mb-4"
+                />
+              )}
+
               {/* Sub-tab Navigation Bar */}
               <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/80">
                 {/* Tab 1: Hồ sơ Bệnh án Điện tử (EMR) & Tóm tắt AI01 */}
@@ -1426,14 +1488,23 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
                   />
 
                   {/* Component 6: Test Order History List */}
-                  <TestOrderHistoryList
-                    existingTestOrders={existingTestOrders}
-                    isLoadingTestOrders={isLoadingTestOrders}
-                    onRefreshOrders={() => activeEncounterId && fetchEncounterTestOrders(activeEncounterId)}
-                    cancellingItemId={cancellingItemId}
-                    onCancelItem={handleCancelTestOrderItem}
-                    onViewResult={() => navigateTab('icd10-diagnosis')}
-                  />
+                  <div id="test-order-history-section">
+                    <TestOrderHistoryList
+                      existingTestOrders={existingTestOrders}
+                      isLoadingTestOrders={isLoadingTestOrders}
+                      onHoldTasks={currentEncounterOnHoldTasks}
+                      onRefreshOrders={() => {
+                        if (activeEncounterId) {
+                          void fetchEncounterTestOrders(activeEncounterId);
+                        }
+                        void refetchCurrentOnHoldTasks();
+                        void refetchAllOnHoldTasks();
+                      }}
+                      cancellingItemId={cancellingItemId}
+                      onCancelItem={handleCancelTestOrderItem}
+                      onViewResult={() => navigateTab('icd10-diagnosis')}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -1463,6 +1534,27 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
         isOpen={isMedicalHistoryModalOpen}
         onClose={() => setIsMedicalHistoryModalOpen(false)}
         patientRow={currentPatientAsNurseRow}
+      />
+
+      {/* Doctor Resolve Exception Modal */}
+      <ResolveExceptionModal
+        isOpen={!!doctorResolvingTask}
+        onClose={() => setDoctorResolvingTask(null)}
+        task={doctorResolvingTask}
+        onRefetchRequired={() => {
+          if (activeEncounterId) {
+            void fetchEncounterTestOrders(activeEncounterId);
+          }
+          void refetchCurrentOnHoldTasks();
+          void refetchAllOnHoldTasks();
+        }}
+        onSuccess={() => {
+          if (activeEncounterId) {
+            void fetchEncounterTestOrders(activeEncounterId);
+          }
+          void refetchCurrentOnHoldTasks();
+          void refetchAllOnHoldTasks();
+        }}
       />
     </div>
   );

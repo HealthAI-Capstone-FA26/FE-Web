@@ -1,5 +1,6 @@
 import { apiFetch } from '../api';
 import type { LabRoomItem } from './lab-room.service';
+import type { LabTaskExceptionReason, ResolveExceptionPayload } from '../../types/lab-exception';
 
 export interface LabParameterThreshold {
   labThresholdId: string;
@@ -45,6 +46,7 @@ export interface LabTaskDoctor {
 }
 
 export interface LabTaskItem {
+  id?: string;
   labTaskId: string;
   orderItemId: string;
   labRoomId: string;
@@ -54,6 +56,18 @@ export interface LabTaskItem {
   receivedAt?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
+  exceptionReasonCode?: LabTaskExceptionReason | string | null;
+  exceptionDetail?: string | null;
+  exceptionReportedAt?: string | null;
+  exceptionReportedByUserId?: string | null;
+  exceptionReportedByName?: string | null;
+  exceptionResolvedDecision?: 'retry' | 'cancel' | string | null;
+  exceptionResolvedAt?: string | null;
+  exceptionResolvedByUserId?: string | null;
+  exceptionResolvedByName?: string | null;
+  exceptionResolveNote?: string | null;
+  specimenCode?: string | null;
+  specimenCollectedAt?: string | null;
   createdAt: string;
   labRoom?: LabRoomItem;
   assignedLabStaff?: LabTaskDoctor | null;
@@ -196,12 +210,35 @@ export function normalizeLabTask(raw: any): LabTaskItem {
 
   return {
     ...raw,
+    id: taskId,
     labTaskId: taskId,
     taskId: taskId,
     labRoomId: roomId,
     diagnosticRoomId: roomId,
     labRoom: normalizedRoom,
     diagnosticRoom: normalizedRoom,
+    exceptionReasonCode: raw.exceptionReasonCode ?? raw.exception?.reasonCode ?? null,
+    exceptionDetail: raw.exceptionDetail ?? raw.exception?.detail ?? null,
+    exceptionReportedAt: raw.exceptionReportedAt ?? raw.exception?.reportedAt ?? null,
+    exceptionReportedByUserId: raw.exceptionReportedByUserId ?? raw.exception?.reportedByUserId ?? null,
+    exceptionReportedByName:
+      raw.exceptionReportedByName ??
+      raw.exceptionReportedByUser?.profile?.fullName ??
+      raw.exceptionReportedByUser?.fullName ??
+      raw.exception?.reportedByName ??
+      null,
+    exceptionResolvedDecision: raw.exceptionResolvedDecision ?? raw.exception?.resolvedDecision ?? null,
+    exceptionResolvedAt: raw.exceptionResolvedAt ?? raw.exception?.resolvedAt ?? null,
+    exceptionResolvedByUserId: raw.exceptionResolvedByUserId ?? raw.exception?.resolvedByUserId ?? null,
+    exceptionResolvedByName:
+      raw.exceptionResolvedByName ??
+      raw.exceptionResolvedByUser?.profile?.fullName ??
+      raw.exceptionResolvedByUser?.fullName ??
+      raw.exception?.resolvedByName ??
+      null,
+    exceptionResolveNote: raw.exceptionResolveNote ?? raw.exception?.resolveNote ?? raw.exception?.reason ?? null,
+    specimenCode: raw.specimenCode ?? raw.sampleCode ?? null,
+    specimenCollectedAt: raw.specimenCollectedAt ?? raw.receivedAt ?? null,
     orderItem,
     labResult,
   };
@@ -273,10 +310,21 @@ export const labTaskService = {
    * POST /api/v1/lab-tasks/:id/report-exception
    * Báo cáo mẫu hỏng hoặc sự cố (chuyển sang on_hold)
    */
-  async reportException(id: string, reasonCode: string, detail?: string): Promise<LabTaskItem> {
+  async reportException(id: string, reasonCode: LabTaskExceptionReason, detail?: string): Promise<LabTaskItem> {
     const raw = await apiFetch<any>(`/lab-tasks/${id}/report-exception`, {
       method: 'POST',
       body: JSON.stringify({ reasonCode, detail }),
+    });
+    return normalizeLabTask(raw);
+  },
+  /**
+   * POST /api/v1/lab-tasks/:id/resolve-exception
+   * Bác sĩ chỉ định quyết định Thử lại (retry) hoặc Huỷ (cancel)
+   */
+  async resolveException(id: string, payload: ResolveExceptionPayload): Promise<LabTaskItem> {
+    const raw = await apiFetch<any>(`/lab-tasks/${id}/resolve-exception`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
     return normalizeLabTask(raw);
   },
