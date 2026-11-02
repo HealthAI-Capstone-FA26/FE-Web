@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Stethoscope, FileText, Pill } from 'lucide-react';
+import { Stethoscope, FileText, Pill, Activity } from 'lucide-react';
+import { EcgWorkspacePage } from '../lab/ecg/EcgWorkspacePage';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { DoctorEMRView } from './DoctorEMRView';
 import { DoctorDiagnosisView } from './DoctorDiagnosisView';
@@ -125,6 +126,13 @@ export const DoctorWorkspaceView: React.FC = () => {
       label: 'Kê đơn thuốc & Ký số',
       icon: Pill,
       component: <DoctorPrescriptionView onNavigateTab={handleNavigateTab} />
+    },
+    {
+      id: 'ecg-review',
+      label: 'Điện tâm đồ ECG & AI Review',
+      icon: Activity,
+      badge: 'AI',
+      component: <EcgWorkspacePage defaultMode="review" />
     }
   ], [encounterCount, handleNavigateTab]);
 
