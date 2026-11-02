@@ -471,6 +471,15 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
         },
       };
 
+      const targetApptId = res.appointment?.appointmentId || payload.appointmentId || ticket.appointmentId;
+      if (targetApptId) {
+        try {
+          localStorage.setItem(`pending_intake_${targetApptId}`, JSON.stringify(intakeData));
+        } catch (e) {
+          console.warn('Không thể lưu tạm intakeData vào localStorage:', e);
+        }
+      }
+
       onSuccess({
         queueTicket: res.queueTicket || ticket,
         appointment: res.appointment,

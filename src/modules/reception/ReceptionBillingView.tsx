@@ -8,6 +8,9 @@ import { Badge, type BadgeVariant } from '../../components/common/Badge';
 import { DataTable, type Column } from '../../components/common/DataTable';
 import { invoiceService, type InvoiceData } from '../../services/payment/invoice.service';
 import { encounterService, type EncounterItem } from '../../services/encounter/encounter.service';
+import { chiefComplaintService } from '../../services/reception/chief-complaint.service';
+import { consentService } from '../../services/consent/consent.service';
+import type { IntakeData } from './components/ReceptionIntakeModal';
 import { ReceptionGenerateInvoiceModal } from './components/ReceptionGenerateInvoiceModal';
 import { ReceptionPaymentModal } from './components/ReceptionPaymentModal';
 import { ReceptionCancelInvoiceModal } from './components/ReceptionCancelInvoiceModal';
@@ -62,6 +65,116 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
 
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [selectedInvoiceForCancel, setSelectedInvoiceForCancel] = useState<InvoiceData | null>(null);
+
+  // Toast notification
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const [isCreatingEncounterId, setIsCreatingEncounterId] = useState<string | null>(null);
+
+  /** Xử lý hoàn tất đăng ký cho lịch hẹn đã thanh toán phí khám */
+  const processPaidConsultationAppointment = async (apptId: string) => {
+    // 1. Tạo Encounter từ appointment đã thanh toán
+    const createdEnc = await encounterService.createFromPaidAppointment(apptId);
+    const encId = createdEnc.encounterId;
+    let patientId = createdEnc.patientId;
+
+    if (!patientId) {
+      try {
+        const detail = await encounterService.getEncounterById(encId);
+        patientId = detail?.patientId;
+      } catch (e) {
+        console.warn('Không thể tra cứu patientId từ encounter:', e);
+      }
+    }
+
+    // 2. Tìm intakeData từ localStorage (đã lưu lúc lễ tân xác nhận tiếp nhận ở quầy gọi số)
+    let intakeData: IntakeData | null = null;
+    try {
+      const stored = localStorage.getItem(`pending_intake_${apptId}`);
+      if (stored) {
+        intakeData = JSON.parse(stored);
+      }
+    } catch (e) {
+      console.warn('Không thể đọc intakeData từ localStorage:', e);
+    }
+
+    if (intakeData) {
+      // 2.1 Ghi nhận lý do khám lâm sàng & triệu chứng
+      if (intakeData.chiefComplaint?.reasonForVisit) {
+        try {
+          await chiefComplaintService.upsert(encId, intakeData.chiefComplaint);
+        } catch (ccErr) {
+          console.warn('Lỗi ghi nhận lý do khám:', ccErr);
+        }
+      }
+
+      // 2.2 Ghi nhận đối chiếu CCCD
+      if (intakeData.identityVerification) {
+        try {
+          await encounterService.recordIdentityVerification(encId, intakeData.identityVerification);
+        } catch (idErr) {
+          console.warn('Lỗi ghi nhận xác minh danh tính:', idErr);
+        }
+      }
+
+      // 2.3 Ghi nhận cam kết y tế (Consent)
+      if (patientId) {
+        try {
+          await consentService.ensureMandatoryConsents(patientId, encId, intakeData.consents);
+        } catch (csErr) {
+          console.warn('Lỗi lưu cam kết bệnh nhân:', csErr);
+        }
+      }
+    }
+
+    // 3. Hoàn tất đăng ký tiếp nhận -> Chuyển status arrived -> registered -> Hàng đợi Điều dưỡng
+    try {
+      await encounterService.completeRegistration(encId);
+    } catch (regErr: any) {
+      console.warn('Lỗi completeRegistration tự động:', regErr);
+    }
+
+    // 4. Xóa dữ liệu tạm khỏi localStorage
+    try {
+      localStorage.removeItem(`pending_intake_${apptId}`);
+    } catch {}
+
+    return createdEnc;
+  };
+
+  /** Tự động tạo Encounter cho hóa đơn phí khám đã thanh toán */
+  const handleCreateEncounterForPaidInvoice = async (invoice: InvoiceData) => {
+    let apptId = invoice.appointmentId;
+    if (!apptId && invoice.invoiceId) {
+      try {
+        const fresh = await invoiceService.findById(invoice.invoiceId);
+        apptId = fresh?.appointmentId;
+      } catch (e) {
+        console.warn('Lỗi tải hóa đơn chi tiết:', e);
+      }
+    }
+
+    if (!apptId) {
+      showToast('Hóa đơn này không có mã lịch hẹn để khởi tạo ca khám.', 'error');
+      return;
+    }
+
+    setIsCreatingEncounterId(invoice.invoiceId);
+    try {
+      await processPaidConsultationAppointment(apptId);
+      showToast('Đã khởi tạo ca khám (Encounter) và chuyển sang phòng Điều dưỡng thành công!', 'success');
+      await fetchInvoices();
+    } catch (err: any) {
+      console.error('Lỗi khởi tạo ca khám:', err);
+      showToast(err?.message || 'Không thể tạo ca khám cho hóa đơn này.', 'error');
+    } finally {
+      setIsCreatingEncounterId(null);
+    }
+  };
 
   // ─────────────────────────────────────────────────────────────────────────
   // Fetch danh sách hóa đơn
@@ -288,14 +401,32 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
             </>
           )}
           {row.status === 'paid' && (
-            <button
-              type="button"
-              onClick={() => openPaymentModal(row)}
-              className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl flex items-center gap-1 border border-emerald-200 cursor-pointer transition-colors"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span>Xem chi tiết</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => openPaymentModal(row)}
+                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl flex items-center gap-1 border border-emerald-200 cursor-pointer transition-colors"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Xem chi tiết</span>
+              </button>
+              {row.appointmentId && !row.encounterId && (
+                <button
+                  type="button"
+                  onClick={() => handleCreateEncounterForPaidInvoice(row)}
+                  disabled={isCreatingEncounterId === row.invoiceId}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1 border-none cursor-pointer transition-colors shadow-xs disabled:opacity-50"
+                  title="Hóa đơn đã thu tiền nhưng chưa khởi tạo ca khám"
+                >
+                  {isCreatingEncounterId === row.invoiceId ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Stethoscope className="w-3.5 h-3.5" />
+                  )}
+                  <span>Khởi tạo ca khám</span>
+                </button>
+              )}
+            </div>
           )}
         </div>
       ),
@@ -619,14 +750,54 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
           setSelectedInvoiceForPayment(null);
         }}
         invoice={selectedInvoiceForPayment}
-        onPaymentSuccess={() => {
-          fetchInvoices();
+        onPaymentSuccess={async () => {
+          const paidInv = selectedInvoiceForPayment;
+          let apptId = paidInv?.appointmentId;
+
+          // Nếu chưa có appointmentId trên state, tra cứu lại từ API findById
+          if (!apptId && paidInv?.invoiceId) {
+            try {
+              const fresh = await invoiceService.findById(paidInv.invoiceId);
+              apptId = fresh?.appointmentId;
+            } catch (e) {
+              console.warn('Lỗi tải chi tiết hóa đơn:', e);
+            }
+          }
+
+          // Tự động tạo Encounter và chuyển tiếp nếu là hóa đơn phí khám ban đầu
+          if (apptId && !paidInv?.encounterId) {
+            try {
+              await processPaidConsultationAppointment(apptId);
+              showToast('Đã thu tiền và tự động chuyển ca khám sang phòng Điều dưỡng thành công!', 'success');
+            } catch (encErr) {
+              console.error('Lỗi tự động tạo Encounter sau thanh toán:', encErr);
+            }
+          } else {
+            showToast('Thanh toán hóa đơn thành công!', 'success');
+          }
+          await fetchInvoices();
         }}
         onCancelInvoice={(inv) => {
           setIsPaymentModalOpen(false);
           openCancelModal(inv);
         }}
       />
+
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold animate-in slide-in-from-bottom-5 text-white ${
+            toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'
+          }`}
+        >
+          {toast.type === 'error' ? (
+            <AlertCircle className="w-4 h-4 text-rose-100" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 text-emerald-100" />
+          )}
+          <span>{toast.message}</span>
+        </div>
+      )}
 
       {/* ── Modal 3: Xác nhận hủy hóa đơn ─────────────────────────────────── */}
       <ReceptionCancelInvoiceModal
