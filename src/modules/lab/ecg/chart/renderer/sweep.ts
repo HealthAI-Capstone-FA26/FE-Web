@@ -9,10 +9,27 @@ export interface SweepRenderConfig {
   sampleRateHz: number;
   windowDurationMs: number;
   gainMmPerMv: 5 | 10 | 20;
+  yDomain?: [number, number];
   leadIndices: number[];
   mode: EcgGridMode;
   tokens: EcgThemeTokens;
   reducedMotion: boolean;
+}
+
+export function mapValueToRowY(
+  mv: number,
+  rowIndex: number,
+  rowHeight: number,
+  yDomain: [number, number],
+  gainMmPerMv: 5 | 10 | 20,
+): number {
+  const scale = 10 / gainMmPerMv;
+  const yMin = yDomain[0] * scale;
+  const yMax = yDomain[1] * scale;
+  const pad = Math.min(8, rowHeight * 0.06);
+  const usable = Math.max(4, rowHeight - pad * 2);
+  const ratio = (yMax - mv) / Math.max(0.001, yMax - yMin);
+  return rowIndex * rowHeight + pad + ratio * usable;
 }
 
 /**
@@ -97,7 +114,6 @@ export class SweepState {
       const prevMod = ((this.lastAbsSample % windowSamples) + windowSamples) % windowSamples;
       const currMod = ((currentAbsSample % windowSamples) + windowSamples) % windowSamples;
 
-      // Xoá khoảng từ prevMod tới currMod + eraserSamples (hỗ trợ cả khi vòng qua mép phải về trái)
       const clearSpan = (fromSampleMod: number, toSampleMod: number) => {
         const x1 = Math.max(0, Math.floor((fromSampleMod / windowSamples) * width) - 1);
         const x2 = Math.min(width, Math.ceil((toSampleMod / windowSamples) * width) + 2);
@@ -112,7 +128,6 @@ export class SweepState {
         clearSpan(0, eraseEndMod);
       }
 
-      // Vẽ đoạn mẫu mới (lùi 1 mẫu để nối liền nét)
       const cycleBase = currentAbsSample - currMod;
       if (currMod >= prevMod) {
         this.drawSegment(waveCtx, buffer, Math.max(cycleBase, this.lastAbsSample - 1), currentAbsSample, cycleBase, windowSamples, cfg);
@@ -140,14 +155,13 @@ export class SweepState {
     windowSamples: number,
     cfg: SweepRenderConfig,
   ): void {
-    const { width, height, gainMmPerMv, leadIndices, mode, tokens, reducedMotion } = cfg;
+    const { width, height, gainMmPerMv, yDomain = [-1.5, 1.5], leadIndices, mode, tokens, reducedMotion } = cfg;
     const clampedFrom = Math.max(fromAbs, buffer.start);
     const clampedTo = Math.min(toAbs, buffer.end);
     if (clampedTo - clampedFrom < 2) return;
 
     const numRows = Math.max(1, leadIndices.length);
     const rowHeight = height / numRows;
-    const mvScalePx = rowHeight * 0.34 * (gainMmPerMv / 10);
     const spanPx = Math.max(2, ((clampedTo - clampedFrom) / windowSamples) * width);
 
     const strokeColor =
@@ -165,7 +179,6 @@ export class SweepState {
 
     for (let r = 0; r < numRows; r++) {
       const leadIdx = leadIndices[r] ?? 0;
-      const centerY = r * rowHeight + rowHeight * 0.52;
       const n = minMaxDecimate((idx) => buffer.get(leadIdx, idx), clampedFrom, clampedTo, spanPx, this.scratch);
       if (n < 2) continue;
       ctx.beginPath();
@@ -175,7 +188,7 @@ export class SweepState {
         const mv = this.scratch[i * 2 + 1];
         if (!Number.isFinite(mv)) continue;
         const x = ((sampleIdx - cycleBaseAbs) / windowSamples) * width;
-        const y = centerY - mv * mvScalePx;
+        const y = mapValueToRowY(mv, r, rowHeight, yDomain, gainMmPerMv);
         if (!started) {
           ctx.moveTo(x, y);
           started = true;
@@ -195,16 +208,14 @@ export class SweepState {
     cursorX: number,
     cfg: SweepRenderConfig,
   ): void {
-    const { width, height, gainMmPerMv, leadIndices, mode, tokens, reducedMotion } = cfg;
+    const { width, height, gainMmPerMv, yDomain = [-1.5, 1.5], leadIndices, mode, tokens, reducedMotion } = cfg;
     overlayCtx.clearRect(0, 0, width, height);
     if (currentAbsSample <= buffer.start) return;
 
     const numRows = Math.max(1, leadIndices.length);
     const rowHeight = height / numRows;
-    const mvScalePx = rowHeight * 0.34 * (gainMmPerMv / 10);
     const dotColor = mode === 'monitor' ? tokens.waveMonitor : mode === 'paper' ? tokens.wavePaper : '#DC2626';
 
-    // Đường quét dọc mảnh
     overlayCtx.save();
     overlayCtx.strokeStyle = mode === 'monitor' ? 'rgba(34,197,94,0.35)' : 'rgba(220,38,38,0.28)';
     overlayCtx.lineWidth = 1;
@@ -213,13 +224,11 @@ export class SweepState {
     overlayCtx.lineTo(cursorX, height);
     overlayCtx.stroke();
 
-    // Chấm sáng đầu bút trên từng đạo trình
     for (let r = 0; r < numRows; r++) {
       const leadIdx = leadIndices[r] ?? 0;
       const mv = buffer.get(leadIdx, currentAbsSample - 1);
       if (!Number.isFinite(mv)) continue;
-      const centerY = r * rowHeight + rowHeight * 0.52;
-      const y = centerY - mv * mvScalePx;
+      const y = mapValueToRowY(mv, r, rowHeight, yDomain, gainMmPerMv);
       if (!reducedMotion) {
         overlayCtx.fillStyle = mode === 'monitor' ? 'rgba(34,197,94,0.28)' : 'rgba(220,38,38,0.22)';
         overlayCtx.beginPath();
@@ -234,4 +243,3 @@ export class SweepState {
     overlayCtx.restore();
   }
 }
-

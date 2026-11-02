@@ -151,32 +151,42 @@ Backend hiện **lưu file rồi phân tích**, chưa stream từng sample. Vì 
 - **RECORDINGS** — list card, mỗi item: tên/giờ ghi, `recordingType`, chấm trạng thái (xanh = completed, vàng = analyzing, đỏ = failed). Item đang chọn: viền xanh 1.5px, nền `blue-50`, chấm xanh lá + icon ✓ bên phải (đúng như item "MSL" trong ảnh).
 - **LEADS** — lưới chip 3 cột cho 12 đạo trình; chọn 1 (mặc định **II**) hoặc multi-select để xem nhiều lead xếp chồng. Lead có anomaly (`affectedLeads`) có chấm đỏ nhỏ.
 
-### 3.3 KPI cards (6 ô, giống hàng trên cùng ảnh mẫu)
-Mỗi ô: `.glass-card` biến thể nhỏ (bo 14px, padding 16px), label 11px xám, value 20px semibold, số dùng `font-variant-numeric: tabular-nums`.
-1. **Nhịp tim** — `hrMean` bpm (live: tính realtime từ R-peak), kèm min–max nhỏ bên dưới.
-2. **Kết quả AI** — `overallResult` dạng badge: normal (xanh lá), abnormal (đỏ), inconclusive (vàng), poor_signal (xám).
-3. **Điểm bất thường max** — `maxAnomalyScore` (0–1) + thanh progress so với `thresholdUsed`.
-4. **Chất lượng tín hiệu** — `signalQuality` % + icon tín hiệu 4 vạch.
-5. **Số sự kiện** — tổng anomaly, tách theo severity (chấm màu).
-6. **% thời gian bất thường** — `abnormalDurationMs / durationMs`, **tô đỏ `#DC2626` nếu > 10%** (giống ô "10.53%" đỏ trong ảnh).
-- Animate số bằng `motion` (count-up 400ms) khi dữ liệu đổi.
+### 3.3 KPI cards (6 ô ngang — hỗ trợ 2 chế độ: Benchmark Dataset & Clinical)
+Mỗi ô: `.glass-card` biến thể nhỏ (bo 14px, padding 16px), label 11px xám, value 20px semibold, số dùng `font-variant-numeric: tabular-nums`. Animate số bằng `motion` (count-up 400ms) khi dữ liệu đổi.
 
-### 3.4 CARD 1 — AI Anomaly Detection (giống chart trên trong ảnh)
-- **Header:** tiêu đề bold 14px "Phát hiện bất thường (AI)" + text trạng thái xanh lá 12px nhấp nháy nhẹ: `Đang phân tích với {modelName}...` khi `queued/running`; `Hoàn tất · {inferenceLatencyMs}ms` khi xong. Bên phải: pill `Pts: 544` (số điểm đang render sau downsample) và nút `Reset Zoom` (outline, 12px).
-- **Legend** (hàng ngang, ô vuông 10px + text 12px), map theo `reviewVerdict` khi bác sĩ đã review, theo `severity` khi chưa:
-  - 🟩 `#86EFAC` (opacity 0.55) — **Đúng (true_positive)** ~ "Detected" trong ảnh
-  - 🟨 `#FCD34D` — **Chưa chắc (uncertain)** / chờ review
-  - 🟥 `#FCA5A5` — **Báo nhầm (false_positive)** ~ "False alarm"
-  - ⬜ viền xám — Bình thường: không tô
-  - Toggle phụ "Tô theo mức độ": low `#FEF3C7`, medium `#FDE68A`, high `#FDBA74`, critical `#FCA5A5`.
+- **Chế độ Benchmark / Mô phỏng (khớp 100% hàng trên cùng ảnh mẫu `MSL | [73729, 55] | <f8 | 73729 | 55 | 10.53%`, áp dụng cho `ECG_A`):**
+  1. **DATASET**: `ECG_A` (hoặc tên bản ghi đang chọn)
+  2. **SHAPE**: `[1841, 2]` (`[numSamples, numLeads]`)
+  3. **DTYPE**: `<f8` (float64 little-endian)
+  4. **SAMPLES / TIME STEPS**: `1841`
+  5. **CHANNELS / LEADS**: `2` (`Lead I`, `Lead II`)
+  6. **ANOMALY RATIO**: `14.61%` (`269 / 1841` mẫu bất thường — **tô chữ đỏ `#DC2626` khi > 10%**, giống ô `10.53%` trong ảnh)
+
+- **Chế độ Lâm sàng (toggle hoặc hiển thị dòng phụ bên dưới mỗi ô khi xem ca khám thật):**
+  1. **Nhịp tim** — `hrMean` bpm (live: tính realtime từ R-peak), kèm min–max nhỏ bên dưới.
+  2. **Kết quả AI** — `overallResult` dạng badge: normal (xanh lá), abnormal (đỏ), inconclusive (vàng), poor_signal (xám).
+  3. **Điểm bất thường max** — `maxAnomalyScore` (0–1) + thanh progress so với `thresholdUsed`.
+  4. **Chất lượng tín hiệu** — `signalQuality` % + icon tín hiệu 4 vạch.
+  5. **Số sự kiện** — tổng anomaly, tách theo severity (chấm màu).
+  6. **% thời gian bất thường** — `abnormalDurationMs / durationMs` (tô đỏ `#DC2626` nếu > 10%).
+
+### 3.4 CARD 1 — Anomaly Detection (API 3) (giống hệt chart trên trong ảnh)
+- **Header:** tiêu đề bold 14px `Anomaly Detection (API 3)` + text trạng thái xanh lá 12px nhấp nháy nhẹ: `Evaluating with anomaly-transformer...` khi `queued/running` (hoặc đang chạy mô phỏng); `Hoàn tất · {inferenceLatencyMs}ms` khi xong. Bên phải: pill `Pts: 544` (số điểm đang render sau downsample, hoặc `Pts: 1841` khi xem full `ECG_A`) và nút `Reset Zoom` (outline, 12px).
+- **Legend & Logic 4 nhãn đối chiếu (Confusion States: Ground-Truth `gt` vs AI Prediction `pred` — giống hệt ảnh mẫu):**
+  Tại mỗi mẫu thời gian $i \in [0 .. N-1]$, gọi `gt[i] ∈ {0, 1}` là nhãn chuẩn (từ `ECG_test_label.npy` hoặc bác sĩ xác nhận) và `pred[i] ∈ {0, 1}` là nhãn AI dự đoán (suy ra từ các đoạn `[startOffsetMs, endOffsetMs]` có `score >= thresholdUsed`):
+  - 🟩 **`Detected (1-1)`** (`gt = 1` và `pred = 1` — True Positive): màu `#86EFAC` (`rgba(34, 197, 94, 0.28)`) — AI bắt đúng đoạn bất thường.
+  - 🟨 **`Missed (1-0)`** (`gt = 1` và `pred = 0` — False Negative): màu `#FCD34D` (`rgba(234, 179, 8, 0.35)`) — Đoạn bất thường thực tế nhưng AI bỏ sót.
+  - 🟥 **`False alarm (0-1)`** (`gt = 0` và `pred = 1` — False Positive): màu `#FCA5A5` (`rgba(239, 68, 68, 0.28)`) — Tín hiệu bình thường nhưng AI báo nhầm.
+  - ⬜ **`Normal (0-0): no color`** (`gt = 0` và `pred = 0` — True Negative): ô vuông viền xám nét đứt, không tô màu nền trên chart.
+  - *Trường hợp ca khám lâm sàng chưa có Ground-Truth file:* lấy `reviewVerdict` của bác sĩ để suy ra (`true_positive` → `1-1`, `false_positive` → `0-1`, `uncertain`/`pending` → `1-0` màu vàng), kèm toggle phụ **"Tô theo mức độ (Severity)"**: low `#FEF3C7`, medium `#FDE68A`, high `#FDBA74`, critical `#FCA5A5`.
 - **Vùng vẽ (cao 200px):**
-  - Dải màu dọc full-height cho mỗi `[startOffsetMs, endOffsetMs]`. Đoạn rất ngắn (< 2px) vẫn vẽ tối thiểu 2px để nhìn thấy (như các vạch mảnh trong ảnh).
-  - Đường tín hiệu đỏ `#B91C1C`, 1.25px.
-  - **Đường điểm anomaly score** (overlay) màu teal `#0F766E` 1.5px trên trục Y phụ, và **đường threshold** nét đứt `#0F766E` 50% — tương ứng đường xanh ngang trong ảnh.
-  - Gridline ngang `#E5E7EB` 1px; trục Y bên trái (mV), trục X dưới "Thời gian (s)" hiển thị `mm:ss.SSS` hoặc index mẫu (toggle).
+  - Gom các mẫu liền kề có cùng trạng thái `(gt[i], pred[i])` khác `0-0` thành các segment `[startIdx, endIdx]` để vẽ dải màu dọc full-height. Đoạn rất ngắn (< 2px) vẫn vẽ tối thiểu `2px` để nhìn thấy rõ như các vạch mảnh màu đỏ/vàng trong ảnh.
+  - Đường tín hiệu màu đỏ `#B91C1C`, `1.25px`. Với `ECG_A`, biên độ nằm trong `[-3.72, 1.235]` nên trục Y mặc định từ `-4` đến `2` (hoặc auto-scale có padding 15%).
+  - **Đường baseline / reference** ngang tại `y = 0` màu xanh cổ vịt `#0F766E` `1.5px` (giống đường xanh ngang tại mốc 0 trong ảnh mẫu) + tuỳ chọn bật overlay đường `anomalyScore` (`0..1`) và `thresholdUsed` nét đứt.
+  - Gridline ngang `#E5E7EB` 1px; trục Y bên trái (biên độ mV / normalized value), trục X dưới `Time/Index` hiển thị chỉ số mẫu `0 .. 1841` hoặc thời gian `mm:ss.SSS` (toggle).
 - **Minimap (cao 36px)** dưới trục X: toàn bộ tín hiệu downsample, nền `#EEF2FF`, vùng đang xem là khung xanh `#93C5FD` có 2 tay nắm tròn trái/phải để kéo co giãn (giống thanh brush trong ảnh). Kéo khung = pan; kéo tay nắm = zoom.
-- **Hover** dải màu: tooltip glass gồm loại bất thường (tiếng Việt: AFib → "Rung nhĩ", PVC → "Ngoại tâm thu thất", PAC → "Ngoại tâm thu nhĩ", VT → "Nhịp nhanh thất", bradycardia → "Nhịp chậm", tachycardia → "Nhịp nhanh", st_elevation → "ST chênh lên", st_depression → "ST chênh xuống", av_block → "Block nhĩ thất", unclassified/null → "Bất thường chưa phân loại"), score, severity, thời gian, lead, HR.
-- **Click** dải màu → zoom tới đoạn đó (±1s padding) + mở Event Detail (Card 4) + đồng bộ Card 2 nhảy tới vị trí.
+- **Hover** dải màu: tooltip glass gồm nhãn `1-1 / 1-0 / 0-1`, loại bất thường (tiếng Việt: AFib → "Rung nhĩ", PVC → "Ngoại tâm thu thất", PAC → "Ngoại tâm thu nhĩ", VT → "Nhịp nhanh thất", bradycardia → "Nhịp chậm", tachycardia → "Nhịp nhanh", st_elevation → "ST chênh lên", st_depression → "ST chênh xuống", av_block → "Block nhĩ thất", unclassified/null → "Bất thường chưa phân loại"), `Index: [start..end]`, thời gian, score, severity, lead, HR.
+- **Click** dải màu → zoom tới đoạn đó (±50 mẫu hoặc ±1s padding) + mở Event Detail (Card 4) + đồng bộ Card 2 nhảy tới vị trí.
 
 ### 3.5 CARD 2 — Live ECG (giống chart dưới trong ảnh, nhưng chạy live)
 - **Header:** "Sóng ECG trực tiếp · Lead II" + chấm xanh lá nhấp nháy + text `Streaming...` (pause → chấm xám, "Tạm dừng"). Bên phải: `Pts`, `Reset Zoom`, nút toggle **"Giấy ECG"**, nút full-screen.
@@ -360,13 +370,161 @@ src/
 └─ modules/doctor/  → tái sử dụng EcgWorkspacePage với mode="review"
 ```
 
-## 11. MOCK DATA ĐỂ DEV KHI CHƯA CÓ BE
-Viết `mockEcg.ts` sinh tín hiệu ECG tổng hợp (P-QRS-T bằng tổng các hàm Gauss, HR 72 bpm, 500Hz, 12 lead với biên độ khác nhau + nhiễu nền nhẹ + baseline wander), chèn vài đoạn bất thường giả (PVC: QRS rộng, biên độ lớn; AFib: RR không đều, không có sóng P; tachycardia: HR 140), kèm 1 `EcgAnalysis` giả có 6–10 anomaly đủ các severity/verdict để test UI. Bật bằng `VITE_ECG_MOCK=true`.
+## 11. DỮ LIỆU MÔ PHỎNG CHUẨN TỪ BỘ `ECG_A` (BẮT BUỘC HỖ TRỢ)
+
+Dự án có sẵn thư mục dữ liệu thực nghiệm `ECG_A` (model **Anomaly Transformer**) gồm `ECG_train.npy`, `ECG_test.npy`, `ECG_test_label.npy`. UI phải tích hợp sẵn bộ `ECG_A` này làm dataset mô phỏng mặc định (bên cạnh dữ liệu tổng hợp hoặc API thật) khi bật `VITE_ECG_MOCK=true` hoặc khi chọn dataset `ECG_A` trên Sidebar.
+
+### 11.1 Đặc tả chính xác bộ dữ liệu `ECG_A`
+| Tệp | Shape | Dtype | Thứ tự bộ nhớ | Min → Max | Ý nghĩa trên UI |
+|---|---|---|---|---|---|
+| `ECG_train.npy` | `(1833, 2)` | `<f8` (float64) | `fortran_order: True` | `-3.655` → `0.940` | Chuỗi huấn luyện bình thường (1833 mẫu × 2 kênh: `Lead I`, `Lead II`) |
+| `ECG_test.npy` | `(1841, 2)` | `<f8` (float64) | `fortran_order: True` | `-3.720` → `1.235` | Chuỗi kiểm thử hiển thị trên chart: **1841 mẫu thời gian × 2 kênh** (`col0`: `[-3.235, 1.235]`, mẫu đầu `-0.72`; `col1`: `[-3.720, 1.0]`, mẫu đầu `+0.70`) |
+| `ECG_test_label.npy` | `(1841,)` | `<f8` (`0` / `1`) | `fortran_order: False` | `0` hoặc `1` | Nhãn Ground-Truth tại từng điểm thời gian: có **269 điểm = 1** (chiếm **14.61%**), nằm liên tục tại đoạn **index `[498 .. 766]`** (độ dài 269 mẫu) |
+
+> **Cực kỳ quan trọng khi đọc `.npy`:** `ECG_test.npy` có cờ `fortran_order: True` (column-major). Trong mảng phẳng `3682` số float64:
+> - **`1841` phần tử đầu tiên `[0 .. 1840]`** là toàn bộ cột 0 (**Lead I**).
+> - **`1841` phần tử tiếp theo `[1841 .. 3681]`** là toàn bộ cột 1 (**Lead II**).
+> Không được đọc xen kẽ theo hàng `(2*i, 2*i+1)` vì sẽ làm hỏng hoàn toàn hình dạng sóng!
+
+### 11.2 Script chuyển đổi `ECG_A` sang `public/mock/ecg_a.json` và `ecg_a_test.csv`
+Tạo script `scripts/export-ecg-a.cjs` (chạy bằng Node.js thuần, không cần Python) để xuất:
+1. `public/mock/ecg_a.json` — nạp trực tiếp vào chế độ mô phỏng trên Frontend.
+2. `public/mock/ecg_a_test.csv` — dùng để test tính năng Upload file thật vào `POST /lab-tasks/:taskId/ecg-recordings` (`signalFormat: 'csv'`, `numLeads: 2`, `leadNames: 'I,II'`, `sampleRateHz: 100`).
+
+```js
+// scripts/export-ecg-a.cjs
+const fs = require("fs");
+const path = require("path");
+
+function readNpy(filePath) {
+  const buf = fs.readFileSync(filePath);
+  const major = buf[6];
+  const headerLen = major === 1 ? buf.readUInt16LE(8) : buf.readUInt32LE(8);
+  const offset = (major === 1 ? 10 : 12) + headerLen;
+  const header = buf.slice(major === 1 ? 10 : 12, offset).toString("latin1").trim();
+  const f64 = new Float64Array(buf.buffer, buf.byteOffset + offset, (buf.byteLength - offset) / 8);
+  return { header, data: f64 };
+}
+
+const srcDir = "d:/Kì 9 - Nháp/ECG_A";
+const outDir = path.resolve(__dirname, "../public/mock");
+fs.mkdirSync(outDir, { recursive: true });
+
+const test = readNpy(path.join(srcDir, "ECG_test.npy")).data;
+const label = readNpy(path.join(srcDir, "ECG_test_label.npy")).data;
+const N = 1841;
+
+// fortran_order = True -> cột 0 trước, cột 1 sau
+const leadI = Array.from(test.slice(0, N));
+const leadII = Array.from(test.slice(N, 2 * N));
+const gtLabels = Array.from(label).map((v) => (v > 0 ? 1 : 0));
+
+fs.writeFileSync(
+  path.join(outDir, "ecg_a.json"),
+  JSON.stringify({
+    dataset: "ECG_A",
+    shape: [N, 2],
+    dtype: "<f8",
+    sampleRateHz: 100, // 1 mẫu = 10ms -> tổng 18.410ms
+    leads: ["I", "II"],
+    anomalyCount: 269,
+    anomalyRatio: 14.61,
+    groundTruthSegments: [{ startIndex: 498, endIndex: 766, startOffsetMs: 4980, endOffsetMs: 7660 }],
+    signals: { I: leadI, II: leadII },
+    groundTruth: gtLabels,
+  })
+);
+
+const csv = ["I,II", ...leadI.map((v, i) => `${v},${leadII[i]}`)].join("\n");
+fs.writeFileSync(path.join(outDir, "ecg_a_test.csv"), csv);
+```
+
+### 11.3 Thuật toán tạo 4 nhãn dải màu `1-1 / 1-0 / 0-1 / 0-0` trên Card 1
+Viết hàm thuần `buildConfusionSegments(groundTruth: (0|1)[], predicted: (0|1)[]): ConfusionSegment[]`:
+```ts
+export type ConfusionKind = '1-1' | '1-0' | '0-1' | '0-0';
+
+export interface ConfusionSegment {
+  kind: Exclude<ConfusionKind, '0-0'>; // '1-1' = Detected | '1-0' = Missed | '0-1' = False alarm
+  startIndex: number;
+  endIndex: number;
+  startOffsetMs: number;
+  endOffsetMs: number;
+}
+```
+- Với mỗi index $i \in [0..1840]$:
+  - `gt[i] === 1 && pred[i] === 1` → `'1-1'` (**Detected** — tô xanh lá `#86EFAC`)
+  - `gt[i] === 1 && pred[i] === 0` → `'1-0'` (**Missed** — tô vàng `#FCD34D`)
+  - `gt[i] === 0 && pred[i] === 1` → `'0-1'` (**False alarm** — tô đỏ `#FCA5A5`)
+  - `gt[i] === 0 && pred[i] === 0` → `'0-0'` (**Normal** — không vẽ dải màu)
+- Gộp các điểm liên tiếp cùng `kind` thành 1 segment `[startIndex, endIndex]`.
+- Quy đổi thời gian với `sampleRateHz = 100`: `offsetMs = index * 10`.
+- **Dữ liệu AI dự đoán mô phỏng (`mockAiPred`) cho `ECG_A` để hiển thị đủ cả 3 màu giống ảnh mẫu:**
+  - Ground-truth `gt = 1` tại `[498 .. 766]`.
+  - Cho AI dự đoán `pred = 1` tại:
+    - `[505 .. 758]` → sinh ra vùng xanh lá lớn **`Detected (1-1)`** ở `[505 .. 758]`, và 2 dải vàng **`Missed (1-0)`** ở hai biên `[498 .. 504]` & `[759 .. 766]`.
+    - Các vệt ngắn ngoài vùng bất thường: `[212 .. 216]`, `[1145 .. 1150]`, `[1580 .. 1584]` → sinh ra các vạch đỏ mảnh **`False alarm (0-1)`** giống hệt ảnh mẫu.
+
+### 11.4 Kịch bản mô phỏng đồng bộ 2 biểu đồ (API 2 Live Telemetry + API 3 Anomaly Detection)
+1. **Khi chọn `ECG_A` ở Sidebar:**
+   - Hàng 6 ô KPI hiển thị ngay: `ECG_A` · `[1841, 2]` · `<f8` · `1841` · `2` · `14.61%` (chữ đỏ).
+2. **Card 2 — `Live Telemetry (API 2) Streaming...`:**
+   - Bơm dần mẫu từ `0 → 1840` vào `RingBuffer` với tốc độ `100 mẫu/giây` (hoặc tốc độ người dùng chọn `0.5× / 1× / 2× / 4×`).
+   - Có 2 chế độ xem:
+     - **Full Timeline Stream** (giống ảnh mẫu): trục X cố định `0 .. 1841`, đường sóng đỏ vẽ dần từ trái sang phải, pill `Pts: {currentCount}` tăng dần tới `1841` (hoặc `Pts: 544` khi downsample). Khi chạm `1841` tự động lặp vòng mới hoặc dừng tuỳ nút `Loop`.
+     - **Hospital Monitor Sweep**: cửa sổ `600` mẫu (6 giây), con trỏ quét kèm khoảng xoá `eraser gap`.
+3. **Card 1 — `Anomaly Detection (API 3) Evaluating with anomaly-transformer...`:**
+   - Cứ mỗi cửa sổ `windowMs = 1000` (100 mẫu) mà Card 2 stream xong, Card 1 cập nhật đường sóng tới vị trí đó và **fade-in các dải màu `1-1`, `1-0`, `0-1`** vừa được đánh giá.
+4. **Payload chuẩn khớp Backend NestJS (`EcgAnalyzeResult` trong `http-ecg-anomaly.provider.ts`):**
+   Khi test luồng API/Adapter với `ECG_A` (`sampleRateHz = 100`), sử dụng payload mẫu sau:
+   ```json
+   {
+     "overallResult": "abnormal",
+     "maxAnomalyScore": 0.94,
+     "thresholdUsed": 0.5,
+     "windowMs": 1000,
+     "strideMs": 100,
+     "signalQuality": 0.98,
+     "summaryMetrics": {
+       "dataset": "ECG_A",
+       "shape": [1841, 2],
+       "dtype": "<f8",
+       "anomalyCount": 269,
+       "anomalyRatio": 0.1461,
+       "hrMean": 76,
+       "abnormalDurationMs": 2690
+     },
+     "inferenceLatencyMs": 142,
+     "anomalies": [
+       {
+         "anomalyType": "pvc",
+         "score": 0.94,
+         "severity": "high",
+         "startOffsetMs": 5050,
+         "endOffsetMs": 7580,
+         "affectedLeads": ["I", "II"],
+         "heartRateBpm": 88,
+         "details": { "startIndex": 505, "endIndex": 758, "confusion": "1-1" }
+       },
+       {
+         "anomalyType": "unclassified",
+         "score": 0.62,
+         "severity": "low",
+         "startOffsetMs": 2120,
+         "endOffsetMs": 2160,
+         "affectedLeads": ["I"],
+         "heartRateBpm": 74,
+         "details": { "startIndex": 212, "endIndex": 216, "confusion": "0-1" }
+       }
+     ]
+   }
+   ```
 
 ## 12. TIÊU CHÍ NGHIỆM THU
-- [ ] Layout giống ảnh mẫu: sidebar chọn mode/recording, hàng KPI, 2 chart xếp dọc, mỗi chart có Pts + Reset Zoom + minimap brush.
-- [ ] Sóng live chạy mượt 60fps (sweep + eraser gap), đúng 25 mm/s, play/pause/seek/speed hoạt động.
-- [ ] Dải màu anomaly đúng vị trí `startOffsetMs–endOffsetMs`, màu theo verdict/severity, legend đúng.
+- [ ] Layout giống ảnh mẫu: sidebar chọn mode/dataset (`ECG_A`), hàng 6 ô KPI (`ECG_A | [1841, 2] | <f8 | 1841 | 2 | 14.61%`), 2 chart xếp dọc, mỗi chart có `Pts` + `Reset Zoom` + minimap brush.
+- [ ] Đọc đúng thứ tự `fortran_order: True` của `ECG_A` (2 kênh `Lead I`, `Lead II`, 1841 mẫu, biên độ `[-3.72, 1.235]`).
+- [ ] Card 1 hiển thị đúng 4 trạng thái Legend & dải màu: `Detected (1-1)` xanh lá, `Missed (1-0)` vàng, `False alarm (0-1)` đỏ, `Normal (0-0)` không màu, bám đúng vùng bất thường `[498..766]`.
+- [ ] Card 2 chạy sóng live mượt 60fps (hỗ trợ cả Full Timeline Stream như ảnh mẫu và Sweep Monitor có eraser gap), play/pause/seek/speed hoạt động.
 - [ ] Zoom/pan/brush đồng bộ giữa 2 chart khi bật liên kết.
 - [ ] Click event ở bảng ↔ chart đồng bộ hai chiều.
 - [ ] Realtime: nhận `ecg-alert-update` → UI cập nhật không reload; mất kết nối có thông báo & tự hồi phục.

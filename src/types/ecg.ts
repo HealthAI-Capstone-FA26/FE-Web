@@ -36,6 +36,16 @@ export interface EcgScorePoint {
   score: number;
 }
 
+export type ConfusionKind = '1-1' | '1-0' | '0-1' | '0-0';
+
+export interface ConfusionSegment {
+  kind: Exclude<ConfusionKind, '0-0'>; // '1-1' = Detected | '1-0' = Missed | '0-1' = False alarm
+  startIndex: number;
+  endIndex: number;
+  startOffsetMs: number;
+  endOffsetMs: number;
+}
+
 export interface EcgAnalysis {
   id: string;
   status: EcgAnalysisStatus;
@@ -45,7 +55,17 @@ export interface EcgAnalysis {
   windowMs: number | null;
   strideMs: number | null;
   signalQuality: number | null; // 0..1
-  summaryMetrics: { hrMean?: number; hrMin?: number; hrMax?: number; abnormalDurationMs?: number } | null;
+  summaryMetrics: {
+    hrMean?: number;
+    hrMin?: number;
+    hrMax?: number;
+    abnormalDurationMs?: number;
+    dataset?: string;
+    shape?: [number, number];
+    dtype?: string;
+    anomalyCount?: number;
+    anomalyRatio?: number;
+  } | null;
   inferenceLatencyMs: number | null;
   errorCode?: string | null;
   modelName?: string;

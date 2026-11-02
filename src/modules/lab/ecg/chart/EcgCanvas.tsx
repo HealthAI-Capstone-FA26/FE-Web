@@ -3,6 +3,7 @@ import type { EcgAnomalyEvent, EcgScorePoint, EcgSignal } from '../../../../type
 import type { PlaybackClock } from '../../../../hooks/useEcgPlayback';
 import { PlaybackDataSource } from './data/PlaybackDataSource';
 import {
+  detectSignalYDomain,
   EcgCanvasRenderer,
   type CaliperMeasurement,
   type EcgRenderStyle,
@@ -10,7 +11,14 @@ import {
 } from './renderer/EcgCanvasRenderer';
 import type { EcgGridMode } from './renderer/gridLayer';
 import { hitTestAnomalyBand } from './renderer/bandLayer';
-import { formatTimeMs, getAnomalyLabel, SEVERITY_LABEL_VI, VERDICT_LABEL_VI } from '../ecgMeta';
+import {
+  CONFUSION_META,
+  formatTimeMs,
+  getAnomalyLabel,
+  getEventConfusionKind,
+  SEVERITY_LABEL_VI,
+  VERDICT_LABEL_VI,
+} from '../ecgMeta';
 
 export interface EcgCanvasHandle {
   exportPng: (meta: { patientName: string; encounterCode: string; title: string }) => string;
@@ -23,6 +31,8 @@ export interface EcgCanvasProps {
   gainMmPerMv?: 5 | 10 | 20;
   leadNames: string[];
   showCalibrationPulse?: boolean;
+  showZeroBaseline?: boolean;
+  maxSampleLimit?: number | null;
   viewStartMs: number;
   viewEndMs: number;
   durationMs: number;
@@ -56,6 +66,8 @@ export const EcgCanvas = React.forwardRef<EcgCanvasHandle, EcgCanvasProps>((prop
     gainMmPerMv = 10,
     leadNames,
     showCalibrationPulse = true,
+    showZeroBaseline = false,
+    maxSampleLimit = null,
     viewStartMs,
     viewEndMs,
     durationMs,
@@ -135,6 +147,8 @@ export const EcgCanvas = React.forwardRef<EcgCanvasHandle, EcgCanvasProps>((prop
         leadIndices,
         leadLabels: leadNames,
         showCalibrationPulse,
+        showZeroBaseline,
+        maxSampleLimit,
         viewStartMs,
         viewEndMs,
         anomalies,
@@ -197,6 +211,8 @@ export const EcgCanvas = React.forwardRef<EcgCanvasHandle, EcgCanvasProps>((prop
       leadIndices,
       leadLabels: leadNames,
       showCalibrationPulse,
+      showZeroBaseline,
+      maxSampleLimit,
       viewStartMs,
       viewEndMs,
       anomalies,
@@ -221,6 +237,8 @@ export const EcgCanvas = React.forwardRef<EcgCanvasHandle, EcgCanvasProps>((prop
     leadIndices,
     leadNames,
     showCalibrationPulse,
+    showZeroBaseline,
+    maxSampleLimit,
     viewStartMs,
     viewEndMs,
     anomalies,
@@ -466,20 +484,23 @@ export const EcgCanvas = React.forwardRef<EcgCanvasHandle, EcgCanvasProps>((prop
     });
   }, [viewStartMs, viewEndMs, xAxisMode, fs]);
 
-  const yMaxMv = Number((1.5 * (10 / gainMmPerMv)).toFixed(1));
+  const yDomain = useMemo(() => detectSignalYDomain(signal), [signal]);
+  const yScale = 10 / gainMmPerMv;
+  const yMinLabel = Number((yDomain[0] * yScale).toFixed(1));
+  const yMaxLabel = Number((yDomain[1] * yScale).toFixed(1));
 
   return (
     <div className="select-none">
       <div className="flex items-stretch">
-        {/* Trục Y bên trái (mV) */}
+        {/* Trục Y bên trái (mV / biên độ chuẩn hoá) */}
         {showYAxis && (
           <div
             className="w-10 shrink-0 flex flex-col justify-between py-1.5 pr-1.5 text-right text-[10px] font-medium text-slate-500 tabular-nums"
             style={{ height: heightPx }}
           >
-            <span>+{yMaxMv}</span>
-            <span>0 mV</span>
-            <span>−{yMaxMv}</span>
+            <span>+{yMaxLabel}</span>
+            <span>0</span>
+            <span>{yMinLabel}</span>
           </div>
         )}
 
@@ -556,11 +577,21 @@ export const EcgCanvas = React.forwardRef<EcgCanvasHandle, EcgCanvasProps>((prop
               </div>
               {hoverInfo.anomaly && (
                 <div className="mt-1 pt-1 border-t border-white/15 text-[11px]">
-                  <div className="font-semibold text-amber-300">
-                    {getAnomalyLabel(hoverInfo.anomaly.anomalyType)}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-amber-300">
+                      {getAnomalyLabel(hoverInfo.anomaly.anomalyType)}
+                    </span>
+                    <span className="px-1.5 py-0.2 rounded bg-white/15 text-[10px] font-mono text-white">
+                      {CONFUSION_META[getEventConfusionKind(hoverInfo.anomaly)].label}
+                    </span>
                   </div>
                   <div className="text-slate-300 flex flex-wrap gap-x-2">
-                    <span>Điểm: {hoverInfo.anomaly.score.toFixed(2)}</span>
+                    <span>
+                      Index: [
+                      {Math.round((hoverInfo.anomaly.startOffsetMs / 1000) * fs)}..
+                      {Math.round((hoverInfo.anomaly.endOffsetMs / 1000) * fs)}]
+                    </span>
+                    <span>· Điểm: {hoverInfo.anomaly.score.toFixed(2)}</span>
                     <span>· Mức: {SEVERITY_LABEL_VI[hoverInfo.anomaly.severity]}</span>
                     {hoverInfo.anomaly.heartRateBpm && <span>· HR: {hoverInfo.anomaly.heartRateBpm} bpm</span>}
                   </div>

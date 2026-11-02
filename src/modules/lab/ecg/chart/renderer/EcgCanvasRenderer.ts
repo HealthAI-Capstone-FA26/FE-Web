@@ -4,9 +4,9 @@ import { minMaxDecimate } from '../math/minMaxDecimate';
 import { formatTimeMs, readEcgThemeTokens, type EcgThemeTokens } from '../../ecgMeta';
 import { drawAnomalyBands } from './bandLayer';
 import { drawGridLayer, type EcgGridMode } from './gridLayer';
-import { SweepState } from './sweep';
+import { mapValueToRowY, SweepState } from './sweep';
 
-export type EcgRenderStyle = 'static' | 'sweep' | 'scroll';
+export type EcgRenderStyle = 'static' | 'sweep' | 'scroll' | 'timeline';
 
 export interface CaliperMeasurement {
   startMs: number;
@@ -33,6 +33,8 @@ export interface EcgRendererOptions {
   leadIndices: number[];
   leadLabels: string[];
   showCalibrationPulse: boolean;
+  showZeroBaseline?: boolean;
+  maxSampleLimit?: number | null;
   viewStartMs: number;
   viewEndMs: number;
   anomalies: EcgAnomalyEvent[];
@@ -48,11 +50,29 @@ export interface EcgRendererOptions {
   revealProgress?: number;
 }
 
+export function detectSignalYDomain(signal: EcgSignal | null): [number, number] {
+  if (!signal || signal.leads.length === 0) return [-1.5, 1.5];
+  let minVal = 0;
+  let maxVal = 0;
+  for (const lead of signal.leads) {
+    const step = Math.max(1, Math.floor(lead.length / 600));
+    for (let i = 0; i < lead.length; i += step) {
+      const v = lead[i];
+      if (v < minVal) minVal = v;
+      if (v > maxVal) maxVal = v;
+    }
+  }
+  if (minVal < -2.0 || maxVal > 2.2) {
+    return [-4.0, 2.0];
+  }
+  return [-1.5, 1.5];
+}
+
 /**
  * Bộ vẽ 3 lớp Canvas chồng nhau (thuần TypeScript, không phụ thuộc React):
  * - Layer 1 (`gridCanvas`): lưới nền + xung chuẩn 1mV + nhãn đạo trình (chỉ vẽ khi resize/đổi cấu hình).
- * - Layer 2 (`waveCanvas`): dải màu bất thường + sóng ECG (min-max decimation giữ nguyên đỉnh QRS) + điểm score.
- * - Layer 3 (`overlayCanvas`): con trỏ sweep, R-peak markers, crosshair, thước đo caliper, vùng chọn zoom.
+ * - Layer 2 (`waveCanvas`): dải màu bất thường + đường baseline y=0 (#0F766E) + sóng ECG (min-max decimation).
+ * - Layer 3 (`overlayCanvas`): con trỏ sweep/timeline, R-peak markers, crosshair, thước đo caliper, vùng chọn zoom.
  */
 export class EcgCanvasRenderer {
   private readonly gridCanvas: HTMLCanvasElement;
@@ -67,6 +87,7 @@ export class EcgCanvasRenderer {
   private dpr = 1;
   private tokens: EcgThemeTokens = readEcgThemeTokens();
   private signal: EcgSignal | null = null;
+  private yDomain: [number, number] = [-1.5, 1.5];
   private dataSource: EcgDataSource | null = null;
   private opts: EcgRendererOptions;
   private readonly sweep = new SweepState();
@@ -108,6 +129,7 @@ export class EcgCanvasRenderer {
 
   setSignal(signal: EcgSignal | null): void {
     this.signal = signal;
+    this.yDomain = detectSignalYDomain(signal);
     this.sweep.reset();
     this.renderStatic();
   }
@@ -200,16 +222,29 @@ export class EcgCanvasRenderer {
       gridMode,
       saliency,
       revealProgress,
+      showZeroBaseline,
+      maxSampleLimit,
     } = this.opts;
 
     this.waveCtx.clearRect(0, 0, width, height);
+
+    const fs = this.signal?.sampleRateHz ?? 100;
+    const maxAllowedMs =
+      typeof maxSampleLimit === 'number' && maxSampleLimit >= 0
+        ? (maxSampleLimit / fs) * 1000
+        : Infinity;
+
+    const visibleAnomalies =
+      maxAllowedMs < Infinity
+        ? anomalies.filter((a) => a.startOffsetMs <= maxAllowedMs)
+        : anomalies;
 
     drawAnomalyBands(this.waveCtx, {
       width,
       height,
       viewStartMs,
       viewEndMs,
-      anomalies,
+      anomalies: visibleAnomalies,
       secondaryAnomalies,
       selectedEventId,
       hoveredEventId,
@@ -242,14 +277,31 @@ export class EcgCanvasRenderer {
       return;
     }
 
-    const fs = this.signal.sampleRateHz;
     const totalSamples = this.signal.leads[0]?.length ?? 0;
+    const cappedTotal =
+      typeof maxSampleLimit === 'number' && maxSampleLimit >= 0
+        ? Math.min(totalSamples, maxSampleLimit)
+        : totalSamples;
     const startSample = Math.max(0, Math.floor((viewStartMs / 1000) * fs));
-    const endSample = Math.min(totalSamples, Math.ceil((viewEndMs / 1000) * fs));
+    const endSample = Math.min(cappedTotal, Math.ceil((viewEndMs / 1000) * fs));
     const numRows = Math.max(1, leadIndices.length);
     const rowHeight = height / numRows;
-    const mvScalePx = rowHeight * 0.34 * (gainMmPerMv / 10);
     const spanMs = Math.max(1, viewEndMs - viewStartMs);
+
+    // Đường baseline ngang tại y = 0 màu xanh cổ vịt #0F766E 1.5px (mục 3.4 ảnh mẫu)
+    if (showZeroBaseline) {
+      this.waveCtx.save();
+      this.waveCtx.strokeStyle = this.tokens.score;
+      this.waveCtx.lineWidth = 1.5;
+      this.waveCtx.beginPath();
+      for (let r = 0; r < numRows; r++) {
+        const zeroY = Math.round(mapValueToRowY(0, r, rowHeight, this.yDomain, gainMmPerMv)) + 0.5;
+        this.waveCtx.moveTo(0, zeroY);
+        this.waveCtx.lineTo(width, zeroY);
+      }
+      this.waveCtx.stroke();
+      this.waveCtx.restore();
+    }
 
     const strokeColor =
       gridMode === 'monitor'
@@ -268,9 +320,9 @@ export class EcgCanvasRenderer {
     for (let r = 0; r < numRows; r++) {
       const leadIdx = leadIndices[r] ?? 0;
       const leadArr = this.signal.leads[leadIdx] ?? this.signal.leads[0];
-      if (!leadArr) continue;
-      const centerY = r * rowHeight + rowHeight * 0.52;
-      const n = minMaxDecimate((i) => leadArr[i] ?? 0, startSample, endSample, width, this.scratch);
+      if (!leadArr || endSample <= startSample) continue;
+      const spanPx = Math.max(2, (((endSample - startSample) / fs) * 1000 / spanMs) * width);
+      const n = minMaxDecimate((i) => leadArr[i] ?? 0, startSample, endSample, spanPx, this.scratch);
       totalPoints += n;
       if (n < 2) continue;
 
@@ -280,7 +332,7 @@ export class EcgCanvasRenderer {
         const mv = this.scratch[i * 2 + 1];
         const tMs = (sampleIdx / fs) * 1000;
         const x = ((tMs - viewStartMs) / spanMs) * width;
-        const y = centerY - mv * mvScalePx;
+        const y = mapValueToRowY(mv, r, rowHeight, this.yDomain, gainMmPerMv);
         if (i === 0) this.waveCtx.moveTo(x, y);
         else this.waveCtx.lineTo(x, y);
       }
@@ -292,7 +344,7 @@ export class EcgCanvasRenderer {
     this.drawOverlay();
   }
 
-  /** Vẽ 1 frame cho chế độ Live (Sweep hoặc Scroll) ở vị trí thời gian `positionMs`. */
+  /** Vẽ 1 frame cho chế độ Live (Sweep, Scroll hoặc Full Timeline Stream) ở vị trí `positionMs`. */
   renderLiveFrame(positionMs: number): void {
     if (this.width <= 0 || this.height <= 0 || !this.dataSource) return;
     const fs = this.dataSource.sampleRateHz;
@@ -301,19 +353,32 @@ export class EcgCanvasRenderer {
 
     const windowDurationMs = Math.max(500, this.opts.viewEndMs - this.opts.viewStartMs);
     if (this.opts.style === 'sweep') {
-      const { pointsDrawn } = this.sweep.stepFrame(this.waveCtx, this.overlayCtx, this.dataSource.buffer, currentAbsSample, {
-        width: this.width,
-        height: this.height,
-        sampleRateHz: fs,
-        windowDurationMs,
-        gainMmPerMv: this.opts.gainMmPerMv,
-        leadIndices: this.opts.leadIndices,
-        mode: this.opts.gridMode,
-        tokens: this.tokens,
-        reducedMotion: this.opts.reducedMotion,
-      });
+      const { pointsDrawn } = this.sweep.stepFrame(
+        this.waveCtx,
+        this.overlayCtx,
+        this.dataSource.buffer,
+        currentAbsSample,
+        {
+          width: this.width,
+          height: this.height,
+          sampleRateHz: fs,
+          windowDurationMs,
+          gainMmPerMv: this.opts.gainMmPerMv,
+          yDomain: this.yDomain,
+          leadIndices: this.opts.leadIndices,
+          mode: this.opts.gridMode,
+          tokens: this.tokens,
+          reducedMotion: this.opts.reducedMotion,
+        },
+      );
       this.reportPoints(pointsDrawn);
       this.drawLiveAnnotations(positionMs, windowDurationMs);
+      return;
+    }
+
+    if (this.opts.style === 'timeline') {
+      // Full Timeline Stream (mục 11.4): trục X giữ nguyên [viewStartMs..viewEndMs], vẽ sóng từ 0 -> currentAbsSample
+      this.renderTimelineFrame(this.opts.viewStartMs, this.opts.viewEndMs, currentAbsSample);
       return;
     }
 
@@ -322,6 +387,99 @@ export class EcgCanvasRenderer {
     const startMs = endMs - windowDurationMs;
     this.opts = { ...this.opts, viewStartMs: startMs, viewEndMs: endMs };
     this.renderScrollFrame(startMs, endMs, currentAbsSample);
+  }
+
+  private renderTimelineFrame(startMs: number, endMs: number, currentAbsSample: number): void {
+    if (!this.signal) return;
+    const { width, height } = this;
+    const fs = this.signal.sampleRateHz;
+    const totalSamples = this.signal.leads[0]?.length ?? 0;
+    const { leadIndices, gainMmPerMv, gridMode, anomalies, colorBySeverity } = this.opts;
+
+    this.waveCtx.clearRect(0, 0, width, height);
+    const currentMs = (currentAbsSample / fs) * 1000;
+
+    drawAnomalyBands(this.waveCtx, {
+      width,
+      height,
+      viewStartMs: startMs,
+      viewEndMs: endMs,
+      anomalies: anomalies.filter((a) => a.startOffsetMs <= currentMs),
+      colorBySeverity,
+      tokens: this.tokens,
+    });
+
+    const startSample = Math.max(0, Math.floor((startMs / 1000) * fs));
+    const endSample = Math.min(totalSamples, Math.min(currentAbsSample, Math.ceil((endMs / 1000) * fs)));
+    const spanMs = Math.max(1, endMs - startMs);
+    const numRows = Math.max(1, leadIndices.length);
+    const rowHeight = height / numRows;
+
+    const strokeColor =
+      gridMode === 'monitor'
+        ? this.tokens.waveMonitor
+        : gridMode === 'paper'
+          ? this.tokens.wavePaper
+          : this.tokens.wave;
+
+    this.waveCtx.save();
+    this.waveCtx.strokeStyle = strokeColor;
+    this.waveCtx.lineWidth = gridMode === 'monitor' ? 1.6 : 1.35;
+    this.waveCtx.lineJoin = 'round';
+    if (gridMode === 'monitor' && !this.opts.reducedMotion) {
+      this.waveCtx.shadowColor = this.tokens.waveMonitor;
+      this.waveCtx.shadowBlur = 6;
+    }
+
+    let pts = 0;
+    for (let r = 0; r < numRows; r++) {
+      const leadIdx = leadIndices[r] ?? 0;
+      const leadArr = this.signal.leads[leadIdx] ?? this.signal.leads[0];
+      if (!leadArr || endSample <= startSample) continue;
+      const spanPx = Math.max(2, (((endSample - startSample) / fs) * 1000 / spanMs) * width);
+      const n = minMaxDecimate((i) => leadArr[i] ?? 0, startSample, endSample, spanPx, this.scratch);
+      pts += n;
+      if (n < 2) continue;
+      this.waveCtx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const sampleIdx = this.scratch[i * 2];
+        const mv = this.scratch[i * 2 + 1];
+        const tMs = (sampleIdx / fs) * 1000;
+        const x = ((tMs - startMs) / spanMs) * width;
+        const y = mapValueToRowY(mv, r, rowHeight, this.yDomain, gainMmPerMv);
+        if (i === 0) this.waveCtx.moveTo(x, y);
+        else this.waveCtx.lineTo(x, y);
+      }
+      this.waveCtx.stroke();
+    }
+    this.waveCtx.restore();
+
+    // Báo cáo số mẫu đã stream (Pts: currentCount giống ảnh mẫu)
+    this.reportPoints(Math.max(0, endSample - startSample));
+    this.drawOverlay();
+
+    // Vẽ con trỏ chấm sáng ở đầu sóng đang stream
+    if (endSample > startSample && currentMs >= startMs && currentMs <= endMs) {
+      const cursorX = ((currentMs - startMs) / spanMs) * width;
+      this.overlayCtx.save();
+      this.overlayCtx.strokeStyle = gridMode === 'monitor' ? 'rgba(34,197,94,0.35)' : 'rgba(220,38,38,0.28)';
+      this.overlayCtx.lineWidth = 1;
+      this.overlayCtx.beginPath();
+      this.overlayCtx.moveTo(cursorX, 0);
+      this.overlayCtx.lineTo(cursorX, height);
+      this.overlayCtx.stroke();
+
+      for (let r = 0; r < numRows; r++) {
+        const leadIdx = leadIndices[r] ?? 0;
+        const mv = this.signal.leads[leadIdx]?.[Math.max(0, endSample - 1)] ?? 0;
+        const y = mapValueToRowY(mv, r, rowHeight, this.yDomain, gainMmPerMv);
+        this.overlayCtx.fillStyle = gridMode === 'monitor' ? this.tokens.waveMonitor : '#DC2626';
+        this.overlayCtx.beginPath();
+        this.overlayCtx.arc(cursorX, y, 3.2, 0, Math.PI * 2);
+        this.overlayCtx.fill();
+      }
+      this.overlayCtx.restore();
+    }
   }
 
   private renderScrollFrame(startMs: number, endMs: number, currentAbsSample: number): void {
@@ -347,7 +505,6 @@ export class EcgCanvasRenderer {
     const spanMs = Math.max(1, endMs - startMs);
     const numRows = Math.max(1, leadIndices.length);
     const rowHeight = height / numRows;
-    const mvScalePx = rowHeight * 0.34 * (gainMmPerMv / 10);
 
     const strokeColor =
       gridMode === 'monitor'
@@ -368,7 +525,6 @@ export class EcgCanvasRenderer {
     let pts = 0;
     for (let r = 0; r < numRows; r++) {
       const leadIdx = leadIndices[r] ?? 0;
-      const centerY = r * rowHeight + rowHeight * 0.52;
       const n = minMaxDecimate((i) => buffer.get(leadIdx, i), startSample, endSample, width, this.scratch);
       pts += n;
       if (n < 2) continue;
@@ -378,7 +534,7 @@ export class EcgCanvasRenderer {
         const mv = this.scratch[i * 2 + 1];
         const tMs = (sampleIdx / fs) * 1000;
         const x = ((tMs - startMs) / spanMs) * width;
-        const y = centerY - mv * mvScalePx;
+        const y = mapValueToRowY(mv, r, rowHeight, this.yDomain, gainMmPerMv);
         if (i === 0) this.waveCtx.moveTo(x, y);
         else this.waveCtx.lineTo(x, y);
       }
@@ -395,7 +551,6 @@ export class EcgCanvasRenderer {
     const cycleStartMs = Math.floor(positionMs / windowDurationMs) * windowDurationMs;
     const cursorInWinMs = positionMs - cycleStartMs;
 
-    // Đánh dấu các đoạn anomaly thuộc chu kỳ hiện tại đã được con trỏ quét qua
     for (const ev of this.opts.anomalies) {
       const s = Math.max(cycleStartMs, ev.startOffsetMs);
       const e = Math.min(positionMs, ev.endOffsetMs);
@@ -413,7 +568,6 @@ export class EcgCanvasRenderer {
       this.overlayCtx.restore();
     }
 
-    // Tam giác nhỏ xám trên đỉnh R
     if (this.opts.rPeaksMs && this.opts.rPeaksMs.length > 0) {
       this.overlayCtx.save();
       this.overlayCtx.fillStyle = this.opts.gridMode === 'monitor' ? '#94A3B8' : '#64748B';
@@ -439,7 +593,6 @@ export class EcgCanvasRenderer {
     const { viewStartMs, viewEndMs, rPeaksMs, gridMode } = this.opts;
     const span = Math.max(1, viewEndMs - viewStartMs);
 
-    // 1. R-peak markers (tam giác nhỏ trên đỉnh)
     if (rPeaksMs && rPeaksMs.length > 0) {
       this.overlayCtx.save();
       this.overlayCtx.fillStyle = gridMode === 'monitor' ? '#94A3B8' : '#64748B';
@@ -456,7 +609,6 @@ export class EcgCanvasRenderer {
       this.overlayCtx.restore();
     }
 
-    // 2. Rubber-band zoom (Ctrl + kéo)
     if (this.rubberBand) {
       const x = Math.min(this.rubberBand.x1, this.rubberBand.x2);
       const w = Math.abs(this.rubberBand.x2 - this.rubberBand.x1);
@@ -469,7 +621,6 @@ export class EcgCanvasRenderer {
       this.overlayCtx.restore();
     }
 
-    // 3. Thước đo Caliper (Alt + kéo): đo khoảng thời gian (ms) và quy đổi bpm
     if (this.caliper) {
       const x1 = ((this.caliper.startMs - viewStartMs) / span) * width;
       const x2 = ((this.caliper.endMs - viewStartMs) / span) * width;
@@ -493,7 +644,6 @@ export class EcgCanvasRenderer {
       this.overlayCtx.restore();
     }
 
-    // 4. Crosshair dọc khi hover
     if (this.hoverX !== null && this.hoverX >= 0 && this.hoverX <= width) {
       this.overlayCtx.save();
       this.overlayCtx.strokeStyle = gridMode === 'monitor' ? 'rgba(148,163,184,0.55)' : 'rgba(71,85,105,0.45)';
@@ -525,7 +675,6 @@ export class EcgCanvasRenderer {
     const mv = this.signal.leads[leadIdx]?.[sampleIndex] ?? 0;
     const leadName = this.opts.leadLabels[rowIdx] ?? this.signal.leadNames[leadIdx] ?? 'II';
 
-    // Khoảng RR nếu hover gần đỉnh R
     let rrMs: number | null = null;
     if (this.opts.rPeaksMs && this.opts.rPeaksMs.length > 1) {
       for (let i = 1; i < this.opts.rPeaksMs.length; i++) {
@@ -567,7 +716,6 @@ export class EcgCanvasRenderer {
     };
   }
 
-  /** Xuất PNG gộp cả 3 lớp + header thông tin bệnh nhân & thang chuẩn y khoa. */
   exportPng(meta: { patientName: string; encounterCode: string; title: string }): string {
     const headerH = 44;
     const out = document.createElement('canvas');
@@ -606,4 +754,3 @@ export class EcgCanvasRenderer {
     }
   }
 }
-
