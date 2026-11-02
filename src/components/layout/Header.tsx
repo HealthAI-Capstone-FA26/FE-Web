@@ -9,6 +9,7 @@ import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_DEFAULT_PATHS } from '../../types/dashboard';
 import { UserProfilePill } from '../common/UserProfilePill';
+import { NotificationDropdown } from './NotificationDropdown';
 
 const NAV_ITEMS = [
   { id: 'gioi-thieu', label: 'Giới thiệu', path: '/gioi-thieu', icon: Info },
@@ -77,6 +78,7 @@ export const Header = () => {
 
               {isLoggedIn && user ? (
                 <div className="flex items-center space-x-2 ml-1">
+                  <NotificationDropdown />
                   <UserProfilePill
                     user={user}
                     roleLabel={currentRole === 'PATIENT' ? 'Cổng Bệnh Nhân' : undefined}
