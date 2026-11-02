@@ -3,6 +3,7 @@ import { AlertTriangle, Download, Link2, Link2Off, Loader2, RefreshCw, Sparkles 
 import type { EcgAnalysis, EcgAnomalyEvent, EcgSignal } from '../../../types/ecg';
 import type { SignalState } from '../../../hooks/useEcgRecording';
 import { EcgCanvas, type EcgCanvasHandle } from './chart/EcgCanvas';
+import { AnomalyScoreSubChart } from './chart/AnomalyScoreSubChart';
 import { Minimap } from './chart/Minimap';
 import { formatTimeMs, getAnomalyLabel, SEVERITY_LABEL_VI } from './ecgMeta';
 
@@ -25,6 +26,8 @@ interface EcgAnomalyChartCardProps {
   patientName: string;
   encounterCode: string;
   onRetrySignal: () => void;
+  evaluatedSampleLimit?: number | null;
+  isStreamingEval?: boolean;
 }
 
 export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
@@ -46,11 +49,14 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
   patientName,
   encounterCode,
   onRetrySignal,
+  evaluatedSampleLimit = null,
+  isStreamingEval = false,
 }) => {
   const canvasRef = useRef<EcgCanvasHandle | null>(null);
   const [pts, setPts] = useState(0);
   const [colorBySeverity, setColorBySeverity] = useState(false);
-  const [xAxisMode, setXAxisMode] = useState<'time' | 'sample'>('time');
+  const [showScoreSubChart, setShowScoreSubChart] = useState(true);
+  const [xAxisMode, setXAxisMode] = useState<'time' | 'sample'>('sample');
   const [revealProgress, setRevealProgress] = useState(1);
 
   const anomalies = analysis?.anomalies ?? [];
@@ -76,7 +82,7 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
     const dataUrl = canvasRef.current?.exportPng({
       patientName,
       encounterCode,
-      title: `Phát hiện bất thường AI (${leadName})`,
+      title: `Anomaly Detection (API 3) · Lead ${leadName}`,
     });
     if (!dataUrl) return;
     const a = document.createElement('a');
@@ -86,21 +92,28 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
   };
 
   const signal: EcgSignal | null = signalState.kind === 'ready' ? signalState.signal : null;
+  const totalSamples = signal?.leads[0]?.length ?? 0;
+  const displayPts =
+    typeof evaluatedSampleLimit === 'number' && evaluatedSampleLimit >= 0
+      ? Math.min(totalSamples, evaluatedSampleLimit)
+      : totalSamples > 0 && viewStartMs === 0 && viewEndMs >= durationMs - 10
+        ? totalSamples
+        : pts;
 
   return (
     <section className="glass-card !rounded-[20px] p-4 space-y-3">
       {/* Thanh tiến trình indeterminate khi analysis đang running (mục 5) */}
-      {(status === 'running' || status === 'queued') && (
+      {(status === 'running' || status === 'queued' || isStreamingEval) && (
         <div className="h-1 -mx-4 -mt-4 mb-2 bg-emerald-100 overflow-hidden rounded-t-[20px]">
           <div className="h-full w-1/3 bg-emerald-500 animate-pulse rounded-full" />
         </div>
       )}
 
-      {/* Header */}
+      {/* Header (mục 3.4: Anomaly Detection (API 3) · Evaluating with anomaly-transformer...) */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2.5">
           <h3 className="text-[14px] font-semibold text-slate-900">
-            Phát hiện bất thường (AI) · Đạo trình {leadName}
+            Anomaly Detection (API 3) · Lead {leadName}
           </h3>
 
           {status === 'queued' && (
@@ -110,20 +123,20 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
             </span>
           )}
 
-          {status === 'running' && (
+          {(status === 'running' || isStreamingEval) && (
             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 animate-pulse">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
               <span>
-                Đang phân tích với {analysis?.modelName ?? 'ECG-AnomalyNet'}...
+                Evaluating with {analysis?.modelName ?? 'anomaly-transformer'}...
               </span>
             </span>
           )}
 
-          {status === 'completed' && (
+          {status === 'completed' && !isStreamingEval && (
             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
               <span className="tabular-nums">
-                Hoàn tất · {analysis?.inferenceLatencyMs ?? 410}ms
+                Evaluating with {analysis?.modelName ?? 'anomaly-transformer'} · Hoàn tất ({analysis?.inferenceLatencyMs ?? 142}ms)
               </span>
             </span>
           )}
@@ -146,7 +159,7 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
           </button>
 
           <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/80 tabular-nums">
-            Pts: {pts}
+            Pts: {displayPts}
           </span>
 
           <button
@@ -204,32 +217,17 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
         </div>
       )}
 
-      {/* Legend (hàng ngang, ô vuông 10px + text 12px) + Toggle Tô theo mức độ */}
+      {/* Legend (Detected 1-1 & Normal 0-0) */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
         {!colorBySeverity ? (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <span className="inline-flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-xs bg-[#86EFAC] border border-emerald-600/40" />
-              <span>Đúng (AI xác nhận)</span>
+              <span>Detected (1-1)</span>
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-xs bg-[#FCD34D] border border-amber-600/40" />
-              <span>Chưa chắc / Chờ duyệt</span>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                className="w-2.5 h-2.5 rounded-xs bg-[#FCA5A5] border border-red-600/40"
-                title="Có sọc chéo trên biểu đồ để hỗ trợ phân biệt màu"
-              />
-              <span>Báo nhầm (sọc chéo)</span>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-xs bg-white border border-slate-300" />
-              <span>Bình thường</span>
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-teal-700 font-medium">
-              <span className="w-3 h-0.5 bg-[#0F766E]" />
-              <span>Điểm bất thường / Ngưỡng</span>
+              <span className="w-2.5 h-2.5 rounded-xs bg-white border border-dashed border-slate-400" />
+              <span>Normal (0-0): no color</span>
             </span>
           </div>
         ) : (
@@ -253,15 +251,27 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
           </div>
         )}
 
-        <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={colorBySeverity}
-            onChange={(e) => setColorBySeverity(e.target.checked)}
-            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-          />
-          <span>Tô theo mức độ</span>
-        </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showScoreSubChart}
+              onChange={(e) => setShowScoreSubChart(e.target.checked)}
+              className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            />
+            <span>Đồ thị Anomaly Score & Ngưỡng</span>
+          </label>
+
+          <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={colorBySeverity}
+              onChange={(e) => setColorBySeverity(e.target.checked)}
+              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>Tô theo mức độ</span>
+          </label>
+        </div>
       </div>
 
       {comparisonAnalysis && (
@@ -334,6 +344,8 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
             gainMmPerMv={10}
             leadNames={[leadName]}
             showCalibrationPulse={false}
+            showZeroBaseline
+            maxSampleLimit={evaluatedSampleLimit}
             viewStartMs={viewStartMs}
             viewEndMs={viewEndMs}
             durationMs={durationMs}
@@ -343,11 +355,8 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
             selectedEventId={selectedEventId}
             onSelectEvent={onSelectEvent}
             colorBySeverity={colorBySeverity}
-            scoreSeries={analysis?.scoreSeries}
-            threshold={analysis?.thresholdUsed ?? 0.5}
             heightPx={200}
             showYAxis
-            showRightScoreAxis
             showXAxis
             xAxisMode={xAxisMode}
             onToggleXAxisMode={() => setXAxisMode((m) => (m === 'time' ? 'sample' : 'time'))}
@@ -356,7 +365,22 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
             ariaLabel={`Biểu đồ phát hiện bất thường AI đạo trình ${leadName}, ${Math.round(durationMs / 1000)} giây, ${anomalies.length} sự kiện bất thường`}
           />
 
-          <div className="pl-10 pr-9">
+          {/* Đồ thị con (Sub-chart) tách riêng hiển thị Anomaly Score s(t) ∈ [0, 1] và Ngưỡng τ */}
+          {showScoreSubChart && analysis?.scoreSeries && analysis.scoreSeries.length > 0 && (
+            <AnomalyScoreSubChart
+              scoreSeries={analysis.scoreSeries}
+              threshold={analysis.thresholdUsed ?? 0.5}
+              anomalies={anomalies}
+              selectedEventId={selectedEventId}
+              onSelectEvent={onSelectEvent}
+              colorBySeverity={colorBySeverity}
+              viewStartMs={viewStartMs}
+              viewEndMs={viewEndMs}
+              heightPx={84}
+            />
+          )}
+
+          <div className="pl-10">
             <Minimap
               signal={signal}
               leadName={leadName}
@@ -373,4 +397,3 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
     </section>
   );
 };
-

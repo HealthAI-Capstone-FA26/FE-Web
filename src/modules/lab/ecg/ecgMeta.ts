@@ -1,4 +1,12 @@
-import type { EcgAnomalyEvent, EcgAnomalyType, EcgOverallResult, EcgReviewVerdict, EcgSeverity } from '../../../types/ecg';
+import type {
+  ConfusionKind,
+  ConfusionSegment,
+  EcgAnomalyEvent,
+  EcgAnomalyType,
+  EcgOverallResult,
+  EcgReviewVerdict,
+  EcgSeverity,
+} from '../../../types/ecg';
 
 export const ANOMALY_LABEL_VI: Record<EcgAnomalyType | 'null', string> = {
   afib: 'Rung nhĩ (AFib)',
@@ -27,9 +35,33 @@ export const SEVERITY_LABEL_VI: Record<EcgSeverity, string> = {
 
 export const VERDICT_LABEL_VI: Record<EcgReviewVerdict, string> = {
   pending: 'Chờ đánh giá',
-  true_positive: 'AI đúng',
-  false_positive: 'Báo nhầm',
-  uncertain: 'Chưa chắc',
+  true_positive: 'AI đúng (1-1)',
+  false_positive: 'Báo nhầm (0-1)',
+  uncertain: 'Bỏ sót / Chưa chắc (1-0)',
+};
+
+export const CONFUSION_META: Record<
+  Exclude<ConfusionKind, '0-0'>,
+  { label: string; labelVi: string; fill: string; stroke: string }
+> = {
+  '1-1': {
+    label: 'Detected (1-1)',
+    labelVi: 'Phát hiện đúng (1-1)',
+    fill: '#86EFAC',
+    stroke: '#16A34A',
+  },
+  '1-0': {
+    label: 'Missed (1-0)',
+    labelVi: 'Bỏ sót (1-0)',
+    fill: '#FCD34D',
+    stroke: '#D97706',
+  },
+  '0-1': {
+    label: 'False alarm (0-1)',
+    labelVi: 'Báo nhầm (0-1)',
+    fill: '#FCA5A5',
+    stroke: '#DC2626',
+  },
 };
 
 export const OVERALL_RESULT_META: Record<
@@ -50,6 +82,79 @@ export function formatTimeMs(ms: number, showMillis = true): string {
   const millis = Math.floor(safe % 1000);
   const base = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   return showMillis ? `${base}.${String(millis).padStart(3, '0')}` : base;
+}
+
+/**
+ * Thuật toán tạo 4 nhãn dải màu 1-1 / 1-0 / 0-1 / 0-0 (mục 11.3):
+ * Gom các điểm liên tiếp cùng trạng thái khác '0-0' thành các segment [startIndex, endIndex].
+ */
+export function buildConfusionSegments(
+  groundTruth: readonly (0 | 1)[],
+  predicted: readonly (0 | 1)[],
+  sampleRateHz = 100,
+): ConfusionSegment[] {
+  const len = Math.min(groundTruth.length, predicted.length);
+  const segments: ConfusionSegment[] = [];
+  const msPerSample = 1000 / Math.max(1, sampleRateHz);
+
+  let currentKind: Exclude<ConfusionKind, '0-0'> | null = null;
+  let startIdx = 0;
+
+  for (let i = 0; i < len; i++) {
+    const gt = groundTruth[i];
+    const pred = predicted[i];
+    let kind: ConfusionKind = '0-0';
+    if (gt === 1 && pred === 1) kind = '1-1';
+    else if (gt === 1 && pred === 0) kind = '1-0';
+    else if (gt === 0 && pred === 1) kind = '0-1';
+
+    if (kind === '0-0') {
+      if (currentKind !== null) {
+        segments.push({
+          kind: currentKind,
+          startIndex: startIdx,
+          endIndex: i - 1,
+          startOffsetMs: Math.round(startIdx * msPerSample),
+          endOffsetMs: Math.round(i * msPerSample),
+        });
+        currentKind = null;
+      }
+    } else if (currentKind === null) {
+      currentKind = kind;
+      startIdx = i;
+    } else if (currentKind !== kind) {
+      segments.push({
+        kind: currentKind,
+        startIndex: startIdx,
+        endIndex: i - 1,
+        startOffsetMs: Math.round(startIdx * msPerSample),
+        endOffsetMs: Math.round(i * msPerSample),
+      });
+      currentKind = kind;
+      startIdx = i;
+    }
+  }
+
+  if (currentKind !== null) {
+    segments.push({
+      kind: currentKind,
+      startIndex: startIdx,
+      endIndex: len - 1,
+      startOffsetMs: Math.round(startIdx * msPerSample),
+      endOffsetMs: Math.round(len * msPerSample),
+    });
+  }
+
+  return segments;
+}
+
+export function getEventConfusionKind(event: EcgAnomalyEvent): Exclude<ConfusionKind, '0-0'> {
+  const raw = event.details?.confusion;
+  if (raw === '1-1' || raw === '1-0' || raw === '0-1') return raw;
+  if (event.reviewVerdict === 'true_positive') return '1-1';
+  if (event.reviewVerdict === 'false_positive') return '0-1';
+  if (event.reviewVerdict === 'uncertain') return '1-0';
+  return '1-1';
 }
 
 export interface EcgThemeTokens {
@@ -122,7 +227,7 @@ export function getBandColor(
   colorBySeverity: boolean,
   tokens: EcgThemeTokens,
 ): { fill: string; stroke: string; pattern: 'solid' | 'stripe' | 'dots' } {
-  if (colorBySeverity || event.reviewVerdict === 'pending') {
+  if (colorBySeverity) {
     switch (event.severity) {
       case 'critical':
         return { fill: tokens.sevCritical, stroke: '#DC2626', pattern: 'solid' };
@@ -134,13 +239,5 @@ export function getBandColor(
         return { fill: tokens.sevLow, stroke: '#CA8A04', pattern: 'solid' };
     }
   }
-  switch (event.reviewVerdict) {
-    case 'true_positive':
-      return { fill: tokens.tp, stroke: '#16A34A', pattern: 'solid' };
-    case 'false_positive':
-      return { fill: tokens.fp, stroke: '#DC2626', pattern: 'stripe' };
-    default:
-      return { fill: tokens.uncertain, stroke: '#D97706', pattern: 'dots' };
-  }
+  return { fill: tokens.tp, stroke: '#16A34A', pattern: 'solid' };
 }
-

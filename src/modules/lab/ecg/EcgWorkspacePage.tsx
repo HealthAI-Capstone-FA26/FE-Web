@@ -107,6 +107,7 @@ export const EcgWorkspacePage: React.FC<EcgWorkspacePageProps> = ({
     endMs: 30000,
   });
   const [linkedZoom, setLinkedZoom] = useState(true);
+  const [syncStreamEval, setSyncStreamEval] = useState(false);
   const [windowSec, setWindowSec] = useState<5 | 10 | 20 | 30>(10);
   const [gainMmPerMv, setGainMmPerMv] = useState<5 | 10 | 20>(10);
   const [gridMode, setGridMode] = useState<EcgGridMode>('standard');
@@ -477,6 +478,29 @@ export const EcgWorkspacePage: React.FC<EcgWorkspacePageProps> = ({
 
           <button
             type="button"
+            onClick={() => {
+              setSyncStreamEval((prev) => {
+                const next = !prev;
+                if (next) {
+                  clock.seek(0);
+                  clock.play();
+                }
+                return next;
+              });
+            }}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold transition cursor-pointer ${
+              syncStreamEval
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            }`}
+            title="Mục 11.4: Khi bật, cứ mỗi cửa sổ 100 mẫu mà Card 2 stream xong thì Card 1 cập nhật sóng và dải màu tới vị trí đó"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>{syncStreamEval ? 'Stream API 2→3: ĐỒNG BỘ' : 'Stream API 2→3: TOÀN CẢNH'}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleToggleMock}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold transition cursor-pointer ${mockEnabled
                 ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
@@ -688,6 +712,19 @@ export const EcgWorkspacePage: React.FC<EcgWorkspacePageProps> = ({
                     patientName={patientName}
                     encounterCode={encounterCode}
                     onRetrySignal={retrySignal}
+                    evaluatedSampleLimit={
+                      syncStreamEval && signalState.kind === 'ready'
+                        ? Math.max(
+                            100,
+                            Math.floor(snapshot.positionMs / (currentAnalysis?.windowMs ?? 1000)) *
+                              Math.round(
+                                ((currentAnalysis?.windowMs ?? 1000) / 1000) *
+                                  signalState.signal.sampleRateHz,
+                              ),
+                          )
+                        : null
+                    }
+                    isStreamingEval={syncStreamEval && snapshot.playing}
                   />
                 </div>
               )}

@@ -20,7 +20,13 @@ import type {
   EcgUploadPayload,
 } from '../../types/ecg';
 import { STANDARD_12_LEADS } from '../../types/ecg';
-import { buildMockAnalysis, buildMockRecordings, getMockSignal } from './ecg.mock';
+import {
+  buildEcgAAnalysis,
+  buildMockAnalysis,
+  buildMockRecordings,
+  getEcgASignal,
+  getMockSignal,
+} from './ecg.mock';
 import { parseSignalInWorker } from '../../modules/lab/ecg/chart/data/parserClient';
 
 /* ------------------------------------------------------------------ */
@@ -32,15 +38,15 @@ const MOCK_STORAGE_KEY = 'ecg_mock';
 export function isEcgMockMode(): boolean {
   if (import.meta.env.VITE_ECG_MOCK === 'true') return true;
   try {
-    return localStorage.getItem(MOCK_STORAGE_KEY) === 'true';
+    const val = localStorage.getItem(MOCK_STORAGE_KEY);
+    return val === null ? true : val === 'true';
   } catch {
-    return false;
+    return true;
   }
 }
 
 export function setEcgMockMode(enabled: boolean): void {
-  if (enabled) localStorage.setItem(MOCK_STORAGE_KEY, 'true');
-  else localStorage.removeItem(MOCK_STORAGE_KEY);
+  localStorage.setItem(MOCK_STORAGE_KEY, enabled ? 'true' : 'false');
 }
 
 /** Bus giả lập socket `ecg-alert-update` khi chạy mock. */
@@ -66,12 +72,14 @@ const clone = <T,>(v: T): T => structuredClone(v);
 
 function simulateMockAnalysis(recordingId: string, threshold: number, modelVersionId: string | undefined): EcgAnalysis {
   const rec = store().find((r) => r.id === recordingId);
+  const isEcgA = recordingId === 'rec-ecg-a' || rec?.fileName === 'ECG_A';
   const id = `ana-${Date.now().toString(36)}`;
+  const baseBuilder = isEcgA ? buildEcgAAnalysis : buildMockAnalysis;
   const queued: EcgAnalysis = {
-    ...buildMockAnalysis(id),
+    ...baseBuilder(id),
     status: 'queued', overallResult: null, maxAnomalyScore: null, signalQuality: null,
     summaryMetrics: null, inferenceLatencyMs: null, anomalies: [], scoreSeries: undefined,
-    thresholdUsed: threshold, modelVersion: modelVersionId ? modelVersionId.slice(0, 8) : '2.3.1',
+    thresholdUsed: threshold, modelVersion: modelVersionId ? modelVersionId.slice(0, 8) : isEcgA ? '1.0.0' : '2.3.1',
     createdAt: new Date().toISOString(),
   };
   if (rec) {
@@ -89,9 +97,9 @@ function simulateMockAnalysis(recordingId: string, threshold: number, modelVersi
   };
   setTimeout(() => update({ status: 'running' }), 1400);
   setTimeout(() => {
-    const done = buildMockAnalysis(id, { thresholdUsed: threshold, createdAt: queued.createdAt, modelVersion: queued.modelVersion });
+    const done = baseBuilder(id, { thresholdUsed: threshold, createdAt: queued.createdAt, modelVersion: queued.modelVersion });
     update(done, 'completed');
-  }, 5200);
+  }, 4200);
   return queued;
 }
 
@@ -200,6 +208,14 @@ export function mapEcgAnalysisDto(raw: unknown): EcgAnalysis {
           hrMin: num(metrics.hrMin) ?? undefined,
           hrMax: num(metrics.hrMax) ?? undefined,
           abnormalDurationMs: num(metrics.abnormalDurationMs) ?? undefined,
+          dataset: str(metrics.dataset) ?? undefined,
+          shape:
+            Array.isArray(metrics.shape) && metrics.shape.length === 2
+              ? [Number(metrics.shape[0]) || 0, Number(metrics.shape[1]) || 0]
+              : undefined,
+          dtype: str(metrics.dtype) ?? undefined,
+          anomalyCount: num(metrics.anomalyCount) ?? undefined,
+          anomalyRatio: num(metrics.anomalyRatio) ?? undefined,
         }
       : null,
     inferenceLatencyMs: num(d.inferenceLatencyMs),
@@ -357,8 +373,12 @@ export const ecgService = {
 
   /** Tải + parse tín hiệu. Tự lấy lại signal-url khi URL tạm (10 phút) hết hạn. */
   async loadSignal(recording: EcgRecording): Promise<EcgSignal> {
+    if (recording.id === 'rec-ecg-a' || recording.fileName === 'ECG_A') {
+      await delay(180);
+      return getEcgASignal();
+    }
     if (isEcgMockMode()) {
-      await delay(450);
+      await delay(350);
       const { signal } = getMockSignal();
       if (recording.recordingType === 'rhythm_strip') {
         const ii = signal.leadNames.indexOf('II');

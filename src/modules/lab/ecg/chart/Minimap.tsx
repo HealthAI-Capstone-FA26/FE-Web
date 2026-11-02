@@ -72,12 +72,22 @@ export const Minimap: React.FC<MinimapProps> = ({
       if (!ov || ov.x.length < 2) return;
 
       const totalSamples = Math.max(1, signal.leads[leadIdx]?.length ?? 1);
+      let minY = -1.2;
+      let maxY = 1.2;
+      for (let i = 0; i < ov.y.length; i++) {
+        const v = ov.y[i];
+        if (v < minY) minY = v;
+        if (v > maxY) maxY = v;
+      }
+      const spanY = Math.max(0.5, maxY - minY);
+      const pad = 4;
+      const plotH = h - pad * 2;
       ctx.strokeStyle = '#64748B';
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let i = 0; i < ov.x.length; i++) {
         const x = (ov.x[i] / totalSamples) * w;
-        const y = h * 0.52 - ov.y[i] * (h * 0.28);
+        const y = pad + ((maxY - ov.y[i]) / spanY) * plotH;
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }

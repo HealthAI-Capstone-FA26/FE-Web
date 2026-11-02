@@ -46,6 +46,8 @@ interface EcgLiveChartCardProps {
   onSelectEvent: (event: EcgAnomalyEvent) => void;
   patientName: string;
   encounterCode: string;
+  liveStyle?: 'timeline' | 'sweep' | 'scroll';
+  onChangeLiveStyle?: (style: 'timeline' | 'sweep' | 'scroll') => void;
 }
 
 /** Tiếng bíp ngắn bằng Web Audio API khi gặp bất thường nguy cấp (mặc định tắt). */
@@ -89,10 +91,17 @@ export const EcgLiveChartCard: React.FC<EcgLiveChartCardProps> = ({
   onSelectEvent,
   patientName,
   encounterCode,
+  liveStyle: controlledLiveStyle,
+  onChangeLiveStyle,
 }) => {
   const cardRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<EcgCanvasHandle | null>(null);
-  const [liveStyle, setLiveStyle] = useState<'sweep' | 'scroll'>('sweep');
+  const [internalLiveStyle, setInternalLiveStyle] = useState<'timeline' | 'sweep' | 'scroll'>('timeline');
+  const liveStyle = controlledLiveStyle ?? internalLiveStyle;
+  const setLiveStyle = (next: 'timeline' | 'sweep' | 'scroll') => {
+    setInternalLiveStyle(next);
+    onChangeLiveStyle?.(next);
+  };
   const [pts, setPts] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -171,7 +180,7 @@ export const EcgLiveChartCard: React.FC<EcgLiveChartCardProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2.5">
           <h3 className="text-[14px] font-semibold text-slate-900">
-            Sóng ECG trực tiếp · {selectedLeads.length === 1 ? `Lead ${selectedLeads[0]}` : `${selectedLeads.length} đạo trình`}
+            Live Telemetry (API 2) · {selectedLeads.length === 1 ? `Lead ${selectedLeads[0]}` : `${selectedLeads.length} đạo trình`}
           </h3>
 
           {snapshot.playing ? (
@@ -193,8 +202,18 @@ export const EcgLiveChartCard: React.FC<EcgLiveChartCardProps> = ({
 
         {/* Các điều khiển góc phải */}
         <div className="flex flex-wrap items-center gap-1.5">
-          {/* Sweep / Scroll toggle */}
+          {/* Timeline / Sweep / Scroll toggle (mục 3.5 & 11.4) */}
           <div className="inline-flex p-0.5 rounded-lg bg-slate-100 border border-slate-200/80 text-[11px] font-semibold">
+            <button
+              type="button"
+              onClick={() => setLiveStyle('timeline')}
+              className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                liveStyle === 'timeline' ? 'bg-white text-blue-600 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Full Timeline Stream (mục 11.4): trục X cố định 0..N, vẽ sóng dần từ trái sang phải"
+            >
+              Timeline
+            </button>
             <button
               type="button"
               onClick={() => setLiveStyle('sweep')}
