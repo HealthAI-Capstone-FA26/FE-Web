@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import {
   FileText, ShieldAlert, Heart, Thermometer, Activity,
   AlertTriangle, Loader2, PlayCircle, CheckCircle2, RefreshCw,
-  History, ChevronDown, ChevronUp, Calendar, Stethoscope, Clock,
+  History, ChevronDown, ChevronUp, Calendar, Stethoscope,
   ArrowRight
 } from 'lucide-react';
 import type { PatientEMR } from '../types';
 import type { CaseOverviewData } from '../../../services/doctor';
-import type { PatientAllergyItem, AllergyType, AllergySeverity } from '../../../services/patient/patient-allergy.service';
+import {
+  type PatientAllergyItem,
+  parseAllergyText,
+  parseAllergiesFromText,
+} from '../../../services/patient/patient-allergy.service';
 import type { EncounterItem } from '../../../services/encounter/encounter.service';
 import { getPatientEncounterHistory } from '../../../services/encounter/encounter.service';
 import type { AppointmentItem } from '../../../services/appointment/appointment.service';
@@ -62,73 +66,11 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
   hasMeasuredVitals,
 }) => {
 
-  const getSeverityBadge = (sev: AllergySeverity | string) => {
-    switch (sev) {
-      case 'life_threatening':
-        return (
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
-            🔥 Nguy hiểm tính mạng
-          </span>
-        );
-      case 'severe':
-        return (
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200">
-            ⚠️ Nặng
-          </span>
-        );
-      case 'moderate':
-        return (
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
-            🟡 Trung bình
-          </span>
-        );
-      case 'mild':
-      default:
-        return (
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
-            <img src="/images/mild_icon.png" alt="Nhẹ" className="w-3 h-3 object-contain shrink-0" />
-            <span>Nhẹ</span>
-          </span>
-        );
-    }
-  };
-
-  const getTypeLabel = (type: AllergyType | string) => {
-    switch (type) {
-      case 'drug':
-        return (
-          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-            <img src="/images/drug_icon.png" alt="Thuốc" className="w-4 h-4 object-contain shrink-0 inline-block align-middle" />
-            <span>Thuốc</span>
-          </span>
-        );
-      case 'food':
-        return (
-          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-            <img src="/images/food_icon.png" alt="Thực phẩm" className="w-4 h-4 object-contain shrink-0 inline-block align-middle" />
-            <span>Thực phẩm</span>
-          </span>
-        );
-      case 'environmental':
-        return (
-          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-            <img src="/images/environmental_icon.png" alt="Môi trường" className="w-4 h-4 object-contain shrink-0 inline-block align-middle" />
-            <span>Môi trường</span>
-          </span>
-        );
-      case 'other':
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-            <img src="/images/other_icon.png" alt="Khác" className="w-4 h-4 object-contain shrink-0 inline-block align-middle" />
-            <span>Khác</span>
-          </span>
-        );
-    }
-  };
-
   const activeFilteredAllergies = activeAllergies.filter((a) => a.status === 'active');
-  const hasDrugAllergy = activeFilteredAllergies.some((a) => a.allergyType === 'drug');
+  const hasDrugAllergy = activeFilteredAllergies.some((a) => {
+    const parsed = parseAllergyText((a as any).allergyText);
+    return parsed.drug.length > 0 || (a as any).allergyType === 'drug';
+  });
 
   // Khóa an toàn dữ liệu: Chỉ dùng caseOverview và encounterDetail nếu trùng khớp 100% với bệnh nhân đang chọn
   const isOverviewMatching = Boolean(
@@ -345,25 +287,45 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
                 <span className="text-[11px] text-slate-400 italic">Đang tải dị ứng bệnh nhân...</span>
               ) : activeFilteredAllergies.length > 0 ? (
                 <div className="space-y-1.5 pt-0.5">
-                  {activeFilteredAllergies.map((item) => (
-                    <div
-                      key={item.allergyId}
-                      className="p-2 rounded-xl bg-white border border-rose-200/80 shadow-2xs space-y-0.5"
-                    >
-                      <div className="flex items-center justify-between gap-1">
-                        <div className="text-[11px] leading-tight flex items-center gap-1.5 flex-wrap">
-                          {getTypeLabel(item.allergyType || 'other')}
-                          <span className="font-extrabold text-rose-900">{item.allergenName || (item as any).allergyText}</span>
-                        </div>
-                        {getSeverityBadge(item.severity || 'moderate')}
+                  {activeFilteredAllergies.map((item) => {
+                    const parsedItems = parseAllergiesFromText((item as any).allergyText);
+
+                    return (
+                      <div
+                        key={item.allergyId}
+                        className="p-2 rounded-xl bg-white border border-rose-200/80 shadow-2xs space-y-1"
+                      >
+                        {parsedItems.length === 0 ? (
+                          <div className="text-[11px] font-extrabold text-rose-900">
+                            {(item as any).allergenName || (item as any).allergyText || 'Chưa rõ dị ứng'}
+                          </div>
+                        ) : (
+                          parsedItems.map((p, idx) => (
+                            <div key={idx} className="space-y-0.5">
+                              <div className="flex items-center justify-between gap-1 flex-wrap">
+                                <div className="text-[11px] flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-mono text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                                    {p.typeLabel}
+                                  </span>
+                                  <span className="font-extrabold text-rose-900">{p.name}</span>
+                                </div>
+                                {p.severity && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                                    {p.severityLabel || p.severity}
+                                  </span>
+                                )}
+                              </div>
+                              {p.reaction && (
+                                <p className="text-[10px] text-slate-500 italic pl-1 leading-snug">
+                                  Phản ứng: {p.reaction}
+                                </p>
+                              )}
+                            </div>
+                          ))
+                        )}
                       </div>
-                      {item.reactionDescription && (
-                        <p className="text-[10px] text-slate-500 italic pl-1 leading-snug">
-                          Triệu chứng: {item.reactionDescription}
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {hasDrugAllergy && (
                     <div className="mt-1 p-2 bg-rose-50 rounded-lg border border-rose-200 text-rose-800 text-[10px] font-bold flex items-center gap-1.5 animate-pulse">

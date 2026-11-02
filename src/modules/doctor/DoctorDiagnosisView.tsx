@@ -1,10 +1,11 @@
+import { formatAllergySummary } from '../../services/patient/patient-allergy.service';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search, CheckCircle2, Clock, FileText,
   Clipboard, BookOpen, AlertCircle, ArrowRight, User, Loader2,
   Eye, Image as ImageIcon, ExternalLink, RefreshCw, X, AlertTriangle, Check, FlaskConical,
-  HeartPulse, Stethoscope, Calendar, Activity, CheckSquare, Square
+  Stethoscope, Calendar, Activity
 } from 'lucide-react';
 
 import { Badge } from '../../components/common/Badge';
@@ -17,8 +18,7 @@ import {
 import { type TimelineEvent } from '../../services/doctor/case-timeline.service';
 import { encounterService, type EncounterItem } from '../../services/encounter/encounter.service';
 import { resolveAttachmentUrl } from '../../services/lab/lab-result.service';
-import { useAuth } from '../../context/AuthContext';
-import { BorderBeam } from '../../components/ui/border-beam';
+import { useAuth } from '../../context/AuthContext';
 import { Mascot } from 'page-mascot';
 
 /* 
@@ -130,7 +130,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
   };
 
   // Tải danh sách ca khám thực tế từ API encounters
-  const fetchEncounters = async () => {
+  const fetchEncounters = useCallback(async () => {
     try {
       setIsLoadingEncounters(true);
       const data = await encounterService.getEncounters(user?.doctorId ? { doctorId: user.doctorId } : undefined);
@@ -150,11 +150,11 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
     } finally {
       setIsLoadingEncounters(false);
     }
-  };
+  }, [user?.doctorId]);
 
   useEffect(() => {
     fetchEncounters();
-  }, [user?.doctorId]);
+  }, [fetchEncounters]);
 
   // Đồng bộ selectedPatientId từ localStorage (khi chọn bệnh nhân ở Tab khác)
   useEffect(() => {
@@ -360,7 +360,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
     const bloodType = pat?.bloodType || 'Chưa rõ';
 
     const allergies = validTimeline?.allergies?.length
-      ? validTimeline.allergies.map((a) => a.allergenName).join(', ')
+      ? validTimeline.allergies.map((a: any) => formatAllergySummary(a.allergyText || a.allergenName)).join('; ')
       : 'Chưa ghi nhận dị ứng';
 
     const history = validTimeline?.medicalHistories?.length

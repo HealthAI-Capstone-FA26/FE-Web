@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   ShieldAlert,
-  Plus,
   CheckCircle2,
   Loader2,
   AlertCircle,
+  History,
+  Save,
 } from 'lucide-react';
 import {
   patientAllergyService,
+  parseAllergiesFromText,
   type PatientAllergyItem,
   type AllergyType,
   type AllergySeverity,
@@ -25,7 +27,7 @@ interface EncounterDetailAllergiesTabProps {
 export const EncounterDetailAllergiesTab: React.FC<EncounterDetailAllergiesTabProps> = ({
   patientId,
   patientName,
-  encounterId,
+  encounterId: _encounterId,
   onSuccess,
   onError,
 }) => {
@@ -34,10 +36,10 @@ export const EncounterDetailAllergiesTab: React.FC<EncounterDetailAllergiesTabPr
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [localFeedback, setLocalFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // Form states
-  const [allergyType, setAllergyType] = useState<AllergyType>('drug');
+  // Form states: 4 bước tuần tự
+  const [allergyType, setAllergyType] = useState<AllergyType>('food');
   const [allergenName, setAllergenName] = useState<string>('');
-  const [severity, setSeverity] = useState<AllergySeverity>('moderate');
+  const [severity, setSeverity] = useState<AllergySeverity>('severe');
   const [reactionDescription, setReactionDescription] = useState<string>('');
 
   const fetchAllergies = useCallback(async () => {
@@ -56,9 +58,9 @@ export const EncounterDetailAllergiesTab: React.FC<EncounterDetailAllergiesTabPr
   useEffect(() => {
     if (patientId) {
       fetchAllergies();
-      setAllergyType('drug');
+      setAllergyType('food');
       setAllergenName('');
-      setSeverity('moderate');
+      setSeverity('severe');
       setReactionDescription('');
       setLocalFeedback(null);
     }
@@ -67,8 +69,9 @@ export const EncounterDetailAllergiesTab: React.FC<EncounterDetailAllergiesTabPr
   const handleSubmitAllergy = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!patientId) return;
+
     if (!allergenName.trim()) {
-      const msg = 'Vui lòng nhập tên tác nhân gây dị ứng!';
+      const msg = 'Vui lòng điền nội dung / tác nhân dị ứng!';
       setLocalFeedback({ message: msg, type: 'error' });
       if (onError) onError(msg);
       return;
@@ -82,19 +85,18 @@ export const EncounterDetailAllergiesTab: React.FC<EncounterDetailAllergiesTabPr
         allergenName: allergenName.trim(),
         severity,
         reactionDescription: reactionDescription.trim() || undefined,
-        encounterId: encounterId || undefined,
       });
 
-      const successMsg = `Đã ghi nhận dị ứng "${allergenName.trim()}" cho bệnh nhân!`;
+      const successMsg = `Đã ghi nhận dị ứng "${allergenName.trim()}" cho bệnh nhân ${patientName || ''}!`;
       setLocalFeedback({ message: successMsg, type: 'success' });
       if (onSuccess) onSuccess(successMsg);
 
-      // Reset form fields
+      // Reset form
       setAllergenName('');
       setReactionDescription('');
-      fetchAllergies();
+      await fetchAllergies();
     } catch (err: any) {
-      console.error('Lỗi khi thêm dị ứng:', err);
+      console.error('Lỗi khi lưu dị ứng:', err);
       const errMsg = err.message || 'Không thể ghi nhận dị ứng. Vui lòng kiểm tra lại.';
       setLocalFeedback({ message: errMsg, type: 'error' });
       if (onError) onError(errMsg);
@@ -106,7 +108,7 @@ export const EncounterDetailAllergiesTab: React.FC<EncounterDetailAllergiesTabPr
   const handleUpdateStatus = async (allergyId: string, newStatus: AllergyStatus) => {
     try {
       await patientAllergyService.updateStatus(allergyId, newStatus);
-      const msg = 'Đã cập nhật trạng thái dị ứng thành công!';
+      const msg = 'Đã cập nhật trạng thái dị ứng!';
       setLocalFeedback({ message: msg, type: 'success' });
       if (onSuccess) onSuccess(msg);
       fetchAllergies();
@@ -118,7 +120,7 @@ export const EncounterDetailAllergiesTab: React.FC<EncounterDetailAllergiesTabPr
     }
   };
 
-  const getSeverityBadge = (sev: AllergySeverity) => {
+  const getSeverityBadge = (sev?: string) => {
     switch (sev) {
       case 'life_threatening':
         return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">🔥 Nguy hiểm tính mạng</span>;
@@ -127,52 +129,41 @@ export const EncounterDetailAllergiesTab: React.FC<EncounterDetailAllergiesTabPr
       case 'moderate':
         return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">🟡 Trung bình</span>;
       case 'mild':
-        return (
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
-            <img src="/images/mild_icon.png" alt="Nhẹ" className="w-3 h-3 object-contain shrink-0" />
-            <span>Nhẹ</span>
-          </span>
-        );
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">🟢 Nhẹ</span>;
+      default:
+        return sev ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">{sev}</span> : null;
     }
   };
 
-  const getTypeLabel = (type: AllergyType) => {
+  const getTypeBadge = (type: AllergyType) => {
     switch (type) {
       case 'drug':
-        return (
-          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-            <img src="/images/drug_icon.png" alt="Thuốc" className="w-3.5 h-3.5 object-contain shrink-0" />
-            <span>Thuốc / Kháng sinh</span>
-          </span>
-        );
+        return <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">Thuốc / Kháng sinh</span>;
       case 'food':
-        return (
-          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-            <img src="/images/food_icon.png" alt="Thực phẩm" className="w-3.5 h-3.5 object-contain shrink-0" />
-            <span>Thực phẩm</span>
-          </span>
-        );
+        return <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200">Thực phẩm</span>;
       case 'environmental':
-        return (
-          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-            <img src="/images/environmental_icon.png" alt="Môi trường" className="w-3.5 h-3.5 object-contain shrink-0" />
-            <span>Môi trường</span>
-          </span>
-        );
-      case 'other':
+        return <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">Môi trường</span>;
       default:
-        return (
-          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-            <img src="/images/other_icon.png" alt="Khác" className="w-3.5 h-3.5 object-contain shrink-0" />
-            <span>Tác nhân khác</span>
-          </span>
-        );
+        return <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700">Tác nhân khác</span>;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">Đang hiệu lực</span>;
+      case 'resolved':
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">Đã khỏi</span>;
+      case 'entered_in_error':
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-600 border border-slate-200">Ghi nhận nhầm</span>;
+      default:
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">{status}</span>;
     }
   };
 
   return (
-    <div className="space-y-4">
-      {/* Thông báo inline nếu có */}
+    <div className="space-y-4 text-xs text-slate-700">
+      {/* Thông báo inline */}
       {localFeedback && (
         <div
           className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
@@ -190,142 +181,73 @@ export const EncounterDetailAllergiesTab: React.FC<EncounterDetailAllergiesTabPr
         </div>
       )}
 
-      {/* Form POST Khai báo dị ứng mới */}
-      <form onSubmit={handleSubmitAllergy} className="p-4 bg-rose-50/60 border border-rose-200/80 rounded-2xl space-y-3 shadow-2xs">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-rose-900 font-extrabold text-xs">
-            <Plus className="w-4 h-4 text-rose-600" />
-            <span>Khai Báo Dị Ứng Mới Cho Bệnh Nhân</span>
-          </div>
-          <span className="text-[10px] text-rose-700 bg-rose-100/80 px-2.5 py-0.5 rounded-full font-bold">
-            Tự động đồng bộ EMR
-          </span>
+      {/* Form Ghi nhận dị ứng: 4 bước tuần tự */}
+      <form onSubmit={handleSubmitAllergy} className="p-4 bg-rose-50/50 border border-rose-200/80 rounded-2xl space-y-3.5 shadow-2xs">
+        <div className="flex items-center gap-2 text-rose-900 font-extrabold text-xs">
+          <ShieldAlert className="w-4 h-4 text-rose-600" />
+          <span>Khai Báo Dị Ứng Bệnh Nhân</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-          {/* Loại dị ứng */}
+          {/* 1. Dropdown Chọn loại */}
           <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <label className="font-bold text-slate-700 text-[11px] block">Loại dị ứng (*):</label>
-              {allergyType === 'drug' && (
-                <span className="flex items-center gap-1 text-[10px] text-rose-800 font-extrabold bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
-                  <img src="/images/drug_icon.png" alt="Thuốc" className="w-3 h-3 object-contain shrink-0" />
-                  <span>Dị ứng Thuốc</span>
-                </span>
-              )}
-            </div>
-            <div className="relative flex items-center">
-              {allergyType === 'drug' && (
-                <img
-                  src="/images/drug_icon.png"
-                  alt="Thuốc"
-                  className="w-4 h-4 object-contain absolute left-2.5 pointer-events-none z-10"
-                />
-              )}
-              {allergyType === 'food' && (
-                <img
-                  src="/images/food_icon.png"
-                  alt="Thực phẩm"
-                  className="w-4 h-4 object-contain absolute left-2.5 pointer-events-none z-10"
-                />
-              )}
-              {allergyType === 'environmental' && (
-                <img
-                  src="/images/environmental_icon.png"
-                  alt="Môi trường"
-                  className="w-4 h-4 object-contain absolute left-2.5 pointer-events-none z-10"
-                />
-              )}
-              {allergyType === 'other' && (
-                <img
-                  src="/images/other_icon.png"
-                  alt="Khác"
-                  className="w-4 h-4 object-contain absolute left-2.5 pointer-events-none z-10"
-                />
-              )}
-              <select
-                value={allergyType}
-                onChange={(e) => setAllergyType(e.target.value as AllergyType)}
-                className="w-full p-2.5 bg-white rounded-xl border border-slate-200 font-semibold outline-none focus:border-rose-500 text-xs pl-8"
-              >
-                <option value="drug">Thuốc / Kháng sinh</option>
-                <option value="food">Thực phẩm (Hải sản, Trứng, Sữa...)</option>
-                <option value="environmental">Môi trường (Bụi, Phấn hoa, Lông thú...)</option>
-                <option value="other">Tác nhân khác</option>
-              </select>
-            </div>
+            <label className="font-bold text-slate-800 text-[11px] block">
+              1. Loại dị ứng (*):
+            </label>
+            <select
+              value={allergyType}
+              onChange={(e) => setAllergyType(e.target.value as AllergyType)}
+              className="w-full p-2.5 bg-white rounded-xl border border-slate-200 font-bold outline-none focus:border-rose-500 text-xs text-slate-900 cursor-pointer"
+            >
+              <option value="food">Thực phẩm</option>
+              <option value="drug">Thuốc / Kháng sinh</option>
+              <option value="environmental">Môi trường / Dị nguyên khác</option>
+              <option value="other">Tác nhân khác</option>
+            </select>
           </div>
 
-          {/* Mức độ nghiêm trọng */}
+          {/* 2. Điền nội dung / Tên tác nhân dị ứng */}
           <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <label className="font-bold text-slate-700 text-[11px] block">Mức độ nghiêm trọng (*):</label>
-              {severity === 'mild' && (
-                <span className="flex items-center gap-1 text-[10px] text-emerald-800 font-extrabold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  <img src="/images/mild_icon.png" alt="Nhẹ" className="w-3 h-3 object-contain shrink-0" />
-                  <span>Mức độ Nhẹ</span>
-                </span>
-              )}
-              {severity === 'moderate' && (
-                <span className="text-[10px] text-amber-800 font-extrabold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                  🟡 Trung bình
-                </span>
-              )}
-              {severity === 'severe' && (
-                <span className="text-[10px] text-rose-800 font-extrabold bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
-                  ⚠️ Nặng
-                </span>
-              )}
-              {severity === 'life_threatening' && (
-                <span className="text-[10px] text-rose-950 font-extrabold bg-rose-100 px-2 py-0.5 rounded-md border border-rose-300 animate-pulse">
-                  🔥 Nguy hiểm tính mạng
-                </span>
-              )}
-            </div>
-            <div className="relative flex items-center">
-              {severity === 'mild' && (
-                <img
-                  src="/images/mild_icon.png"
-                  alt="Nhẹ"
-                  className="w-4 h-4 object-contain absolute left-2.5 pointer-events-none z-10"
-                />
-              )}
-              <select
-                value={severity}
-                onChange={(e) => setSeverity(e.target.value as AllergySeverity)}
-                className={`w-full p-2.5 bg-white rounded-xl border border-slate-200 font-semibold outline-none focus:border-rose-500 text-xs ${
-                  severity === 'mild' ? 'pl-8' : ''
-                }`}
-              >
-                <option value="mild">Nhẹ (Mild)</option>
-                <option value="moderate">Trung bình (Moderate)</option>
-                <option value="severe">Nặng (Severe)</option>
-                <option value="life_threatening">Nguy hiểm tính mạng (Life Threatening)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Tên chất gây dị ứng */}
-          <div className="sm:col-span-2 space-y-1">
-            <label className="font-bold text-slate-700 text-[11px] block">Tên tác nhân / Chất gây dị ứng (*):</label>
+            <label className="font-bold text-slate-800 text-[11px] block">
+              2. Nội dung / Tên dị ứng (*):
+            </label>
             <input
               type="text"
               value={allergenName}
               onChange={(e) => setAllergenName(e.target.value)}
-              placeholder="Ví dụ: Penicillin, Aspirin, Phấn hoa, Tôm cua..."
+              placeholder="Ví dụ: dị ứng tôm, penicillin, đậu phộng..."
               required
               className="w-full p-2.5 bg-white rounded-xl border border-slate-200 font-extrabold outline-none focus:border-rose-500 text-xs text-slate-900"
             />
           </div>
 
-          {/* Mô tả phản ứng */}
-          <div className="sm:col-span-2 space-y-1">
-            <label className="font-bold text-slate-700 text-[11px] block">Mô tả triệu chứng / phản ứng khi dị ứng (nếu có):</label>
-            <textarea
-              rows={2}
+          {/* 3. Dropdown Chọn Mức độ */}
+          <div className="space-y-1">
+            <label className="font-bold text-slate-800 text-[11px] block">
+              3. Mức độ nghiêm trọng:
+            </label>
+            <select
+              value={severity}
+              onChange={(e) => setSeverity(e.target.value as AllergySeverity)}
+              className="w-full p-2.5 bg-white rounded-xl border border-slate-200 font-bold outline-none focus:border-rose-500 text-xs text-slate-900 cursor-pointer"
+            >
+              <option value="severe">Nặng</option>
+              <option value="moderate">Trung bình</option>
+              <option value="mild">Nhẹ</option>
+              <option value="life_threatening">Nguy hiểm tính mạng</option>
+            </select>
+          </div>
+
+          {/* 4. Input Ghi nội dung phản ứng */}
+          <div className="space-y-1">
+            <label className="font-bold text-slate-800 text-[11px] block">
+              4. Nội dung phản ứng:
+            </label>
+            <input
+              type="text"
               value={reactionDescription}
               onChange={(e) => setReactionDescription(e.target.value)}
-              placeholder="Ví dụ: Nổi mề đay toàn thân, ngứa cổ họng, khó thở nhẹ khi dùng thuốc..."
+              placeholder="Ví dụ: nổi mề đay, khó thở, ngứa họng..."
               className="w-full p-2.5 bg-white rounded-xl border border-slate-200 font-medium outline-none focus:border-rose-500 text-xs text-slate-800"
             />
           </div>
@@ -340,18 +262,18 @@ export const EncounterDetailAllergiesTab: React.FC<EncounterDetailAllergiesTabPr
             {isSubmitting ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <CheckCircle2 className="w-4 h-4" />
+              <Save className="w-4 h-4" />
             )}
             <span>Ghi Nhận Dị Ứng Này</span>
           </button>
         </div>
       </form>
 
-      {/* Danh sách các dị ứng đã khai báo */}
-      <div className="space-y-3 pt-1">
+      {/* Lịch sử ghi nhận dị ứng */}
+      <div className="space-y-3 pt-2">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
           <span className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
-            <ShieldAlert className="w-4 h-4 text-rose-600" />
+            <History className="w-4 h-4 text-slate-500" />
             <span>Danh Sách Tiền Sử Dị Ứng Đã Ghi Nhận ({allergies.length})</span>
           </span>
           {isLoadingList && <Loader2 className="w-4 h-4 text-rose-600 animate-spin" />}
@@ -363,71 +285,80 @@ export const EncounterDetailAllergiesTab: React.FC<EncounterDetailAllergiesTabPr
           </div>
         ) : (
           <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-            {allergies.map((item) => (
-              <div
-                key={item.allergyId}
-                className={`p-3 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
-                  item.status === 'entered_in_error'
-                    ? 'bg-slate-100 border-slate-200 opacity-60'
-                    : item.status === 'resolved'
-                    ? 'bg-emerald-50/50 border-emerald-200'
-                    : 'bg-white border-slate-200 shadow-2xs'
-                }`}
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-extrabold text-slate-900 text-sm">
-                      {item.allergenName || item.allergyText}
-                    </span>
-                    {item.severity && getSeverityBadge(item.severity)}
-                    {item.allergyType && (
-                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                        {getTypeLabel(item.allergyType)}
+            {allergies.map((item) => {
+              const parsedItems = parseAllergiesFromText(item.allergyText);
+
+              return (
+                <div
+                  key={item.allergyId}
+                  className={`p-3 rounded-2xl border transition-all space-y-2 ${
+                    item.status === 'entered_in_error'
+                      ? 'bg-slate-100 border-slate-200 opacity-60'
+                      : item.status === 'resolved'
+                      ? 'bg-emerald-50/50 border-emerald-200'
+                      : 'bg-white border-slate-200 shadow-2xs'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      {getStatusBadge(item.status)}
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {new Date(item.recordedAt).toLocaleString('vi-VN')}
                       </span>
-                    )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {item.status === 'active' && (
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateStatus(item.allergyId, 'resolved')}
+                          className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-lg border border-emerald-200 cursor-pointer transition"
+                        >
+                          Đã khỏi
+                        </button>
+                      )}
+                      {item.status !== 'entered_in_error' && (
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateStatus(item.allergyId, 'entered_in_error')}
+                          className="px-2 py-1 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 font-bold text-[10px] rounded-lg border border-slate-200 hover:border-rose-200 cursor-pointer transition"
+                        >
+                          Ghi nhầm
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  {item.reactionDescription && (
-                    <p className="text-[11px] text-slate-600 font-medium">
-                      Phản ứng: {item.reactionDescription}
+                  {parsedItems.length === 0 ? (
+                    <p className="text-slate-500 italic text-[11px]">
+                      {item.allergyText || 'Không ghi nhận dị ứng'}
                     </p>
-                  )}
+                  ) : (
+                    <div className="space-y-1.5">
+                      {parsedItems.map((p, idx) => (
+                        <div key={idx} className="p-2 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {getTypeBadge(p.type)}
+                              <span className="font-extrabold text-slate-900 text-xs">
+                                {p.name}
+                              </span>
+                            </div>
+                            {getSeverityBadge(p.severity)}
+                          </div>
 
-                  <div className="text-[10px] text-slate-400 font-mono">
-                    Ghi nhận lúc: {new Date(item.recordedAt).toLocaleString('vi-VN')}
-                  </div>
-                </div>
-
-                {/* Cập nhật status */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {item.status === 'active' && (
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateStatus(item.allergyId, 'resolved')}
-                      className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-lg border border-emerald-200 cursor-pointer transition"
-                    >
-                      Đã khỏi (Resolved)
-                    </button>
-                  )}
-
-                  {item.status !== 'entered_in_error' && (
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateStatus(item.allergyId, 'entered_in_error')}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[10px] rounded-lg border border-slate-300 cursor-pointer transition"
-                    >
-                      Đánh dấu nhầm
-                    </button>
-                  )}
-
-                  {item.status === 'entered_in_error' && (
-                    <span className="text-[10px] font-bold text-slate-400 italic">
-                      Đã đánh dấu nhập sai
-                    </span>
+                          {p.reaction && (
+                            <p className="text-[11px] text-slate-600 font-medium pl-1">
+                              Phản ứng: <span className="text-slate-800 font-semibold">{p.reaction}</span>
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
