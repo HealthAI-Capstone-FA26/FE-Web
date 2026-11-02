@@ -13,7 +13,6 @@ import {
   FlaskConical,
   FileText,
   ShieldCheck,
-  Bell,
   LogOut,
   ChevronDown,
   ChevronLeft,
@@ -35,6 +34,7 @@ import {
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { AccountInfoView } from '../../modules/patient/AccountInfoView';
 import { UserProfilePill } from '../common/UserProfilePill';
+import { NotificationDropdown } from './NotificationDropdown';
 
 interface DashboardLayoutProps {
   children?: React.ReactNode;
@@ -221,11 +221,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
           {/* Right Topbar Action & Profile */}
           <div className="flex items-center space-x-3">
-            <button className="relative p-2 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer border-none bg-transparent">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full"></span>
-            </button>
+            <NotificationDropdown />
 
             {/* User Profile Card */}
             <div className="relative">
