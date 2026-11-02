@@ -1,7 +1,8 @@
 import React from 'react';
-import { FlaskConical, FileText, AlertCircle } from 'lucide-react';
+import { FlaskConical, FileText, AlertCircle, Activity } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { LabOrdersView } from './LabOrdersView';
+import { EcgWorkspacePage } from './ecg/EcgWorkspacePage';
 
 export const LabWorkspaceView: React.FC = () => {
   const tabs: WorkspaceTab[] = [
@@ -10,6 +11,13 @@ export const LabWorkspaceView: React.FC = () => {
       label: 'Yêu cầu xét nghiệm',
       icon: FlaskConical,
       component: <LabOrdersView />
+    },
+    {
+      id: 'ecg-ai',
+      label: 'Điện tâm đồ ECG & AI Anomaly',
+      icon: Activity,
+      badge: 'Live',
+      component: <EcgWorkspacePage defaultMode="anomaly" />
     },
     {
       id: 'dicom-ai',
