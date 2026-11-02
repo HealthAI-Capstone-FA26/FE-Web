@@ -237,7 +237,7 @@ export const PatientProfilesView: React.FC = () => {
 
       {/* Floating Success Toast */}
       {successToast && (
-        <div className="fixed top-5 right-5 z-50 bg-emerald-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-emerald-700/60 flex items-center gap-3 animate-in slide-in-from-top-3 duration-200">
+        <div className="fixed top-5 right-5 z-[9999] bg-emerald-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-emerald-700/60 flex items-center gap-3 animate-in slide-in-from-top-3 duration-200">
           <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
           <span className="text-xs font-bold">{successToast}</span>
           <button

@@ -10,6 +10,7 @@ import {
   Loader2,
   FileText,
   Filter,
+  X,
 } from 'lucide-react';
 import {
   encounterService,
@@ -53,7 +54,7 @@ export const NurseQueueView: React.FC = () => {
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ text, type });
-    setTimeout(() => setToastMessage(null), 4000);
+    setTimeout(() => setToastMessage(null), type === 'error' ? 8000 : 4000);
   };
 
   // Tải dữ liệu Hàng đợi Triage & Ca khám
@@ -412,7 +413,7 @@ export const NurseQueueView: React.FC = () => {
       {/* Toast Notification */}
       {toastMessage && (
         <div
-          className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-sm font-medium transition-all duration-300 animate-in fade-in ${
+          className={`fixed top-5 right-5 z-[9999] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-medium transition-all duration-300 animate-in fade-in max-w-lg ${
             toastMessage.type === 'success'
               ? 'bg-emerald-600 text-white shadow-emerald-500/20'
               : 'bg-rose-600 text-white shadow-rose-500/20'
@@ -423,7 +424,15 @@ export const NurseQueueView: React.FC = () => {
           ) : (
             <AlertCircle className="w-5 h-5 flex-shrink-0" />
           )}
-          <span>{toastMessage.text}</span>
+          <span className="flex-1 break-words leading-snug">{toastMessage.text}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer border-none bg-transparent shrink-0"
+            aria-label="Đóng thông báo"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
