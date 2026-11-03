@@ -17,6 +17,7 @@ import {
 } from '../../services/doctor/post-test-consultation.service';
 import { type TimelineEvent } from '../../services/doctor/case-timeline.service';
 import { encounterService, type EncounterItem } from '../../services/encounter/encounter.service';
+import { appointmentService, type AppointmentSlotResponse } from '../../services/appointment/appointment.service';
 import { resolveAttachmentUrl } from '../../services/lab/lab-result.service';
 import { useAuth } from '../../context/AuthContext';
 import { Mascot } from 'page-mascot';
@@ -333,6 +334,9 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
   const [nutritionNote, setNutritionNote] = useState('');
   const [followUpRequired, setFollowUpRequired] = useState(false);
   const [followUpIntervalDays, setFollowUpIntervalDays] = useState<number>(14);
+  const [selectedSlotId, setSelectedSlotId] = useState<string>('');
+  const [availableSlots, setAvailableSlots] = useState<AppointmentSlotResponse[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
   const [isSubmitSuccess, setIsSubmitSuccess] = useState(false);
 
@@ -435,6 +439,8 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
     setNutritionNote('');
     setFollowUpRequired(false);
     setFollowUpIntervalDays(14);
+    setSelectedSlotId('');
+    setAvailableSlots([]);
     setSelectedIcd({
       code: 'I20.9',
       name: 'Đau thắt ngực, không đặc hiệu (Angina pectoris, unspecified)',
@@ -526,6 +532,57 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
     });
   }, [followUpRequired, followUpIntervalDays]);
 
+  // Định dạng YYYY-MM-DD để gọi API lấy slot
+  const targetDateStr = useMemo(() => {
+    if (!followUpRequired || !followUpIntervalDays) return '';
+    const target = new Date();
+    target.setDate(target.getDate() + Number(followUpIntervalDays));
+    const y = target.getFullYear();
+    const m = String(target.getMonth() + 1).padStart(2, '0');
+    const d = String(target.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, [followUpRequired, followUpIntervalDays]);
+
+  // Tải danh sách slot trống của bác sĩ theo ngày tái khám dự kiến
+  useEffect(() => {
+    if (!followUpRequired || !user?.doctorId || !targetDateStr) {
+      setAvailableSlots([]);
+      setSelectedSlotId('');
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingSlots(true);
+    appointmentService
+      .getFreeSlots(user.doctorId, targetDateStr)
+      .then((slots) => {
+        if (!cancelled) {
+          const list = slots || [];
+          setAvailableSlots(list);
+          if (list.length > 0) {
+            setSelectedSlotId((prev) => (list.some((s) => s.slotId === prev) ? prev : list[0].slotId));
+          } else {
+            setSelectedSlotId('');
+          }
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.warn('Lỗi khi tải ca khám trống:', err);
+          setAvailableSlots([]);
+          setSelectedSlotId('');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingSlots(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [followUpRequired, user?.doctorId, targetDateStr]);
+
   // Lưu Chẩn đoán & Tư vấn điều trị
   const handleSaveDiagnosis = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -551,9 +608,15 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
       return;
     }
 
-    if (followUpRequired && (followUpIntervalDays < 1 || followUpIntervalDays > 730)) {
-      setSubmitError('Số ngày hẹn tái khám phải nằm trong khoảng từ 1 đến 730 ngày.');
-      return;
+    if (followUpRequired) {
+      if (followUpIntervalDays < 1 || followUpIntervalDays > 730) {
+        setSubmitError('Số ngày hẹn tái khám phải nằm trong khoảng từ 1 đến 730 ngày.');
+        return;
+      }
+      if (!selectedSlotId) {
+        setSubmitError('Vui lòng chọn một khung giờ tái khám khả dụng cho bệnh nhân.');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -574,6 +637,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
         nutritionAdvice: nutritionNote.trim() || undefined,
         followUpRequired,
         followUpIntervalDays: followUpRequired ? Number(followUpIntervalDays) : undefined,
+        followUpSlotId: followUpRequired ? selectedSlotId : undefined,
       });
 
       setIsSubmitSuccess(true);
@@ -1531,6 +1595,50 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
                             className="w-24 px-3 py-1.5 rounded-xl border border-slate-200 font-mono font-bold text-xs text-slate-900 outline-none focus:border-blue-600 bg-white"
                           />
                           <span className="text-xs text-slate-500 font-medium">ngày (1 - 730 ngày)</span>
+                        </div>
+
+                        {/* Bộ chọn khung giờ khám khả dụng */}
+                        <div className="space-y-2 pt-2 border-t border-slate-200">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-blue-600" />
+                              <span>Chọn khung giờ tái khám của Bác sĩ (Slot):</span>
+                            </label>
+                            {isLoadingSlots && (
+                              <span className="text-[11px] text-blue-600 font-medium animate-pulse flex items-center gap-1">
+                                <Loader2 className="w-3 h-3 animate-spin" /> Đang tìm khung giờ trống...
+                              </span>
+                            )}
+                          </div>
+
+                          {availableSlots.length > 0 ? (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {availableSlots.map((slot) => {
+                                const isSel = selectedSlotId === slot.slotId;
+                                const startTime = (slot.slotStartTime || '').slice(11, 16) || (slot as any).startTime || '';
+                                const endTime = (slot.slotEndTime || '').slice(11, 16) || (slot as any).endTime || '';
+                                return (
+                                  <button
+                                    key={slot.slotId}
+                                    type="button"
+                                    onClick={() => setSelectedSlotId(slot.slotId)}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer border ${
+                                      isSel
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-300'
+                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    {startTime} - {endTime}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : !isLoadingSlots ? (
+                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span>Không có khung giờ làm việc còn trống trong ngày này. Vui lòng chọn số ngày khác.</span>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     )}

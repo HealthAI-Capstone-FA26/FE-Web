@@ -143,7 +143,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
       if (!document.hidden) {
         fetchAppointments(true);
       }
-    }, 20000);
+    }, 35000);
     return () => clearInterval(timer);
   }, [fetchAppointments]);
 
@@ -559,6 +559,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
                 <option value="ALL">Tất cả kênh</option>
                 <option value="online">📱 Đặt Online</option>
                 <option value="at_hospital">🏥 Trực tiếp tại quầy</option>
+                <option value="doctor_follow_up">🩺 Bác sĩ hẹn tái khám</option>
               </select>
             </div>
           </div>
@@ -642,20 +643,39 @@ export const ReceptionAppointmentsView: React.FC = () => {
                     >
                       {/* Appointment Code & Channel */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="font-extrabold font-mono text-blue-950">
-                          {app.appointmentCode}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-extrabold font-mono text-blue-950">
+                            {app.appointmentCode}
+                          </span>
+                          {app.appointmentType === 'follow_up' || app.bookingChannel === 'doctor_follow_up' ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-purple-100 text-purple-800 border border-purple-300">
+                              Tái khám
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-sky-100 text-sky-800 border border-sky-300">
+                              Lịch hẹn
+                            </span>
+                          )}
                         </div>
                         <div className="mt-0.5">
                           <span
-                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${app.bookingChannel === 'online'
-                              ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                              : 'bg-slate-100 text-slate-700 border border-slate-200'
-                              }`}
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                              app.bookingChannel === 'online'
+                                ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                : app.bookingChannel === 'doctor_follow_up'
+                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
                           >
                             {app.bookingChannel === 'online' ? (
                               <>
                                 <img src="/images/online_icon.png" alt="Online" className="w-3.5 h-3.5 object-contain" />
                                 <span>Online</span>
+                              </>
+                            ) : app.bookingChannel === 'doctor_follow_up' ? (
+                              <>
+                                <Stethoscope className="w-3.5 h-3.5 text-purple-600" />
+                                <span>BS hẹn tái khám</span>
                               </>
                             ) : (
                               <>

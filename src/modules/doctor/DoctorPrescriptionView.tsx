@@ -398,25 +398,17 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({ 
             setPrescribedList([]);
           }
 
-          // Check follow-up suggestion
+          // Kiểm tra xem ca khám đã được đặt lịch tái khám ở bước Tư vấn (Tab 2) chưa
           try {
-            const sug = await prescriptionService.getFollowupSuggestion(detail.prescriptionId);
-            if (isMounted && sug?.suggestedDate) {
-              setFollowUpDate(sug.suggestedDate);
-            }
-          } catch {}
-
-          // Check if follow-up appointment exists
-          try {
-            const followup = await prescriptionService.getFollowup(detail.prescriptionId);
-            if (isMounted && followup) {
+            const consult = await postTestConsultationService.getTreatmentConsultation(activeEncounterId);
+            const followUpAppt = consult?.encounter?.followUpAppointment;
+            if (isMounted && followUpAppt) {
               setIsFollowUpSynced(true);
-              if (followup.appointmentDate) {
-                setFollowUpDate(new Date(followup.appointmentDate).toISOString().slice(0, 10));
+              if (followUpAppt.appointmentDate) {
+                setFollowUpDate(new Date(followUpAppt.appointmentDate).toISOString().slice(0, 10));
               }
-              if (followup.reasonForVisit) {
-                setFollowUpNotes(followup.reasonForVisit);
-              }
+            } else if (isMounted) {
+              setIsFollowUpSynced(false);
             }
           } catch {
             if (isMounted) setIsFollowUpSynced(false);
@@ -1621,136 +1613,58 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({ 
             )}
           </div>
 
-          {/* Follow-up Appointment Selector & Finish Encounter panel */}
+          {/* Trạng thái Lịch Hẹn Tái Khám & Kết Thúc Lượt Khám */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
                 <Calendar className="w-4.5 h-4.5 text-blue-700" />
-                <span>Thiết Lập Lịch Hẹn Tái Khám & Kết Thúc Lượt Khám</span>
+                <span>Hoàn Tất & Kết Thúc Lượt Khám</span>
               </h3>
-              {isFollowUpSynced && (
+              {isFollowUpSynced ? (
                 <Badge variant="success" size="sm">
                   Đã Có Lịch Tái Khám
                 </Badge>
+              ) : (
+                <span className="text-[11px] font-semibold text-slate-400">
+                  Không yêu cầu tái khám
+                </span>
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 text-xs font-bold">
-              <div className="md:col-span-4 space-y-1">
-                <label className="block text-slate-700">Chọn ngày tái khám:</label>
-                <input
-                  type="date"
-                  value={followUpDate}
-                  onChange={(e) => setFollowUpDate(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 font-bold text-slate-850 outline-none focus:border-blue-600 bg-white"
-                />
-              </div>
-
-              <div className="md:col-span-8 space-y-1">
-                <label className="block text-slate-700">Nội dung / Yêu cầu tái khám:</label>
-                <input
-                  type="text"
-                  value={followUpNotes}
-                  onChange={(e) => setFollowUpNotes(e.target.value)}
-                  placeholder="Nhập nội dung nhắc nhở khi đến tái khám..."
-                  className="w-full p-3 rounded-xl border border-slate-200 font-bold text-slate-850 outline-none focus:border-blue-600 bg-white"
-                />
-              </div>
-
-              {/* Chọn ca khám trống của bác sĩ */}
-              {followUpDate && (
-                <div className="md:col-span-12 space-y-1.5 pt-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Khung giờ khám còn trống của Bác sĩ (Slot Picker):</span>
-                    </label>
-                    {isLoadingSlots && (
-                      <span className="text-[10px] text-blue-600 font-semibold animate-pulse">
-                        Đang tìm khung giờ trống...
-                      </span>
-                    )}
-                  </div>
-                  {availableSlots.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {availableSlots.map((slot) => {
-                        const isSel = selectedSlotId === slot.slotId;
-                        return (
-                          <button
-                            key={slot.slotId}
-                            type="button"
-                            onClick={() => setSelectedSlotId(slot.slotId)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer border ${
-                              isSel
-                                ? 'bg-blue-700 text-white border-blue-700 shadow-xs ring-2 ring-blue-300'
-                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {(slot.slotStartTime || (slot as any).startTime || '').slice(0, 5)} - {(slot.slotEndTime || (slot as any).endTime || '').slice(0, 5)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : !isLoadingSlots ? (
-                    <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 font-medium">
-                      Không có ca cố định cụ thể trong ngày này. Hệ thống sẽ tự động xếp vào ca khám đầu buổi của Bác sĩ.
-                    </div>
-                  ) : null}
+            {isFollowUpSynced && followUpDate ? (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <Check className="w-4 h-4" />
                 </div>
-              )}
-            </div>
+                <div className="text-xs">
+                  <p className="font-bold text-emerald-900">
+                    Bệnh nhân đã được hẹn tái khám vào ngày {followUpDate}
+                  </p>
+                  <p className="text-emerald-700 font-medium">
+                    Lịch hẹn và khung giờ đã được hệ thống giữ chỗ thành công tại bước Tư vấn điều trị (Tab 2).
+                  </p>
+                </div>
+              </div>
+            ) : null}
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
-              <span className="text-[10px] text-slate-400 font-bold italic">
-                * Đặt lịch tái khám sẽ tự động đóng lượt khám hiện tại (finished) và gửi thông báo nhắc lịch cho bệnh nhân.
+              <span className="text-[11px] text-slate-500 font-medium">
+                * Bác sĩ cần ký số đơn thuốc (nếu có đơn) trước khi hoàn tất lượt khám.
               </span>
 
-              <div className="flex items-center gap-2">
-                {/* Finish without followup button */}
-                <button
-                  type="button"
-                  onClick={handleFinishEncounter}
-                  disabled={isFinishingEncounter || !activeEncounterId}
-                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-xl border-none cursor-pointer flex items-center gap-1.5 shadow-xs transition-colors"
-                >
-                  {isFinishingEncounter ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <CheckCheck className="w-3.5 h-3.5 text-slate-500" />
-                  )}
-                  <span>Kết thúc ca (Không hẹn)</span>
-                </button>
-
-                {/* Schedule follow-up button */}
-                <button
-                  type="button"
-                  onClick={handleScheduleFollowUp}
-                  disabled={isSchedulingFollowup || !isPrescriptionSigned}
-                  title={!isPrescriptionSigned ? 'Vui lòng ký số đơn thuốc trước khi đặt lịch tái khám' : ''}
-                  className={`px-4 py-2 text-xs font-extrabold rounded-xl border-none cursor-pointer flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-50 ${
-                    isFollowUpSynced
-                      ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
-                      : 'bg-blue-700 hover:bg-blue-800 text-white'
-                  }`}
-                >
-                  {isSchedulingFollowup ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Đang lưu...</span>
-                    </>
-                  ) : isFollowUpSynced ? (
-                    <>
-                      <Check className="w-4 h-4 text-emerald-600" />
-                      <span>Đã Đặt Lịch Tái Khám</span>
-                    </>
-                  ) : (
-                    <>
-                      <Calendar className="w-4 h-4 text-cyan-300" />
-                      <span>Đặt Lịch Hẹn Tái Khám</span>
-                    </>
-                  )}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleFinishEncounter}
+                disabled={isFinishingEncounter || !activeEncounterId}
+                className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs rounded-xl border-none cursor-pointer flex items-center gap-2 shadow-xs transition-colors disabled:opacity-50"
+              >
+                {isFinishingEncounter ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCheck className="w-4 h-4" />
+                )}
+                <span>Hoàn tất & Đóng ca khám</span>
+              </button>
             </div>
           </div>
 
