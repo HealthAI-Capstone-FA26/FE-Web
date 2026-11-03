@@ -22,6 +22,8 @@ import {
   Search,
 } from 'lucide-react';
 import { Mascot } from 'page-mascot';
+import { Eye } from 'lucide-react';
+import { DoctorAppointmentDetailModal } from './components/DoctorAppointmentDetailModal';
 import { useAuth } from '../../context/AuthContext';
 import {
   doctorScheduleService,
@@ -168,6 +170,7 @@ export const DoctorScheduleView: React.FC = () => {
   const [loadingSchedules, setLoadingSchedules] = useState<boolean>(false);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('all');
   const [selectedScheduleForDetail, setSelectedScheduleForDetail] = useState<DoctorScheduleResponse | null>(null);
+  const [selectedAppointmentIdForDetail, setSelectedAppointmentIdForDetail] = useState<string | null>(null);
 
   // Tab điều hướng: 'schedule' (Lịch ca trực) | 'appointments' (Lịch hẹn đã đặt)
   const [activeTab, setActiveTab] = useState<'schedule' | 'appointments'>('schedule');
@@ -863,7 +866,7 @@ export const DoctorScheduleView: React.FC = () => {
                 </span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Danh sách bệnh nhân đã đặt trước qua hệ thống trực tuyến (Online & Guest) theo các ca trực của bạn.
+                Danh sách bệnh nhân đặt khám trực tuyến và bệnh nhân được hẹn tái khám theo các ca trực của bạn.
               </p>
             </div>
 
@@ -976,9 +979,10 @@ export const DoctorScheduleView: React.FC = () => {
                 return (
                   <div
                     key={appointment.appointmentId || appointment.appointmentCode}
-                    className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:shadow-xs transition space-y-3"
+                    onClick={() => setSelectedAppointmentIdForDetail(appointment.appointmentId)}
+                    className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:shadow-md hover:border-teal-400 transition space-y-3 cursor-pointer group"
                   >
-                    {/* Header card: Thời gian & Khoa ca */}
+                    {/* Header card: Thời gian & Phân loại lịch hẹn */}
                     <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-slate-100">
                       <div className="space-y-0.5">
                         <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5 capitalize">
@@ -994,9 +998,22 @@ export const DoctorScheduleView: React.FC = () => {
                         </div>
                       </div>
 
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${priorityBadge}`}>
-                        {priorityLabel}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {appointment.appointmentType === 'follow_up' || appointment.bookingChannel === 'doctor_follow_up' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200 shadow-2xs">
+                            <Stethoscope className="w-3 h-3 text-purple-600" />
+                            <span>Lịch tái khám</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-sky-800 border border-sky-200 shadow-2xs">
+                            <CalendarDays className="w-3 h-3 text-sky-600" />
+                            <span>Lịch hẹn</span>
+                          </span>
+                        )}
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${priorityBadge}`}>
+                          {priorityLabel}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Thông tin Bệnh nhân */}
@@ -1028,28 +1045,59 @@ export const DoctorScheduleView: React.FC = () => {
                           <Ticket className="w-3 h-3 text-teal-600" />
                           <span>Mã hẹn: <strong className="text-slate-900">{appointment.appointmentCode}</strong></span>
                         </span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          {appointment.bookingChannel === 'doctor_follow_up' ? (
+                            <span className="text-purple-700 font-bold bg-purple-50 border border-purple-200 px-2 py-0.5 rounded">
+                              BS chỉ định
+                            </span>
+                          ) : appointment.bookingChannel === 'online' ? (
+                            <span className="text-sky-700 font-bold bg-sky-50 border border-sky-200 px-2 py-0.5 rounded">
+                              Đặt Online
+                            </span>
+                          ) : (
+                            <span className="text-slate-600 font-semibold bg-slate-100 px-2 py-0.5 rounded">
+                              Tại quầy
+                            </span>
+                          )}
+                        </span>
                         <span className="text-[11px] text-slate-400">
                           {patientType}
                         </span>
                       </div>
                     </div>
 
-                    {/* Địa điểm khám & Lý do khám */}
-                    <div className="pt-2 border-t border-slate-100/80 space-y-1 text-xs">
-                      <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
-                        <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span>{schedule.department?.departmentName || 'Khoa khám'}</span>
-                        <span>•</span>
-                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span>{schedule.department?.roomLocation || 'Phòng khám'}</span>
-                      </div>
-
-                      <div className="flex items-start gap-1.5 text-slate-700 bg-slate-50 p-2 rounded-xl border border-slate-100 text-xs mt-1">
+                    {/* Lý do khám & Nút xem chi tiết */}
+                    <div className="pt-2 border-t border-slate-100/80 flex items-center justify-between gap-2 text-xs">
+                      <div className="flex items-start gap-1.5 text-slate-700 bg-slate-50 p-2 rounded-xl border border-slate-100 text-xs flex-1 min-w-0">
                         <FileText className="w-3.5 h-3.5 text-teal-600 shrink-0 mt-0.5" />
                         <span className="line-clamp-2">
-                          <strong className="text-slate-800">Lý do khám:</strong> {appointment.reasonForVisit || 'Khám bệnh theo yêu cầu'}
+                          <strong className="text-slate-800">Lý do khám:</strong>{' '}
+                          {appointment.reasonForVisit ||
+                            (appointment.appointmentType === 'follow_up' || appointment.bookingChannel === 'doctor_follow_up'
+                              ? 'Tái khám theo chỉ định của Bác sĩ'
+                              : 'Khám bệnh theo yêu cầu')}
                         </span>
                       </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedAppointmentIdForDetail(appointment.appointmentId);
+                        }}
+                        className="shrink-0 px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shadow-2xs group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600"
+                        title={
+                          appointment.appointmentType === 'follow_up' || appointment.bookingChannel === 'doctor_follow_up'
+                            ? 'Xem chi tiết hồ sơ bệnh nhân & kết quả khám ban đầu'
+                            : 'Xem chi tiết hồ sơ bệnh nhân'
+                        }
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>
+                          {appointment.appointmentType === 'follow_up' || appointment.bookingChannel === 'doctor_follow_up'
+                            ? 'Xem kết quả'
+                            : 'Chi tiết'}
+                        </span>
+                      </button>
                     </div>
                   </div>
                 );
@@ -1254,7 +1302,8 @@ export const DoctorScheduleView: React.FC = () => {
                                   return (
                                     <div
                                       key={appt.appointmentId || appt.appointmentCode}
-                                      className="bg-white rounded-xl p-2.5 border border-teal-200/80 shadow-2xs space-y-1.5"
+                                      onClick={() => setSelectedAppointmentIdForDetail(appt.appointmentId)}
+                                      className="bg-white rounded-xl p-2.5 border border-teal-200/80 shadow-2xs space-y-1.5 cursor-pointer hover:border-teal-500 hover:shadow-xs transition"
                                     >
                                       {/* Hàng 1: Họ tên + Giới tính/Tuổi + SĐT + Mức độ ưu tiên */}
                                       <div className="flex items-center justify-between flex-wrap gap-1.5">
@@ -1348,6 +1397,14 @@ export const DoctorScheduleView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {selectedAppointmentIdForDetail && (
+        <DoctorAppointmentDetailModal
+          isOpen={!!selectedAppointmentIdForDetail}
+          appointmentId={selectedAppointmentIdForDetail}
+          onClose={() => setSelectedAppointmentIdForDetail(null)}
+        />
       )}
     </div>
   );

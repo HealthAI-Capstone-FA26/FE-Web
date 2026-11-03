@@ -14,10 +14,24 @@ import {
   XCircle,
   CalendarClock,
   Copy,
-  Check
+  Check,
+  History,
+  HeartPulse,
+  ClipboardList,
+  Info
 } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import { appointmentService, type AppointmentItem } from '../../../services/appointment/appointment.service';
+import {
+  encounterService,
+  type EncounterItem,
+  type EncounterVitalSession,
+} from '../../../services/encounter/encounter.service';
+import {
+  postTestConsultationService,
+  type DiagnosisConclusionItem,
+  type TreatmentConsultationItem,
+} from '../../../services/doctor/post-test-consultation.service';
 import { formatTicketCode, getQueueStatusLabel, getLocalDateString } from '../../../utils/booking.utils';
 
 interface AppointmentDetailModalProps {
@@ -36,6 +50,12 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   const [appointment, setAppointment] = useState<AppointmentItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Source Encounter details for Follow-up appointments
+  const [sourceEncounter, setSourceEncounter] = useState<EncounterItem | null>(null);
+  const [sourceDiagnoses, setSourceDiagnoses] = useState<DiagnosisConclusionItem[]>([]);
+  const [sourceTreatment, setSourceTreatment] = useState<TreatmentConsultationItem | null>(null);
+  const [loadingSource, setLoadingSource] = useState(false);
 
   // Copy code state
   const [copiedCode, setCopiedCode] = useState(false);
@@ -61,6 +81,9 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     setRescheduleDate('');
     setRescheduleReason('');
     setRescheduleError(null);
+    setSourceEncounter(null);
+    setSourceDiagnoses([]);
+    setSourceTreatment(null);
 
     const fetchDetail = async () => {
       try {
@@ -68,6 +91,28 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
         setError(null);
         const data = await appointmentService.getAppointmentById(appointmentId);
         setAppointment(data);
+
+        // Fetch source encounter details if this is a follow-up appointment
+        const sourceEncId = (data as any)?.sourceEncounterId || (data as any)?.sourceEncounter?.encounterId;
+        if (sourceEncId) {
+          setLoadingSource(true);
+          Promise.allSettled([
+            encounterService.getEncounterById(sourceEncId),
+            postTestConsultationService.getDiagnosisConclusions(sourceEncId),
+            postTestConsultationService.getTreatmentConsultation(sourceEncId),
+          ])
+            .then(([encRes, diagRes, treatRes]) => {
+              if (encRes.status === 'fulfilled') setSourceEncounter(encRes.value);
+              if (diagRes.status === 'fulfilled') setSourceDiagnoses(diagRes.value || []);
+              if (treatRes.status === 'fulfilled') setSourceTreatment(treatRes.value);
+            })
+            .catch((err) => {
+              console.error('Không thể tải chi tiết ca khám gốc:', err);
+            })
+            .finally(() => {
+              setLoadingSource(false);
+            });
+        }
       } catch (err: any) {
         setError(err?.message || 'Không thể tải chi tiết lịch hẹn');
       } finally {
@@ -100,6 +145,11 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   };
 
   if (!isOpen) return null;
+
+  const isFollowUp =
+    appointment?.appointmentType === 'follow_up' ||
+    appointment?.bookingChannel === 'doctor_follow_up' ||
+    !!appointment?.sourceEncounterId;
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
@@ -148,13 +198,34 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     window.print();
   };
 
+  // Helper extracting observations from vital sessions
+  const latestVitalSession: EncounterVitalSession | undefined =
+    sourceEncounter?.vitalSignSessions && sourceEncounter.vitalSignSessions.length > 0
+      ? sourceEncounter.vitalSignSessions[0]
+      : undefined;
+
+  const getObservationValue = (...codes: string[]): string | number | undefined => {
+    if (!latestVitalSession) return undefined;
+    const obs = latestVitalSession.observations?.find((o) =>
+      o.item?.itemCode && codes.some((c) => c.toLowerCase() === o.item?.itemCode?.toLowerCase())
+    );
+    return obs?.observationValue;
+  };
+
+  const pulse = getObservationValue('HR', 'PULSE');
+  const bpSys = getObservationValue('SBP', 'BP_SYS', 'BP_SYSTOLIC');
+  const bpDia = getObservationValue('DBP', 'BP_DIA', 'BP_DIASTOLIC');
+  const temp = getObservationValue('TEMP', 'TEMPERATURE');
+  const spo2 = getObservationValue('SPO2');
+
   const renderQueueTicketCard = (isMobileView = false) => {
     if (!appointment?.queueTicket) return null;
 
     return (
-      <div className={`bg-gradient-to-br from-blue-600 to-indigo-700 text-white text-center shadow-lg space-y-2 ${
-        isMobileView ? 'rounded-2xl p-4' : 'rounded-3xl p-5'
-      }`}>
+      <div
+        className={`bg-gradient-to-br from-blue-600 to-indigo-700 text-white text-center shadow-lg space-y-2 ${isMobileView ? 'rounded-2xl p-4' : 'rounded-3xl p-5'
+          }`}
+      >
         <div className="flex items-center justify-center gap-1.5 text-blue-200 text-xs font-semibold">
           <Ticket className="w-4 h-4" />
           <span>Số Thứ Tự Hàng Đợi</span>
@@ -171,17 +242,38 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-3xl w-full p-4 sm:p-6 md:p-8 shadow-2xl border border-slate-100 my-auto space-y-5 sm:space-y-6 max-h-[92vh] overflow-y-auto">
-        
+      <div className="bg-white rounded-3xl max-w-4xl w-full p-4 sm:p-6 md:p-8 shadow-2xl border border-slate-100 my-auto space-y-5 sm:space-y-6 max-h-[92vh] overflow-y-auto">
+
         {/* HEADER */}
         <div className="flex items-start justify-between pb-4 border-b border-slate-100">
           <div>
-            <div className="flex items-center gap-2.5">
-              <h2 className="text-lg sm:text-xl font-black text-slate-900">Chi Tiết Hồ Sơ Lịch Hẹn</h2>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
+                {isFollowUp ? (
+                  <>
+                    <Stethoscope className="w-5 h-5 text-purple-600" />
+                    <span>Chi Tiết Lịch Tái Khám</span>
+                  </>
+                ) : (
+                  <>
+                    <Calendar className="w-5 h-5 text-sky-600" />
+                    <span>Chi Tiết Lịch Hẹn Khám</span>
+                  </>
+                )}
+              </h2>
+              {isFollowUp ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-purple-700 bg-purple-100/90 border border-purple-300 px-2.5 py-0.5 rounded-full shadow-2xs">
+                  Lịch tái khám
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-sky-700 bg-sky-100/90 border border-sky-300 px-2.5 py-0.5 rounded-full shadow-2xs">
+                  Lịch hẹn
+                </span>
+              )}
               {appointment && getStatusBadge(appointment.status)}
             </div>
             {appointment && (
-              <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+              <p className="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
                 <span>Mã lịch hẹn:</span>
                 <span
                   onClick={() => handleCopyCode(appointment.appointmentCode)}
@@ -208,6 +300,11 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                       <>
                         <img src="/images/online_icon.png" alt="Online" className="w-3.5 h-3.5 object-contain" />
                         <span>Trực tuyến (Online)</span>
+                      </>
+                    ) : appointment.bookingChannel === 'doctor_follow_up' ? (
+                      <>
+                        <Calendar className="w-3.5 h-3.5 text-purple-600" />
+                        <span className="text-purple-700 font-bold">Bác sĩ chỉ định hẹn tái khám</span>
                       </>
                     ) : (
                       <>
@@ -252,20 +349,18 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                     return (
                       <div key={step.key} className="flex flex-col items-center text-center space-y-1.5">
                         <div
-                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                            isDone
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isDone
                               ? 'bg-emerald-600 text-white'
                               : isCurrent
-                              ? 'bg-blue-600 text-white ring-4 ring-blue-100'
-                              : 'bg-slate-200 text-slate-500'
-                          }`}
+                                ? 'bg-blue-600 text-white ring-4 ring-blue-100'
+                                : 'bg-slate-200 text-slate-500'
+                            }`}
                         >
                           {isDone ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
                         </div>
                         <span
-                          className={`text-[10px] leading-tight font-semibold ${
-                            isCurrent ? 'text-blue-700 font-bold' : isDone ? 'text-slate-800' : 'text-slate-400'
-                          }`}
+                          className={`text-[10px] leading-tight font-semibold ${isCurrent ? 'text-blue-700 font-bold' : isDone ? 'text-slate-800' : 'text-slate-400'
+                            }`}
                         >
                           {step.label}
                         </span>
@@ -294,7 +389,7 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               </div>
             )}
 
-            {/* MOBILE ONLY: SỐ THỨ TỰ HÀNG ĐỢI (NẾU ĐÃ ĐƯỢC TIẾP ĐÓN CẤP SỐ) */}
+            {/* MOBILE ONLY: SỐ THỨ TỰ HÀNG ĐỢI */}
             {appointment.queueTicket && (
               <div className="block md:hidden">
                 {renderQueueTicketCard(true)}
@@ -303,23 +398,31 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
 
             {/* MAIN CONTENT GRID */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              
+
               {/* LEFT 2 COLUMNS: CLINICAL & PATIENT DETAILS */}
               <div className="md:col-span-2 space-y-4 text-xs">
-                
-                {/* 1. Thông tin Bệnh nhân */}
-                <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-3">
-                  <div className="flex items-center gap-2 text-slate-900 font-bold border-b border-slate-100 pb-2">
-                    <User className="w-4 h-4 text-blue-600" />
-                    <span>Thông tin Bệnh nhân</span>
+
+                {/* 1. HỒ SƠ BỆNH NHÂN (ĐẦY ĐỦ) */}
+                <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <div className="flex items-center gap-2 text-slate-900 font-bold">
+                      <User className="w-4 h-4 text-blue-600" />
+                      <span>Hồ Sơ Bệnh Nhân</span>
+                    </div>
+                    {appointment.patient?.identityVerified && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                        Đã xác thực CCCD
+                      </span>
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 gap-3 text-slate-700">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-slate-700">
                     <div>
                       <span className="text-slate-400 block text-[11px]">Họ và tên:</span>
                       <strong className="text-slate-900 text-sm">{appointment.patient?.fullName || 'Bệnh nhân'}</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[11px]">Mã bệnh nhân:</span>
+                      <span className="text-slate-400 block text-[11px]">Mã hồ sơ BN:</span>
                       <strong className="font-mono text-blue-700">{appointment.patient?.patientCode || 'N/A'}</strong>
                     </div>
                     <div>
@@ -336,44 +439,62 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                         {appointment.patient?.gender === 'male'
                           ? 'Nam'
                           : appointment.patient?.gender === 'female'
-                          ? 'Nữ'
-                          : 'Khác'}
+                            ? 'Nữ'
+                            : 'Khác'}
                       </span>
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[11px]">Số điện thoại:</span>
-                      <span>{appointment.patient?.phoneNumber || 'N/A'}</span>
+                      <span className="font-medium text-slate-800">{appointment.patient?.phoneNumber || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[11px]">Số CCCD / BHYT:</span>
-                      <span>{appointment.patient?.identityNumber || 'N/A'}</span>
+                      <span className="text-slate-400 block text-[11px]">Số CCCD / CMND:</span>
+                      <span className="font-mono text-slate-800">{appointment.patient?.identityNumber || 'N/A'}</span>
                     </div>
+                    {appointment.patient?.insuranceNumber && (
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">Mã thẻ BHYT:</span>
+                        <span className="font-mono text-emerald-700 font-bold">{appointment.patient.insuranceNumber}</span>
+                      </div>
+                    )}
+                    {appointment.patient?.email && (
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">Email:</span>
+                        <span className="text-slate-800 truncate block" title={appointment.patient.email}>
+                          {appointment.patient.email}
+                        </span>
+                      </div>
+                    )}
+                    {appointment.patient?.ethnicity && (
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">Dân tộc:</span>
+                        <span>{appointment.patient.ethnicity}</span>
+                      </div>
+                    )}
+                    {appointment.patient?.address && (
+                      <div className="col-span-2 sm:col-span-3">
+                        <span className="text-slate-400 block text-[11px]">Địa chỉ thường trú:</span>
+                        <span className="text-slate-800 font-medium">{appointment.patient.address}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* 2. Thông tin Bác sĩ phụ trách (Chỉ giữ Bác sĩ Tim mạch & fullName) */}
-                <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-3">
-                  <div className="flex items-center gap-2 text-slate-900 font-bold border-b border-slate-100 pb-2">
-                    <Stethoscope className="w-4 h-4 text-blue-600" />
-                    <span>Bác Sĩ Phụ Trách</span>
-                  </div>
-                  <div className="text-slate-700">
-                    <span className="text-slate-400 block text-[11px] mb-0.5">Bác sĩ phụ trách:</span>
-                    <strong className="text-blue-900 text-sm md:text-base">
-                      {appointment.doctor?.fullName || appointment.doctor?.user?.fullName || 'Bác sĩ Tim mạch trực'}
-                    </strong>
-                  </div>
-                </div>
-
-                {/* 3. Thời gian & Khung giờ Slot */}
-                <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-3">
+                {/* 2. THÔNG TIN LỊCH HẸN KHÁM HIỆN TẠI */}
+                <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs space-y-3">
                   <div className="flex items-center gap-2 text-slate-900 font-bold border-b border-slate-100 pb-2">
                     <Calendar className="w-4 h-4 text-blue-600" />
-                    <span>Thời Gian & Khung Giờ Khám</span>
+                    <span>Thông Tin Ca Khám {isFollowUp ? 'Tái Khám' : 'Đăng Ký'}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-slate-700">
                     <div>
-                      <span className="text-slate-400 block text-[11px]">Ngày khám:</span>
+                      <span className="text-slate-400 block text-[11px]">Bác sĩ phụ trách:</span>
+                      <strong className="text-blue-900 text-sm">
+                        {appointment.doctor?.fullName || appointment.doctor?.user?.fullName || 'Bác sĩ chuyên khoa Tim mạch'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Ngày hẹn khám:</span>
                       <strong className="text-emerald-800 text-sm">
                         {new Date(appointment.appointmentDate).toLocaleDateString('vi-VN', {
                           weekday: 'long',
@@ -383,8 +504,8 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                         })}
                       </strong>
                     </div>
-                    <div>
-                      <span className="text-slate-400 block text-[11px]">Khung giờ slot:</span>
+                    <div className="col-span-2">
+                      <span className="text-slate-400 block text-[11px]">Khung giờ slot tiếp đón:</span>
                       <strong className="text-blue-800 text-sm">
                         {new Date(appointment.appointmentTime).toLocaleTimeString('vi-VN', {
                           hour: '2-digit',
@@ -397,26 +518,211 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                       </strong>
                     </div>
                   </div>
+
+                  {/* Lý do khám đăng ký ban đầu */}
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-bold text-[11px] mb-1">
+                      <FileText className="w-3.5 h-3.5 text-teal-600" />
+                      <span>{isFollowUp ? 'Lý do đăng ký / Ghi chú ca tái khám:' : 'Mô tả triệu chứng / Lý do đến khám:'}</span>
+                    </div>
+                    <p className="text-slate-800 leading-relaxed font-medium">
+                      {appointment.reasonForVisit ||
+                        (isFollowUp ? 'Tái khám theo chỉ định của Bác sĩ chuyên khoa' : 'Khám bệnh tổng quát theo yêu cầu')}
+                    </p>
+                  </div>
                 </div>
 
-                {/* 4. Triệu chứng & Lý do khám */}
-                {appointment.reasonForVisit && (
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-slate-700 font-bold text-[11px]">
-                      <FileText className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Mô tả triệu chứng / Lý do đến khám:</span>
+                {/* 3. ĐỐI VỚI LỊCH TÁI KHÁM: HIỂN THỊ CHI TIẾT LƯỢT KHÁM BAN ĐẦU ĐẦY ĐỦ */}
+                {isFollowUp && (
+                  <div className="p-4 bg-gradient-to-br from-purple-50/60 to-indigo-50/40 rounded-2xl border-2 border-purple-200/90 shadow-xs space-y-3.5">
+                    <div className="flex items-center justify-between border-b border-purple-200/80 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <History className="w-4 h-4 text-purple-700" />
+                        <span className="font-extrabold text-purple-950 text-xs sm:text-sm">
+                          Hồ Sơ Lượt Khám Ban Đầu (Cơ Sở Chỉ Định Tái Khám)
+                        </span>
+                      </div>
+                      {sourceEncounter && (
+                        <span className="font-mono text-[10px] font-bold text-purple-700 bg-white px-2 py-0.5 rounded-md border border-purple-200">
+                          Mã ca: {sourceEncounter.encounterCode}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-slate-800 text-xs leading-relaxed bg-white p-3 rounded-xl border border-slate-100">
-                      {appointment.reasonForVisit}
-                    </p>
+
+                    {loadingSource ? (
+                      <div className="py-8 text-center space-y-2">
+                        <Loader2 className="w-6 h-6 text-purple-600 animate-spin mx-auto" />
+                        <p className="text-[11px] text-purple-700 font-medium">Đang tải hồ sơ lượt khám ban đầu...</p>
+                      </div>
+                    ) : sourceEncounter ? (
+                      <div className="space-y-3 text-xs">
+                        {/* A. Bác sĩ & Thời gian ca khám ban đầu */}
+                        <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-purple-100">
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Bác sĩ khám ban đầu:</span>
+                            <strong className="text-slate-800">
+                              {sourceEncounter.doctor?.fullName || 'Bác sĩ chuyên khoa'}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Thời gian ca khám:</span>
+                            <span className="text-slate-800 font-medium">
+                              {sourceEncounter.arrivedAt
+                                ? new Date(sourceEncounter.arrivedAt).toLocaleDateString('vi-VN', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                })
+                                : '---'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* B. Kết luận chẩn đoán chính thức */}
+                        {sourceDiagnoses.length > 0 && (
+                          <div className="bg-white p-3 rounded-xl border border-purple-100 space-y-2">
+                            <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                              <ClipboardList className="w-3.5 h-3.5 text-purple-600" />
+                              <span>Kết luận chẩn đoán của Bác sĩ:</span>
+                            </span>
+                            <div className="space-y-1.5">
+                              {sourceDiagnoses.map((diag) => (
+                                <div
+                                  key={diag.diagnosisId}
+                                  className="flex items-start gap-2 bg-purple-50/50 p-2 rounded-lg border border-purple-100 text-xs"
+                                >
+                                  <span className="font-mono font-bold text-purple-700 bg-white px-2 py-0.5 rounded border border-purple-200 shrink-0">
+                                    {diag.icd10Code}
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-bold text-slate-900">{diag.diagnosisName}</span>
+                                      {diag.isPrimary && (
+                                        <span className="text-[9px] bg-red-100 text-red-700 font-extrabold px-1.5 py-0.2 rounded">
+                                          Chính
+                                        </span>
+                                      )}
+                                    </div>
+                                    {diag.notes && <p className="text-[11px] text-slate-500 mt-0.5">{diag.notes}</p>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* C. Chỉ định & Kế hoạch điều trị từ bác sĩ */}
+                        {sourceTreatment && (
+                          <div className="bg-white p-3 rounded-xl border border-purple-100 space-y-2">
+                            {sourceTreatment.followUpRequired && (
+                              <div className="p-2 bg-purple-100/60 rounded-lg border border-purple-200">
+                                <span className="text-[10px] font-bold text-purple-800 uppercase tracking-wider block">
+                                  Chỉ định tái khám từ Bác sĩ:
+                                </span>
+                                <p className="text-purple-950 font-bold text-xs mt-0.5">
+                                  Bác sĩ yêu cầu tái khám theo dõi
+                                  {sourceTreatment.followUpIntervalDays
+                                    ? ` sau ${sourceTreatment.followUpIntervalDays} ngày`
+                                    : ''}
+                                </p>
+                              </div>
+                            )}
+
+                            {sourceTreatment.treatmentPlan && (
+                              <div>
+                                <span className="text-slate-400 block text-[11px] font-medium">Kế hoạch điều trị:</span>
+                                <p className="text-slate-800 leading-relaxed font-medium bg-slate-50 p-2 rounded-lg border border-slate-100 mt-0.5">
+                                  {sourceTreatment.treatmentPlan}
+                                </p>
+                              </div>
+                            )}
+
+                            {sourceTreatment.conditionExplanation && (
+                              <div>
+                                <span className="text-slate-400 block text-[11px] font-medium">Giải thích bệnh học & tình trạng:</span>
+                                <p className="text-slate-700 leading-relaxed bg-slate-50 p-2 rounded-lg border border-slate-100 mt-0.5">
+                                  {sourceTreatment.conditionExplanation}
+                                </p>
+                              </div>
+                            )}
+
+                            {(sourceTreatment.nutritionAdvice || sourceTreatment.lifestyleAdvice) && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                {sourceTreatment.nutritionAdvice && (
+                                  <div className="p-2 bg-emerald-50/70 rounded-lg border border-emerald-100">
+                                    <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                                      Chế độ dinh dưỡng:
+                                    </span>
+                                    <p className="text-slate-700 mt-0.5 text-[11px]">{sourceTreatment.nutritionAdvice}</p>
+                                  </div>
+                                )}
+                                {sourceTreatment.lifestyleAdvice && (
+                                  <div className="p-2 bg-sky-50/70 rounded-lg border border-sky-100">
+                                    <span className="text-[10px] font-bold text-sky-800 uppercase tracking-wider block">
+                                      Chế độ vận động & lối sống:
+                                    </span>
+                                    <p className="text-slate-700 mt-0.5 text-[11px]">{sourceTreatment.lifestyleAdvice}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* D. Sinh hiệu ghi nhận ở ca khám ban đầu */}
+                        {(pulse || bpSys || temp || spo2) && (
+                          <div className="bg-white p-3 rounded-xl border border-purple-100 space-y-1.5">
+                            <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                              <HeartPulse className="w-3.5 h-3.5 text-rose-500" />
+                              <span>Sinh hiệu ghi nhận tại đợt khám ban đầu:</span>
+                            </span>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                              {bpSys && (
+                                <div className="p-2 bg-slate-50 rounded-lg text-center border border-slate-100">
+                                  <span className="text-[10px] text-slate-400 block">Huyết áp</span>
+                                  <strong className="text-slate-800 text-xs font-mono">
+                                    {bpSys}/{bpDia || '--'} mmHg
+                                  </strong>
+                                </div>
+                              )}
+                              {pulse && (
+                                <div className="p-2 bg-slate-50 rounded-lg text-center border border-slate-100">
+                                  <span className="text-[10px] text-slate-400 block">Mạch</span>
+                                  <strong className="text-slate-800 text-xs font-mono">{pulse} bpm</strong>
+                                </div>
+                              )}
+                              {spo2 && (
+                                <div className="p-2 bg-slate-50 rounded-lg text-center border border-slate-100">
+                                  <span className="text-[10px] text-slate-400 block">SpO2</span>
+                                  <strong className="text-slate-800 text-xs font-mono">{spo2}%</strong>
+                                </div>
+                              )}
+                              {temp && (
+                                <div className="p-2 bg-slate-50 rounded-lg text-center border border-slate-100">
+                                  <span className="text-[10px] text-slate-400 block">Thân nhiệt</span>
+                                  <strong className="text-slate-800 text-xs font-mono">{temp}°C</strong>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-white rounded-xl border border-purple-100 text-slate-600 text-[11px] leading-relaxed flex items-start gap-2">
+                        <Info className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                        <span>
+                          Lịch tái khám được chỉ định theo đơn và bệnh án điện tử từ đợt khám trước của Bác sĩ. Vui lòng mang theo kết quả khám bệnh hoặc sổ khám trước đó khi đến viện.
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
               {/* RIGHT COLUMN: APPOINTMENT SUMMARY & QUEUE TICKET */}
               <div className="space-y-4 flex flex-col justify-between">
-                
-                {/* DESKTOP ONLY: SỐ THỨ TỰ HÀNG ĐỢI (NẾU ĐÃ ĐƯỢC TIẾP ĐÓN CẤP SỐ) */}
+
+                {/* DESKTOP ONLY: SỐ THỨ TỰ HÀNG ĐỢI */}
                 {appointment.queueTicket && (
                   <div className="hidden md:block">
                     {renderQueueTicketCard(false)}
@@ -430,7 +736,7 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                     <span>Lưu ý khi đi khám:</span>
                   </p>
                   <p className="leading-relaxed text-blue-800">
-                    Vui lòng có mặt tại viện trước giờ hẹn <strong>15 phút</strong> và mang theo CCCD/BHYT gốc để đối chiếu.
+                    Vui lòng có mặt tại viện trước giờ hẹn <strong>15 phút</strong> và mang theo CCCD/BHYT gốc cùng các kết quả cận lâm sàng của lần khám trước để đối chiếu.
                   </p>
                 </div>
 

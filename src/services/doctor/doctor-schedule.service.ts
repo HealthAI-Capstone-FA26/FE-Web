@@ -17,10 +17,13 @@ export interface SlotAppointmentInfo {
   appointmentId: string;
   appointmentCode: string;
   bookingChannel: string;
+  appointmentType?: string;
+  sourceEncounterId?: string | null;
   status: string;
   reasonForVisit?: string | null;
   priority?: string;
   appointmentDate: string;
+  appointmentTime?: string;
   patient?: {
     patientId: string;
     patientCode?: string;

@@ -13,7 +13,7 @@ export interface UseNotificationsOptions {
 }
 
 export function useNotifications(options: UseNotificationsOptions = {}) {
-  const { pollIntervalMs = 30000, limit = 15 } = options;
+  const { pollIntervalMs = 60000, limit = 15 } = options;
   const { isLoggedIn, user } = useAuth();
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -154,10 +154,21 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
 
     if (pollIntervalMs <= 0) return;
     const timer = setInterval(() => {
+      if (document.hidden) return;
       fetchUnreadCount();
     }, pollIntervalMs);
 
-    return () => clearInterval(timer);
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchUnreadCount();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [hasValidToken, user?.id, pollIntervalMs, fetchUnreadCount]);
 
   return {

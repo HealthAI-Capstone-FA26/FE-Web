@@ -84,11 +84,23 @@ export const NurseQueueView: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-    // Tự động làm mới mỗi 15 giây để cập nhật ca mới từ Lễ tân
+    // Tự động làm mới mỗi 30 giây (tạm dừng khi tab ẩn để tiết kiệm băng thông)
     const interval = setInterval(() => {
+      if (document.hidden) return;
       fetchData(true);
-    }, 15000);
-    return () => clearInterval(interval);
+    }, 30000);
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchData(true);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [fetchData]);
 
   // Parse tuổi từ ngày sinh

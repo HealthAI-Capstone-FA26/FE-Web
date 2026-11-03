@@ -226,15 +226,30 @@ export const PatientPortalAppointmentsView: React.FC = () => {
                     <div className="space-y-3">
                       {/* Top status bar */}
                       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg">
                             {app.appointmentCode}
                           </span>
+                          {app.appointmentType === 'follow_up' || app.bookingChannel === 'doctor_follow_up' ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-purple-700 bg-purple-100/90 border border-purple-300 px-2.5 py-0.5 rounded-full shadow-2xs">
+                              <Stethoscope className="w-3.5 h-3.5 text-purple-600" />
+                              <span>Lịch tái khám</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-sky-700 bg-sky-100/90 border border-sky-300 px-2.5 py-0.5 rounded-full shadow-2xs">
+                              <Calendar className="w-3.5 h-3.5 text-sky-600" />
+                              <span>Lịch hẹn</span>
+                            </span>
+                          )}
                           <span className="text-[10px] text-slate-500 font-medium">
                             {app.bookingChannel === 'online' ? (
                               <span className="inline-flex items-center gap-1">
                                 <img src="/images/online_icon.png" alt="Online" className="w-3.5 h-3.5 object-contain" />
                                 <span>Trực tuyến</span>
+                              </span>
+                            ) : app.bookingChannel === 'doctor_follow_up' ? (
+                              <span className="inline-flex items-center gap-1 text-slate-600 font-semibold">
+                                <span>BS chỉ định</span>
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1">
