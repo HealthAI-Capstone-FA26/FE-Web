@@ -89,6 +89,7 @@ export interface AppointmentItem {
   appointmentCode: string;
   bookingChannel: 'online' | 'at_hospital' | 'doctor_follow_up' | string;
   appointmentType?: 'standard' | 'follow_up' | string;
+  sourceEncounterId?: string | null;
   status: 'pending' | 'confirmed' | 'checked_in' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
   patientId: string | null;
   suggestedPatientId?: string | null;
@@ -113,6 +114,9 @@ export interface AppointmentItem {
     gender?: string;
     identityNumber?: string;
     insuranceNumber?: string;
+    email?: string;
+    address?: string;
+    ethnicity?: string;
     identityVerified?: boolean;
     identityVerifiedAt?: string;
     status?: 'draft' | 'main';
@@ -126,6 +130,9 @@ export interface AppointmentItem {
     gender?: string;
     identityNumber?: string;
     insuranceNumber?: string;
+    email?: string;
+    address?: string;
+    ethnicity?: string;
     identityVerified?: boolean;
     identityVerifiedAt?: string;
     status?: 'draft' | 'main';

@@ -302,7 +302,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       if (!document.hidden) {
         fetchTickets(true);
       }
-    }, 15000);
+    }, 25000);
     return () => clearInterval(interval);
   }, [fetchTickets]);
 

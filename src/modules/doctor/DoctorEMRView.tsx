@@ -122,19 +122,45 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
 
   useEffect(() => {
     fetchEncounters();
-    const interval = setInterval(fetchEncounters, 10000); // Tự động đồng bộ ca mới mỗi 10 giây
+    // Tự động đồng bộ ca mới mỗi 30 giây (tạm dừng khi tab ẩn để tiết kiệm băng thông)
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      fetchEncounters();
+    }, 30000);
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchEncounters();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('focus', fetchEncounters);
+
     return () => {
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('focus', fetchEncounters);
     };
   }, [fetchEncounters]);
 
-  // Đồng bộ trạng thái quy trình (Chờ đóng phí / Đã đóng phí • Chờ Lab / Đã có kết quả Lab) cho các ca trong hàng chờ
+  // Đồng bộ trạng thái quy trình (Chờ đóng phí / Đã đóng phí • Chờ Lab / Đã có kết quả Lab)
+  // Chỉ kiểm tra cho các ca đang trong tiến trình CLS và tạm dừng khi tab ẩn
   useEffect(() => {
-    if (apiEncounters.length === 0) return;
-    apiEncounters.forEach(async (enc) => {
+    if (document.hidden || apiEncounters.length === 0) return;
+
+    // Chỉ lọc các ca thực sự đang chờ cận lâm sàng (không query các ca đã kết thúc, đã hủy hoặc đã hoàn tất)
+    const activeDiagnosticsEncounters = apiEncounters.filter(
+      (enc) =>
+        enc.status === 'awaiting_diagnostics' ||
+        enc.status === 'diagnostics_in_progress' ||
+        enc.status === 'in_progress'
+    );
+
+    activeDiagnosticsEncounters.forEach(async (enc) => {
       const key = enc.encounterId;
+      // Nếu đã có kết quả hoàn tất trước đó thì bỏ qua không query lại
+      if (patientWorkflowStates[key] === 'completed') return;
+
       try {
         const [orders, invoices] = await Promise.all([
           testOrderService.getTestOrdersByEncounter(enc.encounterId),
@@ -186,52 +212,46 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
   // Bộ nhớ đệm (Cache) lưu trữ dữ liệu ca khám của các bệnh nhân đã mở (Method B)
   const encounterCacheRef = useRef<Record<string, PatientEncounterCache>>(globalEncounterCache);
 
-  // Tải trước ngầm (Pre-fetch / Preload) toàn bộ ca khám & dị ứng trong hàng chờ để khi chuyển ca là hiển thị 0ms tức thì
+  // Tải trước dị ứng và thông tin ca khám đang chọn nếu chưa có trong cache (không preload ồ ạt toàn bộ danh sách)
   useEffect(() => {
-    if (apiEncounters.length === 0) return;
-    apiEncounters.forEach(async (enc) => {
-      const encId = enc.encounterId;
-      const patId = enc.patient?.patientId || enc.patientId;
-      const patCode = enc.patient?.patientCode;
+    if (!selectedPatientId || apiEncounters.length === 0) return;
+    const enc = apiEncounters.find(
+      (e) =>
+        e.encounterId === selectedPatientId ||
+        e.encounterCode === selectedPatientId ||
+        e.patient?.patientCode === selectedPatientId
+    );
+    if (!enc) return;
 
-      // 1. Tải trước CaseOverview nếu chưa có
-      if (!encounterCacheRef.current[encId]?.caseOverview) {
-        try {
-          const overview = await clinicalExamService.getCaseOverview(encId);
-          encounterCacheRef.current[encId] = {
-            ...encounterCacheRef.current[encId],
-            caseOverview: overview,
-          };
-          if (patCode) encounterCacheRef.current[patCode] = encounterCacheRef.current[encId];
-          if (enc.encounterCode) encounterCacheRef.current[enc.encounterCode] = encounterCacheRef.current[encId];
-          globalEncounterCache[encId] = encounterCacheRef.current[encId];
-          if (patCode) globalEncounterCache[patCode] = encounterCacheRef.current[encId];
-          if (enc.encounterCode) globalEncounterCache[enc.encounterCode] = encounterCacheRef.current[encId];
-        } catch {
-          // ignore
-        }
-      }
+    const encId = enc.encounterId;
+    const patId = enc.patient?.patientId || enc.patientId;
+    const patCode = enc.patient?.patientCode;
 
-      // 2. Tải trước Dị ứng nếu chưa có
-      if (patId && encounterCacheRef.current[encId]?.allergies === undefined) {
-        try {
-          const allergies = await patientAllergyService.getAllergies(patId);
-          const list = Array.isArray(allergies) ? allergies : [];
-          encounterCacheRef.current[encId] = {
-            ...encounterCacheRef.current[encId],
-            allergies: list,
-          };
-          if (patCode) encounterCacheRef.current[patCode] = encounterCacheRef.current[encId];
-          if (enc.encounterCode) encounterCacheRef.current[enc.encounterCode] = encounterCacheRef.current[encId];
-          globalEncounterCache[encId] = encounterCacheRef.current[encId];
-          if (patCode) globalEncounterCache[patCode] = encounterCacheRef.current[encId];
-          if (enc.encounterCode) globalEncounterCache[enc.encounterCode] = encounterCacheRef.current[encId];
-        } catch {
-          // ignore
-        }
-      }
-    });
-  }, [apiEncounters]);
+    if (!encounterCacheRef.current[encId]?.caseOverview) {
+      clinicalExamService.getCaseOverview(encId).then((overview) => {
+        encounterCacheRef.current[encId] = {
+          ...encounterCacheRef.current[encId],
+          caseOverview: overview,
+        };
+        if (patCode) encounterCacheRef.current[patCode] = encounterCacheRef.current[encId];
+        if (enc.encounterCode) encounterCacheRef.current[enc.encounterCode] = encounterCacheRef.current[encId];
+        globalEncounterCache[encId] = encounterCacheRef.current[encId];
+      }).catch(() => {});
+    }
+
+    if (patId && encounterCacheRef.current[encId]?.allergies === undefined) {
+      patientAllergyService.getAllergies(patId).then((allergies) => {
+        const list = Array.isArray(allergies) ? allergies : [];
+        encounterCacheRef.current[encId] = {
+          ...encounterCacheRef.current[encId],
+          allergies: list,
+        };
+        if (patCode) encounterCacheRef.current[patCode] = encounterCacheRef.current[encId];
+        if (enc.encounterCode) encounterCacheRef.current[enc.encounterCode] = encounterCacheRef.current[encId];
+        globalEncounterCache[encId] = encounterCacheRef.current[encId];
+      }).catch(() => {});
+    }
+  }, [selectedPatientId, apiEncounters]);
 
   const handleSelectPatientId = (id: string, forceRefresh = false) => {
     // Lưu nháp ca khám hiện tại vào cache trước khi chuyển sang ca khác

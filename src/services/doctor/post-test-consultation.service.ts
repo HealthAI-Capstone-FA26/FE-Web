@@ -94,6 +94,7 @@ export interface UpsertTreatmentConsultationDto {
   nutritionAdvice?: string;
   followUpRequired?: boolean;
   followUpIntervalDays?: number;
+  followUpSlotId?: string;
   consultedAt?: string;
 }
 
@@ -113,6 +114,23 @@ export interface TreatmentConsultationItem {
     doctorId: string;
     fullName: string;
     title?: string;
+  };
+  encounter?: {
+    followUpAppointment?: {
+      appointmentId: string;
+      appointmentCode: string;
+      appointmentDate: string;
+      appointmentTime: string;
+      status: string;
+      doctorId: string;
+      slotId: string;
+      slot?: {
+        slotId: string;
+        slotStartTime: string;
+        slotEndTime: string;
+        status: string;
+      } | null;
+    } | null;
   };
 }
 
