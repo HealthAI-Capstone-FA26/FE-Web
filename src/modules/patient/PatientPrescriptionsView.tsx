@@ -30,21 +30,33 @@ export const PatientPrescriptionsView: React.FC = () => {
       const myPatients = await patientService.getMyPatients();
       const patientId = myPatients[0]?.patientId;
 
+      if (!patientId) {
+        setPrescriptions([]);
+        setFollowupAppointments([]);
+        return;
+      }
+
       const [prescriptionsRes, appointmentsRes] = await Promise.allSettled([
-        prescriptionService.findMany(patientId ? { patientId } : undefined),
-        appointmentService.getAppointments(patientId ? { patientId } : undefined, true),
+        prescriptionService.findMany({ patientId }),
+        appointmentService.getAppointments({ patientId }, true),
       ]);
 
       if (prescriptionsRes.status === 'fulfilled' && Array.isArray(prescriptionsRes.value)) {
-        // Filter signed or active prescriptions
-        setPrescriptions(prescriptionsRes.value);
+        // Filter signed or active prescriptions belonging to this patient
+        setPrescriptions(
+          prescriptionsRes.value.filter(
+            (p) => !p.encounter?.patient?.patientId || p.encounter.patient.patientId === patientId,
+          ),
+        );
       } else {
         setPrescriptions([]);
       }
 
       if (appointmentsRes.status === 'fulfilled' && Array.isArray(appointmentsRes.value)) {
         const followups = appointmentsRes.value.filter(
-          (a) => a.appointmentType === 'follow_up' || a.bookingChannel === 'doctor_follow_up'
+          (a) =>
+            a.patientId === patientId &&
+            (a.appointmentType === 'follow_up' || a.bookingChannel === 'doctor_follow_up'),
         );
         setFollowupAppointments(followups);
       } else {

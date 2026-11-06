@@ -44,12 +44,24 @@ export const PatientPortalAppointmentsView: React.FC = () => {
     try {
       setLoading(true);
       setErrorMsg(null);
-      const [appList, patientList] = await Promise.all([
-        appointmentService.getAppointments(undefined, forceRefresh),
-        patientService.getMyPatients(),
-      ]);
-      setAppointments(appList);
-      setPatients(patientList);
+      const patientList = await patientService.getMyPatients();
+      const validPatients = Array.isArray(patientList) ? patientList : [];
+      setPatients(validPatients);
+
+      if (validPatients.length === 0) {
+        setAppointments([]);
+        return;
+      }
+
+      const myPatientIds = new Set(validPatients.map((p) => p.patientId));
+      const appList = await appointmentService.getAppointments(
+        validPatients.length === 1 ? { patientId: validPatients[0].patientId } : undefined,
+        forceRefresh,
+      );
+      const ownAppointments = (Array.isArray(appList) ? appList : []).filter(
+        (app) => app.patientId && myPatientIds.has(app.patientId),
+      );
+      setAppointments(ownAppointments);
     } catch (err: any) {
       setErrorMsg(err?.message || 'Không thể tải danh sách lịch hẹn');
     } finally {
