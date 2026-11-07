@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlaskConical, FileText, AlertCircle, Activity } from 'lucide-react';
+import { FlaskConical, FileText, Activity } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { LabOrdersView } from './LabOrdersView';
 import { EcgWorkspacePage } from './ecg/EcgWorkspacePage';
@@ -23,13 +23,6 @@ export const LabWorkspaceView: React.FC = () => {
       id: 'dicom-ai',
       label: 'Upload ảnh DICOM & Phân tích AI',
       icon: FileText,
-      component: <LabOrdersView />
-    },
-    {
-      id: 'lab-alerts',
-      label: 'Cảnh báo Chỉ số Nguy cấp',
-      icon: AlertCircle,
-      badge: '02 Ca',
       component: <LabOrdersView />
     }
   ];

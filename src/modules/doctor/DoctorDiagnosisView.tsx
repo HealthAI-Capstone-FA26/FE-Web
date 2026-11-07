@@ -19,7 +19,8 @@ import { type TimelineEvent } from '../../services/doctor/case-timeline.service'
 import { encounterService, type EncounterItem } from '../../services/encounter/encounter.service';
 import { appointmentService, type AppointmentSlotResponse } from '../../services/appointment/appointment.service';
 import { resolveAttachmentUrl } from '../../services/lab/lab-result.service';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
+
 import { Mascot } from 'page-mascot';
 
 /* 
@@ -688,12 +689,12 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
           <span>
             {activeEncounter || currentPatient
               ? (() => {
-                  const name = timelineData?.patient?.fullName || activeEncounter?.patient?.fullName || currentPatient?.name;
-                  const pCode = timelineData?.patient?.patientCode || activeEncounter?.patient?.patientCode;
-                  const encCode = timelineData?.encounter?.encounterCode || activeEncounter?.encounterCode;
-                  const codeDetails = [pCode, encCode].filter(Boolean).join(' • ');
-                  return `Bệnh nhân: ${name}${codeDetails ? ` (${codeDetails})` : ''}`;
-                })()
+                const name = timelineData?.patient?.fullName || activeEncounter?.patient?.fullName || currentPatient?.name;
+                const pCode = timelineData?.patient?.patientCode || activeEncounter?.patient?.patientCode;
+                const encCode = timelineData?.encounter?.encounterCode || activeEncounter?.encounterCode;
+                const codeDetails = [pCode, encCode].filter(Boolean).join(' • ');
+                return `Bệnh nhân: ${name}${codeDetails ? ` (${codeDetails})` : ''}`;
+              })()
               : 'Chưa chọn bệnh nhân'}
           </span>
         </div>
@@ -765,15 +766,14 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
                     key={tab.key}
                     type="button"
                     onClick={() => setStatusFilter(tab.key as any)}
-                    className={`px-2.5 py-1 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1 border shrink-0 ${
-                      isActive
-                        ? tab.highlight
-                          ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
-                          : 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                        : tab.highlight && tab.count > 0
+                    className={`px-2.5 py-1 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1 border shrink-0 ${isActive
+                      ? tab.highlight
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                        : 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                      : tab.highlight && tab.count > 0
                         ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 font-black animate-pulse'
                         : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}
+                      }`}
                   >
                     <span>{tab.label}</span>
                     <span className={`text-[10px] px-1 rounded-full ${isActive ? 'bg-white/25 text-white' : 'bg-slate-200/70 text-slate-700'}`}>
@@ -987,7 +987,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
                             </p>
                           )}
                           {event.data?.clinicalNotes && (
-                            <p className="text-slate-500 italic">Nhận định / Chẩn đoán sơ bộ: {event.data.clinicalNotes}</p>
+                            <p className="text-slate-500 italic">Ghi chú: {event.data.clinicalNotes}</p>
                           )}
                         </div>
                       </div>
@@ -1622,11 +1622,10 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
                                     key={slot.slotId}
                                     type="button"
                                     onClick={() => setSelectedSlotId(slot.slotId)}
-                                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer border ${
-                                      isSel
-                                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-300'
-                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                                    }`}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer border ${isSel
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-300'
+                                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                      }`}
                                   >
                                     {startTime} - {endTime}
                                   </button>

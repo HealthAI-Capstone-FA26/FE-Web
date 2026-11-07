@@ -23,6 +23,7 @@ import {
   doctorAiService,
   caseTimelineService,
   initialDiagnosisService,
+  extractPrimaryInitialDiagnosisText,
   type TestCatalogItem,
   type TestOrderDetail,
   type CaseOverviewData,
@@ -46,6 +47,7 @@ interface PatientEncounterCache {
     auscultationFindings?: string;
     examinationFindings?: string;
     clinicalNotes?: string;
+    preliminaryDiag?: string;
   } | null;
 }
 
@@ -267,6 +269,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
           auscultationFindings,
           examinationFindings: auscultationFindings,
           clinicalNotes,
+          preliminaryDiag,
         },
       };
       encounterCacheRef.current[selectedPatientId] = encounterCacheRef.current[prevEncId];
@@ -298,7 +301,11 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
       setPercussionFindings(cached.clinicalExam?.percussionFindings || '');
       setAuscultationFindings(cached.clinicalExam?.auscultationFindings || cached.clinicalExam?.examinationFindings || '');
       setClinicalNotes(cached.clinicalExam?.clinicalNotes || '');
-      setPreliminaryDiag(cached.clinicalExam?.clinicalNotes || '');
+      setPreliminaryDiag(
+        cached.clinicalExam?.preliminaryDiag ||
+          extractPrimaryInitialDiagnosisText(cached.caseOverview?.initialDiagnoses) ||
+          ''
+      );
       setIsLoadingOverview(false);
       setIsLoadingAllergies(false);
     } else {
@@ -556,29 +563,45 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
         encounterService.getEncounterById(targetId),
         clinicalExamService.getCaseOverview(targetId),
         clinicalExamService.getClinicalExamination(targetId),
-      ]).then(([encRes, overviewRes, examRes]) => {
+        initialDiagnosisService.getByEncounterId(targetId, { diagnosisType: 'initial' }),
+      ]).then(([encRes, overviewRes, examRes, diagRes]) => {
         if (isCancelled) return;
 
         const newDetail = encRes.status === 'fulfilled' ? encRes.value : null;
         const newOverview = overviewRes.status === 'fulfilled' ? overviewRes.value : null;
         const newExam = examRes.status === 'fulfilled' ? examRes.value : null;
+        const newDiags = diagRes.status === 'fulfilled' ? diagRes.value : null;
+
+        const loadedPreliminaryDiag = extractPrimaryInitialDiagnosisText(
+          newDiags && newDiags.length > 0 ? newDiags : newOverview?.initialDiagnoses
+        );
 
         // Cập nhật Cache trong RAM
+        const prevExamCache = encounterCacheRef.current[targetId]?.clinicalExam;
         const updatedCache: PatientEncounterCache = {
           ...encounterCacheRef.current[targetId],
           encounterDetail: newDetail || encounterCacheRef.current[targetId]?.encounterDetail || null,
           caseOverview: newOverview || encounterCacheRef.current[targetId]?.caseOverview || null,
-          clinicalExam: newExam
+          clinicalExam: newExam || loadedPreliminaryDiag || prevExamCache
             ? {
-                patientPosition: newExam.patientPosition || '',
-                inspectionFindings: newExam.inspectionFindings || '',
-                palpationFindings: newExam.palpationFindings || '',
-                percussionFindings: newExam.percussionFindings || '',
-                auscultationFindings: newExam.auscultationFindings || newExam.examinationFindings || '',
-                examinationFindings: newExam.auscultationFindings || newExam.examinationFindings || '',
-                clinicalNotes: newExam.clinicalNotes || '',
+                patientPosition: newExam?.patientPosition ?? prevExamCache?.patientPosition ?? '',
+                inspectionFindings: newExam?.inspectionFindings ?? prevExamCache?.inspectionFindings ?? '',
+                palpationFindings: newExam?.palpationFindings ?? prevExamCache?.palpationFindings ?? '',
+                percussionFindings: newExam?.percussionFindings ?? prevExamCache?.percussionFindings ?? '',
+                auscultationFindings:
+                  newExam?.auscultationFindings ||
+                  newExam?.examinationFindings ||
+                  prevExamCache?.auscultationFindings ||
+                  '',
+                examinationFindings:
+                  newExam?.auscultationFindings ||
+                  newExam?.examinationFindings ||
+                  prevExamCache?.examinationFindings ||
+                  '',
+                clinicalNotes: newExam?.clinicalNotes ?? prevExamCache?.clinicalNotes ?? '',
+                preliminaryDiag: loadedPreliminaryDiag || prevExamCache?.preliminaryDiag || '',
               }
-            : encounterCacheRef.current[targetId]?.clinicalExam || null,
+            : null,
         };
         encounterCacheRef.current[targetId] = updatedCache;
         encounterCacheRef.current[selectedPatientId] = updatedCache;
@@ -607,8 +630,11 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
           }
           if (newExam.clinicalNotes) {
             setClinicalNotes((prev) => prev || newExam.clinicalNotes || '');
-            setPreliminaryDiag((prev) => prev || newExam.clinicalNotes || '');
           }
+        }
+        // Ô Chẩn đoán sơ bộ (Mục 5) luôn nạp đúng từ bản ghi diagnoses (diagnosisType === 'initial')
+        if (loadedPreliminaryDiag) {
+          setPreliminaryDiag(loadedPreliminaryDiag);
         }
         setIsLoadingOverview(false);
       });
@@ -821,7 +847,12 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
   const [percussionFindings, setPercussionFindings] = useState<string>(() => initCached?.clinicalExam?.percussionFindings || '');
   const [auscultationFindings, setAuscultationFindings] = useState<string>(() => initCached?.clinicalExam?.auscultationFindings || initCached?.clinicalExam?.examinationFindings || '');
   const [clinicalNotes, setClinicalNotes] = useState<string>(() => initCached?.clinicalExam?.clinicalNotes || '');
-  const [preliminaryDiag, setPreliminaryDiag] = useState<string>(() => initCached?.clinicalExam?.clinicalNotes || '');
+  const [preliminaryDiag, setPreliminaryDiag] = useState<string>(
+    () =>
+      initCached?.clinicalExam?.preliminaryDiag ||
+      extractPrimaryInitialDiagnosisText(initCached?.caseOverview?.initialDiagnoses) ||
+      ''
+  );
   const clinicalExamNote = auscultationFindings;
   const setClinicalExamNote = setAuscultationFindings;
   const [servicesCatalog, setServicesCatalog] = useState<TestCatalogItem[]>([]);
@@ -1164,18 +1195,17 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
     setExamWarningMsg(null);
 
     try {
-      // 1. Lưu khám lâm sàng & chẩn đoán sơ bộ
+      // 1. Lưu khám lâm sàng (Mục 1–3) & chẩn đoán sơ bộ (Mục 5) vào đúng bảng tương ứng
       let initialDiagnosisId: string | undefined;
-      const hasExamData = Boolean(
+      const hasExamFields = Boolean(
         patientPosition.trim() ||
         inspectionFindings.trim() ||
         palpationFindings.trim() ||
         percussionFindings.trim() ||
         auscultationFindings.trim() ||
-        clinicalNotes.trim() ||
-        preliminaryDiag.trim()
+        clinicalNotes.trim()
       );
-      if (hasExamData) {
+      if (hasExamFields) {
         try {
           await clinicalExamService.upsertClinicalExamination(activeEncounterId, {
             patientPosition: patientPosition.trim() || undefined,
@@ -1183,7 +1213,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
             palpationFindings: palpationFindings.trim() || undefined,
             percussionFindings: percussionFindings.trim() || undefined,
             auscultationFindings: auscultationFindings.trim() || undefined,
-            clinicalNotes: (clinicalNotes.trim() || preliminaryDiag.trim()) || undefined,
+            clinicalNotes: clinicalNotes.trim() || undefined,
           });
         } catch (examErr: any) {
           const errMsg = examErr?.data?.message || examErr?.message || '';
@@ -1193,25 +1223,20 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
             console.warn('Cảnh báo lưu khám lâm sàng:', examErr);
           }
         }
+      }
 
-        // Tạo bản ghi Chẩn đoán sơ bộ (SE02 Initial Diagnosis)
-        if (preliminaryDiag.trim()) {
-          try {
-            const matchedIcd = preliminaryDiag.match(/([A-Z]\d{2}(\.\d{1,2})?)/i);
-            const icdCode = matchedIcd ? matchedIcd[1].toUpperCase() : 'I20.9';
-            const cleanDiagName = preliminaryDiag.replace(/\[[A-Z0-9.]+\]\s*/i, '').trim();
-            const diagResult = await initialDiagnosisService.create(activeEncounterId, {
-              icd10Code: icdCode,
-              diagnosisName: cleanDiagName || preliminaryDiag.trim(),
-              diagnosisType: 'initial',
-              isPrimary: true,
-            });
-            if (diagResult?.diagnosisId) {
-              initialDiagnosisId = diagResult.diagnosisId;
-            }
-          } catch (diagErr) {
-            console.warn('Ghi nhận chẩn đoán sơ bộ SE02:', diagErr);
+      // Tạo hoặc cập nhật bản ghi Chẩn đoán sơ bộ (Mục 5 - SE02 Initial Diagnosis)
+      if (preliminaryDiag.trim()) {
+        try {
+          const diagResult = await initialDiagnosisService.upsertInitialDiagnosis(
+            activeEncounterId,
+            preliminaryDiag
+          );
+          if (diagResult?.diagnosisId) {
+            initialDiagnosisId = diagResult.diagnosisId;
           }
+        } catch (diagErr) {
+          console.warn('Ghi nhận chẩn đoán sơ bộ SE02:', diagErr);
         }
       }
 
