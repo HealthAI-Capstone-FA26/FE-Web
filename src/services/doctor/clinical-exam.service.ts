@@ -1,5 +1,6 @@
 import { apiFetch } from '../api';
 import type { AiClinicalSummaryData, AiDiagnosisSuggestionItem } from './doctor-ai.service';
+import type { DiagnosisItem } from './initial-diagnosis.service';
 
 export interface UpsertClinicalExamPayload {
   patientPosition?: string;
@@ -89,6 +90,7 @@ export interface CaseOverviewData {
   aiClinicalSummary?: AiClinicalSummaryData | null;
   imagingHistory?: any[];
   aiDiagnosisSuggestions?: AiDiagnosisSuggestionItem[];
+  initialDiagnoses?: DiagnosisItem[];
 }
 
 export const clinicalExamService = {

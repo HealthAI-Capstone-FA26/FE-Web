@@ -20,7 +20,7 @@ const receptionNavGroups: NavGroup[] = [
     groupName: 'Nghiệp vụ Tiếp nhận',
     items: [
       { id: 'rec_workspace_appointments', label: 'Lịch hẹn', path: '/tiep-nhan/danh-sach-cho', iconName: 'CalendarCheck', requiredPermission: 'appointment:read:all' },
-      { id: 'rec_workspace_registration', label: 'Đăng ký khám bệnh', path: '/tiep-nhan/benh-nhan', iconName: 'CalendarPlus', requiredPermission: 'patient:read:all' },
+      { id: 'rec_workspace_registration', label: 'Danh sách bệnh nhân', path: '/tiep-nhan/benh-nhan', iconName: 'Users', requiredPermission: 'patient:read:all' },
       { id: 'rec_workspace_queue_call', label: 'Gọi số hồ sơ', path: '/tiep-nhan/goi-so', iconName: 'Megaphone', badge: 'Live', requiredPermission: 'queue-ticket:read:all' }
     ]
   },

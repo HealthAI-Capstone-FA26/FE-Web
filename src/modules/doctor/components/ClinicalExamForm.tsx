@@ -16,7 +16,11 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
-import { clinicalExamService } from '../../../services/doctor';
+import {
+  clinicalExamService,
+  initialDiagnosisService,
+  extractPrimaryInitialDiagnosisText,
+} from '../../../services/doctor';
 
 export interface DynamicAiDiagnosis {
   id: string;
@@ -108,17 +112,17 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
   const handleSaveOnlyClinicalExam = async () => {
     if (!encounterId) return;
 
-    const hasAnyContent = Boolean(
+    const hasExamFields = Boolean(
       patientPosition.trim() ||
       inspectionFindings.trim() ||
       palpationFindings.trim() ||
       percussionFindings.trim() ||
       currentAuscultation.trim() ||
-      clinicalNotes.trim() ||
-      preliminaryDiag.trim()
+      clinicalNotes.trim()
     );
+    const hasInitialDiagnosis = Boolean(preliminaryDiag.trim());
 
-    if (!hasAnyContent) {
+    if (!hasExamFields && !hasInitialDiagnosis) {
       setSaveErrorMsg('Vui lòng nhập ít nhất một nội dung khám (tư thế, nhìn, sờ, gõ, nghe, nhận định hoặc chẩn đoán sơ bộ).');
       return;
     }
@@ -127,19 +131,30 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
     setSaveSuccessMsg(null);
     setSaveErrorMsg(null);
     try {
-      await clinicalExamService.upsertClinicalExamination(encounterId, {
-        patientPosition: patientPosition.trim() || undefined,
-        inspectionFindings: inspectionFindings.trim() || undefined,
-        palpationFindings: palpationFindings.trim() || undefined,
-        percussionFindings: percussionFindings.trim() || undefined,
-        auscultationFindings: currentAuscultation.trim() || undefined,
-        clinicalNotes: (clinicalNotes.trim() || preliminaryDiag.trim()) || undefined,
-      });
+      // 1. Lưu Mục 1–3 vào bảng clinical_examinations (tách biệt hoàn toàn clinical_notes của Mục 3 với Mục 5)
+      if (hasExamFields) {
+        await clinicalExamService.upsertClinicalExamination(encounterId, {
+          patientPosition: patientPosition.trim() || undefined,
+          inspectionFindings: inspectionFindings.trim() || undefined,
+          palpationFindings: palpationFindings.trim() || undefined,
+          percussionFindings: percussionFindings.trim() || undefined,
+          auscultationFindings: currentAuscultation.trim() || undefined,
+          clinicalNotes: clinicalNotes.trim() || undefined,
+        });
+      }
 
-      setSaveSuccessMsg('Đã lưu đầy đủ kết quả khám thực thể lâm sàng thành công!');
+      // 2. Lưu Mục 5 (Chẩn đoán sơ bộ) vào bảng diagnoses (diagnosisType === 'initial')
+      if (hasInitialDiagnosis) {
+        await initialDiagnosisService.upsertInitialDiagnosis(encounterId, preliminaryDiag);
+      }
 
-      // Gọi lại GET để đồng bộ dữ liệu mới nhất từ DB
-      const reloaded = await clinicalExamService.getClinicalExamination(encounterId);
+      setSaveSuccessMsg('Đã lưu đầy đủ kết quả khám thực thể lâm sàng và chẩn đoán sơ bộ thành công!');
+
+      // 3. Gọi lại GET để đồng bộ dữ liệu mới nhất từ DB cho đúng từng mục
+      const [reloaded, reloadedDiags] = await Promise.all([
+        clinicalExamService.getClinicalExamination(encounterId),
+        initialDiagnosisService.getByEncounterId(encounterId, { diagnosisType: 'initial' }).catch(() => []),
+      ]);
       if (reloaded) {
         if (setPatientPosition && reloaded.patientPosition !== undefined) {
           setPatientPosition(reloaded.patientPosition || '');
@@ -158,9 +173,10 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
         if (setClinicalNotes && reloaded.clinicalNotes !== undefined) {
           setClinicalNotes(reloaded.clinicalNotes || '');
         }
-        if (setPreliminaryDiag && reloaded.clinicalNotes && !preliminaryDiag) {
-          setPreliminaryDiag(reloaded.clinicalNotes);
-        }
+      }
+      const savedDiagText = extractPrimaryInitialDiagnosisText(reloadedDiags);
+      if (setPreliminaryDiag && savedDiagText) {
+        setPreliminaryDiag(savedDiagText);
       }
     } catch (err: any) {
       const msg = err?.data?.message || err?.message || 'Không thể lưu khám lâm sàng';
