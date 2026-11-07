@@ -23,6 +23,18 @@ export interface PaymentData {
   createdAt: string;
 }
 
+export interface InvoicePatientData {
+  patientId: string;
+  patientCode: string;
+  fullName: string;
+  phoneNumber?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  address?: string;
+  identityNumber?: string;
+  insuranceNumber?: string;
+}
+
 export interface InvoiceData {
   invoiceId: string;
   invoiceCode: string;
@@ -40,6 +52,11 @@ export interface InvoiceData {
   createdAt: string;
   items: InvoiceItemData[];
   payments: PaymentData[];
+  patient?: InvoicePatientData;
+  encounter?: {
+    encounterId: string;
+    encounterCode: string;
+  };
 }
 
 export interface GenerateInvoicePayload {
