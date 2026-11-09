@@ -24,6 +24,7 @@ import { ReceptionBillingWorkspaceView } from './modules/reception/ReceptionBill
 import { NurseWorkspaceView } from './modules/nurse/NurseWorkspaceView';
 import { LabWorkspaceView } from './modules/lab/LabWorkspaceView';
 import { AdminRealtimeWorkspaceView } from './modules/admin/AdminRealtimeWorkspaceView';
+import { AdminStatisticsWorkspaceView } from './modules/admin/AdminStatisticsWorkspaceView';
 import { AdminSecurityWorkspaceView } from './modules/admin/AdminSecurityWorkspaceView';
 import { PatientIntakeWorkspaceView } from './modules/patient/PatientIntakeWorkspaceView';
 import { PatientMedicalWorkspaceView } from './modules/patient/PatientMedicalWorkspaceView';
@@ -121,7 +122,7 @@ function App() {
               <Route path="/quan-tri/tong-quan" element={<AdminRealtimeWorkspaceView />} />
               <Route path="/quan-tri/phong-lab" element={<AdminRealtimeWorkspaceView />} />
               <Route path="/quan-tri/bac-si" element={<AdminRealtimeWorkspaceView />} />
-              <Route path="/quan-tri/bao-cao" element={<AdminRealtimeWorkspaceView />} />
+              <Route path="/quan-tri/bao-cao" element={<AdminStatisticsWorkspaceView />} />
               <Route path="/quan-tri/nhat-ky-he-thong" element={<AdminSecurityWorkspaceView />} />
               <Route path="/quan-tri/fhir-log" element={<AdminSecurityWorkspaceView />} />
             </Route>

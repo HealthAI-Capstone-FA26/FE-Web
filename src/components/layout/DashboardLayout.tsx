@@ -28,6 +28,7 @@ import {
   Megaphone,
   PanelLeft,
   PanelLeftClose,
+  BarChart3,
   Lock,
   X
 } from 'lucide-react';
@@ -161,6 +162,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         return ShieldCheck;
       case 'Sparkles':
         return Sparkles;
+      case 'BarChart3':
+        return BarChart3;
       case 'LayoutDashboard':
       default:
         return LayoutDashboard;
