@@ -216,18 +216,4 @@ export const testOrderService = {
   ): Promise<AiClinicalSummaryData | null> {
     return doctorAiService.getAiClinicalSummary(encounterId);
   },
-
-  /** @deprecated Use doctorAiService.generateAiDiagnosisSuggestions instead */
-  async generateAiDiagnosisSuggestions(
-    encounterId: string
-  ): Promise<AiDiagnosisSuggestionItem[]> {
-    return doctorAiService.generateAiDiagnosisSuggestions(encounterId);
-  },
-
-  /** @deprecated Use doctorAiService.getAiDiagnosisSuggestions instead */
-  async getAiDiagnosisSuggestions(
-    encounterId: string
-  ): Promise<AiDiagnosisSuggestionItem[]> {
-    return doctorAiService.getAiDiagnosisSuggestions(encounterId);
-  },
 };

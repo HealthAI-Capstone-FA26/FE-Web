@@ -7,7 +7,7 @@ import {
   Stethoscope, HeartPulse,
 } from 'lucide-react';
 import { patientService } from '../../services/patient/patient.service';
-import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../services/doctor/doctor.service';
+import { doctorService, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { appointmentService } from '../../services/appointment/appointment.service';
 import { queueTicketService } from '../../services/queue/queue-ticket.service';
 
@@ -43,20 +43,6 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
   const [selectedPatient, setSelectedPatient] = useState<PatientOption | null>(initialPatient || null);
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
 
-  // Departments (Instantly populated from preloaded cache on login)
-  const [departments, setDepartments] = useState<DepartmentResponse[]>(() => {
-    const cached = doctorService.getCachedDepartments();
-    return cached ? cached.filter((d) => d.isActive !== false) : [];
-  });
-  const [isLoadingDepartments, setIsLoadingDepartments] = useState<boolean>(() => {
-    return !doctorService.getCachedDepartments();
-  });
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>(() => {
-    const cached = doctorService.getCachedDepartments();
-    const active = cached ? cached.filter((d) => d.isActive !== false) : [];
-    return active.length > 0 ? active[0].departmentId : '';
-  });
-
   // Reason & Priority
   const [reasonForVisit, setReasonForVisit] = useState('');
   const [priority, setPriority] = useState<'normal' | 'urgent' | 'emergency'>('normal');
@@ -80,30 +66,8 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
     }
   }, [initialPatient]);
 
-  // Load Departments on mount (fast resolve if preloaded)
+  // Load Doctors on mount
   useEffect(() => {
-    const fetchDepartments = async () => {
-      const hasCached = !!doctorService.getCachedDepartments();
-      if (!hasCached) {
-        setIsLoadingDepartments(true);
-      }
-      try {
-        const data = await doctorService.getDepartments();
-        const activeDeps = (data || []).filter((d) => d.isActive !== false);
-        setDepartments(activeDeps);
-        setSelectedDepartmentId((prev) => {
-          if (prev && activeDeps.some((d) => d.departmentId === prev)) return prev;
-          return activeDeps.length > 0 ? activeDeps[0].departmentId : '';
-        });
-      } catch (err: any) {
-        console.error('Lỗi tải danh sách khoa phòng:', err);
-      } finally {
-        setIsLoadingDepartments(false);
-      }
-    };
-    fetchDepartments();
-
-    // Fetch doctors
     doctorService.getDoctors({ isActive: true })
       .then((res) => {
         const docs = Array.isArray(res) ? res : [];
@@ -112,7 +76,9 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
           setSelectedDoctorId((prev) => prev || docs[0].doctorId);
         }
       })
-      .catch((err) => console.error('Lỗi tải danh sách bác sĩ:', err));
+      .catch((err: any) => {
+        console.error('Lỗi tải danh sách bác sĩ:', err);
+      });
   }, []);
 
   // Debounced Patient Search
@@ -224,10 +190,6 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
     window.print();
   };
 
-  const selectedDepartment = useMemo(() => {
-    return departments.find((d) => d.departmentId === selectedDepartmentId);
-  }, [departments, selectedDepartmentId]);
-
   // Compute Age
   const patientAge = useMemo(() => {
     if (!selectedPatient?.dateOfBirth) return null;
@@ -323,14 +285,8 @@ export const ReceptionWalkinBookingForm: React.FC<ReceptionWalkinBookingFormProp
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                   <span className="text-slate-500 font-medium">Chuyên khoa khám:</span>
-                  <span className="font-bold text-indigo-700">{selectedDepartment?.departmentName}</span>
+                  <span className="font-bold text-indigo-700">Nội Tim Mạch</span>
                 </div>
-                {selectedDepartment?.roomLocation && (
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                    <span className="text-slate-500 font-medium">Phòng khám:</span>
-                    <span className="font-bold text-slate-800">{selectedDepartment.roomLocation}</span>
-                  </div>
-                )}
                 <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                   <span className="text-slate-500 font-medium">Mức độ ưu tiên:</span>
                   <span className="font-bold capitalize text-slate-800">

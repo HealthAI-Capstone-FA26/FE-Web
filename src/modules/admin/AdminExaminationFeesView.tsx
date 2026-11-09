@@ -19,18 +19,15 @@ import {
   ToggleLeft,
   ToggleRight
 } from 'lucide-react';
-import { DepartmentIcon } from '../../components/common/DepartmentIcon';
 import {
   examinationFeeService,
   type ExaminationFeeItem,
   type CreateExaminationFeeData,
   type UpdateExaminationFeeData
 } from '../../services/payment/examination-fee.service';
-import { doctorService, type DepartmentResponse } from '../../services/doctor/doctor.service';
 
 export const AdminExaminationFeesView: React.FC = () => {
   const [fees, setFees] = useState<ExaminationFeeItem[]>([]);
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -38,7 +35,6 @@ export const AdminExaminationFeesView: React.FC = () => {
 
   // Filters
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [selectedDeptId, setSelectedDeptId] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
 
   // Modal States
@@ -48,14 +44,12 @@ export const AdminExaminationFeesView: React.FC = () => {
   // Form State for Create/Edit
   const [formData, setFormData] = useState<{
     feeName: string;
-    departmentId: string;
     feeType: string;
     price: number | '';
     effectiveFrom: string;
     isActive: boolean;
   }>({
     feeName: '',
-    departmentId: '',
     feeType: 'standard',
     price: 150000,
     effectiveFrom: new Date().toISOString().split('T')[0],
@@ -72,12 +66,8 @@ export const AdminExaminationFeesView: React.FC = () => {
     setErrorMessage(null);
 
     try {
-      const [feeList, deptList] = await Promise.all([
-        examinationFeeService.getExaminationFees(),
-        doctorService.getDepartments().catch(() => []),
-      ]);
+      const feeList = await examinationFeeService.getExaminationFees();
       setFees(feeList || []);
-      setDepartments(deptList || []);
     } catch (err: any) {
       setErrorMessage(err?.message || 'Không thể tải danh sách mức phí khám. Vui lòng thử lại.');
     } finally {
@@ -97,37 +87,29 @@ export const AdminExaminationFeesView: React.FC = () => {
       const matchesSearch =
         !searchTerm.trim() ||
         fee.feeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        fee.feeCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (fee.department?.departmentName || '').toLowerCase().includes(searchTerm.toLowerCase());
-
-      // Department Filter
-      const matchesDept =
-        selectedDeptId === 'all' ||
-        (selectedDeptId === 'global' ? !fee.departmentId : fee.departmentId === selectedDeptId);
+        fee.feeCode.toLowerCase().includes(searchTerm.toLowerCase());
 
       // Status Filter
       const matchesStatus =
         selectedStatus === 'all' ||
         (selectedStatus === 'active' ? fee.isActive : !fee.isActive);
 
-      return matchesSearch && matchesDept && matchesStatus;
+      return matchesSearch && matchesStatus;
     });
-  }, [fees, searchTerm, selectedDeptId, selectedStatus]);
+  }, [fees, searchTerm, selectedStatus]);
 
   // Statistics
   const stats = useMemo(() => {
     const total = fees.length;
     const active = fees.filter((f) => f.isActive).length;
     const inactive = fees.filter((f) => !f.isActive).length;
-    const global = fees.filter((f) => !f.departmentId).length;
-    return { total, active, inactive, global };
+    return { total, active, inactive };
   }, [fees]);
 
   // Open Modal Create
   const handleOpenCreateModal = () => {
     setFormData({
       feeName: '',
-      departmentId: '',
       feeType: 'standard',
       price: 150000,
       effectiveFrom: new Date().toISOString().split('T')[0],
@@ -143,7 +125,6 @@ export const AdminExaminationFeesView: React.FC = () => {
     setEditingFee(fee);
     setFormData({
       feeName: fee.feeName,
-      departmentId: fee.departmentId || '',
       feeType: fee.feeType || 'standard',
       price: fee.price,
       effectiveFrom: fee.effectiveFrom ? fee.effectiveFrom.split('T')[0] : new Date().toISOString().split('T')[0],
@@ -173,7 +154,6 @@ export const AdminExaminationFeesView: React.FC = () => {
         // Update
         const payload: UpdateExaminationFeeData = {
           feeName: formData.feeName.trim(),
-          departmentId: formData.departmentId ? formData.departmentId : null,
           feeType: formData.feeType,
           price: Number(formData.price),
           effectiveFrom: formData.effectiveFrom,
@@ -185,7 +165,6 @@ export const AdminExaminationFeesView: React.FC = () => {
         // Create
         const payload: CreateExaminationFeeData = {
           feeName: formData.feeName.trim(),
-          departmentId: formData.departmentId ? formData.departmentId : undefined,
           feeType: formData.feeType,
           price: Number(formData.price),
           effectiveFrom: formData.effectiveFrom,
@@ -274,7 +253,7 @@ export const AdminExaminationFeesView: React.FC = () => {
       )}
 
       {/* Header & Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tổng số mức phí</p>
@@ -304,16 +283,6 @@ export const AdminExaminationFeesView: React.FC = () => {
             <XCircle className="w-5 h-5" />
           </div>
         </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Phí chung toàn viện</p>
-            <h4 className="text-2xl font-black text-purple-700 mt-0.5">{stats.global}</h4>
-          </div>
-          <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
-            <DepartmentIcon className="w-5 h-5" />
-          </div>
-        </div>
       </div>
 
       {/* Control Toolbar */}
@@ -324,7 +293,7 @@ export const AdminExaminationFeesView: React.FC = () => {
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
             <input
               type="text"
-              placeholder="Tìm kiếm theo mã phí, tên phí hoặc tên khoa..."
+              placeholder="Tìm kiếm theo mã phí, tên mức phí khám..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-slate-50 text-slate-900 pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:bg-white focus:border-blue-600 transition-all"
@@ -333,24 +302,6 @@ export const AdminExaminationFeesView: React.FC = () => {
 
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Dept Filter */}
-            <div className="flex items-center space-x-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700">
-              <DepartmentIcon className="w-4 h-4" />
-              <select
-                value={selectedDeptId}
-                onChange={(e) => setSelectedDeptId(e.target.value)}
-                className="bg-transparent border-none outline-none font-bold text-slate-800 cursor-pointer text-xs"
-              >
-                <option value="all">Tất cả Khoa phòng</option>
-                <option value="global">🌐 Phí chung toàn viện</option>
-                {departments.map((d) => (
-                  <option key={d.departmentId} value={d.departmentId}>
-                    {d.departmentName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* Status Filter */}
             <div className="flex items-center space-x-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700">
               <Filter className="w-3.5 h-3.5 text-slate-400" />
@@ -411,7 +362,6 @@ export const AdminExaminationFeesView: React.FC = () => {
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-extrabold uppercase tracking-wider">
                   <th className="py-3.5 px-4">Mã Phí</th>
                   <th className="py-3.5 px-4">Tên Mức Phí Khám</th>
-                  <th className="py-3.5 px-4">Khoa Áp Dụng</th>
                   <th className="py-3.5 px-4">Loại Phí</th>
                   <th className="py-3.5 px-4 text-right">Đơn Giá (VNĐ)</th>
                   <th className="py-3.5 px-4">Ngày Hiệu Lực</th>
@@ -433,20 +383,6 @@ export const AdminExaminationFeesView: React.FC = () => {
                     {/* Fee Name */}
                     <td className="py-3 px-4 font-extrabold text-slate-900">
                       <div>{fee.feeName}</div>
-                    </td>
-
-                    {/* Department */}
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      {fee.department ? (
-                        <div className="flex items-center space-x-1.5 text-slate-800 font-bold">
-                          <DepartmentIcon className="w-4 h-4" />
-                          <span>{fee.department.departmentName}</span>
-                        </div>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200/60 inline-flex items-center space-x-1">
-                          <span>🌐 Toàn bệnh viện</span>
-                        </span>
-                      )}
                     </td>
 
                     {/* Fee Type */}
@@ -554,36 +490,18 @@ export const AdminExaminationFeesView: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">Khoa áp dụng</label>
-                  <select
-                    value={formData.departmentId}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, departmentId: e.target.value }))}
-                    className="w-full bg-slate-50 text-slate-900 p-2.5 rounded-xl border border-slate-200 outline-none focus:bg-white focus:border-blue-700 transition-all font-semibold"
-                  >
-                    <option value="">🌐 Toàn bệnh viện (Phí chung)</option>
-                    {departments.map((d) => (
-                      <option key={d.departmentId} value={d.departmentId}>
-                        {d.departmentName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">Phân loại phí</label>
-                  <select
-                    value={formData.feeType}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, feeType: e.target.value }))}
-                    className="w-full bg-slate-50 text-slate-900 p-2.5 rounded-xl border border-slate-200 outline-none focus:bg-white focus:border-blue-700 transition-all font-semibold"
-                  >
-                    <option value="standard">Khám Thường (Standard)</option>
-                    <option value="urgent">Khám Cấp Cứu (Urgent)</option>
-                    <option value="specialist">Khám Chuyên Khoa (Specialist)</option>
-                    <option value="vip">Khám VIP (VIP)</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Phân loại phí</label>
+                <select
+                  value={formData.feeType}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, feeType: e.target.value }))}
+                  className="w-full bg-slate-50 text-slate-900 p-2.5 rounded-xl border border-slate-200 outline-none focus:bg-white focus:border-blue-700 transition-all font-semibold"
+                >
+                  <option value="standard">Khám Thường (Standard)</option>
+                  <option value="urgent">Khám Cấp Cứu (Urgent)</option>
+                  <option value="specialist">Khám Chuyên Khoa (Specialist)</option>
+                  <option value="vip">Khám VIP (VIP)</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">

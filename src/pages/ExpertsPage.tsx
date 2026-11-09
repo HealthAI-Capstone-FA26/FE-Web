@@ -7,14 +7,13 @@ import {
   Stethoscope,
   Calendar,
   ShieldCheck,
-  Building2,
   X,
   User,
   Loader2,
   CheckCircle2,
   Sparkles
 } from 'lucide-react';
-import { doctorService, type DoctorResponse, type DepartmentResponse } from '../services/doctor/doctor.service';
+import { doctorService, type DoctorResponse } from '../services/doctor/doctor.service';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,11 +22,9 @@ export const ExpertsPage: React.FC = () => {
   const navigate = useNavigate();
 
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
-  const [allDepartments, setAllDepartments] = useState<DepartmentResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [selectedDept, setSelectedDept] = useState<string>('all');
-  const [filterType, setFilterType] = useState<'specialization' | 'department'>('specialization');
+  const [selectedSpecialization, setSelectedSpecialization] = useState<string>('all');
 
   // Modal State for Doctor Detail (GET /doctors/:id)
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorResponse | null>(null);
@@ -50,7 +47,6 @@ export const ExpertsPage: React.FC = () => {
 
   useEffect(() => {
     fetchDoctors();
-    doctorService.getDepartments().then((depts) => setAllDepartments(depts || [])).catch(() => []);
   }, []);
 
   // Unique specializations list
@@ -62,28 +58,6 @@ export const ExpertsPage: React.FC = () => {
     return Array.from(set);
   }, [doctors]);
 
-  // Unique hospital departments list (with departmentCode and departmentName)
-  const hospitalDepartmentsList = useMemo(() => {
-    if (allDepartments.length > 0) {
-      return allDepartments.map((dept) => ({
-        code: dept.departmentCode,
-        name: dept.departmentName,
-      }));
-    }
-    const map = new Map<string, { code: string; name: string }>();
-    doctors.forEach((d) => {
-      d.doctorDepartments?.forEach((dd) => {
-        if (dd.department?.departmentName && !map.has(dd.department.departmentName)) {
-          map.set(dd.department.departmentName, {
-            code: dd.department.departmentCode || '',
-            name: dd.department.departmentName,
-          });
-        }
-      });
-    });
-    return Array.from(map.values());
-  }, [doctors, allDepartments]);
-
   // Filtered doctors client-side
   const filteredDoctors = useMemo(() => {
     return doctors.filter((doc) => {
@@ -94,24 +68,16 @@ export const ExpertsPage: React.FC = () => {
         (doc.title && doc.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (doc.doctorCode && doc.doctorCode.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      let matchesDept = true;
-      if (selectedDept !== 'all') {
-        if (filterType === 'specialization') {
-          matchesDept = Boolean(doc.specialization && doc.specialization.toLowerCase() === selectedDept.toLowerCase());
-        } else {
-          matchesDept = Boolean(
-            doc.doctorDepartments?.some(
-              (dd) =>
-                dd.department?.departmentName.toLowerCase() === selectedDept.toLowerCase() ||
-                dd.department?.departmentCode.toLowerCase() === selectedDept.toLowerCase()
-            )
-          );
-        }
+      let matchesSpec = true;
+      if (selectedSpecialization !== 'all') {
+        matchesSpec = Boolean(
+          doc.specialization && doc.specialization.toLowerCase() === selectedSpecialization.toLowerCase()
+        );
       }
 
-      return matchesSearch && matchesDept;
+      return matchesSearch && matchesSpec;
     });
-  }, [doctors, searchTerm, selectedDept, filterType]);
+  }, [doctors, searchTerm, selectedSpecialization]);
 
   // Open Doctor Detail Modal (Calls GET /doctors/:id)
   const handleOpenDetail = async (doctorId: string) => {
@@ -131,17 +97,11 @@ export const ExpertsPage: React.FC = () => {
 
   const handleBooking = (doc: DoctorResponse) => {
     setIsModalOpen(false);
-    const primaryDeptId =
-      doc.doctorDepartments?.find((dd) => dd.isPrimary)?.departmentId ||
-      doc.doctorDepartments?.[0]?.departmentId ||
-      '';
-
     if (!user) {
-      // Khách vãng lai: Điều hướng về Trang chủ và tự động chọn sẵn Bác sĩ + Chuyên khoa
+      // Khách vãng lai: Điều hướng về Trang chủ và tự động chọn sẵn Bác sĩ
       navigate('/', {
         state: {
           doctorId: doc.doctorId,
-          departmentId: primaryDeptId,
         },
       });
     } else {
@@ -149,7 +109,6 @@ export const ExpertsPage: React.FC = () => {
       navigate('/benh-nhan/lich-hen', {
         state: {
           doctorId: doc.doctorId,
-          departmentId: primaryDeptId,
         },
       });
     }
@@ -197,87 +156,31 @@ export const ExpertsPage: React.FC = () => {
               )}
             </div>
 
-            {/* Filter Mode Selector & Pills */}
+            {/* Filter Pills */}
             <div className="flex flex-col items-center space-y-3 pt-2">
-              {/* Segmented Control Toggle */}
-              <div className="inline-flex p-1 rounded-2xl bg-slate-100 border border-slate-200/80 text-xs font-bold shadow-xs">
-                <button
-                  onClick={() => {
-                    setFilterType('specialization');
-                    setSelectedDept('all');
-                  }}
-                  className={`px-4 py-2 rounded-xl transition-all cursor-pointer border-none ${
-                    filterType === 'specialization'
-                      ? 'bg-white text-blue-700 shadow-xs font-extrabold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Theo Chuyên khoa ({specializationsList.length})
-                </button>
-                <button
-                  onClick={() => {
-                    setFilterType('department');
-                    setSelectedDept('all');
-                  }}
-                  className={`px-4 py-2 rounded-xl transition-all cursor-pointer border-none ${
-                    filterType === 'department'
-                      ? 'bg-white text-blue-700 shadow-xs font-extrabold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Theo Khoa công tác ({hospitalDepartmentsList.length})
-                </button>
-              </div>
-
-              {/* Dynamic Filter Pills */}
               <div className="flex flex-wrap items-center justify-center gap-2 max-w-4xl mx-auto py-2">
                 <button
-                  onClick={() => setSelectedDept('all')}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${
-                    selectedDept === 'all'
+                  onClick={() => setSelectedSpecialization('all')}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${selectedSpecialization === 'all'
                       ? 'bg-blue-700 text-white border-blue-700 shadow-xs'
                       : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                  }`}
+                    }`}
                 >
-                  {filterType === 'specialization' ? 'Tất cả chuyên khoa' : 'Tất cả khoa công tác'} ({doctors.length})
+                  Tất cả chuyên khoa ({doctors.length})
                 </button>
 
-                {filterType === 'specialization'
-                  ? specializationsList.map((spec, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSelectedDept(spec)}
-                        className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${
-                          selectedDept === spec
-                            ? 'bg-blue-700 text-white border-blue-700 shadow-xs'
-                            : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        {spec}
-                      </button>
-                    ))
-                  : hospitalDepartmentsList.map((dept, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSelectedDept(dept.name)}
-                        className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1.5 ${
-                          selectedDept === dept.name
-                            ? 'bg-blue-700 text-white border-blue-700 shadow-xs'
-                            : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        {dept.code && (
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-black uppercase ${
-                              selectedDept === dept.name ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700 border border-blue-200/60'
-                            }`}
-                          >
-                            {dept.code}
-                          </span>
-                        )}
-                        <span>{dept.name}</span>
-                      </button>
-                    ))}
+                {specializationsList.map((spec, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedSpecialization(spec)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${selectedSpecialization === spec
+                        ? 'bg-blue-700 text-white border-blue-700 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                      }`}
+                  >
+                    {spec}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -309,7 +212,7 @@ export const ExpertsPage: React.FC = () => {
             <button
               onClick={() => {
                 setSearchTerm('');
-                setSelectedDept('all');
+                setSelectedSpecialization('all');
               }}
               className="px-4 py-2 bg-blue-600 text-white font-bold text-xs rounded-xl hover:bg-blue-700 transition-colors border-none cursor-pointer"
             >
@@ -319,8 +222,6 @@ export const ExpertsPage: React.FC = () => {
         ) : (
           <div className="space-y-6 max-w-5xl mx-auto">
             {filteredDoctors.map((doc) => {
-              const primaryDeptObj = doc.doctorDepartments?.find(d => d.isPrimary) || doc.doctorDepartments?.[0];
-              const deptName = primaryDeptObj?.department?.departmentName || null;
               const specializationName = doc.specialization || null;
               const displayTitle = doc.title ? `${doc.title} ${doc.fullName}` : doc.fullName;
 
@@ -357,14 +258,6 @@ export const ExpertsPage: React.FC = () => {
                       {specializationName && (
                         <p className="text-xs sm:text-sm italic font-semibold text-blue-700">
                           Chuyên khoa: {specializationName}
-                        </p>
-                      )}
-
-                      {/* Department (Khoa công tác) */}
-                      {deptName && (
-                        <p className="text-xs sm:text-sm italic font-medium text-slate-600 flex items-center gap-1.5">
-                          <Building2 className="w-4 h-4 text-slate-400 shrink-0 not-italic" />
-                          <span>Khoa công tác: {deptName} — Phòng khám Tim mạch 4AM Care</span>
                         </p>
                       )}
 
@@ -464,21 +357,6 @@ export const ExpertsPage: React.FC = () => {
                       <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Chuyên Khoa Phụ Trách</span>
                         <p className="text-xs font-bold text-slate-800">{selectedDoctor.specialization || 'Tổng hợp'}</p>
-                      </div>
-
-                      <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-1 sm:col-span-2">
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Danh Sách Khoa Công Tác</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {selectedDoctor.doctorDepartments && selectedDoctor.doctorDepartments.length > 0 ? (
-                            selectedDoctor.doctorDepartments.map((dd, idx) => (
-                              <span key={idx} className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700">
-                                {dd.department?.departmentName || 'Khoa Nội'} {dd.isPrimary ? '(Chính)' : ''}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-xs text-slate-500">Khoa Khám Bệnh Tổng Hợp</span>
-                          )}
-                        </div>
                       </div>
 
                       <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-100 space-y-1 sm:col-span-2">

@@ -95,7 +95,7 @@ export const Header = () => {
                   <button
                     onClick={() => {
                       logout();
-                      navigate('/', { replace: true });
+                      navigate('/login', { replace: true });
                     }}
                     className="text-[10px] text-slate-400 hover:text-rose-600 font-bold uppercase tracking-wider ml-1 cursor-pointer bg-transparent border-none outline-none"
                     title="Đăng xuất"
