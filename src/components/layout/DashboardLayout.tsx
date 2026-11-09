@@ -267,7 +267,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                       onClick={() => {
                         logout();
                         setIsRoleDropdownOpen(false);
-                        navigate('/', { replace: true });
+                        navigate('/login', { replace: true });
                       }}
                       className="w-full px-4 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center space-x-2 cursor-pointer border-none bg-transparent"
                     >

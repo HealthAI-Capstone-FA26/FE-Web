@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { queueTicketService, type QueueTicketItem } from '../../services/queue/queue-ticket.service';
-import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../services/doctor/doctor.service';
+import { doctorService, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { encounterService } from '../../services/encounter/encounter.service';
 import { invoiceService, type InvoiceData } from '../../services/payment/invoice.service';
 import { type AppointmentItem } from '../../services/appointment/appointment.service';
@@ -217,7 +217,6 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   }, []);
 
   const [tickets, setTickets] = useState<QueueTicketItem[]>([]);
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isCallingNext, setIsCallingNext] = useState<boolean>(false);
@@ -257,18 +256,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   useEffect(() => {
     const fetchMeta = async () => {
       try {
-        const cachedDepts = doctorService.getCachedDepartments();
-        if (cachedDepts) {
-          setDepartments(cachedDepts);
-        } else {
-          const depts = await doctorService.getDepartments();
-          setDepartments(depts);
-        }
-
         const docs = await doctorService.getDoctors();
         setDoctors(docs);
       } catch (err) {
-        console.error('Lỗi tải danh mục khoa/bác sĩ:', err);
+        console.error('Lỗi tải danh mục bác sĩ:', err);
       }
     };
     fetchMeta();

@@ -69,19 +69,6 @@ export function getSpecializationLabel(spec?: string | null): string {
 }
 
 export const doctorService = {
-  // Phòng khám Tim mạch đơn chuyên khoa: getDepartments trả về rỗng
-  async getDepartments(): Promise<DepartmentResponse[]> {
-    return [];
-  },
-
-  getCachedDepartments(): DepartmentResponse[] | null {
-    return [];
-  },
-
-  async prefetchDepartments(): Promise<DepartmentResponse[]> {
-    return [];
-  },
-
   // GET /doctors — Danh sách bác sĩ (hỗ trợ tìm theo userId)
   async getDoctors(query?: SearchDoctorQuery): Promise<DoctorResponse[]> {
     const params = new URLSearchParams();

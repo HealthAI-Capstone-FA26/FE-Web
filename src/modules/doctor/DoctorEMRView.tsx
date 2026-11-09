@@ -58,7 +58,7 @@ let globalPatientWorkflowStates: Record<string, PatientWorkflowState> = {};
 let globalLastSelectedPatientId: string = '';
 
 import { AiImagingAnalysisCard } from './components/AiImagingAnalysisCard';
-import { ClinicalExamForm, type DynamicAiDiagnosis } from './components/ClinicalExamForm';
+import { ClinicalExamForm } from './components/ClinicalExamForm';
 import { TestOrderCreationCard } from './components/TestOrderCreationCard';
 import { TestOrderHistoryList } from './components/TestOrderHistoryList';
 import { OnHoldBanner, ResolveExceptionModal } from '../../components/lab-exception';
@@ -491,7 +491,6 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
   // 3. Fetch full Case Overview payload via GET /api/v1/doctor-examination/encounters/{id}/overview
   const [caseOverview, setCaseOverview] = useState<CaseOverviewData | null>(() => initCached?.caseOverview || null);
   const [isLoadingOverview, setIsLoadingOverview] = useState<boolean>(() => !initCached?.caseOverview);
-  const [isGeneratingAiDiagnosis, setIsGeneratingAiDiagnosis] = useState<boolean>(false);
 
   // 3.1 Appointment State & Start Consultation Handler
   const [currentAppointment, setCurrentAppointment] = useState<AppointmentItem | null>(null);
@@ -913,86 +912,6 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
   const isForCurrentPatient = currentEncounterOnHoldTasks.length > 0;
 
 
-
-  // Gọi API kích hoạt AI gợi ý chẩn đoán sơ bộ
-  const handleTriggerAiDiagnosis = async () => {
-    if (!activeEncounterId) return;
-    setIsGeneratingAiDiagnosis(true);
-    try {
-      await doctorAiService.generateAiDiagnosisSuggestions(activeEncounterId);
-      await fetchCaseOverview(activeEncounterId);
-    } catch (err) {
-      console.warn('Kích hoạt AI gợi ý chẩn đoán hoàn tất:', err);
-    } finally {
-      setIsGeneratingAiDiagnosis(false);
-    }
-  };
-
-
-
-  // Top chẩn đoán sơ bộ do AI đề xuất (kèm độ tin cậy và lập luận y khoa)
-  const dynamicAiDiagnosisList: DynamicAiDiagnosis[] = useMemo(() => {
-    if (verifiedCaseOverview?.aiDiagnosisSuggestions && verifiedCaseOverview.aiDiagnosisSuggestions.length > 0) {
-      return verifiedCaseOverview.aiDiagnosisSuggestions.map((s, idx) => ({
-        id: s.suggestionId || `ai-diag-${idx}`,
-        icd10Code: s.icd10Code || s.icd10?.icd10Code || '---',
-        diseaseName: s.icd10?.descriptionVi || s.icd10?.descriptionEn || s.icd10Code,
-        confidenceScore: Math.round(Number(s.confidenceScore) <= 1 ? Number(s.confidenceScore) * 100 : Number(s.confidenceScore)),
-        rationale: s.rationale || 'Gợi ý dựa trên tổng hợp triệu chứng lâm sàng và chỉ số sinh hiệu.',
-      }));
-    }
-
-    const symp = (verifiedCaseOverview?.chiefComplaint?.symptoms || verifiedEncounterDetail?.chiefComplaint?.symptoms || currentPatient?.symptoms || '').toLowerCase();
-    const tempVal = Number(activeTemp) || currentPatient?.vitals?.temp || 0;
-
-    if (symp.includes('ho') || symp.includes('sốt') || symp.includes('thở') || symp.includes('phổi') || tempVal >= 38.5) {
-      return [
-        {
-          id: 'ai-diag-1',
-          icd10Code: 'J20.9',
-          diseaseName: 'Viêm phế quản cấp (Acute Bronchitis)',
-          confidenceScore: 94,
-          rationale: 'Bệnh nhân sốt cao, ho kèm khó thở. Cần chụp X-quang ngực thẳng và xét nghiệm máu CBC để đánh giá mức độ nhiễm khuẩn.',
-        },
-        {
-          id: 'ai-diag-2',
-          icd10Code: 'J18.9',
-          diseaseName: 'Theo dõi Viêm phổi cộng đồng',
-          confidenceScore: 78,
-          rationale: 'Thân nhiệt cao bất thường kết hợp triệu chứng hô hấp cần kiểm tra kỹ tổn thương nhu mô phổi.',
-        },
-      ];
-    }
-
-    if (symp.includes('bụng') || symp.includes('dạ dày') || symp.includes('tiêu hóa') || symp.includes('tiêu chảy')) {
-      return [
-        {
-          id: 'ai-diag-g1',
-          icd10Code: 'K29.0',
-          diseaseName: 'Viêm dạ dày - tá tràng cấp tính',
-          confidenceScore: 91,
-          rationale: 'Đau tức vùng thượng vị, triệu chứng tiêu hóa khởi phát cấp tính sau ăn.',
-        },
-        {
-          id: 'ai-diag-g2',
-          icd10Code: 'A09',
-          diseaseName: 'Nhiễm trùng đường ruột / Rối loạn tiêu hóa',
-          confidenceScore: 76,
-          rationale: 'Cần làm xét nghiệm vi sinh phân và sinh hóa máu cơ bản để đánh giá mất nước và điện giải.',
-        },
-      ];
-    }
-
-    return [
-      {
-        id: 'ai-diag-def1',
-        icd10Code: 'R50.9',
-        diseaseName: 'Sốt chưa rõ nguyên nhân / Theo dõi nhiễm siêu vi',
-        confidenceScore: 89,
-        rationale: 'Triệu chứng sốt cấp tính, đề xuất làm xét nghiệm máu CBC và sinh hóa máu cơ bản.',
-      },
-    ];
-  }, [verifiedCaseOverview?.aiDiagnosisSuggestions, verifiedCaseOverview?.chiefComplaint?.symptoms, verifiedEncounterDetail?.chiefComplaint?.symptoms, currentPatient?.symptoms, activeTemp, currentPatient?.vitals?.temp]);
 
   // Tải danh sách các phiếu chỉ định đã lập của ca khám từ API và kiểm tra trạng thái đóng phí
   const fetchEncounterTestOrders = async (encounterId: string) => {
@@ -1509,9 +1428,6 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
                     setClinicalExamNote={setAuscultationFindings}
                     preliminaryDiag={preliminaryDiag}
                     setPreliminaryDiag={setPreliminaryDiag}
-                    dynamicAiDiagnosisList={dynamicAiDiagnosisList}
-                    isGeneratingAiDiagnosis={isGeneratingAiDiagnosis}
-                    onTriggerAiDiagnosis={handleTriggerAiDiagnosis}
                     onQuickDiagnosisSelect={handleQuickDiagnosisSelect}
                     examWarningMsg={examWarningMsg}
                   />

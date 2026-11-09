@@ -50,16 +50,12 @@ interface ClinicalExamFormProps {
   clinicalExamNote?: string;
   setClinicalExamNote?: (val: string) => void;
 
-  // Chẩn đoán sơ bộ & AI
+  // Chẩn đoán sơ bộ
   preliminaryDiag: string;
   setPreliminaryDiag: (val: string) => void;
-  dynamicAiDiagnosisList: DynamicAiDiagnosis[];
-  isGeneratingAiDiagnosis: boolean;
-  onTriggerAiDiagnosis: () => void;
   onQuickDiagnosisSelect: (diagText: string, icd10Code?: string) => void;
   examWarningMsg?: string | null;
 }
-
 
 export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
   encounterId,
@@ -79,9 +75,6 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
   setClinicalExamNote,
   preliminaryDiag,
   setPreliminaryDiag,
-  dynamicAiDiagnosisList,
-  isGeneratingAiDiagnosis,
-  onTriggerAiDiagnosis,
   onQuickDiagnosisSelect,
   examWarningMsg,
 }) => {
@@ -463,76 +456,7 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
         </div>
       </div>
 
-      {/* ── MỤC 4: TOP GỢI Ý CHẨN ĐOÁN SƠ BỘ TỪ AI ── */}
-      <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-200/80 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-purple-700 animate-pulse" />
-            <span className="text-xs font-extrabold text-purple-900">
-              Top Gợi ý Chẩn đoán Sơ bộ từ AI (AI Diagnosis Suggestions):
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={onTriggerAiDiagnosis}
-            disabled={isGeneratingAiDiagnosis}
-            className="px-2.5 py-1 bg-white hover:bg-purple-100 text-purple-700 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer border border-purple-300 shadow-2xs disabled:opacity-50"
-            title="Yêu cầu AI sinh lại danh sách gợi ý chẩn đoán sơ bộ"
-          >
-            <Sparkles className={`w-3 h-3 text-purple-600 ${isGeneratingAiDiagnosis ? 'animate-spin' : ''}`} />
-            <span>{isGeneratingAiDiagnosis ? 'Đang phân tích...' : 'AI Phân tích lại'}</span>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-          {dynamicAiDiagnosisList.map((item) => {
-            const isCurrentlySelected = preliminaryDiag.toLowerCase().includes(item.diseaseName.toLowerCase());
-
-            return (
-              <div
-                key={item.id}
-                className={`p-3 rounded-xl border transition-all space-y-2 bg-white ${isCurrentlySelected ? 'border-purple-600 shadow-xs ring-1 ring-purple-500' : 'border-purple-200/90'
-                  }`}
-              >
-                <div className="flex items-start justify-between gap-1.5">
-                  <span className="font-mono font-extrabold text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200">
-                    {item.icd10Code}
-                  </span>
-                  <span className="text-[10px] font-extrabold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
-                    {item.confidenceScore}% tin cậy
-                  </span>
-                </div>
-
-                <div className="space-y-0.5">
-                  <div className="text-xs font-bold text-slate-800 leading-snug">
-                    {item.diseaseName}
-                  </div>
-                  <p className="text-[10px] text-slate-500 leading-relaxed font-normal">
-                    {item.rationale}
-                  </p>
-                </div>
-
-                <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-[9px] text-slate-400 font-medium">Khuyến nghị chẩn đoán</span>
-                  <button
-                    type="button"
-                    onClick={() => onQuickDiagnosisSelect(item.diseaseName, item.icd10Code)}
-                    className={`px-2.5 py-1 text-[10px] font-bold rounded-lg cursor-pointer border flex items-center gap-1 transition-colors ${isCurrentlySelected
-                        ? 'bg-purple-700 text-white border-purple-700'
-                        : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
-                      }`}
-                  >
-                    <Check className="w-3 h-3" />
-                    <span>{isCurrentlySelected ? 'Đang chọn' : 'Áp dụng chẩn đoán'}</span>
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── MỤC 5: CHẨN ĐOÁN SƠ BỘ CỦA BÁC SĨ ── */}
+      {/* ── MỤC 4: CHẨN ĐOÁN SƠ BỘ CỦA BÁC SĨ ── */}
       <div className="space-y-2 text-xs">
         <label className="block font-bold text-slate-700">
           Chẩn đoán sơ bộ của Bác sĩ (*) (SE02 Initial Diagnosis):
