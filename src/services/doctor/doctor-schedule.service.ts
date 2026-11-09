@@ -61,7 +61,8 @@ export interface AppointmentSlotResponse {
 export interface DoctorScheduleResponse {
   scheduleId: string;
   doctorId: string;
-  departmentId: string;
+  departmentId?: string;
+  roomLocation?: string;
   workDate: string; // ISO string YYYY-MM-DD
   session: ScheduleSession;
   startTime: string;

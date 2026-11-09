@@ -55,11 +55,6 @@ export interface DepartmentResponse {
   isActive: boolean;
 }
 
-export interface AssignDepartmentData {
-  departmentId: string;
-  isPrimary?: boolean;
-}
-
 export const CARDIOLOGY_SPECIALIZATIONS: Record<string, string> = {
   general_cardiology: 'Nội Tim mạch tổng quát',
   interventional: 'Can thiệp Tim mạch',
@@ -74,7 +69,7 @@ export function getSpecializationLabel(spec?: string | null): string {
 }
 
 export const doctorService = {
-  // Bỏ department theo kiến trúc phòng khám Tim mạch mới (SE01-SE07)
+  // Phòng khám Tim mạch đơn chuyên khoa: getDepartments trả về rỗng
   async getDepartments(): Promise<DepartmentResponse[]> {
     return [];
   },
@@ -85,14 +80,6 @@ export const doctorService = {
 
   async prefetchDepartments(): Promise<DepartmentResponse[]> {
     return [];
-  },
-
-  // POST /doctors/:id/departments — Gán bác sĩ vào khoa
-  async assignDoctorDepartment(doctorId: string, data: AssignDepartmentData) {
-    return apiFetch(`/doctors/${doctorId}/departments`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
   },
 
   // GET /doctors — Danh sách bác sĩ (hỗ trợ tìm theo userId)
@@ -150,36 +137,4 @@ export const doctorService = {
       body: JSON.stringify(data),
     });
   },
-
-  // PATCH /doctor-departments/:id — Sửa isPrimary (đổi khoa chính), id dạng "doctorId_departmentId" (chỉ Admin)
-  async updateDoctorDepartment(
-    id: string,
-    isPrimary: boolean
-  ): Promise<{ doctorId: string; departmentId: string; isPrimary: boolean }> {
-    return apiFetch<{ doctorId: string; departmentId: string; isPrimary: boolean }>(
-      `/doctor-departments/${id}`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({ isPrimary }),
-      }
-    );
-  },
-
-  // DELETE /doctor-departments/:id — Gỡ bác sĩ khỏi khoa, id dạng "doctorId_departmentId" (chỉ Admin)
-  async removeDoctorDepartment(id: string): Promise<{ message: string }> {
-    return apiFetch<{ message: string }>(`/doctor-departments/${id}`, {
-      method: 'DELETE',
-    });
-  },
-
-  // GET /departments/:id/doctors — Liệt kê danh sách bác sĩ theo khoa (ưu tiên khoa chính lên trước)
-  async getDoctorsByDepartment(departmentId: string): Promise<any[]> {
-    return apiFetch<any[]>(`/departments/${departmentId}/doctors`, {
-      method: 'GET',
-    });
-  },
 };
-
-export function encodeDoctorDepartmentId(doctorId: string, departmentId: string): string {
-  return `${doctorId}_${departmentId}`;
-}

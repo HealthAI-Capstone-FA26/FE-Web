@@ -260,18 +260,15 @@ export const DoctorScheduleDetailModal: React.FC<DoctorScheduleDetailModalProps>
             </div>
           </div>
 
-          {/* Department */}
+          {/* Room Location */}
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold shrink-0">
               <Building2 className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <div className="text-[10px] text-slate-400 font-medium">Khoa phòng khám</div>
+              <div className="text-[10px] text-slate-400 font-medium">Địa điểm khám</div>
               <div className="font-bold text-slate-900 truncate">
-                {activeSchedule.department?.departmentName || 'Khoa khám bệnh'}
-              </div>
-              <div className="text-[10px] text-slate-500 truncate">
-                {activeSchedule.department?.roomLocation ? `Phòng: ${activeSchedule.department.roomLocation}` : 'Chưa xếp phòng'}
+                {activeSchedule.roomLocation || 'Phòng khám Chuyên khoa Tim mạch'}
               </div>
             </div>
           </div>

@@ -1,31 +1,32 @@
 import React, { useState } from 'react';
 import { Plus, X, Loader2, Save, AlertCircle, Mail, Lock, Phone } from 'lucide-react';
-import { doctorService, type CreateDoctorData, type DepartmentResponse } from '../../../services/doctor/doctor.service';
+import {
+  doctorService,
+  type CreateDoctorData,
+  CARDIOLOGY_SPECIALIZATIONS,
+} from '../../../services/doctor/doctor.service';
 
 interface CreateDoctorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  departments: DepartmentResponse[];
   onSuccess: (message?: string) => void;
 }
 
 export const CreateDoctorModal: React.FC<CreateDoctorModalProps> = ({
   isOpen,
   onClose,
-  departments,
   onSuccess,
 }) => {
   const [formData, setFormData] = useState<CreateDoctorData>({
     fullName: '',
     title: 'ThS.BS',
     licenseNumber: '',
-    specialization: 'Tim mạch',
+    specialization: 'general_cardiology',
     email: '',
     password: '',
     phoneNumber: '',
     isActive: true,
   });
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -59,19 +60,7 @@ export const CreateDoctorModal: React.FC<CreateDoctorModalProps> = ({
 
     try {
       const createdDoctor = await doctorService.createDoctor(payload);
-      let assignedDeptName = '';
-      if (selectedDepartmentId && createdDoctor?.doctorId) {
-        const dept = departments.find((d) => d.departmentId === selectedDepartmentId);
-        if (dept) assignedDeptName = dept.departmentName;
-        await doctorService.assignDoctorDepartment(createdDoctor.doctorId, {
-          departmentId: selectedDepartmentId,
-          isPrimary: true,
-        });
-      }
-      const successMsg = assignedDeptName
-        ? `Đã tạo thành công bác sĩ ${createdDoctor.fullName} và gán vào ${assignedDeptName}!`
-        : `Đã tạo thành công bác sĩ ${createdDoctor.fullName}!`;
-      onSuccess(successMsg);
+      onSuccess(`Đã tạo thành công bác sĩ ${createdDoctor.fullName}!`);
       onClose();
     } catch (err: any) {
       setFormError(err?.message || 'Tạo bác sĩ thất bại. Vui lòng thử lại.');
@@ -135,14 +124,18 @@ export const CreateDoctorModal: React.FC<CreateDoctorModalProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-slate-700 font-bold">Chuyên khoa</label>
-              <input
-                type="text"
-                placeholder="Ví dụ: Tim mạch, Nhi..."
+              <label className="block text-slate-700 font-bold">Chuyên khoa Tim mạch</label>
+              <select
                 value={formData.specialization}
                 onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
                 className="w-full bg-slate-50 text-slate-900 p-2.5 rounded-xl border border-slate-200 outline-none focus:bg-white focus:border-blue-700 transition-all font-semibold"
-              />
+              >
+                {Object.entries(CARDIOLOGY_SPECIALIZATIONS).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -211,24 +204,7 @@ export const CreateDoctorModal: React.FC<CreateDoctorModalProps> = ({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="block text-slate-700 font-bold flex items-center justify-between">
-              <span>Khoa / Phòng ban trực thuộc</span>
-              <span className="text-[10px] text-blue-600 font-medium"></span>
-            </label>
-            <select
-              value={selectedDepartmentId}
-              onChange={(e) => setSelectedDepartmentId(e.target.value)}
-              className="w-full bg-slate-50 text-slate-900 p-2.5 rounded-xl border border-slate-200 outline-none focus:bg-white focus:border-blue-700 transition-all font-semibold"
-            >
-              <option value="">-- Chọn Khoa / Phòng ban (Không bắt buộc) --</option>
-              {departments.map((dept) => (
-                <option key={dept.departmentId} value={dept.departmentId}>
-                  {dept.departmentName} ({dept.departmentCode}) - {dept.roomLocation || 'Chưa xếp phòng'}
-                </option>
-              ))}
-            </select>
-          </div>
+
 
           <div className="flex items-center gap-2 pt-1">
             <input
