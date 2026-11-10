@@ -11,7 +11,7 @@ interface NurseStatsHeaderProps {
   isLoading: boolean;
   onRefresh: () => void;
   activeTab?: string;
-  onSelectTab?: (tab: 'my_waiting' | 'all_waiting' | 'done' | 'abnormal' | 'all') => void;
+  onSelectTab?: (tab: 'waiting' | 'done' | 'abnormal' | 'all') => void;
 }
 
 export const NurseStatsHeader: React.FC<NurseStatsHeaderProps> = ({
@@ -80,9 +80,9 @@ export const NurseStatsHeader: React.FC<NurseStatsHeaderProps> = ({
         </div>
 
         <div
-          onClick={() => onSelectTab?.('all_waiting')}
+          onClick={() => onSelectTab?.('waiting')}
           className={`p-4 bg-amber-50/70 rounded-2xl border transition-all cursor-pointer shadow-2xs flex items-center justify-between hover:scale-[1.01] active:scale-[0.99] ${
-            activeTab === 'all_waiting' ? 'border-amber-500 ring-2 ring-amber-200' : 'border-amber-200/80 hover:border-amber-300'
+            activeTab === 'waiting' ? 'border-amber-500 ring-2 ring-amber-200' : 'border-amber-200/80 hover:border-amber-300'
           }`}
           title="Bấm để xem các ca đang chờ đo"
         >
