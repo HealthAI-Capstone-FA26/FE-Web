@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { User, Stethoscope, Sparkles, FileText } from 'lucide-react';
+import { User, Stethoscope, Sparkles, FileText, Calendar } from 'lucide-react';
 import { Mascot } from 'page-mascot';
 import {
   encounterService,
@@ -67,11 +67,19 @@ import { useOnHoldLabTasks } from '../../hooks/useOnHoldLabTasks';
 
 import { useAuth } from '../../context/AuthContext';
 
+export type DoctorDateFilterMode = 'today' | 'yesterday' | '7days' | 'all' | 'custom';
+
 export interface DoctorEMRViewProps {
   onNavigateTab?: (tabId: string) => void;
+  dateFilterMode?: DoctorDateFilterMode;
+  customDate?: string;
 }
 
-export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) => {
+export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
+  onNavigateTab,
+  dateFilterMode = 'today',
+  customDate,
+}) => {
   const { user } = useAuth();
   const [, setSearchParams] = useSearchParams();
 
@@ -99,17 +107,50 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
   // Tab con nội bộ: 'emr_summary' (Hồ sơ EMR & AI01) | 'clinical_orders' (Khám & Chỉ định) | 'ai_imaging' (Phân tích ảnh AI02)
   const [activeSubTab, setActiveSubTab] = useState<'emr_summary' | 'clinical_orders' | 'ai_imaging'>('emr_summary');
 
+  const effectiveCustomDate = useMemo(() => {
+    if (customDate) return customDate;
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, [customDate]);
+
   const [apiEncounters, setApiEncounters] = useState<EncounterItem[]>(() => globalApiEncounters);
   const [isLoadingApi, setIsLoadingApi] = useState<boolean>(() => globalApiEncounters.length === 0);
 
-  // 1. Fetch encounters từ GET /api/v1/encounters, lọc theo doctorId nếu bác sĩ đã đăng nhập thực
+  // 1. Fetch encounters từ GET /api/v1/encounters, lọc theo doctorId và ngày khám
   const fetchEncounters = useCallback(() => {
     if (globalApiEncounters.length === 0) {
       setIsLoadingApi(true);
     }
     const doctorId = user?.doctorId;
+
+    let dateParams: { date?: string; from?: string; to?: string } = {};
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    if (dateFilterMode === 'today') {
+      dateParams = { date: todayStr };
+    } else if (dateFilterMode === 'yesterday') {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      const yesterdayStr = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+      dateParams = { date: yesterdayStr };
+    } else if (dateFilterMode === '7days') {
+      const s = new Date();
+      s.setDate(s.getDate() - 6);
+      const sevenDaysAgoStr = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`;
+      dateParams = { from: sevenDaysAgoStr, to: todayStr };
+    } else if (dateFilterMode === 'custom' && effectiveCustomDate) {
+      dateParams = { date: effectiveCustomDate };
+    }
+
     encounterService
-      .getEncounters(doctorId ? { doctorId } : undefined)
+      .getEncounters({
+        ...(doctorId ? { doctorId } : {}),
+        ...dateParams,
+      })
       .then((data) => {
         if (Array.isArray(data)) {
           globalApiEncounters = data;
@@ -120,7 +161,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
         console.warn('Lỗi khi tải ca khám bác sĩ từ API:', err);
       })
       .finally(() => setIsLoadingApi(false));
-  }, [user?.doctorId]);
+  }, [user?.doctorId, dateFilterMode, effectiveCustomDate]);
 
   useEffect(() => {
     fetchEncounters();
@@ -1012,69 +1053,6 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
   // Trạng thái quy trình ca khám hiện tại
   const currentWorkflowState = patientWorkflowStates[selectedPatientId] || 'initial';
 
-  // Thuật toán AI gợi ý chỉ định cận lâm sàng tim mạch dựa trên Chẩn đoán sơ bộ & Triệu chứng
-  const aiRecommendedCodes = useMemo(() => {
-    const diag = ((preliminaryDiag || '') + ' ' + (currentPatient?.symptoms || '')).toLowerCase();
-    const codes = new Set<string>();
-
-    // Đau ngực, nhồi máu cơ tim, mạch vành, ho khó thở cấp
-    if (
-      diag.includes('ngực') ||
-      diag.includes('tim') ||
-      diag.includes('vành') ||
-      diag.includes('nhồi máu') ||
-      diag.includes('khó thở') ||
-      diag.includes('hội chứng vành')
-    ) {
-      codes.add('HSTNT');
-      codes.add('CKMB');
-      codes.add('NTPROBNP');
-      codes.add('CBC');
-    }
-
-    // Tăng huyết áp, mỡ máu, xơ vữa, rối loạn lipid, tiểu đường
-    if (
-      diag.includes('huyết áp') ||
-      diag.includes('mỡ máu') ||
-      diag.includes('lipid') ||
-      diag.includes('cholesterol') ||
-      diag.includes('xơ vữa') ||
-      diag.includes('đường huyết') ||
-      diag.includes('thận')
-    ) {
-      codes.add('LIPID01');
-      codes.add('BIOC01');
-      codes.add('ELEC01');
-    }
-
-    // Suy tim, phù, hồi hộp loạn nhịp
-    if (
-      diag.includes('suy tim') ||
-      diag.includes('phù') ||
-      diag.includes('loạn nhịp') ||
-      diag.includes('hồi hộp')
-    ) {
-      codes.add('NTPROBNP');
-      codes.add('ELEC01');
-      codes.add('HSTNT');
-    }
-
-    // Mặc định an toàn: Tổng phân tích tế bào máu + Sinh hóa máu cơ bản
-    if (codes.size === 0) {
-      codes.add('CBC');
-      codes.add('BIOC01');
-    }
-
-    return codes;
-  }, [preliminaryDiag, currentPatient?.symptoms]);
-
-  useEffect(() => {
-    const recommendedIds = servicesCatalog
-      .filter((item) => aiRecommendedCodes.has(item.testCode))
-      .map((item) => item.testTypeId);
-    setSelectedTestTypeIds(recommendedIds);
-  }, [aiRecommendedCodes, servicesCatalog]);
-
   const handleToggleCatalogItem = (testTypeId: string) => {
     setSelectedTestTypeIds((prev) =>
       prev.includes(testTypeId) ? prev.filter((id) => id !== testTypeId) : [...prev, testTypeId]
@@ -1163,11 +1141,10 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
       // 2. Tạo phiếu chỉ định cận lâm sàng
       const itemsPayload = selectedTestTypeIds.map((typeId) => {
         const catalogItem = servicesCatalog.find((c) => c.testTypeId === typeId);
-        const wasAiSuggested = catalogItem ? aiRecommendedCodes.has(catalogItem.testCode) : false;
         return {
           serviceId: catalogItem?.serviceId || typeId,
           testTypeId: typeId,
-          wasAiSuggested,
+          wasAiSuggested: false,
         };
       });
 
@@ -1232,7 +1209,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
   return (
     <div className="space-y-6 max-w-7xl mx-auto text-slate-800 animate-in fade-in duration-200">
       {/* Module Title Banner */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div className="flex items-center gap-3">
           <Mascot
             directions="/mascots/mydoctor-directions.png"
@@ -1438,7 +1415,6 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({ onNavigateTab }) =
                     isLoadingServices={isLoadingServices}
                     selectedTestTypeIds={selectedTestTypeIds}
                     onToggleCatalogItem={handleToggleCatalogItem}
-                    aiRecommendedCodes={aiRecommendedCodes}
                     totalEstimatedCost={totalEstimatedCost}
                     orderNotes={orderNotes}
                     setOrderNotes={setOrderNotes}
