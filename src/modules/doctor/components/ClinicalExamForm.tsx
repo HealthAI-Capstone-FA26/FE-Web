@@ -256,8 +256,8 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
               type="button"
               onClick={() => setPatientPosition?.(pos)}
               className={`px-2 py-0.5 text-[10px] font-semibold rounded-lg border transition-colors cursor-pointer ${patientPosition === pos
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300'
                 }`}
             >
               + {pos}
@@ -273,7 +273,7 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
             <span>Bốn bước thăm khám thực thể tim mạch:</span>
           </h4>
           <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-            Khớp 1-1 với DB table clinical_examinations
+            clinical_examinations
           </span>
         </div>
 

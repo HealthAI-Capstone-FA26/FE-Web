@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { User, Loader2, Clock, Search, X, AlertTriangle } from 'lucide-react';
+import { User, Loader2, Clock, Search, X, AlertTriangle, Calendar } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import type { PatientEMR, PatientWorkflowState } from '../types';
+
+export type DoctorDateFilterMode = 'today' | 'yesterday' | '7days' | 'all' | 'custom';
 
 interface PatientQueueSidebarProps {
   patients: Record<string, PatientEMR>;

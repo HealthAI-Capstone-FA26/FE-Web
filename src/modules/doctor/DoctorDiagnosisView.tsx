@@ -11,15 +11,13 @@ import {
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { icd10Service } from '../../services/icd10/icd10.service';
-import {
-  postTestConsultationService,
-  type PostTestTimelineResponse,
-} from '../../services/doctor/post-test-consultation.service';
+import { postTestConsultationService, type PostTestTimelineResponse } from '../../services/doctor/post-test-consultation.service';
 import { type TimelineEvent } from '../../services/doctor/case-timeline.service';
 import { encounterService, type EncounterItem } from '../../services/encounter/encounter.service';
 import { appointmentService, type AppointmentSlotResponse } from '../../services/appointment/appointment.service';
 import { resolveAttachmentUrl } from '../../services/lab/lab-result.service';
 import { useAuth } from '../../context/AuthContext';
+import type { DoctorDateFilterMode } from './DoctorEMRView';
 
 import { Mascot } from 'page-mascot';
 
@@ -75,9 +73,15 @@ interface CurrentPatientInfo {
 
 export interface DoctorDiagnosisViewProps {
   onNavigateTab?: (tabId: string) => void;
+  dateFilterMode?: DoctorDateFilterMode;
+  customDate?: string;
 }
 
-export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavigateTab }) => {
+export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
+  onNavigateTab,
+  dateFilterMode = 'today',
+  customDate,
+}) => {
   const { user } = useAuth();
   const [, setSearchParams] = useSearchParams();
 
@@ -99,6 +103,15 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
   const [selectedPatientId, setSelectedPatientId] = useState(() => {
     return localStorage.getItem('doctor_selected_patient_id') || '';
   });
+
+  const effectiveCustomDate = useMemo(() => {
+    if (customDate) return customDate;
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, [customDate]);
 
   const [apiEncounters, setApiEncounters] = useState<EncounterItem[]>([]);
   const [isLoadingEncounters, setIsLoadingEncounters] = useState(false);
@@ -135,7 +148,30 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
   const fetchEncounters = useCallback(async () => {
     try {
       setIsLoadingEncounters(true);
-      const data = await encounterService.getEncounters(user?.doctorId ? { doctorId: user.doctorId } : undefined);
+      let dateParams: { date?: string; from?: string; to?: string } = {};
+      const d = new Date();
+      const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+      if (dateFilterMode === 'today') {
+        dateParams = { date: todayStr };
+      } else if (dateFilterMode === 'yesterday') {
+        const y = new Date();
+        y.setDate(y.getDate() - 1);
+        const yesterdayStr = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+        dateParams = { date: yesterdayStr };
+      } else if (dateFilterMode === '7days') {
+        const s = new Date();
+        s.setDate(s.getDate() - 6);
+        const sevenDaysAgoStr = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`;
+        dateParams = { from: sevenDaysAgoStr, to: todayStr };
+      } else if (dateFilterMode === 'custom' && effectiveCustomDate) {
+        dateParams = { date: effectiveCustomDate };
+      }
+
+      const data = await encounterService.getEncounters({
+        ...(user?.doctorId ? { doctorId: user.doctorId } : {}),
+        ...dateParams,
+      });
       if (Array.isArray(data)) {
         setApiEncounters(data);
         const currentSaved = localStorage.getItem('doctor_selected_patient_id');
@@ -152,7 +188,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
     } finally {
       setIsLoadingEncounters(false);
     }
-  }, [user?.doctorId]);
+  }, [user?.doctorId, dateFilterMode, effectiveCustomDate]);
 
   useEffect(() => {
     fetchEncounters();
@@ -666,7 +702,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({ onNavi
     <div className="space-y-6 max-w-7xl mx-auto text-slate-800 animate-in fade-in duration-200">
 
       {/* Module Title Banner */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div className="flex items-center gap-3">
           <Mascot
             directions="/mascots/mydoctor-directions.png"

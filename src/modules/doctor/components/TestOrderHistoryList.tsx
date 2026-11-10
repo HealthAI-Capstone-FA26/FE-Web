@@ -334,7 +334,6 @@ export const TestOrderHistoryList: React.FC<TestOrderHistoryListProps> = ({
                   {order.items?.map((item) => {
                     const testName = item.service?.serviceName || item.testType?.testName || 'Xét nghiệm';
                     const testCode = item.service?.serviceCode || item.testType?.testCode || '---';
-                    const room = item.service ? 'Phòng Xét nghiệm Máu (BLOOD-LAB)' : undefined;
                     const task = item.task || item.labTask;
                     const isOnHold = item.status === 'on_hold' || task?.status === 'on_hold';
                     const isPaid = Boolean(
@@ -375,7 +374,6 @@ export const TestOrderHistoryList: React.FC<TestOrderHistoryListProps> = ({
                           </div>
                           <div className="text-[10px] text-slate-400 font-medium">
                             Mã: <span className="font-mono text-slate-600">{testCode}</span>
-                            {room && ` • ${room}`}
                           </div>
                         </div>
 

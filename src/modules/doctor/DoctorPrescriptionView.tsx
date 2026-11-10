@@ -23,6 +23,7 @@ import {
 } from '../../services/prescription';
 import { postTestConsultationService } from '../../services/doctor/post-test-consultation.service';
 import { initialDiagnosisService } from '../../services/doctor/initial-diagnosis.service';
+import type { DoctorDateFilterMode } from './DoctorEMRView';
 import { appointmentService, type AppointmentSlotResponse } from '../../services/appointment/appointment.service';
 
 
@@ -59,9 +60,15 @@ interface PrescribedDrugItem {
 
 export interface DoctorPrescriptionViewProps {
   onNavigateTab?: (tabId: string) => void;
+  dateFilterMode?: DoctorDateFilterMode;
+  customDate?: string;
 }
 
-export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({ onNavigateTab }) => {
+export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
+  onNavigateTab,
+  dateFilterMode = 'today',
+  customDate,
+}) => {
   const { user } = useAuth();
   const [, setSearchParams] = useSearchParams();
 
@@ -94,6 +101,15 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({ 
   const [selectedPatientId, setSelectedPatientId] = useState<string>(() => {
     return localStorage.getItem('doctor_selected_patient_id') || '';
   });
+
+  const effectiveCustomDate = useMemo(() => {
+    if (customDate) return customDate;
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, [customDate]);
 
   const [apiEncounters, setApiEncounters] = useState<EncounterItem[]>([]);
   const [isLoadingEncounters, setIsLoadingEncounters] = useState(false);
@@ -162,10 +178,33 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({ 
   const [signError, setSignError] = useState<string | null>(null);
 
   // Tải danh sách ca khám thực tế
-  const fetchEncounters = async () => {
+  const fetchEncounters = useCallback(async () => {
     try {
       setIsLoadingEncounters(true);
-      const data = await encounterService.getEncounters(user?.doctorId ? { doctorId: user.doctorId } : undefined);
+      let dateParams: { date?: string; from?: string; to?: string } = {};
+      const d = new Date();
+      const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+      if (dateFilterMode === 'today') {
+        dateParams = { date: todayStr };
+      } else if (dateFilterMode === 'yesterday') {
+        const y = new Date();
+        y.setDate(y.getDate() - 1);
+        const yesterdayStr = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+        dateParams = { date: yesterdayStr };
+      } else if (dateFilterMode === '7days') {
+        const s = new Date();
+        s.setDate(s.getDate() - 6);
+        const sevenDaysAgoStr = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`;
+        dateParams = { from: sevenDaysAgoStr, to: todayStr };
+      } else if (dateFilterMode === 'custom' && effectiveCustomDate) {
+        dateParams = { date: effectiveCustomDate };
+      }
+
+      const data = await encounterService.getEncounters({
+        ...(user?.doctorId ? { doctorId: user.doctorId } : {}),
+        ...dateParams,
+      });
       if (Array.isArray(data)) {
         setApiEncounters(data);
         const currentSaved = localStorage.getItem('doctor_selected_patient_id');
@@ -182,11 +221,11 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({ 
     } finally {
       setIsLoadingEncounters(false);
     }
-  };
+  }, [user?.doctorId, dateFilterMode, effectiveCustomDate]);
 
   useEffect(() => {
     fetchEncounters();
-  }, [user?.doctorId]);
+  }, [fetchEncounters]);
 
   // Đồng bộ selectedPatientId từ localStorage (khi chọn bệnh nhân ở Tab khác)
   useEffect(() => {
@@ -938,7 +977,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({ 
       )}
 
       {/* Module Title Banner */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div className="flex items-center gap-3">
           <Mascot
             directions="/mascots/mydoctor-directions.png"
