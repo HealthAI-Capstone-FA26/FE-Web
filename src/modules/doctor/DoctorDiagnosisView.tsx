@@ -138,6 +138,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
 
   // Cache timeline data theo encounterId
   const timelineCache = useRef<Map<string, PostTestTimelineResponse>>(new Map());
+  const fetchEncountersReqIdRef = useRef<number>(0);
 
   const handleSelectPatientId = (id: string) => {
     setSelectedPatientId(id);
@@ -146,6 +147,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
 
   // Tải danh sách ca khám thực tế từ API encounters
   const fetchEncounters = useCallback(async () => {
+    const reqId = ++fetchEncountersReqIdRef.current;
     try {
       setIsLoadingEncounters(true);
       let dateParams: { date?: string; from?: string; to?: string } = {};
@@ -172,6 +174,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
         ...(user?.doctorId ? { doctorId: user.doctorId } : {}),
         ...dateParams,
       });
+      if (reqId !== fetchEncountersReqIdRef.current) return;
       if (Array.isArray(data)) {
         setApiEncounters(data);
         const currentSaved = localStorage.getItem('doctor_selected_patient_id');
@@ -186,7 +189,9 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
     } catch (err) {
       console.warn('Lỗi khi tải danh sách ca khám:', err);
     } finally {
-      setIsLoadingEncounters(false);
+      if (reqId === fetchEncountersReqIdRef.current) {
+        setIsLoadingEncounters(false);
+      }
     }
   }, [user?.doctorId, dateFilterMode, effectiveCustomDate]);
 

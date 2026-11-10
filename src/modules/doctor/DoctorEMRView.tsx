@@ -118,6 +118,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
 
   const [apiEncounters, setApiEncounters] = useState<EncounterItem[]>(() => globalApiEncounters);
   const [isLoadingApi, setIsLoadingApi] = useState<boolean>(() => globalApiEncounters.length === 0);
+  const fetchRequestIdRef = useRef<number>(0);
 
   // 1. Fetch encounters từ GET /api/v1/encounters, lọc theo doctorId và ngày khám
   const fetchEncounters = useCallback(() => {
@@ -125,6 +126,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
       setIsLoadingApi(true);
     }
     const doctorId = user?.doctorId;
+    const reqId = ++fetchRequestIdRef.current;
 
     let dateParams: { date?: string; from?: string; to?: string } = {};
     const d = new Date();
@@ -152,15 +154,37 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
         ...dateParams,
       })
       .then((data) => {
+        if (reqId !== fetchRequestIdRef.current) return;
         if (Array.isArray(data)) {
           globalApiEncounters = data;
           setApiEncounters(data);
+          if (data.length > 0) {
+            setSelectedPatientId((prevId) => {
+              const matched = data.find(
+                (e) =>
+                  e.encounterId === prevId ||
+                  e.encounterCode === prevId ||
+                  e.patient?.patientCode === prevId
+              );
+              if (matched) return matched.encounterId;
+              const nextId = data[0].encounterId;
+              globalLastSelectedPatientId = nextId;
+              localStorage.setItem('doctor_selected_patient_id', nextId);
+              return nextId;
+            });
+          } else {
+            setExistingTestOrders([]);
+          }
         }
       })
       .catch((err) => {
         console.warn('Lỗi khi tải ca khám bác sĩ từ API:', err);
       })
-      .finally(() => setIsLoadingApi(false));
+      .finally(() => {
+        if (reqId === fetchRequestIdRef.current) {
+          setIsLoadingApi(false);
+        }
+      });
   }, [user?.doctorId, dateFilterMode, effectiveCustomDate]);
 
   useEffect(() => {
@@ -577,7 +601,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
       )?.encounterId);
 
     if (targetId) {
-      const cached = encounterCacheRef.current[targetId] || encounterCacheRef.current[selectedPatientId] || globalEncounterCache[targetId] || globalEncounterCache[selectedPatientId];
+      const cached = encounterCacheRef.current[targetId] || globalEncounterCache[targetId];
       if (!cached) {
         // Chưa có trong cache: hiển thị trạng thái tải sạch sẽ
         setIsLoadingOverview(true);
@@ -616,7 +640,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
           newDiags && newDiags.length > 0 ? newDiags : newOverview?.initialDiagnoses
         );
 
-        // Cập nhật Cache trong RAM
+        // Cập nhật Cache trong RAM theo đúng targetId
         const prevExamCache = encounterCacheRef.current[targetId]?.clinicalExam;
         const updatedCache: PatientEncounterCache = {
           ...encounterCacheRef.current[targetId],
@@ -644,9 +668,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
             : null,
         };
         encounterCacheRef.current[targetId] = updatedCache;
-        encounterCacheRef.current[selectedPatientId] = updatedCache;
         globalEncounterCache[targetId] = updatedCache;
-        globalEncounterCache[selectedPatientId] = updatedCache;
 
         // Cập nhật state nếu Bác sĩ vẫn đang mở ca này (chỉ điền vào nếu ô còn trống, không ghi đè dữ liệu đang nhập)
         if (newDetail) setSelectedEncounterDetail(newDetail);
@@ -954,8 +976,11 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
 
 
 
+  const testOrderReqIdRef = useRef<number>(0);
+
   // Tải danh sách các phiếu chỉ định đã lập của ca khám từ API và kiểm tra trạng thái đóng phí
   const fetchEncounterTestOrders = async (encounterId: string) => {
+    const reqId = ++testOrderReqIdRef.current;
     try {
       setIsLoadingTestOrders(true);
       const timeoutPromise = new Promise<TestOrderDetail[]>((resolve) =>
@@ -968,7 +993,6 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
       ]);
 
       if (Array.isArray(orders)) {
-        setExistingTestOrders(orders);
         const activeItems = orders
           .flatMap((o) => o.items || [])
           .filter((i) => i.status !== 'cancelled');
@@ -995,29 +1019,50 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
             nextState = 'paid';
           }
 
-          setPatientWorkflowStates((prev) => ({
-            ...prev,
-            [selectedPatientId]: prev[selectedPatientId] === 'completed' ? 'completed' : nextState,
-          }));
+          setPatientWorkflowStates((prev) => {
+            const next: Record<string, PatientWorkflowState> = {
+              ...prev,
+              [encounterId]: nextState,
+            };
+            globalPatientWorkflowStates = next;
+            return next;
+          });
+        } else {
+          setPatientWorkflowStates((prev) => {
+            const next: Record<string, PatientWorkflowState> = {
+              ...prev,
+              [encounterId]: 'initial',
+            };
+            globalPatientWorkflowStates = next;
+            return next;
+          });
+        }
+
+        // Chỉ cập nhật existingTestOrders trên UI nếu đây vẫn là request mới nhất của ca đang mở
+        if (reqId === testOrderReqIdRef.current) {
+          setExistingTestOrders(orders);
         }
       }
     } catch (err) {
       console.warn('Lỗi khi tải phiếu chỉ định của ca khám:', err);
     } finally {
-      setIsLoadingTestOrders(false);
+      if (reqId === testOrderReqIdRef.current) {
+        setIsLoadingTestOrders(false);
+      }
     }
   };
 
-  // Đồng bộ phiếu chỉ định CLS khi activeEncounterId thay đổi (không xóa trắng form khám)
+  // Đồng bộ phiếu chỉ định CLS khi activeEncounterId thay đổi (reset ngay phiếu cũ để tránh bóng ma)
   useEffect(() => {
     setSubmitSuccessMsg(null);
     setSubmitErrorMsg(null);
     setExamWarningMsg(null);
+    setExistingTestOrders([]);
 
     if (activeEncounterId) {
       fetchEncounterTestOrders(activeEncounterId);
     } else {
-      setExistingTestOrders([]);
+      testOrderReqIdRef.current++;
     }
   }, [activeEncounterId]);
 
@@ -1029,9 +1074,11 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
       setLatestLabImage(null);
       return;
     }
+    let isCancelled = false;
     caseTimelineService
       .getTimeline(activeEncounterId)
       .then((timeline) => {
+        if (isCancelled) return;
         const labEvents = timeline?.timeline?.filter((e) => e.type === 'lab_result') || [];
         for (const ev of labEvents) {
           const atts = ev.data?.labResult?.attachments || [];
@@ -1047,11 +1094,16 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
         }
         setLatestLabImage(null);
       })
-      .catch(() => setLatestLabImage(null));
-  }, [activeEncounterId, patientWorkflowStates[selectedPatientId]]);
+      .catch(() => {
+        if (!isCancelled) setLatestLabImage(null);
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeEncounterId, activeEncounterId ? patientWorkflowStates[activeEncounterId] : undefined]);
 
   // Trạng thái quy trình ca khám hiện tại
-  const currentWorkflowState = patientWorkflowStates[selectedPatientId] || 'initial';
+  const currentWorkflowState = (activeEncounterId ? patientWorkflowStates[activeEncounterId] : undefined) || 'initial';
 
   const handleToggleCatalogItem = (testTypeId: string) => {
     setSelectedTestTypeIds((prev) =>
@@ -1160,10 +1212,14 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
       setOrderNotes('');
 
       // Cập nhật trạng thái quy trình & refresh danh sách phiếu
-      setPatientWorkflowStates((prev) => ({
-        ...prev,
-        [selectedPatientId]: 'ordered',
-      }));
+      setPatientWorkflowStates((prev) => {
+        const next: Record<string, PatientWorkflowState> = {
+          ...prev,
+          [activeEncounterId]: 'ordered',
+        };
+        globalPatientWorkflowStates = next;
+        return next;
+      });
 
       await fetchEncounterTestOrders(activeEncounterId);
       await fetchCaseOverview(activeEncounterId);
@@ -1200,10 +1256,16 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
 
   // Mô phỏng đóng viện phí & có kết quả Lab
   const handleSimulateLabCompletion = () => {
-    setPatientWorkflowStates((prev) => ({
-      ...prev,
-      [selectedPatientId]: 'completed',
-    }));
+    const key = activeEncounterId || selectedPatientId;
+    if (!key) return;
+    setPatientWorkflowStates((prev) => {
+      const next: Record<string, PatientWorkflowState> = {
+        ...prev,
+        [key]: 'completed',
+      };
+      globalPatientWorkflowStates = next;
+      return next;
+    });
   };
 
   return (
