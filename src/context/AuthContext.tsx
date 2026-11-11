@@ -63,67 +63,13 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   ],
 };
 
-const MOCK_USERS: Record<UserRole, UserProfile> = {
-  PATIENT: {
-    id: 'P-10001',
-    name: 'Bệnh nhân (Khách hàng)',
-    email: 'benhnhan@gmail.com',
-    role: 'PATIENT',
-    roleTitle: 'Bệnh nhân',
-    phone: '0900 000 000',
-    avatar: '',
-    permissions: DEFAULT_ROLE_PERMISSIONS.PATIENT,
-  },
-  RECEPTIONIST: {
-    id: 'ST-101',
-    name: 'Nguyễn Văn Minh',
-    email: 'minh.reception@tamanh.vn',
-    role: 'RECEPTIONIST',
-    roleTitle: 'Lễ tân / Thu ngân',
-    staffCode: 'REC-001',
-    department: 'Quầy Tiếp Nhận & Thu Ngân 01',
-    permissions: DEFAULT_ROLE_PERMISSIONS.RECEPTIONIST,
-  },
-  NURSE: {
-    id: 'ST-102',
-    name: 'Trần Thị Mai',
-    email: 'mai.nurse@tamanh.vn',
-    role: 'NURSE',
-    roleTitle: 'Điều dưỡng viên',
-    staffCode: 'NUR-005',
-    department: 'Phòng Kiểm tra Sinh hiệu 102',
-    permissions: DEFAULT_ROLE_PERMISSIONS.NURSE,
-  },
-  DOCTOR: {
-    id: 'ST-103',
-    name: 'BS. CKII. Nguyễn Quang Huy',
-    email: 'huy.doctor@tamanh.vn',
-    role: 'DOCTOR',
-    roleTitle: 'Bác sĩ Thăm khám & Chẩn đoán',
-    staffCode: 'DOC-088',
-    department: 'Phòng khám Tim Mạch - Phòng 305',
-    permissions: DEFAULT_ROLE_PERMISSIONS.DOCTOR,
-  },
-  LAB: {
-    id: 'ST-104',
-    name: 'KTV. Trương Lê Danh Thái',
-    email: 'thai.lab@tamanh.vn',
-    role: 'LAB',
-    roleTitle: 'Kỹ thuật viên Phòng Lab',
-    staffCode: 'LAB-012',
-    department: 'Trung tâm Xét nghiệm & Cận Lâm Sàng',
-    permissions: DEFAULT_ROLE_PERMISSIONS.LAB,
-  },
-  ADMIN: {
-    id: 'ST-999',
-    name: 'Quản trị viên',
-    email: 'admin@gmail.com',
-    role: 'ADMIN',
-    roleTitle: 'System admin',
-    staffCode: 'ADM-001',
-    department: 'Ban Điều Hành & Quản Trị Hệ Thống',
-    permissions: DEFAULT_ROLE_PERMISSIONS.ADMIN,
-  }
+export const ROLE_TITLES: Record<UserRole, string> = {
+  PATIENT: 'Bệnh nhân',
+  RECEPTIONIST: 'Lễ tân / Thu ngân',
+  NURSE: 'Điều dưỡng viên',
+  DOCTOR: 'Bác sĩ Thăm khám & Chẩn đoán',
+  LAB: 'Kỹ thuật viên Phòng Lab',
+  ADMIN: 'System admin',
 };
 
 interface AuthContextType {
@@ -163,8 +109,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
     const savedLoggedIn = localStorage.getItem('4am_is_logged_in');
-    if (savedLoggedIn === 'true') {
-      return MOCK_USERS[currentRole];
+    if (savedLoggedIn === 'true' && savedUser) {
+      try {
+        return JSON.parse(savedUser);
+      } catch {
+        return null;
+      }
     }
     return null;
   });
@@ -191,10 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const switchRole = (role: UserRole) => {
     appointmentService.invalidateCache();
     setCurrentRole(role);
-    setIsLoggedIn(true);
-    const mockUser = MOCK_USERS[role];
-    setUser(mockUser);
-    localStorage.setItem('4am_user_data', JSON.stringify(mockUser));
+    localStorage.setItem('4am_active_role', role);
 
     if (role === 'RECEPTIONIST' || role === 'ADMIN') {
       patientService.getAllPatients(undefined, true).catch(() => {});
@@ -227,7 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (rawRole === 'RECEPTION') rawRole = 'RECEPTIONIST';
     if (rawRole === 'LAB_STAFF') rawRole = 'LAB';
 
-    if (rawRole && (rawRole as UserRole) in MOCK_USERS) {
+    if (rawRole && rawRole in ROLE_TITLES) {
       mappedRole = rawRole as UserRole;
     } else if (backendUser.email && backendUser.email.toLowerCase().includes('admin')) {
       mappedRole = 'ADMIN';
@@ -246,7 +193,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name: backendUser.fullName || backendUser.email,
       email: backendUser.email,
       role: mappedRole,
-      roleTitle: MOCK_USERS[mappedRole]?.roleTitle || (mappedRole === 'PATIENT' ? 'Bệnh nhân' : mappedRole === 'ADMIN' ? 'System admin' : 'Nhân viên Y tế'),
+      roleTitle: ROLE_TITLES[mappedRole] || 'Thành viên',
       phone: backendUser.phoneNumber,
       avatar: backendUser.avatarUrl || '',
       permissions: backendUser.permissions || DEFAULT_ROLE_PERMISSIONS[mappedRole] || [],
