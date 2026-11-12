@@ -5,6 +5,7 @@ import { ROLE_DEFAULT_PATHS } from './types/dashboard';
 
 // Public Patient-Facing Pages
 import Home from './pages/Home';
+import { AboutPage } from './pages/AboutPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { SpecialtyPage } from './pages/SpecialtyPage';
 import { NewsPage } from './pages/NewsPage';
@@ -24,6 +25,7 @@ import { ReceptionBillingWorkspaceView } from './modules/reception/ReceptionBill
 import { NurseWorkspaceView } from './modules/nurse/NurseWorkspaceView';
 import { LabWorkspaceView } from './modules/lab/LabWorkspaceView';
 import { AdminRealtimeWorkspaceView } from './modules/admin/AdminRealtimeWorkspaceView';
+import { AdminFeeWorkspaceView } from './modules/admin/AdminFeeWorkspaceView';
 import { AdminStatisticsWorkspaceView } from './modules/admin/AdminStatisticsWorkspaceView';
 import { AdminSecurityWorkspaceView } from './modules/admin/AdminSecurityWorkspaceView';
 import { PatientIntakeWorkspaceView } from './modules/patient/PatientIntakeWorkspaceView';
@@ -46,7 +48,7 @@ function App() {
         <Routes>
           {/* Public Patient-Facing Routes */}
           <Route path="/" element={<Home />} />
-          <Route path="/gioi-thieu" element={<PlaceholderPage title="Giới thiệu" />} />
+          <Route path="/gioi-thieu" element={<AboutPage />} />
           <Route path="/chuyen-khoa" element={<SpecialtyPage />} />
           <Route path="/khach-hang" element={<CustomerPage />} />
           <Route path="/chuyen-gia" element={<ExpertsPage />} />
@@ -120,6 +122,7 @@ function App() {
             {/* QUẢN TRỊ WORKSPACES */}
             <Route element={<ProtectedRoute requiredRole="ADMIN" />}>
               <Route path="/quan-tri/tong-quan" element={<AdminRealtimeWorkspaceView />} />
+              <Route path="/quan-tri/bang-gia" element={<AdminFeeWorkspaceView />} />
               <Route path="/quan-tri/phong-lab" element={<AdminRealtimeWorkspaceView />} />
               <Route path="/quan-tri/bac-si" element={<AdminRealtimeWorkspaceView />} />
               <Route path="/quan-tri/bao-cao" element={<AdminStatisticsWorkspaceView />} />
