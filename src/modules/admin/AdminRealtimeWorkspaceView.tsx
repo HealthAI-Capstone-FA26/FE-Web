@@ -1,12 +1,11 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { Users, Stethoscope, HeartPulse, CalendarDays, Coins, Building2 } from 'lucide-react';
+import { Users, Stethoscope, HeartPulse, CalendarDays, Building2 } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { AdminDoctorsView } from './AdminDoctorsView';
 import { AdminDoctorSchedulesView } from './AdminDoctorSchedulesView';
 import { AdminUsersView } from './AdminUsersView';
 import { ReceptionPatientsView } from '../reception/ReceptionPatientsView';
-import { AdminExaminationFeesView } from './AdminExaminationFeesView';
 import { LabRoomsView } from '../lab/LabRoomsView';
 
 export const AdminRealtimeWorkspaceView: React.FC = () => {
@@ -42,12 +41,6 @@ export const AdminRealtimeWorkspaceView: React.FC = () => {
       label: 'Quản Lý Bệnh Nhân',
       icon: HeartPulse,
       component: <ReceptionPatientsView />
-    },
-    {
-      id: 'examination-fees',
-      label: 'Danh Mục Mức Phí Khám',
-      icon: Coins,
-      component: <AdminExaminationFeesView />
     }
   ];
 
@@ -56,7 +49,7 @@ export const AdminRealtimeWorkspaceView: React.FC = () => {
   return (
     <WorkspaceContainer
       title="Quản Trị Hệ Thống (Admin Workspace)"
-      subtitle="Quản lý toàn bộ tài khoản người dùng, phân công phòng Lab & KTV, bác sĩ, lịch làm việc, hồ sơ bệnh nhân và danh mục bảng giá phí khám bệnh"
+      subtitle="Quản lý toàn bộ tài khoản người dùng, phân công phòng Lab & KTV, bác sĩ, lịch làm việc và hồ sơ bệnh nhân"
       icon={Users}
       tabs={tabs}
       defaultTabId={defaultTab}

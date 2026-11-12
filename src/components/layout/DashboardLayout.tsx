@@ -29,6 +29,7 @@ import {
   PanelLeft,
   PanelLeftClose,
   BarChart3,
+  Coins,
   Lock,
   X
 } from 'lucide-react';
@@ -164,6 +165,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         return Sparkles;
       case 'BarChart3':
         return BarChart3;
+      case 'Coins':
+        return Coins;
       case 'LayoutDashboard':
       default:
         return LayoutDashboard;

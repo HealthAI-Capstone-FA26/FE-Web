@@ -74,6 +74,7 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
       groupName: 'Không gian Quản trị',
       items: [
         { id: 'admin_workspace_realtime', label: 'Quản lý', path: '/quan-tri/tong-quan', iconName: 'LayoutDashboard', requiredPermission: 'user:read:all' },
+        { id: 'admin_workspace_fees', label: 'Quản lý Viện Phí', path: '/quan-tri/bang-gia', iconName: 'Coins', requiredPermission: 'user:read:all' },
         { id: 'admin_workspace_statistics', label: 'Thống kê & Báo cáo', path: '/quan-tri/bao-cao', iconName: 'BarChart3' },
         { id: 'admin_workspace_security', label: 'Bảo mật', path: '/quan-tri/nhat-ky-he-thong', iconName: 'ShieldCheck', requiredPermission: 'security-config:read:all' }
       ]
