@@ -8,6 +8,7 @@ import Home from './pages/Home';
 import { AboutPage } from './pages/AboutPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { SpecialtyPage } from './pages/SpecialtyPage';
+import { GuidePage } from './pages/GuidePage';
 import { NewsPage } from './pages/NewsPage';
 import NewsDetailPage from './pages/NewsDetailPage';
 import { CustomerPage } from './pages/CustomerPage';
@@ -53,8 +54,8 @@ function App() {
           <Route path="/khach-hang" element={<CustomerPage />} />
           <Route path="/chuyen-gia" element={<ExpertsPage />} />
           <Route path="/dich-vu" element={<PlaceholderPage title="Dịch vụ đặc biệt" />} />
-          <Route path="/tien-nghi" element={<PlaceholderPage title="Tiện nghi" />} />
-          <Route path="/giai-thuong" element={<PlaceholderPage title="Giải thưởng" />} />
+          <Route path="/huong-dan" element={<GuidePage />} />
+          <Route path="/tien-nghi" element={<Navigate to="/huong-dan" replace />} />
           <Route path="/tin-tuc" element={<NewsPage />} />
           <Route path="/tin-tuc/:id" element={<NewsDetailPage />} />
           <Route path="/lien-he" element={<PlaceholderPage title="Liên hệ" />} />
