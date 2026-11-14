@@ -22,184 +22,128 @@ interface Specialty {
   name: string;
   slug: string;
   icon: string;
-  category: 'surgical' | 'medical' | 'maternity-pediatric' | 'specialized';
+  category: 'clinical' | 'arrhythmia' | 'diagnostics' | 'preventive';
   desc: string;
   doctorCount: number;
   featuredDoctor: string;
   stat: string;
   statLabel: string;
   highlight: string;
-  size: 'normal' | 'large'; // Map to bento layout span
+  size?: 'normal' | 'large';
 }
 
 const specialtiesData: Specialty[] = [
   {
-    id: "cardio-surgery",
-    name: "Trung tâm Phẫu thuật Tim Mạch máu và Lồng ngực",
-    slug: "phau-thuat-tim-mach-mau-va-long-nguc",
+    id: "hypertension-coronary",
+    name: "Khoa Khám & Điều Trị Tăng Huyết Áp - Mạch Vành",
+    slug: "tang-huyet-ap-mach-vanh",
     icon: "https://tamanhhospital.vn/wp-content/uploads/2026/07/icon-trung-tam-phau-thuat-tim-mach-mau-va-long-nguc.png",
-    category: "surgical",
-    desc: "Điều trị chuyên sâu bệnh lý tim bẩm sinh, mạch vành, mạch máu ngoại biên và bệnh lý lồng ngực bằng kỹ thuật xâm lấn tối thiểu hiện đại, rút ngắn thời gian hồi phục của bệnh nhân.",
-    doctorCount: 16,
-    featuredDoctor: "GS.TS.BS. Nguyễn Hữu Ước",
-    stat: "5,000+",
-    statLabel: "Ca phẫu thuật thành công",
-    highlight: "Phòng mổ Hybrid đạt chuẩn quốc tế",
-    size: "large"
-  },
-  {
-    id: "radiotherapy",
-    name: "Khoa Xạ trị",
-    slug: "xa-tri",
-    icon: "https://tamanhhospital.vn/wp-content/uploads/2025/10/logo-khoa-xa-tri-khoa-hoc-hat-nhan.png",
-    category: "specialized",
-    desc: "Ứng dụng công nghệ gia tốc hạt xạ trị và y học hạt nhân tiên tiến nhất thế giới để điều trị trúng đích các tế bào ung thư, giúp tiêu diệt khối u hiệu quả tối đa và bảo vệ mô lành xung quanh.",
+    category: "clinical",
+    desc: "Tầm soát chuyên sâu và điều trị cá thể hóa các bệnh lý tăng huyết áp kháng trị, thiếu máu cơ tim cục bộ, cơn đau thắt ngực và dự phòng nhồi máu cơ tim sớm.",
     doctorCount: 8,
-    featuredDoctor: "PGS.TS.BS. Nguyễn Xuân Kính",
-    stat: "98%",
-    statLabel: "Độ chính xác định vị u",
-    highlight: "Công nghệ TrueBeam hiện đại",
+    featuredDoctor: "BS.CKII. Nguyễn Quang Huy",
+    stat: "98.5%",
+    statLabel: "Kiểm soát huyết áp đạt mục tiêu",
+    highlight: "Đo Holter huyết áp 24h & Theo dõi liên tục",
     size: "large"
   },
   {
-    id: "pediatric-surgery",
-    name: "Khoa Ngoại Nhi",
-    slug: "ngoai-nhi",
-    icon: "https://tamanhhospital.vn/wp-content/uploads/2025/05/icon-khoa-ngoai-nhi-tam-anh.png",
-    category: "maternity-pediatric",
-    desc: "Chăm sóc ngoại khoa toàn diện cho trẻ sơ sinh và trẻ nhỏ. Chuyên điều trị các dị tật bẩm sinh tiết niệu, tiêu hóa, lồng ngực bằng vi phẫu thuật tinh vi và an toàn.",
-    doctorCount: 10,
-    featuredDoctor: "TS.BS. Nguyễn Việt Hoa",
-    stat: "3,500+",
-    statLabel: "Bệnh nhi hồi phục tốt",
-    highlight: "Ekip vi phẫu sơ sinh đầu ngành",
-    size: "normal"
-  },
-  {
-    id: "hepatitis-center",
-    name: "Trung tâm Viêm gan và Gan nhiễm mỡ",
-    slug: "viem-gan-va-gan-nhiem-mo",
-    icon: "https://tamanhhospital.vn/wp-content/uploads/2022/02/logo-tieu-hoa-gan-mat-f.png",
-    category: "medical",
-    desc: "Tầm soát chuyên sâu, chẩn đoán xác thực và điều trị hiệu quả các bệnh lý viêm gan siêu vi A, B, C, gan nhiễm mỡ, xơ gan bằng phác đồ cá thể hóa ứng dụng thuốc thế hệ mới.",
-    doctorCount: 12,
-    featuredDoctor: "PGS.TS.BS. Nguyễn Cảnh Bình",
-    stat: "95%",
-    statLabel: "Kiểm soát tiến triển xơ gan",
-    highlight: "Máy siêu âm đàn hồi Fibroscan",
-    size: "normal"
-  },
-  {
-    id: "weight-control",
-    name: "Kiểm soát cân nặng và Điều trị béo phì",
-    slug: "kiem-soat-can-nang-va-dieu-tri-beo-phi",
-    icon: "https://tamanhhospital.vn/wp-content/uploads/2024/09/trung-tam-kiem-soat-can-nang-va-dieu-tri-beo-phi.png",
-    category: "specialized",
-    desc: "Cung cấp giải pháp toàn diện khoa học kiểm soát cân nặng, điều trị béo phì y khoa kết hợp công nghệ chuyển hóa dinh dưỡng thế hệ mới và phẫu thuật tạo hình dạ dày ít xâm lấn.",
-    doctorCount: 9,
-    featuredDoctor: "BS.CKII. Trần Minh Thắng",
-    stat: "1,200+",
-    statLabel: "Khách hàng lấy lại vóc dáng",
-    highlight: "Phác đồ giảm béo y khoa 360",
-    size: "normal"
-  },
-  {
-    id: "neurosurgery-spine",
-    name: "Khoa Ngoại Thần kinh – Cột sống",
-    slug: "ngoai-than-kinh-cot-song",
-    icon: "https://tamanhhospital.vn/wp-content/uploads/2025/04/icon-khoa-ngoai-than-kinh-cot-song.png",
-    category: "surgical",
-    desc: "Phẫu thuật u não, u tủy sống, chấn thương sọ não và thoát vị đĩa đệm cột sống bằng robot định vị dẫn đường hiện đại kết hợp hệ thống cảnh báo chức năng thần kinh trong mổ.",
-    doctorCount: 15,
-    featuredDoctor: "TS.BS. Nguyễn Anh Tuấn",
-    stat: "92%",
-    statLabel: "Phục hồi vận động sớm",
-    highlight: "Kính vi phẫu Zeiss Kinevo 900",
-    size: "large"
-  },
-  {
-    id: "reproductive-support",
-    name: "Trung tâm Hỗ trợ sinh sản",
-    slug: "trung-tam-ho-tro-sinh-san-ivfta",
-    icon: "https://tamanhhospital.vn/wp-content/uploads/2020/12/khoa-ivf.png",
-    category: "maternity-pediatric",
-    desc: "Tiên phong ứng dụng trí tuệ nhân tạo (AI) trong nuôi cấy và chọn lọc phôi động học Time-lapse. Đạt tỷ lệ thụ thai IVF thành công vượt trội hàng đầu Việt Nam và Đông Nam Á.",
-    doctorCount: 22,
-    featuredDoctor: "PGS.TS.BS. Lê Hoàng",
-    stat: "68.5%",
-    statLabel: "Tỷ lệ thụ thai IVF thành công",
-    highlight: "Phòng Lab ISO 5 chuẩn quốc tế",
-    size: "large"
-  },
-  {
-    id: "high-tech-eye",
-    name: "Trung tâm Mắt Công nghệ cao",
-    slug: "trung-tam-mat",
-    icon: "https://tamanhhospital.vn/wp-content/uploads/2024/02/trung-tam-mat-cong-nghe-cao.png",
-    category: "specialized",
-    desc: "Khám và phẫu thuật đục thủy tinh thể, tật khúc xạ cận/viễn/loạn bằng công nghệ Laser Femto và RELEX SMILE hiện đại, mang lại thị lực tối đa nhanh chóng, không đau đớn.",
-    doctorCount: 11,
-    featuredDoctor: "ThS.BS. Nguyễn Thị Vân Anh",
-    stat: "10,000+",
-    statLabel: "Ca phẫu thuật an toàn",
-    highlight: "Thiết bị Smile Pro 2026 tiên tiến",
-    size: "normal"
-  },
-  {
-    id: "gastro-endoscopy",
-    name: "Trung tâm Nội soi & Phẫu thuật nội soi tiêu hóa",
-    slug: "noi-soi-tieu-hoa",
-    icon: "https://tamanhhospital.vn/wp-content/uploads/2020/11/icon-tieuhoa.png",
-    category: "surgical",
-    desc: "Nội soi phóng đại và nội soi nhuộm màu NBI không đau phát hiện sớm các dấu hiệu tiền ung thư ống tiêu hóa. Phẫu thuật nội soi ổ bụng ít xâm lấn bằng hệ thống camera 3D sắc nét.",
-    doctorCount: 14,
-    featuredDoctor: "TS.BS. Phạm Hữu Tùng",
-    stat: "100%",
-    statLabel: "Nội soi không đau",
-    highlight: "Nội soi phóng đại nhuộm màu NBI",
-    size: "normal"
-  },
-  {
-    id: "gastroenterology",
-    name: "Khoa Tiêu hóa – Gan mật – Tụy",
-    slug: "khoa-tieu-hoa-gan-mat-tuy",
-    icon: "https://tamanhhospital.vn/wp-content/uploads/2022/02/logo-tieu-hoa-gan-mat-f.png",
-    category: "medical",
-    desc: "Điều trị nội khoa toàn diện các bệnh lý viêm loét dạ dày, trào ngược thực quản, viêm đại tràng mãn tính, viêm tụy cấp và bệnh lý sỏi túi mật bằng phác đồ kết hợp tối ưu.",
-    doctorCount: 13,
-    featuredDoctor: "PGS.TS.BS. Trần Văn Hợp",
-    stat: "96.8%",
-    statLabel: "Hài lòng của người bệnh",
-    highlight: "Tầm soát HP hơi thở C13/C14",
-    size: "normal"
-  },
-  {
-    id: "general-surgery",
-    name: "Khoa Ngoại Tổng Hợp",
-    slug: "ngoai-tong-hop",
-    icon: "https://tamanhhospital.vn/wp-content/uploads/2023/04/icon-ngoaitonghop.png",
-    category: "surgical",
-    desc: "Chuyên phẫu thuật điều trị bướu giáp, thoát vị bẹn, viêm ruột thừa, sỏi mật bằng phẫu thuật nội soi kỹ thuật cao, giúp bệnh nhân giảm thiểu sẹo mổ và phục hồi nhanh nhất.",
-    doctorCount: 12,
-    featuredDoctor: "PGS.TS.BS. Nguyễn Anh Dũng",
-    stat: "3-5 ngày",
-    statLabel: "Thời gian xuất viện trung bình",
-    highlight: "Phẫu thuật nội soi Robot 4K/3D",
-    size: "large"
-  },
-  {
-    id: "neuroscience-center",
-    name: "Trung tâm Khoa học Thần kinh",
-    slug: "noi-than-kinh",
+    id: "arrhythmia-electrophysiology",
+    name: "Trung Tâm Thăm Dò & Điều Trị Rối Loạn Nhịp Tim",
+    slug: "roi-loan-nhip-tim-dien-sinh-ly",
     icon: "https://tamanhhospital.vn/wp-content/uploads/2020/12/khoa-noithankinh.png",
-    category: "medical",
-    desc: "Đơn vị cấp cứu đột quỵ não giờ vàng và điều trị chuyên sâu Parkinson, sa sút trí tuệ, động kinh, đau đầu mãn tính bằng các phác đồ y khoa đột phá và công nghệ số hóa bản đồ não.",
-    doctorCount: 18,
-    featuredDoctor: "PGS.TS.BS. Nguyễn Văn Liệu",
-    stat: "< 45 phút",
-    statLabel: "Thời gian cửa - kim đột quỵ",
-    highlight: "Bản đồ não số hóa tích hợp AI",
+    category: "arrhythmia",
+    desc: "Chẩn đoán chính xác các rối loạn nhịp nguy hiểm như rung nhĩ (AFib), ngoại tâm thu thất (PVC), nhịp nhanh kịch phát trên thất, nhịp tim chậm và block dẫn truyền nhĩ thất.",
+    doctorCount: 6,
+    featuredDoctor: "ThS.BS. Trương Lê Danh Thái",
+    stat: "12-Leads",
+    statLabel: "Điện tâm đồ kỹ thuật số độ nhạy cao",
+    highlight: "Hệ thống điện tâm đồ ECG & Phân tích chuyên sâu",
     size: "large"
+  },
+  {
+    id: "echocardiography-imaging",
+    name: "Đơn Vị Chẩn Đoán Hình Ảnh & Siêu Âm Tim Doppler",
+    slug: "sieu-am-tim-doppler-cdha",
+    icon: "https://tamanhhospital.vn/wp-content/uploads/2024/02/trung-tam-mat-cong-nghe-cao.png",
+    category: "diagnostics",
+    desc: "Đánh giá chi tiết hình thái cấu trúc tim, vận động thành tim, chức năng tống máu thất trái (EF), chẩn đoán hẹp/hở van tim và các tổn thương mạch máu lớn.",
+    doctorCount: 5,
+    featuredDoctor: "BS.CKI. Phạm Đức Anh",
+    stat: "0.1mm",
+    statLabel: "Độ phân giải siêu âm Doppler màu",
+    highlight: "Máy siêu âm tim màu 4D đa bình diện",
+    size: "normal"
+  },
+  {
+    id: "heart-failure-management",
+    name: "Trung Tâm Quản Lý & Tối Ưu Hóa Điều Trị Suy Tim",
+    slug: "quan-ly-suy-tim-toan-dien",
+    icon: "https://tamanhhospital.vn/wp-content/uploads/2026/07/icon-trung-tam-phau-thuat-tim-mach-mau-va-long-nguc.png",
+    category: "clinical",
+    desc: "Chương trình quản lý suy tim ngoại trú toàn diện từ giai đoạn sớm đến suy tim mạn tính. Ứng dụng phác đồ tứ trụ chuẩn quốc tế nhằm cải thiện chất lượng sống và giảm tỷ lệ tái nhập viện.",
+    doctorCount: 7,
+    featuredDoctor: "BS.CKII. Nguyễn Quang Huy",
+    stat: "75%",
+    statLabel: "Giảm tỷ lệ nhập viện do suy tim",
+    highlight: "Xét nghiệm định lượng men tim NT-proBNP & Troponin T",
+    size: "large"
+  },
+  {
+    id: "cardiac-biomarkers-lab",
+    name: "Đơn Vị Xét Nghiệm Dấu Ấn Sinh Học Tim Mạch",
+    slug: "xet-nghiem-dau-an-tim-mach",
+    icon: "https://tamanhhospital.vn/wp-content/uploads/2025/10/logo-khoa-xa-tri-khoa-hoc-hat-nhan.png",
+    category: "diagnostics",
+    desc: "Thực hiện xét nghiệm sinh hóa tim mạch khẩn cấp: hs-Troponin T/I siêu nhạy phát hiện hoại tử cơ tim sớm, CK-MB, điện giải đồ, chức năng thận và công thức máu toàn phần.",
+    doctorCount: 4,
+    featuredDoctor: "KTV. Trương Lê Danh Thái",
+    stat: "< 60 phút",
+    statLabel: "Thời gian trả kết quả xét nghiệm khẩn",
+    highlight: "Hệ thống xét nghiệm miễn dịch tự động chuẩn ISO",
+    size: "normal"
+  },
+  {
+    id: "dyslipidemia-metabolic",
+    name: "Khoa Tim Mạch Chuyển Hóa & Rối Loạn Lipid Máu",
+    slug: "tim-mach-chuyen-hoa-lipid",
+    icon: "https://tamanhhospital.vn/wp-content/uploads/2024/09/trung-tam-kiem-soat-can-nang-va-dieu-tri-beo-phi.png",
+    category: "clinical",
+    desc: "Kiểm soát các yếu tố nguy cơ tim mạch xơ vữa do rối loạn mỡ máu (Tăng Cholesterol, Triglyceride, LDL-C cao), hội chứng chuyển hóa và đái tháo đường đi kèm.",
+    doctorCount: 5,
+    featuredDoctor: "BS.CKI. Nguyễn Văn Tim",
+    stat: "10 năm",
+    statLabel: "Đánh giá thang điểm nguy cơ tim mạch",
+    highlight: "Bộ xét nghiệm Lipid toàn phần & Tư vấn dinh dưỡng tim mạch",
+    size: "normal"
+  },
+  {
+    id: "preventive-cardiology",
+    name: "Trung Tâm Tim Mạch Dự Phòng & Tầm Soát Đột Quỵ",
+    slug: "tim-mach-du-phong-tam-soat",
+    icon: "https://tamanhhospital.vn/wp-content/uploads/2022/02/logo-tieu-hoa-gan-mat-f.png",
+    category: "preventive",
+    desc: "Gói khám tầm soát sức khỏe tim mạch định kỳ, đánh giá nguy cơ đột quỵ não từ nguyên nhân tim mạch, tầm soát huyết khối và kiểm tra tim mạch cho người chơi thể thao.",
+    doctorCount: 6,
+    featuredDoctor: "BS.CKII. Nguyễn Quang Huy",
+    stat: "100%",
+    statLabel: "Khách hàng được lập hồ sơ theo dõi dài hạn",
+    highlight: "Gói khám cá thể hóa theo độ tuổi và tiền sử gia đình",
+    size: "large"
+  },
+  {
+    id: "cardiac-rehabilitation",
+    name: "Đơn Vị Phục Hồi Chức Năng Tim Mạch & Lối Sống",
+    slug: "phuc-hoi-chuc-nang-tim-mach",
+    icon: "https://tamanhhospital.vn/wp-content/uploads/2023/04/icon-ngoaitonghop.png",
+    category: "preventive",
+    desc: "Hướng dẫn tập luyện vận động an toàn, cải thiện dung nạp gắng sức, tư vấn điều chỉnh lối sống và kiểm soát căng thẳng tâm lý sau cơn nhồi máu cơ tim hoặc can thiệp.",
+    doctorCount: 4,
+    featuredDoctor: "ThS.BS. Trương Lê Danh Thái",
+    stat: "90%",
+    statLabel: "Bệnh nhân cải thiện khả năng gắng sức",
+    highlight: "Theo dõi nhịp tim & huyết áp liên tục trong tập luyện",
+    size: "normal"
   }
 ];
 
@@ -227,10 +171,10 @@ const insurancePartners = [
 
 const categoryFilters = [
   { id: 'all', label: 'Tất cả chuyên khoa' },
-  { id: 'surgical', label: 'Ngoại khoa & Phẫu thuật' },
-  { id: 'medical', label: 'Nội khoa & Tim mạch' },
-  { id: 'maternity-pediatric', label: 'Sản & Nhi khoa' },
-  { id: 'specialized', label: 'Hỗ trợ điều trị' }
+  { id: 'clinical', label: 'Nội Tim Mạch & Huyết Áp' },
+  { id: 'arrhythmia', label: 'Rối Loạn Nhịp & Điện Sinh Lý' },
+  { id: 'diagnostics', label: 'Chẩn Đoán Hình Ảnh & Thăm Dò' },
+  { id: 'preventive', label: 'Tim Mạch Dự Phòng' }
 ];
 
 export const SpecialtyPage = () => {
@@ -319,7 +263,7 @@ export const SpecialtyPage = () => {
         </div>
       </section>
 
-      {/* Specialties Bento Grid */}
+      {/* Specialties Uniform Grid */}
       <main className="flex-grow pb-24 max-w-7xl mx-auto px-6 lg:px-8 w-full">
         <AnimatePresence mode="wait">
           {filteredSpecialties.length > 0 ? (
@@ -329,16 +273,13 @@ export const SpecialtyPage = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -24 }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6"
+              className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8"
             >
               {filteredSpecialties.map((item) => {
-                const isLarge = item.size === 'large';
                 return (
                   <div
                     key={item.id}
-                    className={`group ${
-                      isLarge ? 'lg:col-span-3' : 'lg:col-span-2'
-                    } flex flex-col`}
+                    className="group flex flex-col h-full"
                   >
                     {/* Double-Bezel Architecture */}
                     {/* Outer Shell (Hardware tray look) */}
@@ -351,7 +292,7 @@ export const SpecialtyPage = () => {
                           {/* Top row: Icon + Stat */}
                           <div className="flex items-start justify-between mb-6 gap-4">
                             {/* Department Icon wrapper */}
-                            <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center p-2.5 border border-slate-100 group-hover:scale-105 group-hover:border-blue-100 transition-all duration-300">
+                            <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center p-2.5 border border-slate-100 group-hover:scale-105 group-hover:border-blue-100 transition-all duration-300 shrink-0">
                               <img 
                                 src={item.icon} 
                                 alt={item.name} 
@@ -360,11 +301,11 @@ export const SpecialtyPage = () => {
                             </div>
                             
                             {/* Mini highlight stat card inside the cell */}
-                            <div className="text-right">
+                            <div className="text-right shrink-0">
                               <span className="text-lg md:text-xl font-bold text-[#0b3c8f] tracking-tight block">
                                 {item.stat}
                               </span>
-                              <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-medium">
+                              <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-medium max-w-[140px] ml-auto">
                                 {item.statLabel}
                               </span>
                             </div>
@@ -372,24 +313,24 @@ export const SpecialtyPage = () => {
 
                           {/* Category Badge */}
                           <span className={`inline-block rounded-full px-2.5 py-0.5 text-[8px] uppercase tracking-wider font-bold mb-3 ${
-                            item.category === 'surgical' ? 'bg-[#FDEBEC] text-[#9F2F2D]' :
-                            item.category === 'medical' ? 'bg-[#E1F3FE] text-[#1F6C9F]' :
-                            item.category === 'maternity-pediatric' ? 'bg-[#EDF3EC] text-[#346538]' :
-                            'bg-[#FBF3DB] text-[#956400]'
+                            item.category === 'clinical' ? 'bg-[#E1F3FE] text-[#1F6C9F]' :
+                            item.category === 'arrhythmia' ? 'bg-[#FDEBEC] text-[#9F2F2D]' :
+                            item.category === 'diagnostics' ? 'bg-[#FBF3DB] text-[#956400]' :
+                            'bg-[#EDF3EC] text-[#346538]'
                           }`}>
-                            {item.category === 'surgical' ? 'Ngoại khoa & Phẫu thuật' :
-                             item.category === 'medical' ? 'Nội khoa & Tim mạch' :
-                             item.category === 'maternity-pediatric' ? 'Sản & Nhi khoa' :
-                             'Hỗ trợ điều trị'}
+                            {item.category === 'clinical' ? 'Nội Tim Mạch & Huyết Áp' :
+                             item.category === 'arrhythmia' ? 'Rối Loạn Nhịp & Điện Sinh Lý' :
+                             item.category === 'diagnostics' ? 'Chẩn Đoán Hình Ảnh & Thăm Dò' :
+                             'Tim Mạch Dự Phòng'}
                           </span>
 
                           {/* Title */}
-                          <h3 className="text-lg md:text-xl font-bold text-[#0d2a5c] tracking-tight leading-snug mb-3 group-hover:text-[#0b3c8f] transition-colors">
+                          <h3 className="text-lg md:text-xl font-bold text-[#0d2a5c] tracking-tight leading-snug mb-3 min-h-[3.25rem] flex items-center group-hover:text-[#0b3c8f] transition-colors">
                             {item.name}
                           </h3>
 
                           {/* Short Description */}
-                          <p className="text-slate-500 text-xs md:text-sm leading-relaxed mb-6 font-sans">
+                          <p className="text-slate-500 text-xs md:text-sm leading-relaxed mb-6 font-sans min-h-[4rem] line-clamp-3">
                             {item.desc}
                           </p>
                         </div>
@@ -399,7 +340,7 @@ export const SpecialtyPage = () => {
                           <div className="h-px bg-slate-100 mb-5" />
 
                           {/* Highlight feature line */}
-                          <div className="flex items-center gap-2 mb-4 text-xs">
+                          <div className="flex items-center gap-2 mb-4 text-xs min-h-[1.25rem]">
                             <Activity className="w-3.5 h-3.5 text-blue-600 shrink-0" strokeWidth={1.5} />
                             <span className="font-semibold text-slate-700 truncate">{item.highlight}</span>
                           </div>

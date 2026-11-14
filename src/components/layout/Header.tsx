@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   MapPin, User, Headphones, Calendar, Search, Menu, LogIn, X,
-  Info, Stethoscope, UserCheck, Zap, Building2, Trophy, Newspaper, PhoneCall
+  Info, Stethoscope, UserCheck, Zap, HelpCircle, Newspaper, PhoneCall
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
@@ -16,8 +16,7 @@ const NAV_ITEMS = [
   { id: 'chuyen-khoa', label: 'Chuyên khoa', path: '/chuyen-khoa', icon: Stethoscope },
   { id: 'chuyen-gia', label: 'Chuyên gia - Bác sĩ', path: '/chuyen-gia', icon: UserCheck },
   { id: 'dich-vu', label: 'Dịch vụ đặc biệt', path: '/dich-vu', icon: Zap },
-  { id: 'tien-nghi', label: 'Tiện nghi', path: '/tien-nghi', icon: Building2 },
-  { id: 'giai-thuong', label: 'Giải thưởng', path: '/giai-thuong', icon: Trophy },
+  { id: 'huong-dan', label: 'Hướng dẫn', path: '/huong-dan', icon: HelpCircle },
   { id: 'tin-tuc', label: 'Tin tức', path: '/tin-tuc', icon: Newspaper },
   { id: 'lien-he', label: 'Liên hệ', path: '/lien-he', icon: PhoneCall },
 ];
