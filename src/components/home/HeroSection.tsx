@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, ArrowRight, ShieldCheck, Activity, Award, HeartPulse, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { animate, splitText, stagger } from 'animejs';
 
 const slides = [
   {
@@ -53,6 +54,15 @@ const slides = [
 
 export const HeroSection = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const topLabelRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const highlightRef = useRef<HTMLHeadingElement>(null);
+  const subtitleRef = useRef<HTMLParagraphElement>(null);
+  const subtitleLineLeftRef = useRef<HTMLDivElement>(null);
+  const subtitleLineRightRef = useRef<HTMLDivElement>(null);
+  const badgesRef = useRef<HTMLDivElement>(null);
+  const ctaRef = useRef<HTMLButtonElement>(null);
 
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev === slides.length - 1 ? 0 : prev + 1));
@@ -70,6 +80,112 @@ export const HeroSection = () => {
   }, [currentSlide]);
 
   const slide = slides[currentSlide];
+
+  useEffect(() => {
+    const cleanups: Array<{ revert: () => void }> = [];
+
+    if (titleRef.current) {
+      const titleSplit = splitText(titleRef.current, {
+        lines: { wrap: 'clip' },
+      });
+      titleSplit.addEffect(({ lines }) =>
+        animate(lines, {
+          y: ['100%', '0%'],
+          duration: 750,
+          ease: 'out(3)',
+          delay: stagger(150, { start: 80 }),
+        })
+      );
+      cleanups.push(titleSplit);
+    }
+
+    if (highlightRef.current) {
+      const highlightSplit = splitText(highlightRef.current, {
+        lines: { wrap: 'clip' },
+      });
+      highlightSplit.addEffect(({ lines }) =>
+        animate(lines, {
+          y: ['100%', '0%'],
+          duration: 750,
+          ease: 'out(3)',
+          delay: stagger(180, { start: 220 }),
+        })
+      );
+      cleanups.push(highlightSplit);
+    }
+
+    if (subtitleRef.current) {
+      const subtitleSplit = splitText(subtitleRef.current, {
+        lines: { wrap: 'clip' },
+      });
+      subtitleSplit.addEffect(({ lines }) =>
+        animate(lines, {
+          y: ['100%', '0%'],
+          duration: 700,
+          ease: 'out(3)',
+          delay: stagger(150, { start: 380 }),
+        })
+      );
+      cleanups.push(subtitleSplit);
+    }
+
+    if (topLabelRef.current) {
+      cleanups.push(
+        animate(topLabelRef.current, {
+          y: [-16, 0],
+          opacity: [0, 1],
+          scale: [0.94, 1],
+          duration: 500,
+          ease: 'out(3)',
+        })
+      );
+    }
+
+    if (subtitleLineLeftRef.current && subtitleLineRightRef.current) {
+      cleanups.push(
+        animate([subtitleLineLeftRef.current, subtitleLineRightRef.current], {
+          scaleX: [0, 1],
+          opacity: [0, 1],
+          duration: 500,
+          ease: 'out(3)',
+          delay: 360,
+        })
+      );
+    }
+
+    const badgeItems = badgesRef.current
+      ? Array.from(badgesRef.current.children)
+      : [];
+    if (badgeItems.length) {
+      cleanups.push(
+        animate(badgeItems, {
+          y: [18, 0],
+          opacity: [0, 1],
+          scale: [0.92, 1],
+          duration: 550,
+          ease: 'out(3)',
+          delay: stagger(90, { start: 500 }),
+        })
+      );
+    }
+
+    if (ctaRef.current) {
+      cleanups.push(
+        animate(ctaRef.current, {
+          y: [18, 0],
+          opacity: [0, 1],
+          scale: [0.95, 1],
+          duration: 550,
+          ease: 'out(3)',
+          delay: 680,
+        })
+      );
+    }
+
+    return () => {
+      cleanups.forEach((item) => item.revert());
+    };
+  }, [currentSlide]);
 
   return (
     <section className="relative w-full min-h-[70vh] lg:min-h-[600px] overflow-hidden flex items-center bg-blue-900 group">
@@ -123,65 +239,75 @@ export const HeroSection = () => {
         </div>
 
         {/* Left Side: Content */}
-        <div className="w-full lg:w-[80%] xl:w-[75%] flex flex-col justify-center text-left z-20 relative">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={slide.id}
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 30 }}
-              transition={{ duration: 0.6, ease: "easeOut" }}
-              className="flex flex-col items-start"
+        <div
+          ref={contentRef}
+          key={slide.id}
+          className="w-full lg:w-[80%] xl:w-[75%] flex flex-col items-start justify-center text-left z-20 relative"
+        >
+          {/* Top Label */}
+          <div ref={topLabelRef} className="mb-4 opacity-0">
+            <span className="inline-block bg-white text-blue-900 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-wider shadow-lg">
+              {slide.topLabel}
+            </span>
+          </div>
+
+          {/* Main Title (White) */}
+          <h2
+            ref={titleRef}
+            className="text-3xl md:text-4xl lg:text-[2.75rem] xl:text-5xl font-extrabold text-white uppercase tracking-tight leading-[1.42] mb-2 drop-shadow-md lg:whitespace-nowrap"
+          >
+            {slide.title}
+          </h2>
+
+          {/* Highlight Title (Yellow/Gold) */}
+          <h1
+            ref={highlightRef}
+            className="text-4xl md:text-5xl lg:text-[3.5rem] xl:text-6xl font-extrabold text-yellow-400 uppercase tracking-tight leading-[1.4] drop-shadow-lg mb-6 lg:whitespace-nowrap"
+          >
+            {slide.highlight}
+          </h1>
+
+          {/* Subtitle */}
+          <div className="flex items-center gap-4 mb-8">
+            <div
+              ref={subtitleLineLeftRef}
+              className="h-[2px] w-8 lg:w-12 bg-yellow-400 hidden sm:block origin-right opacity-0"
+            />
+            <p
+              ref={subtitleRef}
+              className="text-base md:text-lg lg:text-xl text-white font-medium uppercase tracking-wide leading-[1.45] drop-shadow-md lg:whitespace-nowrap"
             >
-              {/* Top Label */}
-              <div className="mb-4">
-                <span className="inline-block bg-white text-blue-900 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-wider shadow-lg">
-                  {slide.topLabel}
-                </span>
+              {slide.subtitle}
+            </p>
+            <div
+              ref={subtitleLineRightRef}
+              className="h-[2px] w-8 lg:w-12 bg-yellow-400 hidden sm:block origin-left opacity-0"
+            />
+          </div>
+
+          {/* Badges Grid */}
+          <div ref={badgesRef} className="flex flex-wrap gap-3 mb-10">
+            {slide.badges.map((badge, idx) => (
+              <div
+                key={idx}
+                className="opacity-0 flex items-center gap-2 bg-gradient-to-b from-yellow-300 to-yellow-500 text-[#002f87] px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg shadow-lg border border-yellow-200"
+              >
+                <badge.icon className="w-4 h-4 lg:w-5 lg:h-5" />
+                <span className="font-bold text-xs lg:text-sm uppercase tracking-tight">{badge.text}</span>
               </div>
+            ))}
+          </div>
 
-              {/* Main Title (White) - using whitespace-nowrap on lg to force 1 line if possible */}
-              <h2 className="text-3xl md:text-4xl lg:text-[2.75rem] xl:text-5xl font-extrabold text-white uppercase tracking-tight leading-tight mb-2 drop-shadow-md lg:whitespace-nowrap">
-                {slide.title}
-              </h2>
-
-              {/* Highlight Title (Yellow/Gold) - using whitespace-nowrap on lg */}
-              <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] xl:text-6xl font-extrabold text-yellow-400 uppercase tracking-tighter leading-tight drop-shadow-lg mb-6 lg:whitespace-nowrap">
-                {slide.highlight}
-              </h1>
-
-              {/* Subtitle */}
-              <div className="flex items-center gap-4 mb-8">
-                <div className="h-[2px] w-8 lg:w-12 bg-yellow-400 hidden sm:block"></div>
-                <p className="text-base md:text-lg lg:text-xl text-white font-medium uppercase tracking-wide drop-shadow-md lg:whitespace-nowrap">
-                  {slide.subtitle}
-                </p>
-                <div className="h-[2px] w-8 lg:w-12 bg-yellow-400 hidden sm:block"></div>
-              </div>
-
-              {/* Badges Grid */}
-              <div className="flex flex-wrap gap-3 mb-10">
-                {slide.badges.map((badge, idx) => (
-                  <div 
-                    key={idx} 
-                    className="flex items-center gap-2 bg-gradient-to-b from-yellow-300 to-yellow-500 text-[#002f87] px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg shadow-lg border border-yellow-200"
-                  >
-                    <badge.icon className="w-4 h-4 lg:w-5 lg:h-5" />
-                    <span className="font-bold text-xs lg:text-sm uppercase tracking-tight">{badge.text}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* CTA Button */}
-              <button className="group relative overflow-hidden rounded-full bg-gradient-to-r from-red-600 to-red-500 px-6 py-3 lg:px-8 lg:py-4 text-white font-bold text-base lg:text-lg uppercase tracking-wider shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:shadow-[0_0_30px_rgba(220,38,38,0.6)] transition-all duration-300 transform hover:scale-105 active:scale-95 flex items-center gap-3">
-                <span className="relative z-10">{slide.cta}</span>
-                <ArrowRight className="w-5 h-5 lg:w-6 lg:h-6 relative z-10 group-hover:translate-x-1 transition-transform" />
-                {/* Button shine effect */}
-                <div className="absolute inset-0 h-full w-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-700 ease-in-out" />
-              </button>
-              
-            </motion.div>
-          </AnimatePresence>
+          {/* CTA Button */}
+          <button
+            ref={ctaRef}
+            className="opacity-0 group relative overflow-hidden rounded-full bg-gradient-to-r from-red-600 to-red-500 px-6 py-3 lg:px-8 lg:py-4 text-white font-bold text-base lg:text-lg uppercase tracking-wider shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:shadow-[0_0_30px_rgba(220,38,38,0.6)] transition-all duration-300 transform hover:scale-105 active:scale-95 flex items-center gap-3 cursor-pointer"
+          >
+            <span className="relative z-10">{slide.cta}</span>
+            <ArrowRight className="w-5 h-5 lg:w-6 lg:h-6 relative z-10 group-hover:translate-x-1 transition-transform" />
+            {/* Button shine effect */}
+            <div className="absolute inset-0 h-full w-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-700 ease-in-out" />
+          </button>
         </div>
 
       </div>
