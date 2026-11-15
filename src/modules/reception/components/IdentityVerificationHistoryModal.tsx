@@ -26,6 +26,7 @@ interface IdentityVerificationHistoryModalProps {
   onClose: () => void;
   encounterId: string | null;
   patientName?: string;
+  patientIdentityNumber?: string;
   encounterCode?: string;
   onVerificationCreated?: () => void;
 }
@@ -35,6 +36,7 @@ export const IdentityVerificationHistoryModal: React.FC<IdentityVerificationHist
   onClose,
   encounterId,
   patientName,
+  patientIdentityNumber,
   encounterCode,
   onVerificationCreated,
 }) => {
@@ -95,11 +97,30 @@ export const IdentityVerificationHistoryModal: React.FC<IdentityVerificationHist
         ? (mismatchNotes.trim() ? `${prefix} ${mismatchNotes.trim()}` : prefix)
         : (mismatchNotes.trim() || undefined);
 
+      let idNum = patientIdentityNumber;
+      if (!idNum && encounterId) {
+        try {
+          const enc = await encounterService.getEncounterById(encounterId);
+          idNum = enc?.patient?.identityNumber;
+        } catch { }
+      }
+
       await encounterService.recordIdentityVerification(encounterId, {
         verificationMethod: apiMethod,
         verificationStatus: status,
         mismatchNotes: finalNotes,
+        identityNumber: idNum || undefined,
       });
+
+      // Tự động hoàn tất tiếp đón nếu ca khám đủ điều kiện nhưng đang bị dừng ở arrived
+      if (status === 'verified') {
+        try {
+          await encounterService.completeRegistration(encounterId);
+        } catch (regErr: any) {
+          console.warn('Lưu ý khi tự động hoàn tất tiếp đón sau khi xác minh:', regErr);
+        }
+      }
+
       setIsReverifying(false);
       setMismatchNotes('');
       await fetchHistory();

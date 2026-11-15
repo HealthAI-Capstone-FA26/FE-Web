@@ -23,7 +23,8 @@ import { queueTicketService, type QueueTicketItem } from '../../services/queue/q
 import { doctorService, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { encounterService } from '../../services/encounter/encounter.service';
 import { invoiceService, type InvoiceData } from '../../services/payment/invoice.service';
-import { type AppointmentItem } from '../../services/appointment/appointment.service';
+import { appointmentService, type AppointmentItem } from '../../services/appointment/appointment.service';
+import { patientService } from '../../services/patient/patient.service';
 import { chiefComplaintService } from '../../services/reception/chief-complaint.service';
 import { consentService } from '../../services/consent/consent.service';
 import { IdentityVerificationHistoryModal } from './components/IdentityVerificationHistoryModal';
@@ -238,6 +239,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   // State Modal Xem Lịch Sử Xác Minh Danh Tính (Chức năng 6 GET)
   const [historyModalEncounterId, setHistoryModalEncounterId] = useState<string | null>(null);
   const [historyModalPatientName, setHistoryModalPatientName] = useState<string>('');
+  const [historyModalPatientIdentity, setHistoryModalPatientIdentity] = useState<string>('');
   const [historyModalEncounterCode, setHistoryModalEncounterCode] = useState<string>('');
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
 
@@ -450,15 +452,30 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   ) => {
     const encId = targetEncounter.encounterId;
     let pId = targetEncounter.patientId || intakeData?.patientId;
+    let patientDetail: any = null;
 
     if (!pId) {
       try {
         const encDetail = await encounterService.getEncounterById(encId);
         pId = encDetail?.patientId;
+        patientDetail = encDetail?.patient;
       } catch (e) {
         console.warn('Không thể tra cứu chi tiết encounter để lấy patientId:', e);
       }
     }
+
+    if (pId && !patientDetail) {
+      try {
+        patientDetail = await patientService.getPatientById(pId);
+      } catch (pErr) {
+        console.warn('Không thể tải chi tiết bệnh nhân:', pErr);
+      }
+    }
+
+    const patientIdentityNumber =
+      intakeData?.identityVerification?.identityNumber ||
+      patientDetail?.identityNumber ||
+      undefined;
 
     if (intakeData) {
       // 1. Ghi nhận lý do khám & triệu chứng ban đầu (Chief Complaint)
@@ -473,7 +490,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       // 2. Ghi nhận log xác minh danh tính
       if (intakeData.identityVerification) {
         try {
-          await encounterService.recordIdentityVerification(encId, intakeData.identityVerification);
+          await encounterService.recordIdentityVerification(encId, {
+            ...intakeData.identityVerification,
+            identityNumber: patientIdentityNumber,
+          });
         } catch (idErr) {
           console.warn('Lỗi ghi nhận xác minh danh tính:', idErr);
         }
@@ -490,6 +510,36 @@ const ReceptionQueueCallingBoard: React.FC = () => {
         } catch (csErr) {
           console.warn('Lỗi lưu chính sách cam kết của bệnh nhân:', csErr);
         }
+      }
+    } else {
+      // Nếu không có intakeData (vd: thanh toán lại từ danh sách phiếu)
+      if (patientIdentityNumber) {
+        try {
+          await encounterService.recordIdentityVerification(encId, {
+            verificationMethod: 'national_id_card',
+            verificationStatus: 'verified',
+            identityNumber: patientIdentityNumber,
+          });
+        } catch (idErr) {
+          console.warn('Lỗi ghi nhận xác minh danh tính bổ sung:', idErr);
+        }
+      }
+    }
+
+    // Tự động chuyển hồ sơ từ Draft sang Main nếu là guest đặt lịch online qua OTP
+    if (pId && patientDetail && patientDetail.status === 'draft') {
+      try {
+        await appointmentService.confirmMainPatient(pId, {
+          fullName: patientDetail.fullName,
+          dateOfBirth: patientDetail.dateOfBirth
+            ? new Date(patientDetail.dateOfBirth).toISOString()
+            : new Date().toISOString(),
+          gender: patientDetail.gender,
+          identityNumber: patientDetail.identityNumber || patientIdentityNumber || '',
+          phoneNumber: patientDetail.phoneNumber,
+        });
+      } catch (confirmErr) {
+        console.warn('Tự động chuyển draft sang main thất bại:', confirmErr);
       }
     }
 
@@ -1408,6 +1458,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                                   if (encId) {
                                     setHistoryModalEncounterId(encId);
                                     setHistoryModalPatientName(ticket.appointment?.patient?.fullName || '');
+                                    setHistoryModalPatientIdentity(ticket.appointment?.patient?.identityNumber || '');
                                     setHistoryModalEncounterCode(encCode);
                                     setIsHistoryModalOpen(true);
                                   } else {
@@ -1461,6 +1512,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
         onClose={() => setIsHistoryModalOpen(false)}
         encounterId={historyModalEncounterId}
         patientName={historyModalPatientName}
+        patientIdentityNumber={historyModalPatientIdentity}
         encounterCode={historyModalEncounterCode}
         onVerificationCreated={() => {
           fetchTickets(true);
