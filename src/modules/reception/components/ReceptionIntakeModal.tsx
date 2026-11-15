@@ -58,6 +58,7 @@ export interface IntakeData {
     verificationMethod: VerificationMethod;
     verificationStatus: VerificationStatus;
     mismatchNotes?: string;
+    identityNumber?: string;
   };
   consents: {
     policyIds: string[];
@@ -462,6 +463,7 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
           verificationMethod,
           verificationStatus,
           mismatchNotes: mismatchNotes.trim() || undefined,
+          identityNumber: patient?.identityNumber || newIdentityNumber.trim() || selectedWalkinPatient?.identityNumber || undefined,
         },
         consents: {
           policyIds: selectedPolicyIds,

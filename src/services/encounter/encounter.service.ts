@@ -148,6 +148,7 @@ export interface CreateIdentityVerificationDto {
   verificationMethod: VerificationMethod;
   verificationStatus: VerificationStatus;
   mismatchNotes?: string;
+  identityNumber?: string;
 }
 
 export const encounterService = {

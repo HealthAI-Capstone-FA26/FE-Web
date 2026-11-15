@@ -8,6 +8,7 @@ import { Badge, type BadgeVariant } from '../../components/common/Badge';
 import { DataTable, type Column } from '../../components/common/DataTable';
 import { invoiceService, type InvoiceData } from '../../services/payment/invoice.service';
 import { encounterService, type EncounterItem } from '../../services/encounter/encounter.service';
+import { patientService } from '../../services/patient/patient.service';
 import { chiefComplaintService } from '../../services/reception/chief-complaint.service';
 import { consentService } from '../../services/consent/consent.service';
 import type { IntakeData } from './components/ReceptionIntakeModal';
@@ -115,7 +116,17 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
       // 2.2 Ghi nhận đối chiếu CCCD
       if (intakeData.identityVerification) {
         try {
-          await encounterService.recordIdentityVerification(encId, intakeData.identityVerification);
+          let idNum: string | undefined = intakeData.identityVerification.identityNumber;
+          if (!idNum && patientId) {
+            try {
+              const p = await patientService.getPatientById(patientId);
+              idNum = p?.identityNumber || undefined;
+            } catch { }
+          }
+          await encounterService.recordIdentityVerification(encId, {
+            ...intakeData.identityVerification,
+            identityNumber: idNum || undefined,
+          });
         } catch (idErr) {
           console.warn('Lỗi ghi nhận xác minh danh tính:', idErr);
         }
