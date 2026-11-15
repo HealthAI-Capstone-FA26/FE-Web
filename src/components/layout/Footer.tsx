@@ -35,7 +35,7 @@ export const Footer = () => {
                 <img src="/images/logo.png" alt="Logo" className="w-full h-full object-contain" />
               </div>
               <span className="font-sans font-bold text-lg text-white tracking-wide uppercase">
-                Bệnh viện Đa khoa 4AM
+                Phòng khám Tim mạch 4AM
               </span>
             </Link>
             <p className="text-sm text-slate-400 leading-relaxed max-w-md font-sans">
@@ -97,7 +97,7 @@ export const Footer = () => {
 
         {/* Bottom Bar */}
         <div className="border-t border-slate-800/60 pt-8 flex flex-col md:flex-row justify-between items-center text-[10px] font-mono tracking-wider uppercase text-slate-500">
-          <p className="mb-4 md:mb-0">&copy; 2026 Bệnh viện Đa khoa 4AM. All rights reserved.</p>
+          <p className="mb-4 md:mb-0">&copy; 2026 Phòng khám Tim mạch 4AM. All rights reserved.</p>
 
         </div>
       </div>

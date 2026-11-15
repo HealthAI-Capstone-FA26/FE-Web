@@ -106,6 +106,7 @@ export const WorkspaceContainer: React.FC<WorkspaceContainerProps> = ({
 
         {/* Right Actions: Nút Làm mới dữ liệu */}
         <div className="flex items-center gap-2 shrink-0">
+          {actions}
           <button
             type="button"
             onClick={handleTriggerRefresh}
@@ -116,7 +117,6 @@ export const WorkspaceContainer: React.FC<WorkspaceContainerProps> = ({
             <RotateCw className={`w-3.5 h-3.5 text-teal-600 ${isRefreshing ? 'animate-spin' : ''}`} />
             <span>Làm mới</span>
           </button>
-          {actions}
         </div>
       </div>
 

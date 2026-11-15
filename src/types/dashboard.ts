@@ -20,7 +20,7 @@ const receptionNavGroups: NavGroup[] = [
     groupName: 'Nghiệp vụ Tiếp nhận',
     items: [
       { id: 'rec_workspace_appointments', label: 'Lịch hẹn', path: '/tiep-nhan/danh-sach-cho', iconName: 'CalendarCheck', requiredPermission: 'appointment:read:all' },
-      { id: 'rec_workspace_registration', label: 'Đăng ký khám bệnh', path: '/tiep-nhan/benh-nhan', iconName: 'CalendarPlus', requiredPermission: 'patient:read:all' },
+      { id: 'rec_workspace_registration', label: 'Danh sách bệnh nhân', path: '/tiep-nhan/benh-nhan', iconName: 'Users', requiredPermission: 'patient:read:all' },
       { id: 'rec_workspace_queue_call', label: 'Gọi số hồ sơ', path: '/tiep-nhan/goi-so', iconName: 'Megaphone', badge: 'Live', requiredPermission: 'queue-ticket:read:all' }
     ]
   },
@@ -47,7 +47,8 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
     {
       groupName: 'Không gian Nghiệp vụ',
       items: [
-        { id: 'nurse_workspace_vitals', label: 'Tiếp nhận', path: '/dieu-duong/hang-cho-sinh-hieu', iconName: 'UserCheck', requiredPermission: 'observation:read:all' }
+        { id: 'nurse_workspace_vitals', label: 'Tiếp nhận & Đo sinh hiệu', path: '/dieu-duong/hang-cho-sinh-hieu', iconName: 'UserCheck', requiredPermission: 'observation:read:all' },
+        { id: 'nurse_workspace_alerts', label: 'Cảnh báo sinh hiệu Realtime', path: '/dieu-duong/canh-bao', iconName: 'ShieldAlert', badge: 'Live', requiredPermission: 'observation:read:all' }
       ]
     }
   ],
@@ -73,6 +74,8 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
       groupName: 'Không gian Quản trị',
       items: [
         { id: 'admin_workspace_realtime', label: 'Quản lý', path: '/quan-tri/tong-quan', iconName: 'LayoutDashboard', requiredPermission: 'user:read:all' },
+        { id: 'admin_workspace_fees', label: 'Quản lý Viện Phí', path: '/quan-tri/bang-gia', iconName: 'Coins', requiredPermission: 'user:read:all' },
+        { id: 'admin_workspace_statistics', label: 'Thống kê & Báo cáo', path: '/quan-tri/bao-cao', iconName: 'BarChart3' },
         { id: 'admin_workspace_security', label: 'Bảo mật', path: '/quan-tri/nhat-ky-he-thong', iconName: 'ShieldCheck', requiredPermission: 'security-config:read:all' }
       ]
     }
@@ -84,7 +87,8 @@ export const ROLE_NAV_CONFIG: Record<UserRole, NavGroup[]> = {
         { id: 'pat_workspace_profile', label: 'Hồ sơ khách hàng', path: '/benh-nhan/ho-so', iconName: 'UserCheck', requiredPermission: 'patient:read:own' },
         { id: 'pat_workspace_medical', label: 'Hồ sơ Y tế & Tiền sử', path: '/benh-nhan/ho-so-y-te', iconName: 'FileText', badge: 'HL7 FHIR', requiredPermission: 'patient:read:own' },
         { id: 'pat_workspace_submission', label: 'Khai báo & Nộp dữ liệu', path: '/benh-nhan/trieu-chung', iconName: 'Activity', requiredPermission: 'observation:create:own' },
-        { id: 'pat_workspace_records', label: 'Đặt lịch khám', path: '/benh-nhan/lich-hen', iconName: 'Calendar', requiredPermission: 'appointment:read:own' }
+        { id: 'pat_workspace_records', label: 'Đặt lịch khám', path: '/benh-nhan/lich-hen', iconName: 'Calendar', requiredPermission: 'appointment:read:own' },
+        { id: 'pat_workspace_prescriptions', label: 'Đơn thuốc & Tái khám', path: '/benh-nhan/ho-so-don-thuoc', iconName: 'Pill', requiredPermission: 'appointment:read:own' }
       ]
     }
   ]

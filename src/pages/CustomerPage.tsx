@@ -51,11 +51,11 @@ const customerServicesData: CustomerService[] = [
   },
   {
     id: "danh-muc-dich-vu",
-    name: "Danh mục dịch vụ kỹ thuật Bệnh viện Đa khoa 4AM TP.HCM",
+    name: "Danh mục dịch vụ kỹ thuật Phòng khám Tim mạch 4AM TP.HCM",
     image: "https://tamanhhospital.vn/wp-content/uploads/2022/03/huong-dan-tra-cuu-ket-qua-xet-nghiem.jpg",
     link: "https://tamanhhospital.vn/danh-cho-khach-hang/danh-muc-dich-vu-ky-tam-anh-tphcm/",
     category: "billing",
-    desc: "Tra cứu danh sách các dịch vụ khám bệnh, danh mục kỹ thuật và quy trình can thiệp chuyên sâu được phê duyệt áp dụng tại bệnh viện.",
+    desc: "Tra cứu danh sách các dịch vụ khám bệnh, danh mục kỹ thuật và quy trình can thiệp chuyên sâu được phê duyệt áp dụng tại phòng khám.",
     icon: HeartPulse,
     size: "normal"
   },
@@ -71,7 +71,7 @@ const customerServicesData: CustomerService[] = [
   },
   {
     id: "huong-dan-kham",
-    name: "Hướng dẫn khám bệnh tại bệnh viện",
+    name: "Hướng dẫn khám bệnh tại phòng khám",
     image: "https://tamanhhospital.vn/wp-content/uploads/2021/02/huong-dan-kham.jpg",
     link: "https://tamanhhospital.vn/danh-cho-khach-hang/huong-dan-kham-benh/",
     category: "guide",
@@ -151,11 +151,11 @@ const customerServicesData: CustomerService[] = [
   },
   {
     id: "bang-gia-dich-vu",
-    name: "Bảng giá dịch vụ khám chữa bệnh Bệnh viện Đa khoa 4AM",
+    name: "Bảng giá dịch vụ khám chữa bệnh Phòng khám Tim mạch 4AM",
     image: "https://tamanhhospital.vn/wp-content/uploads/2021/02/bang-gia.jpg",
     link: "https://tamanhhospital.vn/danh-cho-khach-hang/bang-gia/",
     category: "billing",
-    desc: "Minh bạch công khai bảng giá các dịch vụ khám chuyên khoa, xét nghiệm, chẩn đoán hình ảnh và ngày giường điều trị nội trú tại bệnh viện.",
+    desc: "Minh bạch công khai bảng giá các dịch vụ khám chuyên khoa, xét nghiệm, chẩn đoán hình ảnh và ngày giường theo dõi tại phòng khám.",
     icon: FileText,
     size: "normal"
   }
@@ -204,7 +204,7 @@ export const CustomerPage = () => {
             </h1>
             
             <p className="text-slate-500 text-sm md:text-base leading-relaxed max-w-[65ch] mx-auto mb-8 font-sans">
-              Bệnh viện Đa khoa 4AM cung cấp đầy đủ thông tin hướng dẫn, biểu mẫu khảo sát, quy trình khám chữa bệnh trực tuyến và nội ngoại trú giúp quý khách trải nghiệm dịch vụ tiện lợi nhất.
+              Phòng khám Tim mạch 4AM cung cấp đầy đủ thông tin hướng dẫn, biểu mẫu khảo sát, quy trình khám chữa bệnh trực tuyến và nội ngoại trú giúp quý khách trải nghiệm dịch vụ tiện lợi nhất.
             </p>
 
             {/* Smart Search Bar */}

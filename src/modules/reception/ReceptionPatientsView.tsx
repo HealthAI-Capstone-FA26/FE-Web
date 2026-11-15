@@ -3,7 +3,7 @@ import {
   Users, CheckCircle2, UserPlus, Search, Eye,
   X, ShieldAlert, FileText,
   Calendar, Stethoscope, Clock, Loader2, Edit3, RefreshCw, Mail, Phone, Shield, AlertCircle,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CalendarPlus
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { patientService } from '../../services/patient/patient.service';
@@ -51,9 +51,7 @@ export interface ReceptionPatientsViewProps {
   onSelectPatientForWalkin?: (patient: any) => void;
 }
 
-export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
-  onSelectPatientForWalkin,
-}) => {
+export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () => {
   const [patients, setPatients] = useState<Patient[]>(() => {
     const cached = patientService.getCachedPatients();
     if (cached && Array.isArray(cached)) {
@@ -105,8 +103,8 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
   const [formCccd, setFormCccd] = useState('');
   const [formBhyt, setFormBhyt] = useState('');
   const [formEmail, setFormEmail] = useState('');
-  const [formAction, setFormAction] = useState('Khám sức khỏe');
-  const [formDoctor, setFormDoctor] = useState('BS. Daniel McAdams');
+  const [formAddress, setFormAddress] = useState('');
+
 
   // Validation errors
   const [validationError, setValidationError] = useState('');
@@ -250,6 +248,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
         identityNumber: formCccd.trim(),
         insuranceNumber: formBhyt.trim() || undefined,
         email: formEmail.trim() || undefined,
+        address: formAddress.trim() || undefined,
       };
 
       const res = await patientService.createPatient(payload);
@@ -270,9 +269,9 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
         ssn: formCccd.trim(),
         bhyt: formBhyt.trim() || 'Không có',
         dob: formDob,
-        recentAction: formAction,
-        doctor: formDoctor,
-        specialty: formDoctor === 'BS. Emily Johnson' ? 'Khoa Tim mạch' : 'Khoa Tiêu hóa',
+        recentAction: 'Hồ sơ tiếp nhận',
+        doctor: 'Chưa chỉ định',
+        specialty: 'Khoa Tiếp Nhận',
         visitHistory: []
       };
 
@@ -288,6 +287,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
       setFormCccd('');
       setFormBhyt('');
       setFormEmail('');
+      setFormAddress('');
       setValidationError('');
 
       // Silent sync with backend
@@ -323,7 +323,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
         <div className="flex items-center gap-2.5 self-start md:self-auto">
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer border-none"
+            className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
             <span>Thêm Bệnh Nhân Mới</span>
@@ -501,28 +501,6 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
                     {/* Actions */}
                     <td className="py-3.5 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        {onSelectPatientForWalkin && (
-                          <button
-                            onClick={() =>
-                              onSelectPatientForWalkin({
-                                patientId: patient.patientId,
-                                patientCode: patient.mrn,
-                                fullName: patient.name,
-                                dateOfBirth: patient.dob,
-                                gender: patient.gender === 'Nam' ? 'male' : 'female',
-                                phoneNumber: patient.phone,
-                                identityNumber: patient.cccd,
-                                insuranceNumber: patient.bhyt,
-                                email: patient.email,
-                              })
-                            }
-                            className="px-2.5 py-1 text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors inline-flex items-center gap-1 cursor-pointer shadow-2xs border-none"
-                            title="Đăng ký khám tại quầy cho bệnh nhân này"
-                          >
-                            <CalendarPlus className="w-3.5 h-3.5" />
-                            <span>Đăng ký khám</span>
-                          </button>
-                        )}
                         <button
                           onClick={() => setSelectedPatient(patient)}
                           className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors inline-flex items-center gap-1 cursor-pointer shadow-2xs"
@@ -733,7 +711,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
                     <div className="text-4xl font-black text-[#0b3c8f] font-mono leading-none tracking-tight">
                       {String(selectedPatient.visitHistory.length).padStart(2, '0')}
                     </div>
-                    <span className="text-[10px] text-slate-500 font-medium block mt-1">Lượt khám tại Bệnh viện 4AM</span>
+                    <span className="text-[10px] text-slate-500 font-medium block mt-1">Lượt khám tại Phòng khám Tim mạch 4AM</span>
                   </div>
                 </div>
 
@@ -973,36 +951,20 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Action pill */}
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                        Triệu chứng / Chỉ định
-                      </label>
-                      <input
-                        type="text"
-                        value={formAction}
-                        onChange={(e) => setFormAction(e.target.value)}
-                        className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border border-slate-200 text-xs md:text-sm outline-none focus:ring-2"
-                      />
-                    </div>
-
-                    {/* Assigned doctor */}
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                        Bác sĩ đảm nhận
-                      </label>
-                      <select
-                        value={formDoctor}
-                        onChange={(e) => setFormDoctor(e.target.value)}
-                        className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border border-slate-200 text-xs md:text-sm outline-none focus:ring-2"
-                      >
-                        <option value="BS. Daniel McAdams">BS. Daniel McAdams (Tiêu hóa)</option>
-                        <option value="BS. Emily Johnson">BS. Emily Johnson (Tim mạch)</option>
-                        <option value="BS. Michael Lee">BS. Michael Lee (Chấn thương)</option>
-                      </select>
-                    </div>
+                  {/* Địa chỉ thường trú (Optional) */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Địa chỉ thường trú
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Số nhà, Đường, Phường/Xã, Quận/Huyện, Tỉnh/TP (Tùy chọn)"
+                      value={formAddress}
+                      onChange={(e) => setFormAddress(e.target.value)}
+                      className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border border-slate-200 text-xs md:text-sm outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                    />
                   </div>
+
 
                   {/* Validation Error Display */}
                   {validationError && (
@@ -1052,7 +1014,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = ({
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold border border-emerald-500"
+            className="fixed bottom-6 right-6 z-[9999] bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold border border-emerald-500"
           >
             <CheckCircle2 className="w-4 h-4 text-emerald-100 shrink-0" />
             <span>{successMsg}</span>

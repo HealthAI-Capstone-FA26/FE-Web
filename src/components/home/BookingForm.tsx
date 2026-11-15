@@ -20,23 +20,19 @@ import {
   KeyRound,
   RefreshCw,
   Plus,
-  Wand2,
   X,
   AlertCircle,
-  Baby,
+  HeartPulse,
 } from 'lucide-react';
 import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { appointmentService, type AppointmentSlotResponse, type AppointmentItem } from '../../services/appointment/appointment.service';
 import { useLocation } from 'react-router-dom';
-import {
-  departmentSuggestionService,
-  calcPatientAgeYears,
-  confidenceLabel,
-  type DepartmentSuggestionResult,
-} from '../../services/department/department-suggestion.service';
+import { useAuth } from '../../context/AuthContext';
+import { getLocalDateString, isSlotPassed } from '../../utils/booking.utils';
 
 export const BookingForm = () => {
   const location = useLocation();
+  const { isLoggedIn, user } = useAuth();
   const stateDoctorId = (location.state as any)?.doctorId;
   const stateDeptId = (location.state as any)?.departmentId;
 
@@ -51,7 +47,7 @@ export const BookingForm = () => {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+    return getLocalDateString(tomorrow);
   });
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
   const [serviceLevel, setServiceLevel] = useState<'tieu-chuan' | 'vip'>('tieu-chuan');
@@ -62,7 +58,7 @@ export const BookingForm = () => {
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [identityNumber, setIdentityNumber] = useState<string>('');
-  const [dateOfBirth, setDateOfBirth] = useState<string>('1995-01-01');
+  const [dateOfBirth, setDateOfBirth] = useState<string>('');
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
   const [verifyMethod, setVerifyMethod] = useState<'email' | 'sms'>('email');
 
@@ -70,6 +66,7 @@ export const BookingForm = () => {
   const [step, setStep] = useState<'form' | 'otp' | 'success'>('form');
   const [otp, setOtp] = useState<string>('');
   const [otpNotice, setOtpNotice] = useState<string>('');
+  const [resendCooldown, setResendCooldown] = useState<number>(0);
 
   // Loading & Error States
   const [loadingInit, setLoadingInit] = useState<boolean>(true);
@@ -78,59 +75,31 @@ export const BookingForm = () => {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [successBooking, setSuccessBooking] = useState<AppointmentItem | null>(null);
 
-  // AI Department Suggestion
-  const [aiSuggestions, setAiSuggestions] = useState<DepartmentSuggestionResult[]>([]);
-  const [isAISuggesting, setIsAISuggesting] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [showAIPanel, setShowAIPanel] = useState(false);
-  const [emergencyMsg, setEmergencyMsg] = useState<string | null>(null);
-  const [symptomInput, setSymptomInput] = useState('');
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
-  // 1. Fetch initial Departments
+
+
+  // 1. Fetch Doctors directly (Cardiology clinic)
   useEffect(() => {
     const fetchInit = async () => {
       try {
         setLoadingInit(true);
-        const deptList = await doctorService.getDepartments();
+        const docList = await doctorService.getDoctors();
+        const activeDocs = Array.isArray(docList) ? docList.filter((d) => d.isActive) : [];
+        setFilteredDoctors(activeDocs);
 
-        const activeDepts = deptList.filter((d) => d.isActive);
-        setDepartments(activeDepts);
-        if (stateDeptId && activeDepts.some((d) => d.departmentId === stateDeptId)) {
-          setSelectedDeptId(stateDeptId);
-        } else if (activeDepts.length > 0) {
-          setSelectedDeptId(activeDepts[0].departmentId);
-        }
-      } catch (err) {
-        console.error('Failed to load init data for booking form:', err);
-      } finally {
-        setLoadingInit(false);
-      }
-    };
-    fetchInit();
-  }, []);
-
-  // 2. Fetch Doctors by selected Department (GET /departments/:id/doctors)
-  useEffect(() => {
-    if (!selectedDeptId) {
-      setFilteredDoctors([]);
-      setSelectedDoctorId('');
-      return;
-    }
-
-    const fetchDoctorsByDept = async () => {
-      try {
-        const list = await doctorService.getDoctorsByDepartment(selectedDeptId);
-        const mapped: DoctorResponse[] = list.map((item: any) => ({
-          ...item.doctor,
-          isPrimary: item.isPrimary,
-        }));
-        setFilteredDoctors(mapped);
-
-        if (mapped.length > 0) {
-          if (stateDoctorId && mapped.some((d) => d.doctorId === stateDoctorId)) {
+        if (activeDocs.length > 0) {
+          if (stateDoctorId && activeDocs.some((d) => d.doctorId === stateDoctorId)) {
             setSelectedDoctorId(stateDoctorId);
           } else {
-            setSelectedDoctorId(mapped[0].doctorId);
+            setSelectedDoctorId(activeDocs[0].doctorId);
           }
         } else {
           setSelectedDoctorId('');
@@ -138,14 +107,13 @@ export const BookingForm = () => {
           setSelectedSlotId('');
         }
       } catch (err) {
-        console.error('Failed to load doctors for department:', err);
-        setFilteredDoctors([]);
-        setSelectedDoctorId('');
+        console.error('Failed to load doctors for booking form:', err);
+      } finally {
+        setLoadingInit(false);
       }
     };
-
-    fetchDoctorsByDept();
-  }, [selectedDeptId, stateDoctorId]);
+    fetchInit();
+  }, [stateDoctorId]);
 
   // Cuộn mượt tới form nếu được chuyển hướng từ trang Chuyên gia
   useEffect(() => {
@@ -160,45 +128,7 @@ export const BookingForm = () => {
     }
   }, [stateDoctorId, stateDeptId]);
 
-  // AI Department Suggestion handler
-  const handleAISuggest = useCallback(async () => {
-    const symptomText = (symptomInput.trim() || reasonForVisit.trim());
-    if (symptomText.length < 3) {
-      setAiError('Vui lòng nhập ít nhất 3 ký tự mô tả triệu chứng.');
-      return;
-    }
 
-    // Đồng bộ 2 trường nếu 1 trong 2 đang trống
-    if (!symptomInput.trim()) setSymptomInput(symptomText);
-    if (!reasonForVisit.trim()) setReasonForVisit(symptomText);
-
-    setIsAISuggesting(true);
-    setAiError(null);
-    setAiSuggestions([]);
-    setEmergencyMsg(null);
-    setShowAIPanel(true);
-    try {
-      const patientAgeYears = calcPatientAgeYears(dateOfBirth);
-      const results = await departmentSuggestionService.suggest({ symptoms: symptomText, patientAgeYears });
-      setAiSuggestions(results ?? []);
-
-      const emergency = results?.find((r) => r.isEmergency);
-      if (emergency) {
-        setEmergencyMsg(emergency.advice ?? 'Vui lòng đến ngay Khoa Cấp Cứu hoặc gọi 115.');
-        if (emergency.departmentId) setSelectedDeptId(emergency.departmentId);
-        return;
-      }
-
-      const best = results?.[0];
-      if (best && (best.confidence === 'high' || best.confidence === 'medium')) {
-        setSelectedDeptId(best.departmentId);
-      }
-    } catch (err: any) {
-      setAiError(err?.message ?? 'Không thể kết nối dịch vụ gợi ý AI.');
-    } finally {
-      setIsAISuggesting(false);
-    }
-  }, [symptomInput, reasonForVisit, dateOfBirth]);
 
   // Load free slots when doctor or date changes
   useEffect(() => {
@@ -213,10 +143,7 @@ export const BookingForm = () => {
         setLoadingSlots(true);
         setSelectedSlotId('');
         const freeSlots = await appointmentService.getFreeSlots(selectedDoctorId, selectedDate);
-        setSlots(freeSlots);
-        if (freeSlots.length > 0) {
-          setSelectedSlotId(freeSlots[0].slotId);
-        }
+        setSlots(Array.isArray(freeSlots) ? freeSlots : []);
       } catch (err) {
         setSlots([]);
         setSelectedSlotId('');
@@ -233,6 +160,7 @@ export const BookingForm = () => {
     const newErrors: { [key: string]: string } = {};
 
     if (!fullName.trim()) newErrors.fullName = 'Vui lòng nhập họ và tên';
+    if (!dateOfBirth) newErrors.dateOfBirth = 'Vui lòng chọn ngày sinh';
     if (!phoneNumber.trim()) {
       newErrors.phoneNumber = 'Vui lòng nhập số điện thoại';
     } else if (!/^[0-9]{9,11}$/.test(phoneNumber.trim())) {
@@ -251,9 +179,15 @@ export const BookingForm = () => {
       newErrors.identityNumber = 'Số CCCD/CMND tối thiểu 9 chữ số';
     }
 
-    if (!selectedDeptId) newErrors.selectedDeptId = 'Vui lòng chọn chuyên khoa';
-    if (!selectedDoctorId) newErrors.selectedDoctorId = 'Vui lòng chọn bác sĩ';
-    if (!selectedSlotId) newErrors.selectedSlotId = 'Vui lòng chọn khung giờ khám còn trống';
+    if (!selectedDoctorId) newErrors.selectedDoctorId = 'Vui lòng chọn bác sĩ khám';
+    if (!selectedSlotId) {
+      newErrors.selectedSlotId = 'Vui lòng chọn khung giờ khám còn trống';
+    } else {
+      const chosen = slots.find((s) => s.slotId === selectedSlotId);
+      if (!chosen || isSlotPassed(chosen.slotStartTime, selectedDate)) {
+        newErrors.selectedSlotId = 'Khung giờ bạn chọn đã kết thúc, vui lòng chọn khung giờ khác';
+      }
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -268,8 +202,6 @@ export const BookingForm = () => {
       setIsSubmitting(true);
       setErrors({});
 
-      const priority = serviceLevel === 'vip' ? 'urgent' : 'normal';
-
       const res = await appointmentService.guestRequestOtp({
         fullName: fullName.trim(),
         phoneNumber: phoneNumber.trim(),
@@ -277,17 +209,15 @@ export const BookingForm = () => {
         identityNumber: identityNumber.trim(),
         dateOfBirth,
         gender,
-        departmentId: selectedDeptId,
         doctorId: selectedDoctorId,
         slotId: selectedSlotId,
-        reasonForVisit: reasonForVisit.trim()
-          ? `${serviceLevel === 'vip' ? '[Khám VIP] ' : ''}${reasonForVisit.trim()}`
-          : (serviceLevel === 'vip' ? 'Khám VIP' : undefined),
-        priority,
+        reasonForVisit: reasonForVisit.trim() || undefined,
+        priority: 'normal',
         verifyMethod,
       });
 
       setOtpNotice(res?.message || `Mã OTP đã được gửi đến ${verifyMethod === 'email' ? email : phoneNumber}`);
+      setResendCooldown(60);
       setStep('otp');
     } catch (err: any) {
       setErrors({ submit: err?.message || 'Không thể gửi yêu cầu đặt lịch. Vui lòng kiểm tra lại thông tin.' });
@@ -317,6 +247,17 @@ export const BookingForm = () => {
       setSuccessBooking(res);
       setStep('success');
     } catch (err: any) {
+      const isConflict =
+        err?.status === 409 ||
+        err?.message?.toLowerCase()?.includes('đầy') ||
+        err?.message?.toLowerCase()?.includes('đã được đặt');
+      if (isConflict && selectedDoctorId && selectedDate) {
+        setSelectedSlotId('');
+        appointmentService
+          .getFreeSlots(selectedDoctorId, selectedDate)
+          .then((s) => setSlots(Array.isArray(s) ? s : []))
+          .catch(() => { });
+      }
       setErrors({ otp: err?.message || 'Mã OTP không chính xác hoặc đã hết hạn. Vui lòng thử lại.' });
     } finally {
       setIsSubmitting(false);
@@ -366,6 +307,23 @@ export const BookingForm = () => {
                 onSubmit={handleRequestOtpSubmit}
                 className="p-6 space-y-4 flex flex-col"
               >
+                {isLoggedIn && (
+                  <div className="p-3 bg-blue-500/30 border border-blue-400/40 rounded-xl flex items-center justify-between text-xs text-blue-100 gap-2">
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-yellow-300 shrink-0" />
+                      <span>
+                        Bạn đang đăng nhập: <strong>{user?.name || user?.fullName}</strong>.
+                      </span>
+                    </div>
+                    <a
+                      href="/benh-nhan/lich-hen"
+                      className="bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-bold px-2.5 py-1 rounded-lg shrink-0 text-[11px] transition-colors"
+                    >
+                      Đặt qua tài khoản →
+                    </a>
+                  </div>
+                )}
+
                 {errors.submit && (
                   <div className="p-3 bg-yellow-400/20 border border-yellow-300/40 rounded-xl flex items-center gap-2 text-yellow-200 text-xs">
                     <ShieldAlert className="w-4 h-4 text-yellow-300 shrink-0" />
@@ -437,9 +395,11 @@ export const BookingForm = () => {
                       <input
                         type="date"
                         value={dateOfBirth}
+                        max={getLocalDateString()}
                         onChange={(e) => setDateOfBirth(e.target.value)}
-                        className="w-full bg-white text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs outline-none"
+                        className={`w-full bg-white text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs outline-none border ${errors.dateOfBirth ? 'border-yellow-400' : 'border-transparent'}`}
                       />
+                      {errors.dateOfBirth && <span className="text-[10px] text-yellow-300 block mt-0.5">{errors.dateOfBirth}</span>}
                     </div>
 
                     <div>
@@ -480,104 +440,36 @@ export const BookingForm = () => {
                   </div>
                 </div>
 
-                {/* KHUNG 2: VẤN ĐỀ SỨC KHỎE CẦN KHÁM & AI GỢI Ý KHOA */}
+                {/* KHUNG 2: VẤN ĐỀ SỨC KHỎE CẦN KHÁM */}
                 <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                      * 2. Vấn đề sức khỏe cần khám
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleAISuggest}
-                      disabled={isAISuggesting || (!reasonForVisit.trim() && !symptomInput.trim())}
-                      className="px-3 py-1 rounded-lg bg-violet-500 hover:bg-violet-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer border-none shadow-xs"
-                    >
-                      {isAISuggesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5 text-yellow-300" />}
-                      <span>{isAISuggesting ? 'Đang phân tích...' : '✨ AI Gợi ý Khoa'}</span>
-                    </button>
-                  </div>
+                  <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
+                    * 2. Vấn đề sức khỏe cần khám
+                  </span>
 
                   <textarea
-                    placeholder="Mô tả triệu chứng bệnh hoặc nhu cầu khám... (VD: Bé 3 tuổi sốt cao, hoặc trẻ sơ sinh 10 ngày bú kém, đau bụng...)"
+                    placeholder="Mô tả triệu chứng hoặc lý do khám... (VD: Đau tức ngực trái, khó thở khi gắng sức, hồi hộp tim đập nhanh, tăng huyết áp...)"
                     rows={2.5}
                     value={reasonForVisit}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setReasonForVisit(val);
-                      setSymptomInput(val);
-                      setAiSuggestions([]);
-                      setAiError(null);
-                      setEmergencyMsg(null);
-                    }}
+                    onChange={(e) => setReasonForVisit(e.target.value)}
                     className="w-full bg-white text-slate-800 font-semibold p-3 rounded-lg text-xs outline-none resize-none focus:ring-2 focus:ring-yellow-400"
                   />
 
-                  {/* Hint note for pediatric & neonate */}
+                  {/* Triệu chứng tim mạch thường gặp */}
                   <div className="flex items-start gap-1.5 text-[10.5px] text-blue-100/90 bg-blue-950/40 rounded-lg px-2.5 py-1.5 border border-blue-400/20 leading-relaxed">
-                    <Baby className="w-3.5 h-3.5 text-amber-300 shrink-0 mt-0.5" />
+                    <HeartPulse className="w-3.5 h-3.5 text-rose-300 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold text-amber-300">Gợi ý cho trẻ: </span>
-                      Nhập <span className="font-semibold text-white">&quot;trẻ sơ sinh&quot;</span> + lý do (vào Khoa Sơ sinh) hoặc <span className="font-semibold text-white">&quot;bé&quot; + lý do</span> hoặc <span className="font-semibold text-white">số tuổi</span> (vào Khoa Nhi).
+                      <span className="font-bold text-rose-300">Triệu chứng tim mạch gợi ý: </span>
+                      Đau thắt ngực, khó thở khi nằm/gắng sức, hồi hộp đánh trống ngực, phù chân, tăng huyết áp, tái khám sau can thiệp.
                     </div>
                   </div>
-
-                  {aiError && (
-                    <p className="text-yellow-300 text-[11px] flex items-center gap-1 font-medium">
-                      <AlertCircle className="w-3.5 h-3.5" /> {aiError}
-                    </p>
-                  )}
-
-                  {emergencyMsg && (
-                    <div className="bg-rose-600/90 border border-rose-400 rounded-xl p-3 text-xs text-white flex items-start gap-2">
-                      <ShieldAlert className="w-4 h-4 shrink-0 text-rose-200 mt-0.5" />
-                      <div>
-                        <div className="font-black text-rose-100 mb-0.5">🚨 Dấu hiệu cấp cứu!</div>
-                        <p className="font-medium leading-relaxed text-rose-100">{emergencyMsg}</p>
-                      </div>
-                      <button type="button" onClick={() => setEmergencyMsg(null)} className="ml-auto shrink-0 text-rose-300 hover:text-white cursor-pointer border-none bg-transparent">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-
-                  {showAIPanel && aiSuggestions.length > 0 && !emergencyMsg && (
-                    <div className="space-y-1 pt-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-violet-300 uppercase">Gợi ý từ AI (Chọn khoa phù hợp):</span>
-                        <button type="button" onClick={() => setShowAIPanel(false)} className="text-blue-300 hover:text-white cursor-pointer border-none bg-transparent"><X className="w-3 h-3" /></button>
-                      </div>
-                      <div className="space-y-1">
-                        {aiSuggestions.slice(0, 3).map((s, idx) => {
-                          const isActive = selectedDeptId === s.departmentId;
-                          return (
-                            <button
-                              key={s.departmentId}
-                              type="button"
-                              onClick={() => setSelectedDeptId(s.departmentId)}
-                              className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left text-xs font-semibold transition-all cursor-pointer border ${isActive
-                                  ? 'bg-violet-500/30 border-violet-400 text-white shadow-xs'
-                                  : 'bg-white/10 border-white/20 text-blue-100 hover:bg-white/20'
-                                }`}
-                            >
-                              <span>{idx === 0 && '🏆 '}{s.departmentName}</span>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.confidence === 'high' ? 'bg-emerald-500/30 text-emerald-200'
-                                  : s.confidence === 'medium' ? 'bg-blue-400/30 text-blue-200'
-                                    : 'bg-white/10 text-blue-300'
-                                }`}>{confidenceLabel(s.confidence)}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </div>
 
-                {/* KHUNG 3: CHỌN LOẠI HÌNH & CHUYÊN KHOA KHÁM */}
+                {/* KHUNG 3: CHỌN LOẠI HÌNH & BÁC SĨ TIM MẠCH */}
                 <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-3 font-sans">
                   {/* Chọn loại hình khám */}
                   <div className="space-y-1">
                     <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                      * 3. Chọn loại hình & chuyên khoa khám
+                      * 3. Chọn loại hình khám & Bác sĩ phụ trách
                     </span>
                     <div className="grid grid-cols-2 bg-white p-1 rounded-lg text-center font-bold">
                       <button
@@ -599,28 +491,9 @@ export const BookingForm = () => {
                     </div>
                   </div>
 
-                  {/* Chuyên khoa */}
+                  {/* Bác sĩ Tim mạch */}
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-blue-100 mb-1">Chuyên khoa *</label>
-                    <div className="relative">
-                      <select
-                        value={selectedDeptId}
-                        onChange={(e) => setSelectedDeptId(e.target.value)}
-                        className="w-full bg-white text-slate-800 font-semibold py-2 pl-3 pr-8 rounded-lg text-xs outline-none appearance-none"
-                      >
-                        {departments.map((d) => (
-                          <option key={d.departmentId} value={d.departmentId}>
-                            {d.departmentName} ({d.departmentCode})
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
-
-                  {/* Bác sĩ */}
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-blue-100 mb-1">Bác sĩ phụ trách *</label>
+                    <label className="block text-[10px] font-bold uppercase text-blue-100 mb-1">Bác sĩ Tim Mạch phụ trách *</label>
                     <div className="relative">
                       <select
                         value={selectedDoctorId}
@@ -633,7 +506,7 @@ export const BookingForm = () => {
                         ) : (
                           filteredDoctors.map((doc) => (
                             <option key={doc.doctorId} value={doc.doctorId}>
-                              {doc.title ? `${doc.title}. ` : ''}{doc.fullName} {doc.specialization ? `(${doc.specialization})` : ''}
+                              {doc.fullName}
                             </option>
                           ))
                         )}
@@ -649,7 +522,7 @@ export const BookingForm = () => {
                       <input
                         type="date"
                         value={selectedDate}
-                        min={new Date().toISOString().split('T')[0]}
+                        min={getLocalDateString()}
                         onChange={(e) => setSelectedDate(e.target.value)}
                         className="w-full bg-white text-slate-800 font-semibold py-2 px-2.5 rounded-lg text-xs outline-none"
                       />
@@ -663,26 +536,48 @@ export const BookingForm = () => {
                             Không có slot trống ngày này
                           </div>
                         ) : (
-                          <div className="grid grid-cols-2 gap-1 max-h-28 overflow-y-auto pr-1">
-                            {slots.map((s) => {
-                              const startTime = new Date(s.slotStartTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-                              const endTime = new Date(s.slotEndTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-                              const isSelected = selectedSlotId === s.slotId;
-                              return (
-                                <button
-                                  key={s.slotId}
-                                  type="button"
-                                  onClick={() => setSelectedSlotId(s.slotId)}
-                                  className={`py-1 px-2 rounded text-[11px] font-bold transition-all flex items-center justify-between border cursor-pointer ${isSelected
+                          <div>
+                            <div className="grid grid-cols-2 gap-1 max-h-28 overflow-y-auto pr-1">
+                              {slots.map((s) => {
+                                const startTime = new Date(s.slotStartTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+                                const endTime = new Date(s.slotEndTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+                                const isPassed = isSlotPassed(s.slotStartTime, selectedDate);
+                                const isSelected = selectedSlotId === s.slotId;
+
+                                if (isPassed) {
+                                  return (
+                                    <div
+                                      key={s.slotId}
+                                      title="Khung giờ này đã qua hoặc đã hết thời gian tiếp nhận"
+                                      className="py-1 px-2 rounded text-[11px] font-medium transition-all flex items-center justify-between border bg-white/10 text-white/40 border-white/10 cursor-not-allowed select-none opacity-50"
+                                    >
+                                      <span className="line-through decoration-white/30">{startTime}-{endTime}</span>
+                                      <span className="text-[9px] text-white/50 uppercase font-semibold">Hết giờ</span>
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <button
+                                    key={s.slotId}
+                                    type="button"
+                                    onClick={() => setSelectedSlotId(s.slotId)}
+                                    className={`py-1 px-2 rounded text-[11px] font-bold transition-all flex items-center justify-between border cursor-pointer ${isSelected
                                       ? 'bg-white text-[#0b3c8f] border-white shadow-xs'
                                       : 'bg-white/20 text-white border-white/20 hover:bg-white/30'
-                                    }`}
-                                >
-                                  <span>{startTime}-{endTime}</span>
-                                  <span className="text-[9px] opacity-80 font-normal">({s.capacity - s.bookedCount})</span>
-                                </button>
-                              );
-                            })}
+                                      }`}
+                                  >
+                                    <span>{startTime}-{endTime}</span>
+                                    <span className="text-[9px] opacity-80 font-normal">({s.capacity - s.bookedCount})</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {slots.length > 0 && slots.every((s) => isSlotPassed(s.slotStartTime, selectedDate)) && (
+                              <p className="text-[10px] text-yellow-300 mt-1 italic">
+                                Các khung giờ hôm nay đã kết thúc, vui lòng chọn ngày tiếp theo.
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>
@@ -769,12 +664,16 @@ export const BookingForm = () => {
                   <button
                     type="button"
                     onClick={handleRequestOtpSubmit}
-                    disabled={isSubmitting}
-                    className="hover:underline font-semibold text-yellow-300 flex items-center gap-1 cursor-pointer"
+                    disabled={isSubmitting || resendCooldown > 0}
+                    className="hover:underline font-semibold text-yellow-300 flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:no-underline"
                   >
-                    <RefreshCw className="w-3 h-3" /> Gửi lại mã
+                    <RefreshCw className={`w-3 h-3 ${resendCooldown > 0 ? 'animate-spin' : ''}`} />
+                    {resendCooldown > 0 ? `Gửi lại mã (${resendCooldown}s)` : 'Gửi lại mã'}
                   </button>
                 </div>
+                <p className="text-[10px] text-blue-200/80 text-center mt-2">
+                  (Mã OTP có thời hạn sử dụng trong 5 phút. Vui lòng không chia sẻ mã này cho người khác.)
+                </p>
               </motion.form>
             )}
 
@@ -805,13 +704,9 @@ export const BookingForm = () => {
                     <span className="font-bold text-white">{fullName} ({phoneNumber})</span>
                   </div>
                   <div className="flex justify-between border-b border-white/10 pb-2">
-                    <span className="opacity-75">Chuyên khoa:</span>
-                    <span className="font-bold text-white">{currentDept?.departmentName}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-white/10 pb-2">
                     <span className="opacity-75">Bác sĩ khám:</span>
                     <span className="font-bold text-white">
-                      {currentDoctor ? `${currentDoctor.title ? currentDoctor.title + '. ' : ''}${currentDoctor.fullName}` : 'Bác sĩ trực khoa'}
+                      {currentDoctor ? currentDoctor.fullName : 'Bác sĩ trực khoa'}
                     </span>
                   </div>
                   <div className="flex justify-between border-b border-white/10 pb-2">
@@ -824,15 +719,33 @@ export const BookingForm = () => {
                   </div>
                   <div className="flex justify-between pt-0.5">
                     <span className="opacity-75">Kênh xác thực:</span>
-                    <span className="font-bold text-white uppercase">{verifyMethod}</span>
+                    <span className="font-bold text-white">
+                      {verifyMethod === 'sms'
+                        ? `SMS (${phoneNumber})`
+                        : `Email (${email || '---'})`}
+                    </span>
                   </div>
                 </div>
 
-                <div className="bg-white/10 p-4 rounded-xl text-left border border-white/15 flex items-start gap-3 text-xs text-blue-100">
-                  <ShieldCheck className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
-                  <p>
-                    Quý khách vui lòng đến trước giờ hẹn <strong>15 phút</strong> và xuất trình mã <strong>{successBooking.appointmentCode}</strong> tại quầy Lễ tân để nhận thẻ thứ tự ưu tiên.
-                  </p>
+                {/* Timeline hướng dẫn tiếp theo (Issue 25) */}
+                <div className="bg-black/15 p-4 rounded-2xl border border-white/10 space-y-2.5 text-left">
+                  <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider block">
+                    📋 Các bước tiếp theo:
+                  </span>
+                  <div className="space-y-2 text-[11px] text-blue-100">
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[9px] shrink-0 mt-0.5">1</span>
+                      <span><strong>Chờ tiếp đón xác nhận:</strong> Lễ tân sẽ gọi điện hoặc kiểm tra và xác nhận lịch hẹn của bạn.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[9px] shrink-0 mt-0.5">2</span>
+                      <span><strong>Đến quầy Lễ tân trước 15 phút:</strong> Đọc mã lịch hẹn <strong>{successBooking.appointmentCode}</strong>, đối chiếu CCCD và đo sinh hiệu.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[9px] shrink-0 mt-0.5">3</span>
+                      <span><strong>Nhận số thứ tự A:</strong> Nhận phiếu khám để vào phòng khám chuyên khoa tim mạch.</span>
+                    </div>
+                  </div>
                 </div>
 
                 <button

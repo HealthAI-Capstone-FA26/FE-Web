@@ -13,15 +13,23 @@ import {
   VolumeX,
   Calendar,
   ShieldCheck,
+  Eye,
+  Stethoscope,
+  Ticket,
+  CreditCard,
 } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { queueTicketService, type QueueTicketItem } from '../../services/queue/queue-ticket.service';
-import { doctorService, type DepartmentResponse, type DoctorResponse } from '../../services/doctor/doctor.service';
+import { doctorService, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { encounterService } from '../../services/encounter/encounter.service';
 import { invoiceService, type InvoiceData } from '../../services/payment/invoice.service';
+import { type AppointmentItem } from '../../services/appointment/appointment.service';
+import { chiefComplaintService } from '../../services/reception/chief-complaint.service';
+import { consentService } from '../../services/consent/consent.service';
 import { IdentityVerificationHistoryModal } from './components/IdentityVerificationHistoryModal';
-import { ReceptionIntakeModal } from './components/ReceptionIntakeModal';
+import { ReceptionIntakeModal, type IntakeData } from './components/ReceptionIntakeModal';
 import { ReceptionPaymentModal } from './components/ReceptionPaymentModal';
+import { ReceptionAppointmentDetailModal } from './components/ReceptionAppointmentDetailModal';
 
 // Helper phát tiếng chuông phát thanh bệnh viện (3 nốt nhạc) dùng Web Audio API
 const playQueueChime = (): Promise<void> => {
@@ -60,7 +68,7 @@ const playQueueChime = (): Promise<void> => {
       });
 
       setTimeout(() => {
-        ctx.close().catch(() => {});
+        ctx.close().catch(() => { });
         resolve();
       }, 800);
     } catch (e) {
@@ -104,9 +112,10 @@ const speakQueueAnnouncement = (
   // Đọc mã số tách rời ký tự để rõ ràng hơn (VD: "B001" -> "B 0 0 1")
   const formattedCode = ticketCode.split('').join(' ');
   const counterStr = counterName || 'Quầy tiếp nhận';
-  const nameStr = patientName && patientName !== 'Bệnh nhân chưa đặt tên' ? `bệnh nhân ${patientName}` : 'bệnh nhân';
+  const isGeneric = !patientName || patientName === 'Bệnh nhân chưa đặt tên' || patientName.includes('vãng lai');
+  const nameStr = isGeneric ? 'quý khách' : `bệnh nhân ${patientName}`;
 
-  // Câu phát thanh chuẩn bệnh viện: "Xin mời bệnh nhân Nguyễn Văn A, số thứ tự B 0 0 1, đến Quầy 01"
+  // Câu phát thanh chuẩn bệnh viện: "Xin mời quý khách / bệnh nhân Nguyễn Văn A, số thứ tự B 0 0 1, đến Quầy 01"
   const textToSpeak = `Xin mời ${nameStr}, số thứ tự ${formattedCode}, đến ${counterStr}.`;
 
   const nativeViVoice = getVietnameseVoice(selectedVoiceURI);
@@ -129,17 +138,29 @@ const speakQueueAnnouncement = (
         window.speechSynthesis.cancel();
       }
       const encodedText = encodeURIComponent(textToSpeak);
-      const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=vi&client=tw-ob`;
-      const audio = new Audio(audioUrl);
-      audio.play().catch((err) => {
-        console.warn('Lỗi phát Google TTS fallback, dùng giọng trình duyệt:', err);
-        if ('speechSynthesis' in window) {
-          const utterance = new SpeechSynthesisUtterance(textToSpeak);
-          utterance.lang = 'vi-VN';
-          const sysVoices = window.speechSynthesis.getVoices();
-          if (sysVoices.length > 0) utterance.voice = sysVoices[0];
-          window.speechSynthesis.speak(utterance);
-        }
+      // Ưu tiên 1: Sử dụng proxy /tts-proxy của Vite dev server (bảo đảm 100% không bị chặn Referer/CORS)
+      const proxyUrl = `/tts-proxy/translate_tts?ie=UTF-8&q=${encodedText}&tl=vi&client=tw-ob`;
+      const directUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=vi&client=tw-ob`;
+
+      const audio = new Audio(proxyUrl);
+      audio.play().catch(() => {
+        // Fallback 1: Thử phát trực tiếp qua audio element với referrerPolicy no-referrer
+        const directAudio = document.createElement('audio');
+        directAudio.setAttribute('referrerpolicy', 'no-referrer');
+        directAudio.src = directUrl;
+        directAudio.play().catch((err) => {
+          console.warn('Lỗi phát âm thanh Google TTS:', err);
+          // Fallback 2: Chỉ dùng Web Speech API nếu tìm thấy giọng Tiếng Việt (tránh giọng David/English đọc tiếng Việt)
+          if ('speechSynthesis' in window) {
+            const viVoice = getVietnameseVoice();
+            if (viVoice) {
+              const utterance = new SpeechSynthesisUtterance(textToSpeak);
+              utterance.lang = 'vi-VN';
+              utterance.voice = viVoice;
+              window.speechSynthesis.speak(utterance);
+            }
+          }
+        });
       });
     }
   };
@@ -196,7 +217,6 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   }, []);
 
   const [tickets, setTickets] = useState<QueueTicketItem[]>([]);
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isCallingNext, setIsCallingNext] = useState<boolean>(false);
@@ -221,6 +241,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   const [historyModalEncounterCode, setHistoryModalEncounterCode] = useState<string>('');
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
 
+  // State Modal Xem Chi Tiết Lịch Khám & Gọi Số
+  const [detailModalAppointment, setDetailModalAppointment] = useState<AppointmentItem | null>(null);
+  const [detailModalTicket, setDetailModalTicket] = useState<QueueTicketItem | null>(null);
+
 
   const [notification, setNotification] = useState<{ type: 'success' | 'info' | 'error'; message: string } | null>(null);
 
@@ -232,18 +256,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   useEffect(() => {
     const fetchMeta = async () => {
       try {
-        const cachedDepts = doctorService.getCachedDepartments();
-        if (cachedDepts) {
-          setDepartments(cachedDepts);
-        } else {
-          const depts = await doctorService.getDepartments();
-          setDepartments(depts);
-        }
-
         const docs = await doctorService.getDoctors();
         setDoctors(docs);
       } catch (err) {
-        console.error('Lỗi tải danh mục khoa/bác sĩ:', err);
+        console.error('Lỗi tải danh mục bác sĩ:', err);
       }
     };
     fetchMeta();
@@ -257,7 +273,11 @@ const ReceptionQueueCallingBoard: React.FC = () => {
         date: queryDate,
         departmentId: selectedDepartmentId !== 'all' ? selectedDepartmentId : undefined,
       };
-      const data = await queueTicketService.getQueueTickets(query);
+      const [data, pendingInvs] = await Promise.all([
+        queueTicketService.getQueueTickets(query),
+        invoiceService.findMany({ status: 'pending' }).catch(() => [] as InvoiceData[]),
+      ]);
+      setPendingPaymentInvoices(Array.isArray(pendingInvs) ? pendingInvs : []);
       setTickets(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error('Lỗi tải danh sách hàng đợi:', err);
@@ -270,8 +290,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   useEffect(() => {
     fetchTickets();
     const interval = setInterval(() => {
-      fetchTickets(true);
-    }, 15000);
+      if (!document.hidden) {
+        fetchTickets(true);
+      }
+    }, 25000);
     return () => clearInterval(interval);
   }, [fetchTickets]);
 
@@ -388,60 +410,272 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   /**
    * Điểm vào chính khi lễ tân bấm "Tiếp nhận xong" trên một ticket đang ở 'called'.
    *
-   * Luồng:
-   * 1. Kiểm tra invoice phí khám (consultation) của appointmentId.
-   * 2. Nếu chưa có invoice → gọi API tạo invoice (generate với appointmentId).
-   * 3. Nếu invoice đã 'paid' → mở thẳng ReceptionIntakeModal.
-   * 4. Nếu invoice còn 'pending' → mở ReceptionPaymentModal để thu tiền trước.
+   * Quy trình chuẩn:
+   * 1. Mở ReceptionIntakeModal để đối chiếu danh tính, ghi nhận triệu chứng & tạo Encounter.
+   * 2. Sau khi tạo Encounter thành công, handleIntakeSuccess sẽ tự động kiểm tra/tạo hóa đơn và mở modal thanh toán.
    */
-  const handleServeTicket = async (ticket: QueueTicketItem) => {
-    const appointmentId = ticket.appointmentId;
-    if (!appointmentId) {
-      showToast('Không tìm thấy thông tin lịch hẹn', 'error');
-      return;
-    }
+  const handleServeTicket = (ticket: QueueTicketItem) => {
+    // Mở trực tiếp Modal Tiếp Đón & Khai Báo Lâm Sàng Ban Đầu (hỗ trợ cả Online A-xxx và Vãng lai B-xxx)
+    setIntakeModalTicket(ticket);
+  };
 
-    setIsCheckingInvoice(ticket.ticketId);
+  // Lưu appointmentId và encounterId đang chờ thanh toán để tạo Encounter / hoàn tất tiếp đón
+  const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(null);
+  const [pendingEncounterId, setPendingEncounterId] = useState<string | null>(null);
+  const [pendingIntakeData, setPendingIntakeData] = useState<IntakeData | null>(null);
+  const [isIssuingWalkinTicket, setIsIssuingWalkinTicket] = useState<boolean>(false);
+
+  /** Cấp nhanh số vãng lai tại quầy (dành cho lễ tân cấp hộ) */
+  const handleQuickIssueWalkInTicket = async () => {
+    setIsIssuingWalkinTicket(true);
     try {
-      // 1. Tìm invoice consultation của appointment này
-      let invoice: InvoiceData | null = null;
-      const invoices = await invoiceService.findMany({ appointmentId });
-      const consultInv = invoices.find(
-        (inv) => inv.invoiceType === 'consultation' && inv.status !== 'cancelled'
-      );
-
-      if (!consultInv) {
-        // 2. Chưa có invoice → tạo mới
-        invoice = await invoiceService.generate({ appointmentId });
-      } else {
-        invoice = consultInv;
-      }
-
-      // 3. Đã paid → mở thẳng intake modal
-      if (invoice.status === 'paid') {
-        setIntakeModalTicket(ticket);
-        return;
-      }
-
-      // 4. Còn pending → mở modal thanh toán trước
-      setPendingPaymentTicket(ticket);
-      setConsultationInvoice(invoice);
-      setIsPaymentModalOpen(true);
+      const newT = await queueTicketService.issueAtHospitalTicket();
+      const code = `${newT.ticketPrefix}${String(newT.ticketNumber).padStart(3, '0')}`;
+      showToast(`Đã cấp số thứ tự mới: ${code}`, 'success');
+      fetchTickets(true);
     } catch (err: any) {
-      showToast(err?.message || 'Lỗi khi kiểm tra hóa đơn phí khám', 'error');
+      showToast(err.message || 'Lỗi cấp số thứ tự', 'error');
     } finally {
-      setIsCheckingInvoice(null);
+      setIsIssuingWalkinTicket(false);
     }
   };
 
-  /** Sau khi thanh toán thành công → đóng payment modal, mở intake modal */
-  const handlePaymentSuccess = () => {
-    setIsPaymentModalOpen(false);
-    const ticket = pendingPaymentTicket;
-    setPendingPaymentTicket(null);
-    setConsultationInvoice(null);
-    if (ticket) {
-      setIntakeModalTicket(ticket);
+  /**
+   * Helper nạp đầy đủ thông tin lâm sàng, xác minh danh tính và chính sách cam kết (Consent)
+   * vào Encounter trước khi gọi completeRegistration để chuyển sang hàng đợi Điều dưỡng
+   */
+  const completeEncounterRegistration = async (
+    targetEncounter: { encounterId: string; patientId?: string },
+    intakeData?: IntakeData | null
+  ) => {
+    const encId = targetEncounter.encounterId;
+    let pId = targetEncounter.patientId || intakeData?.patientId;
+
+    if (!pId) {
+      try {
+        const encDetail = await encounterService.getEncounterById(encId);
+        pId = encDetail?.patientId;
+      } catch (e) {
+        console.warn('Không thể tra cứu chi tiết encounter để lấy patientId:', e);
+      }
+    }
+
+    if (intakeData) {
+      // 1. Ghi nhận lý do khám & triệu chứng ban đầu (Chief Complaint)
+      if (intakeData.chiefComplaint?.reasonForVisit) {
+        try {
+          await chiefComplaintService.upsert(encId, intakeData.chiefComplaint);
+        } catch (ccErr) {
+          console.warn('Lỗi ghi nhận lý do khám ban đầu:', ccErr);
+        }
+      }
+
+      // 2. Ghi nhận log xác minh danh tính
+      if (intakeData.identityVerification) {
+        try {
+          await encounterService.recordIdentityVerification(encId, intakeData.identityVerification);
+        } catch (idErr) {
+          console.warn('Lỗi ghi nhận xác minh danh tính:', idErr);
+        }
+      }
+
+      // 3. Ghi nhận các cam kết/chính sách bắt buộc (Consents)
+      if (pId) {
+        try {
+          await consentService.ensureMandatoryConsents(
+            pId,
+            encId,
+            intakeData.consents
+          );
+        } catch (csErr) {
+          console.warn('Lỗi lưu chính sách cam kết của bệnh nhân:', csErr);
+        }
+      }
+    }
+
+    // 4. Kiểm tra đầy đủ điều kiện và chuyển trạng thái Encounter: arrived -> registered, tự động đẩy vào TriageQueueEntry
+    await encounterService.completeRegistration(encId);
+  };
+
+  /** Sau khi tiếp nhận thành công -> tự động mở hóa đơn phí khám để thu tiền */
+  const handleIntakeSuccess = async (result?: any) => {
+    fetchTickets(true);
+    if (!result) return;
+
+    const appointmentId = typeof result === 'object' ? result.appointment?.appointmentId : null;
+    const invoice = typeof result === 'object' ? result.invoice : null;
+    const encounterId = typeof result === 'object' ? (result.encounterId || result.encounter?.encounterId) : (typeof result === 'string' ? result : null);
+    const intakeData = typeof result === 'object' ? result.intakeData : null;
+
+    if (intakeData) setPendingIntakeData(intakeData);
+    if (appointmentId) setPendingAppointmentId(appointmentId);
+    if (encounterId) setPendingEncounterId(encounterId);
+
+    try {
+      let finalInvoice: InvoiceData | null = invoice || null;
+
+      // Nếu trong result chưa có invoice, tìm theo appointmentId hoặc encounterId
+      if (!finalInvoice) {
+        if (appointmentId) {
+          const invoices = await invoiceService.findMany({ appointmentId });
+          finalInvoice = invoices.find((inv) => inv.status !== 'cancelled') || null;
+          if (!finalInvoice) {
+            finalInvoice = await invoiceService.generate({ appointmentId });
+          }
+        } else if (encounterId) {
+          const invoices = await invoiceService.findMany({ encounterId });
+          finalInvoice = invoices.find((inv) => inv.status !== 'cancelled') || null;
+          if (!finalInvoice) {
+            finalInvoice = await invoiceService.generate({ encounterId });
+          }
+        }
+      }
+
+      // Nếu hóa đơn chưa thanh toán -> mở modal thu tiền viện phí
+      if (finalInvoice && finalInvoice.status !== 'paid') {
+        setConsultationInvoice(finalInvoice);
+        setIsPaymentModalOpen(true);
+      } else if (finalInvoice && finalInvoice.status === 'paid') {
+        // Nếu đã thanh toán từ trước (online)
+        if (appointmentId) {
+          const createdEnc = await encounterService.createFromPaidAppointment(appointmentId);
+          await completeEncounterRegistration(createdEnc, intakeData);
+          showToast('Hồ sơ đã thanh toán, đã tự động chuyển sang phòng Điều dưỡng đo sinh hiệu!', 'success');
+          fetchTickets(true);
+        } else if (encounterId) {
+          await completeEncounterRegistration({ encounterId, patientId: intakeData?.patientId }, intakeData);
+          showToast('Hồ sơ đã thanh toán, đã tự động chuyển sang phòng Điều dưỡng đo sinh hiệu!', 'success');
+          fetchTickets(true);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Lỗi kiểm tra/mở hóa đơn sau khi tiếp nhận:', err);
+      showToast('Đã lưu thông tin tiếp đón, nhưng chưa mở được hóa đơn phí khám. Vui lòng thử lại!', 'error');
+    }
+  };
+
+  const [isOpeningPaymentTicketId, setIsOpeningPaymentTicketId] = useState<string | null>(null);
+  const [paidTicketIds, setPaidTicketIds] = useState<Set<string>>(new Set());
+  const [pendingPaymentInvoices, setPendingPaymentInvoices] = useState<InvoiceData[]>([]);
+
+  /** Mở lại modal thu tiền phí khám cho một phiếu tiếp nhận đã xong nhưng chưa thanh toán */
+  const handleOpenPaymentForTicket = async (ticket: QueueTicketItem) => {
+    const apptId = ticket.appointmentId || ticket.appointment?.appointmentId;
+    const pId = ticket.appointment?.patientId || ticket.appointment?.patient?.patientId;
+
+    if (!apptId && !pId) {
+      showToast('Phiếu này chưa liên kết lịch hẹn hoặc hồ sơ bệnh nhân.', 'error');
+      return;
+    }
+
+    setIsOpeningPaymentTicketId(ticket.ticketId);
+    try {
+      // 1. Kiểm tra trước trong danh sách pendingPaymentInvoices đã có sẵn
+      let unpaidInvoice = pendingPaymentInvoices.find(
+        (inv) =>
+          inv.status === 'pending' &&
+          ((apptId && inv.appointmentId === apptId) ||
+            (pId && inv.patientId === pId && inv.invoiceType === 'consultation'))
+      );
+
+      // 2. Nếu chưa tìm thấy, gọi API findMany theo appointmentId hoặc patientId
+      if (!unpaidInvoice) {
+        let invoices = apptId ? await invoiceService.findMany({ appointmentId: apptId }) : [];
+        if ((!invoices || invoices.length === 0) && pId) {
+          invoices = await invoiceService.findMany({ patientId: pId });
+        }
+        unpaidInvoice = invoices.find((inv) => inv.status !== 'cancelled' && inv.status !== 'paid');
+
+        if (!unpaidInvoice) {
+          const paidInvoice = invoices.find((inv) => inv.status === 'paid');
+          if (paidInvoice) {
+            setPaidTicketIds((prev) => new Set(prev).add(ticket.ticketId));
+            showToast('Lượt khám này đã hoàn tất thanh toán.', 'info');
+            return;
+          }
+        }
+      }
+
+      if (unpaidInvoice) {
+        if (apptId) setPendingAppointmentId(apptId);
+        setPendingPaymentTicket(ticket);
+        setConsultationInvoice(unpaidInvoice);
+        try {
+          if (apptId) {
+            const stored = localStorage.getItem(`pending_intake_${apptId}`);
+            if (stored) {
+              setPendingIntakeData(JSON.parse(stored));
+            }
+          }
+        } catch (e) {
+          console.warn('Lỗi khôi phục intakeData từ localStorage:', e);
+        }
+        setIsPaymentModalOpen(true);
+      } else {
+        showToast('Chưa có hóa đơn viện phí cho lượt khám này.', 'info');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Không thể kiểm tra hóa đơn cho phiếu này.', 'error');
+    } finally {
+      setIsOpeningPaymentTicketId(null);
+    }
+  };
+
+  /** Sau khi thanh toán thành công → tạo encounter từ appointment và hoàn tất chuyển hàng đợi điều dưỡng */
+  const handlePaymentSuccess = async () => {
+    const apptId = pendingAppointmentId || consultationInvoice?.appointmentId;
+    const encId = pendingEncounterId || consultationInvoice?.encounterId;
+    const pId = consultationInvoice?.patientId || pendingIntakeData?.patientId;
+
+    let intakeToApply = pendingIntakeData;
+    if (!intakeToApply && apptId) {
+      try {
+        const stored = localStorage.getItem(`pending_intake_${apptId}`);
+        if (stored) {
+          intakeToApply = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.warn('Lỗi đọc intakeData từ localStorage:', e);
+      }
+    }
+
+    try {
+      if (apptId) {
+        // Tạo Encounter chính thức sau khi examination fee của Appointment đã thanh toán
+        const createdEnc = await encounterService.createFromPaidAppointment(apptId);
+        // Hoàn tất thủ tục tiếp đón & chuyển sang phòng Điều dưỡng triage
+        await completeEncounterRegistration(createdEnc, intakeToApply);
+        try {
+          localStorage.removeItem(`pending_intake_${apptId}`);
+        } catch { }
+        if (pendingPaymentTicket?.ticketId) {
+          setPaidTicketIds((prev) => new Set(prev).add(pendingPaymentTicket.ticketId));
+        }
+        showToast('Thu tiền viện phí thành công! Bệnh nhân đã được chuyển sang phòng Điều dưỡng đo sinh hiệu.', 'success');
+      } else if (encId) {
+        await completeEncounterRegistration({ encounterId: encId, patientId: pId }, intakeToApply);
+        showToast('Thu tiền viện phí thành công! Bệnh nhân đã được chuyển sang phòng Điều dưỡng đo sinh hiệu.', 'success');
+      } else {
+        showToast('Thu tiền viện phí thành công!', 'success');
+      }
+    } catch (err: any) {
+      console.error('Lỗi khi hoàn tất chuyển hàng đợi điều dưỡng:', err);
+      const missingDetails = err?.data?.missing || err?.missing;
+      const missingText = Array.isArray(missingDetails) && missingDetails.length > 0
+        ? `Thiếu các bước: ${missingDetails.join(', ')}.`
+        : '';
+      showToast(
+        `Thanh toán thành công nhưng chưa hoàn tất chuyển hàng đợi điều dưỡng: ${err?.message || 'Có lỗi xảy ra'}. ${missingText}`,
+        'error'
+      );
+    } finally {
+      setIsPaymentModalOpen(false);
+      setPendingPaymentTicket(null);
+      setConsultationInvoice(null);
+      setPendingEncounterId(null);
+      setPendingAppointmentId(null);
+      setPendingIntakeData(null);
+      fetchTickets(true);
     }
   };
 
@@ -450,13 +684,12 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       {/* Toast notification */}
       {notification && (
         <div
-          className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl text-sm font-medium transition-all duration-300 ${
-            notification.type === 'success'
-              ? 'bg-emerald-600 text-white shadow-emerald-500/20'
-              : notification.type === 'error'
+          className={`fixed top-5 right-5 z-[9999] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl text-sm font-medium transition-all duration-300 ${notification.type === 'success'
+            ? 'bg-emerald-600 text-white shadow-emerald-500/20'
+            : notification.type === 'error'
               ? 'bg-rose-600 text-white shadow-rose-500/20'
               : 'bg-slate-800 text-white shadow-slate-900/20'
-          }`}
+            }`}
         >
           {notification.type === 'success' && <CheckCircle2 className="w-5 h-5 flex-shrink-0" />}
           {notification.type === 'error' && <AlertCircle className="w-5 h-5 flex-shrink-0" />}
@@ -499,23 +732,6 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 <option value="Quầy 02">Quầy 02 (Khám trực tiếp)</option>
                 <option value="Quầy 03">Quầy 03 (Khám hẹn Online)</option>
                 <option value="Quầy Ưu Tiên">Quầy Ưu Tiên (Cấp cứu / Người già)</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-              <Building2 className="w-4 h-4 text-slate-400" />
-              <select
-                value={selectedDepartmentId}
-                onChange={(e) => setSelectedDepartmentId(e.target.value)}
-                aria-label="Lọc theo chuyên khoa phòng"
-                className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer"
-              >
-                <option value="all">Tất cả chuyên khoa</option>
-                {departments.map((d) => (
-                  <option key={d.departmentId} value={d.departmentId}>
-                    {d.departmentName}
-                  </option>
-                ))}
               </select>
             </div>
 
@@ -564,14 +780,23 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 }
               }}
               title={isAudioEnabled ? 'Âm thanh tự động: Đang BẬT (Bấm để TẮT)' : 'Âm thanh tự động: Đang TẮT (Bấm để BẬT)'}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
-                isAudioEnabled
-                  ? 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100'
-                  : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer ${isAudioEnabled
+                ? 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100'
+                : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
+                }`}
             >
               {isAudioEnabled ? <Volume2 className="w-4 h-4 text-teal-600" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
               <span>{isAudioEnabled ? 'Âm loa: Bật' : 'Âm loa: Tắt'}</span>
+            </button>
+
+            <button
+              onClick={handleQuickIssueWalkInTicket}
+              disabled={isIssuingWalkinTicket}
+              title="Phát nhanh số thứ tự cho khách vãng lai tại quầy"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-xs transition cursor-pointer disabled:opacity-50"
+            >
+              <Ticket className="w-3.5 h-3.5" />
+              <span>{isIssuingWalkinTicket ? 'Đang cấp số...' : '+ Cấp số vãng lai'}</span>
             </button>
 
             <button
@@ -614,33 +839,39 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-3">
                       <span
-                        className={`text-5xl font-black tracking-tight font-mono px-4 py-1.5 rounded-2xl shadow-inner ${
-                          stats.currentServingTicket.ticketPrefix === 'A'
-                            ? 'bg-teal-500/20 text-teal-300 border border-teal-400/30'
-                            : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
-                        }`}
+                        className={`text-5xl font-black tracking-tight font-mono px-4 py-1.5 rounded-2xl shadow-inner ${stats.currentServingTicket.ticketPrefix === 'A'
+                          ? 'bg-teal-500/20 text-teal-300 border border-teal-400/30'
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
+                          }`}
                       >
                         {formatTicketCode(stats.currentServingTicket)}
                       </span>
                       <div>
                         <h3 className="text-2xl font-bold text-white tracking-tight">
-                          {stats.currentServingTicket.appointment?.patient?.fullName || 'Bệnh nhân chưa đặt tên'}
+                          {stats.currentServingTicket.ticketPrefix === 'B' && !stats.currentServingTicket.appointment
+                            ? 'Khách vãng lai (Lấy số tại quầy/Kiosk)'
+                            : (stats.currentServingTicket.appointment?.patient?.fullName || 'Bệnh nhân chưa đặt tên')}
                         </h3>
                         <div className="flex items-center gap-3 text-xs text-slate-300 mt-1">
-                          <span>CCCD: {stats.currentServingTicket.appointment?.patient?.identityNumber || '---'}</span>
-                          <span>•</span>
-                          <span>SĐT: {stats.currentServingTicket.appointment?.patient?.phoneNumber || '---'}</span>
+                          {stats.currentServingTicket.ticketPrefix === 'B' && !stats.currentServingTicket.appointment ? (
+                            <span className="text-amber-300 font-semibold">Chưa có hồ sơ • Bấm "Xử lý tiếp nhận" để chọn/tạo hồ sơ</span>
+                          ) : (
+                            <>
+                              <span>CCCD: {stats.currentServingTicket.appointment?.patient?.identityNumber || '---'}</span>
+                              <span>•</span>
+                              <span>SĐT: {stats.currentServingTicket.appointment?.patient?.phoneNumber || '---'}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <span
-                    className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider ${
-                      stats.currentServingTicket.ticketPrefix === 'A'
-                        ? 'bg-teal-900/60 text-teal-300 border border-teal-600/40'
-                        : 'bg-amber-900/60 text-amber-300 border border-amber-600/40'
-                    }`}
+                    className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider ${stats.currentServingTicket.ticketPrefix === 'A'
+                      ? 'bg-teal-900/60 text-teal-300 border border-teal-600/40'
+                      : 'bg-amber-900/60 text-amber-300 border border-amber-600/40'
+                      }`}
                   >
                     {stats.currentServingTicket.ticketPrefix === 'A' ? (
                       <>
@@ -659,9 +890,9 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 {/* Thông tin khám */}
                 <div className="bg-slate-800/60 backdrop-blur-xs rounded-xl p-3.5 border border-slate-700/50 grid grid-cols-2 gap-3 text-xs">
                   <div>
-                    <span className="text-slate-400 block mb-0.5">Chuyên khoa:</span>
-                    <span className="font-semibold text-teal-200">
-                      {stats.currentServingTicket.department?.departmentName || 'Chưa chọn khoa'}
+                    <span className="text-slate-400 block mb-0.5">Mã lịch hẹn:</span>
+                    <span className="font-mono font-bold text-teal-300">
+                      {stats.currentServingTicket.appointment?.appointmentCode || '---'}
                     </span>
                   </div>
                   <div>
@@ -739,11 +970,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span
-                      className={`text-2xl font-bold font-mono px-3 py-1 rounded-xl ${
-                        stats.nextTicket.ticketPrefix === 'A'
-                          ? 'bg-teal-100 text-teal-800 border border-teal-200'
-                          : 'bg-amber-100 text-amber-800 border border-amber-200'
-                      }`}
+                      className={`text-2xl font-bold font-mono px-3 py-1 rounded-xl ${stats.nextTicket.ticketPrefix === 'A'
+                        ? 'bg-teal-100 text-teal-800 border border-teal-200'
+                        : 'bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}
                     >
                       {formatTicketCode(stats.nextTicket)}
                     </span>
@@ -751,18 +981,19 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                       <h4 className="text-sm font-bold text-slate-800">
                         {stats.nextTicket.appointment?.patient?.fullName || 'Bệnh nhân'}
                       </h4>
-                      <p className="text-xs text-slate-500">
-                        {stats.nextTicket.department?.departmentName || 'Đang cập nhật'}
+                      <p className="text-xs text-slate-500 font-mono">
+                        {stats.nextTicket.appointment?.appointmentCode
+                          ? `Mã lịch hẹn: ${stats.nextTicket.appointment.appointmentCode}`
+                          : 'Lấy số tại quầy'}
                       </p>
                     </div>
                   </div>
 
                   <span
-                    className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded ${
-                      stats.nextTicket.ticketPrefix === 'A'
-                        ? 'bg-teal-50 text-teal-700'
-                        : 'bg-amber-50 text-amber-700'
-                    }`}
+                    className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded ${stats.nextTicket.ticketPrefix === 'A'
+                      ? 'bg-teal-50 text-teal-700'
+                      : 'bg-amber-50 text-amber-700'
+                      }`}
                   >
                     {stats.nextTicket.ticketPrefix === 'A' ? (
                       <>
@@ -789,11 +1020,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
           <button
             onClick={handleCallNext}
             disabled={!stats.nextTicket || isCallingNext}
-            className={`w-full py-4 px-6 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 shadow-lg transition transform active:scale-98 cursor-pointer ${
-              stats.nextTicket
-                ? 'bg-gradient-to-r from-teal-600 via-cyan-600 to-teal-700 hover:from-teal-700 hover:to-cyan-700 text-white shadow-teal-600/30'
-                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-            }`}
+            className={`w-full py-4 px-6 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 shadow-lg transition transform active:scale-98 cursor-pointer ${stats.nextTicket
+              ? 'bg-gradient-to-r from-teal-600 via-cyan-600 to-teal-700 hover:from-teal-700 hover:to-cyan-700 text-white shadow-teal-600/30'
+              : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+              }`}
           >
             <Megaphone className={`w-5 h-5 ${isCallingNext ? 'animate-bounce' : ''}`} />
             <span>{isCallingNext ? 'Đang kích hoạt gọi số...' : '🔊 GỌI SỐ TIẾP THEO'}</span>
@@ -851,41 +1081,37 @@ const ReceptionQueueCallingBoard: React.FC = () => {
           <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                activeTab === 'all'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${activeTab === 'all'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               Tất cả ({stats.totalCount})
             </button>
             <button
               onClick={() => setActiveTab('waiting')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                activeTab === 'waiting'
-                  ? 'bg-white text-amber-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${activeTab === 'waiting'
+                ? 'bg-white text-amber-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               Đang chờ ({stats.waitingCount})
             </button>
             <button
               onClick={() => setActiveTab('called')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                activeTab === 'called'
-                  ? 'bg-white text-teal-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${activeTab === 'called'
+                ? 'bg-white text-teal-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               Đang gọi ({stats.calledCount})
             </button>
             <button
               onClick={() => setActiveTab('done')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                activeTab === 'done'
-                  ? 'bg-white text-emerald-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${activeTab === 'done'
+                ? 'bg-white text-emerald-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               Đã xong ({stats.doneCount})
             </button>
@@ -911,7 +1137,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 <th className="py-3 px-4">Số Phiếu (STT)</th>
                 <th className="py-3 px-4">Bệnh Nhân</th>
                 <th className="py-3 px-4">Kênh Đặt</th>
-                <th className="py-3 px-4">Chuyên Khoa & Bác Sĩ</th>
+                <th className="py-3 px-4">Lịch Khám & Bác Sĩ</th>
                 <th className="py-3 px-4">Quầy / Thời Gian</th>
                 <th className="py-3 px-4">Trạng Thái</th>
                 <th className="py-3 px-4 text-center">Thao Tác</th>
@@ -938,21 +1164,36 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                   const isWaiting = ticket.status === 'waiting';
                   const isCalled = ticket.status === 'called';
                   const isDone = ticket.status === 'done';
+                  const ticketApptId = ticket.appointmentId || ticket.appointment?.appointmentId;
+                  const ticketPatientId = ticket.appointment?.patientId || ticket.appointment?.patient?.patientId;
+                  const hasUnpaidInvoice = pendingPaymentInvoices.some(
+                    (inv) =>
+                      inv.status === 'pending' &&
+                      ((ticketApptId && inv.appointmentId === ticketApptId) ||
+                        (ticketPatientId && inv.patientId === ticketPatientId && inv.invoiceType === 'consultation'))
+                  );
+
+                  const isAlreadyPaid = Boolean(
+                    ticket.appointment?.encounter?.encounterId ||
+                    (ticket.appointment as any)?.encounterId ||
+                    ticket.appointment?.status === 'checked_in' ||
+                    ticket.appointment?.status === 'in_progress' ||
+                    ticket.appointment?.status === 'completed' ||
+                    paidTicketIds.has(ticket.ticketId)
+                  );
 
                   return (
                     <tr
                       key={ticket.ticketId}
-                      className={`hover:bg-slate-50/80 transition ${
-                        isCalled ? 'bg-teal-50/40' : ''
-                      }`}
+                      className={`hover:bg-slate-50/80 transition ${isCalled ? 'bg-teal-50/40' : ''
+                        }`}
                     >
                       <td className="py-3.5 px-4">
                         <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-lg font-mono font-bold text-xs ${
-                            ticket.ticketPrefix === 'A'
-                              ? 'bg-teal-100 text-teal-800 border border-teal-200'
-                              : 'bg-amber-100 text-amber-800 border border-amber-200'
-                          }`}
+                          className={`inline-flex items-center px-2.5 py-1 rounded-lg font-mono font-bold text-xs ${ticket.ticketPrefix === 'A'
+                            ? 'bg-teal-100 text-teal-800 border border-teal-200'
+                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                            }`}
                         >
                           {code}
                         </span>
@@ -960,20 +1201,25 @@ const ReceptionQueueCallingBoard: React.FC = () => {
 
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-800">
-                          {ticket.appointment?.patient?.fullName || 'Chưa có thông tin'}
+                          {ticket.ticketPrefix === 'B' && !ticket.appointment?.patient?.fullName
+                            ? 'Khách vãng lai (Lấy số tại chỗ)'
+                            : (ticket.appointment?.patient?.fullName || 'Chưa có thông tin')}
                         </div>
                         <div className="text-[11px] text-slate-500">
-                          {ticket.appointment?.patient?.phoneNumber || '---'}
+                          {ticket.appointment?.patient?.phoneNumber ? (
+                            <span>SĐT: {ticket.appointment.patient.phoneNumber}</span>
+                          ) : (
+                            <span className="text-amber-600 font-medium">Chờ quầy khai báo hồ sơ</span>
+                          )}
                         </div>
                       </td>
 
                       <td className="py-3.5 px-4">
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold ${
-                            ticket.ticketPrefix === 'A'
-                              ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                              : 'bg-slate-100 text-slate-700 border border-slate-200'
-                          }`}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold ${ticket.ticketPrefix === 'A'
+                            ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
                         >
                           {ticket.ticketPrefix === 'A' ? (
                             <>
@@ -990,14 +1236,40 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-800">
-                          {ticket.department?.departmentName || '---'}
-                        </div>
-                        <div className="text-[11px] text-slate-500">
+                        {ticket.appointment?.appointmentCode ? (
+                          <div className="font-mono font-bold text-blue-900 text-[11px] flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-teal-600 shrink-0" />
+                            <span>{ticket.appointment.appointmentCode}</span>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-slate-400 font-medium">
+                            Khám tại quầy
+                          </div>
+                        )}
+                        <div className="mt-0.5">
                           {ticket.appointment?.doctor?.user?.fullName ||
-                            ticket.appointment?.doctor?.fullName ||
-                            'Chưa gán bác sĩ'}
+                            ticket.appointment?.doctor?.fullName ? (
+                            <div className="text-[11px] font-medium text-slate-700 flex items-center gap-1">
+                              <Stethoscope className="w-3 h-3 text-blue-600 shrink-0" />
+                              <span>
+                                {ticket.appointment.doctor.user?.fullName || ticket.appointment.doctor.fullName}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              <Clock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                              Chưa tạo phiếu tiếp nhận khám
+                            </span>
+                          )}
                         </div>
+                        {ticket.appointment?.reasonForVisit && (
+                          <div
+                            className="text-[10px] text-slate-400 truncate max-w-[200px] mt-0.5"
+                            title={ticket.appointment.reasonForVisit}
+                          >
+                            Lý do: {ticket.appointment.reasonForVisit}
+                          </div>
+                        )}
                       </td>
 
                       <td className="py-3.5 px-4">
@@ -1033,7 +1305,38 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <div className="inline-flex items-center justify-center gap-2">
+                        <div className="inline-flex items-center justify-center gap-1.5">
+                          {/* Nút Xem chi tiết lịch khám để gọi số */}
+                          {ticket.appointment && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDetailModalTicket(ticket);
+                                setDetailModalAppointment(ticket.appointment || null);
+                              }}
+                              title="Xem chi tiết lịch hẹn để gọi số"
+                              className="p-1.5 text-slate-500 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          {isDone && hasUnpaidInvoice && ticket.appointment && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPaymentForTicket(ticket)}
+                              disabled={isOpeningPaymentTicketId === ticket.ticketId}
+                              title="Thu tiền viện phí"
+                              className="p-1.5 text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 rounded-lg transition cursor-pointer disabled:opacity-50"
+                            >
+                              {isOpeningPaymentTicketId === ticket.ticketId ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <CreditCard className="w-4 h-4" />
+                              )}
+                            </button>
+                          )}
+
                           {isWaiting && (
                             <button
                               onClick={() => handleCallSpecificTicket(ticket)}
@@ -1077,7 +1380,6 @@ const ReceptionQueueCallingBoard: React.FC = () => {
 
                           {isDone && (
                             <div className="inline-flex items-center gap-2">
-                              <span className="text-[11px] text-slate-400 italic">Đã vào khám</span>
                               <button
                                 type="button"
                                 onClick={async () => {
@@ -1137,7 +1439,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
         onClose={() => setIntakeModalTicket(null)}
         ticket={intakeModalTicket}
         doctors={doctors}
-        onSuccess={() => fetchTickets(true)}
+        onSuccess={handleIntakeSuccess}
         showToast={showToast}
       />
 
@@ -1164,6 +1466,24 @@ const ReceptionQueueCallingBoard: React.FC = () => {
           fetchTickets(true);
         }}
       />
+
+      {/* MODAL XEM CHI TIẾT LỊCH HẸN & GỌI SỐ */}
+      {detailModalAppointment && (
+        <ReceptionAppointmentDetailModal
+          isOpen={!!detailModalAppointment}
+          appointment={detailModalAppointment}
+          onClose={() => {
+            setDetailModalAppointment(null);
+            setDetailModalTicket(null);
+          }}
+          onCallQueueTicket={
+            detailModalTicket && detailModalTicket.status === 'waiting'
+              ? () => handleCallSpecificTicket(detailModalTicket)
+              : undefined
+          }
+          queueTicketCode={detailModalTicket ? formatTicketCode(detailModalTicket) : undefined}
+        />
+      )}
     </div>
   );
 };

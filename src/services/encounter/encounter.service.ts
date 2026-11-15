@@ -63,7 +63,7 @@ export interface EncounterItem {
   doctorId?: string;
   encounterCode: string;
   patientType: string; // 'new' | 'returning'
-  status: 'arrived' | 'registered' | 'waiting_for_doctor' | 'in_progress' | 'finished' | 'cancelled';
+  status: 'arrived' | 'registered' | 'waiting_for_doctor' | 'in_progress' | 'finished' | 'cancelled' | 'awaiting_review' | string;
   arrivedAt: string;
   chiefComplaint?: EncounterChiefComplaint;
   patient?: EncounterPatient;
@@ -151,18 +151,24 @@ export interface CreateIdentityVerificationDto {
 }
 
 export const encounterService = {
-  // Lấy danh sách ca khám (hỗ trợ lọc theo trạng thái, bệnh nhân, bác sĩ, khoa phòng)
+  // Lấy danh sách ca khám (hỗ trợ lọc theo trạng thái, bệnh nhân, bác sĩ, khoa phòng, ngày)
   async getEncounters(params?: {
     status?: string;
     patientId?: string;
     doctorId?: string;
     departmentId?: string;
+    date?: string;
+    from?: string;
+    to?: string;
   }): Promise<EncounterItem[]> {
     const query = new URLSearchParams();
     if (params?.status) query.append('status', params.status);
     if (params?.patientId) query.append('patientId', params.patientId);
     if (params?.doctorId) query.append('doctorId', params.doctorId);
     if (params?.departmentId) query.append('departmentId', params.departmentId);
+    if (params?.date) query.append('date', params.date);
+    if (params?.from) query.append('from', params.from);
+    if (params?.to) query.append('to', params.to);
 
     const queryString = query.toString();
     const endpoint = queryString ? `/encounters?${queryString}` : '/encounters';
@@ -176,6 +182,13 @@ export const encounterService = {
   async getEncounterById(id: string): Promise<EncounterItem> {
     return apiFetch<EncounterItem>(`/encounters/${id}`, {
       method: 'GET',
+    });
+  },
+
+  // Điều phối ca khám vào Bác sĩ Tim mạch trực (POST /encounters/:id/route-doctor)
+  async routeDoctor(encounterId: string): Promise<any> {
+    return apiFetch(`/encounters/${encounterId}/route-doctor`, {
+      method: 'POST',
     });
   },
 
@@ -197,30 +210,10 @@ export const encounterService = {
     });
   },
 
-  // Đổi khoa cho lượt khám sau khi đo sinh hiệu (PATCH /api/v1/encounters/:id/department)
-  async changeEncounterDepartment(
-    encounterId: string,
-    departmentId: string
-  ): Promise<{
-    encounterId: string;
-    previous: { departmentId: string; doctorId?: string; encounterStatus: string };
-    current: {
-      departmentId: string;
-      departmentName: string;
-      doctor: { doctorId: string; doctorCode: string; fullName: string; title?: string };
-      encounterStatus: string;
-    };
-    queueEntry: any;
-    assignment: {
-      strategy: string;
-      queueLoadBefore: number;
-      tiedCandidates: number;
-      candidates: Array<{ doctorId: string; load: number }>;
-    };
-  }> {
-    return apiFetch(`/encounters/${encounterId}/department`, {
-      method: 'PATCH',
-      body: JSON.stringify({ departmentId }),
+  // Tạo Encounter sau khi examination fee của Appointment đã thanh toán
+  async createFromPaidAppointment(appointmentId: string): Promise<EncounterItem> {
+    return apiFetch<EncounterItem>(`/encounters/from-paid-appointment/${appointmentId}`, {
+      method: 'POST',
     });
   },
 

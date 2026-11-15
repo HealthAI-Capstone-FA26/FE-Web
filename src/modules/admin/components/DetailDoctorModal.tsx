@@ -1,18 +1,16 @@
 import React from 'react';
-import { Eye, X, Building2 } from 'lucide-react';
+import { Eye, X } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
-import type { DoctorResponse } from '../../../services/doctor/doctor.service';
+import { getSpecializationLabel, type DoctorResponse } from '../../../services/doctor/doctor.service';
 
 interface DetailDoctorModalProps {
   doctor: DoctorResponse | null;
   onClose: () => void;
-  onOpenAssignModal?: (doctorId: string) => void;
 }
 
 export const DetailDoctorModal: React.FC<DetailDoctorModalProps> = ({
   doctor,
   onClose,
-  onOpenAssignModal,
 }) => {
   if (!doctor) return null;
 
@@ -49,8 +47,8 @@ export const DetailDoctorModal: React.FC<DetailDoctorModalProps> = ({
 
           <div className="grid grid-cols-2 gap-3 text-slate-700">
             <div className="p-3 bg-white border border-slate-200 rounded-xl">
-              <span className="text-[10px] text-slate-400 font-bold block uppercase">Chuyên Khoa</span>
-              <span className="font-bold text-slate-800 mt-0.5 block">{doctor.specialization || 'Chưa cập nhật'}</span>
+              <span className="text-[10px] text-slate-400 font-bold block uppercase">Chuyên Khoa Tim Mạch</span>
+              <span className="font-bold text-slate-800 mt-0.5 block">{getSpecializationLabel(doctor.specialization)}</span>
             </div>
             <div className="p-3 bg-white border border-slate-200 rounded-xl">
               <span className="text-[10px] text-slate-400 font-bold block uppercase">Giấy Phép Hành Nghề</span>
@@ -59,38 +57,9 @@ export const DetailDoctorModal: React.FC<DetailDoctorModalProps> = ({
               </span>
             </div>
           </div>
-
-          {doctor.doctorDepartments && doctor.doctorDepartments.length > 0 && (
-            <div className="space-y-1.5 pt-2">
-              <span className="text-xs font-extrabold text-slate-800 block">Các khoa trực thuộc:</span>
-              <div className="space-y-1">
-                {doctor.doctorDepartments.map((rel) => (
-                  <div
-                    key={rel.departmentId}
-                    className="p-2.5 bg-slate-50 rounded-lg border border-slate-200/80 flex items-center justify-between"
-                  >
-                    <span className="font-bold text-slate-800">
-                      {rel.department?.departmentName} ({rel.department?.departmentCode})
-                    </span>
-                    {rel.isPrimary && <Badge variant="info" size="sm">Khoa chính</Badge>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
-        <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-          {onOpenAssignModal ? (
-            <button
-              onClick={() => onOpenAssignModal(doctor.doctorId)}
-              className="px-4 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors flex items-center gap-1.5 border border-indigo-200 cursor-pointer"
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>Phân công khoa phòng</span>
-            </button>
-          ) : <div />}
-
+        <div className="flex items-center justify-end pt-3 border-t border-slate-100">
           <button
             onClick={onClose}
             className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold text-xs cursor-pointer border-none"

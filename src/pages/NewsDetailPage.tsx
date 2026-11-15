@@ -30,7 +30,7 @@ const newsDetails: Record<string, { title: string; date: string; category: strin
           <li>Thay đổi nội tiết tố, dị ứng thời tiết hoặc thực phẩm.</li>
         </ul>
         <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">Cách xử lý và điều trị</h3>
-        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Khi có dấu hiệu viêm da quanh miệng, người bệnh nên ngưng ngay các loại mỹ phẩm đang sử dụng. Không tự ý mua thuốc bôi tại nhà. Hãy đến các cơ sở y tế uy tín như Bệnh viện Đa khoa Mai Phương để được bác sĩ da liễu thăm khám và kê đơn thuốc phù hợp, thường là kháng sinh bôi ngoài da hoặc thuốc uống dị ứng.</p>
+        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Khi có dấu hiệu viêm da quanh miệng, người bệnh nên ngưng ngay các loại mỹ phẩm đang sử dụng. Không tự ý mua thuốc bôi tại nhà. Hãy đến các cơ sở y tế uy tín như Phòng khám Tim mạch 4AM để được bác sĩ da liễu thăm khám và kê đơn thuốc phù hợp, thường là kháng sinh bôi ngoài da hoặc thuốc uống dị ứng.</p>
       </>
     )
   },
@@ -42,7 +42,7 @@ const newsDetails: Record<string, { title: string; date: string; category: strin
     content: (
       <>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Chị Hoa, 26 tuổi, nhập viện cấp cứu nhiều lần do hoảng hốt, tim đập nhanh, khó thở, nghĩ mình mắc bệnh tim, đột quỵ. Tuy nhiên, kết quả khám tim mạch hoàn toàn bình thường.</p>
-        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Sau khi được chuyển sang khoa Tâm lý - Tâm thần tại Bệnh viện Đa khoa Mai Phương, bác sĩ chẩn đoán chị Hoa mắc chứng Rối loạn hoảng sợ (Panic disorder). Đây là một dạng rối loạn lo âu phổ biến trong xã hội hiện đại.</p>
+        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Sau khi được chuyển sang khoa Tâm lý - Tâm thần tại Phòng khám Tim mạch 4AM, bác sĩ chẩn đoán chị Hoa mắc chứng Rối loạn hoảng sợ (Panic disorder). Đây là một dạng rối loạn lo âu phổ biến trong xã hội hiện đại.</p>
         <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">Dấu hiệu nhận biết</h3>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Cơn hoảng sợ thường xuất hiện đột ngột với các triệu chứng mãnh liệt như:</p>
         <ul className="list-disc pl-6 mb-6 space-y-3 text-slate-600 font-sans">
@@ -55,15 +55,15 @@ const newsDetails: Record<string, { title: string; date: string; category: strin
     )
   },
   "3": {
-    title: "Hệ thống Bệnh viện Đa khoa Mai Phương TP.HCM khám sức khỏe cho gần 300 người dân",
+    title: "Hệ thống Phòng khám Tim mạch 4AM TP.HCM khám sức khỏe cho gần 300 người dân",
     date: "06/08/2026",
     category: "Sự kiện",
     image: "/images/news_thumb.png",
     content: (
       <>
-        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Ngày 06/08, Hệ thống Bệnh viện Đa khoa Mai Phương TP.HCM phối hợp cùng UBND phường Chợ Quán và Trạm Y tế tổ chức chương trình khám bệnh, phát thuốc miễn phí cho người dân có hoàn cảnh khó khăn trên địa bàn.</p>
-        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Chương trình đã thu hút gần 300 người dân tham gia. Đội ngũ y bác sĩ của Bệnh viện Mai Phương đã tiến hành đo huyết áp, test đường huyết, siêu âm tổng quát và tư vấn sức khỏe tận tình cho bà con.</p>
-        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Đại diện Bệnh viện chia sẻ: "Đây là một trong những hoạt động thiện nguyện thường niên của Bệnh viện Đa khoa Mai Phương, nhằm chung tay cùng cộng đồng chăm sóc sức khỏe cho những người yếu thế, mang lại một cuộc sống khỏe mạnh và tốt đẹp hơn".</p>
+        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Ngày 06/08, Hệ thống Phòng khám Tim mạch 4AM TP.HCM phối hợp cùng UBND phường Chợ Quán và Trạm Y tế tổ chức chương trình khám bệnh, phát thuốc miễn phí cho người dân có hoàn cảnh khó khăn trên địa bàn.</p>
+        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Chương trình đã thu hút gần 300 người dân tham gia. Đội ngũ y bác sĩ của Phòng khám Tim mạch 4AM đã tiến hành đo huyết áp, test đường huyết, siêu âm tổng quát và tư vấn sức khỏe tận tình cho bà con.</p>
+        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Đại diện Bệnh viện chia sẻ: "Đây là một trong những hoạt động thiện nguyện thường niên của Phòng khám Tim mạch 4AM, nhằm chung tay cùng cộng đồng chăm sóc sức khỏe cho những người yếu thế, mang lại một cuộc sống khỏe mạnh và tốt đẹp hơn".</p>
       </>
     )
   },
@@ -74,7 +74,7 @@ const newsDetails: Record<string, { title: string; date: string; category: strin
     image: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?q=80&w=600&auto=format&fit=crop",
     content: (
       <>
-        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Bệnh viện Đa khoa Mai Phương tự hào là đơn vị tiên phong ứng dụng hệ thống Robot Da Vinci Xi Dual Console - công nghệ phẫu thuật robot hai buồng điều khiển tiên tiến nhất hiện nay.</p>
+        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Phòng khám Tim mạch 4AM tự hào là đơn vị tiên phong ứng dụng hệ thống Robot Da Vinci Xi Dual Console - công nghệ phẫu thuật robot hai buồng điều khiển tiên tiến nhất hiện nay.</p>
         <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">Ưu điểm vượt trội</h3>
         <ul className="list-disc pl-6 mb-6 space-y-3 text-slate-600 font-sans">
           <li><strong>Độ chính xác cao:</strong> Cánh tay robot linh hoạt xoay 540 độ, vươn tới những góc khuất hẹp nhất mà tay người khó tiếp cận.</li>
@@ -82,7 +82,7 @@ const newsDetails: Record<string, { title: string; date: string; category: strin
           <li><strong>Hồi phục nhanh:</strong> Bệnh nhân có thể xuất viện sớm và trở lại sinh hoạt bình thường nhanh chóng.</li>
           <li><strong>Đào tạo trực tiếp:</strong> Hệ thống Dual Console cho phép hai bác sĩ phẫu thuật cùng thao tác trên một bệnh nhân, hỗ trợ hiệu quả cho công tác hội chẩn và đào tạo chuyên sâu.</li>
         </ul>
-        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Việc đưa vào vận hành hệ thống Robot Da Vinci Xi một lần nữa khẳng định cam kết của Bệnh viện Đa khoa Mai Phương trong việc liên tục cập nhật công nghệ y khoa thế giới, mang đến chất lượng điều trị tốt nhất cho người bệnh.</p>
+        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Việc đưa vào vận hành hệ thống Robot Da Vinci Xi một lần nữa khẳng định cam kết của Phòng khám Tim mạch 4AM trong việc liên tục cập nhật công nghệ y khoa thế giới, mang đến chất lượng điều trị tốt nhất cho người bệnh.</p>
       </>
     )
   },
@@ -103,7 +103,7 @@ const newsDetails: Record<string, { title: string; date: string; category: strin
         <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">4. Đi tiểu thường xuyên</h3>
         <p className="mb-6 text-slate-600 leading-relaxed font-sans">Lưu lượng máu trong cơ thể tăng lên khiến thận phải làm việc nhiều hơn để lọc chất thải, dẫn đến việc bàng quang nhanh đầy và bạn phải đi tiểu nhiều hơn.</p>
         <h3 className="text-2xl font-bold text-[#0d2a5c] mt-8 mb-4">Lưu ý từ bác sĩ</h3>
-        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Các dấu hiệu trên có thể khác nhau ở mỗi người. Để khẳng định chắc chắn mình đã mang thai, bạn nên sử dụng que thử thai hoặc đến Bệnh viện Đa khoa Mai Phương để thực hiện xét nghiệm máu Beta hCG và siêu âm kiểm tra nhé.</p>
+        <p className="mb-6 text-slate-600 leading-relaxed font-sans">Các dấu hiệu trên có thể khác nhau ở mỗi người. Để khẳng định chắc chắn mình đã mang thai, bạn nên sử dụng que thử thai hoặc đến Phòng khám Tim mạch 4AM để thực hiện xét nghiệm máu Beta hCG và siêu âm kiểm tra nhé.</p>
       </>
     )
   }

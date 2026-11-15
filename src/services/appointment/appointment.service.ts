@@ -25,8 +25,8 @@ export interface AppointmentSlotResponse {
 
 export interface CreateOnlineAppointmentPayload {
   patientId: string;
-  relationship: string;
-  departmentId: string;
+  relationship?: string;
+  departmentId?: string;
   doctorId: string;
   slotId: string;
   reasonForVisit?: string;
@@ -40,7 +40,7 @@ export interface GuestRequestOtpPayload {
   dateOfBirth: string;
   gender: 'male' | 'female' | 'other';
   identityNumber: string;
-  departmentId: string;
+  departmentId?: string;
   doctorId: string;
   slotId: string;
   reasonForVisit?: string;
@@ -87,7 +87,9 @@ export interface PatientDetail {
 export interface AppointmentItem {
   appointmentId: string;
   appointmentCode: string;
-  bookingChannel: 'online' | 'at_hospital';
+  bookingChannel: 'online' | 'at_hospital' | 'doctor_follow_up' | string;
+  appointmentType?: 'standard' | 'follow_up' | string;
+  sourceEncounterId?: string | null;
   status: 'pending' | 'confirmed' | 'checked_in' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
   patientId: string | null;
   suggestedPatientId?: string | null;
@@ -112,6 +114,9 @@ export interface AppointmentItem {
     gender?: string;
     identityNumber?: string;
     insuranceNumber?: string;
+    email?: string;
+    address?: string;
+    ethnicity?: string;
     identityVerified?: boolean;
     identityVerifiedAt?: string;
     status?: 'draft' | 'main';
@@ -125,6 +130,9 @@ export interface AppointmentItem {
     gender?: string;
     identityNumber?: string;
     insuranceNumber?: string;
+    email?: string;
+    address?: string;
+    ethnicity?: string;
     identityVerified?: boolean;
     identityVerifiedAt?: string;
     status?: 'draft' | 'main';
@@ -161,9 +169,10 @@ export interface AppointmentItem {
   };
   queueTicket?: {
     ticketId: string;
-    ticketNumber: string;
+    ticketNumber: number | string;
     ticketPrefix: string;
-    queueStatus: string;
+    status?: string;
+    queueStatus?: string;
     issuedAt?: string;
     calledAt?: string;
   };
@@ -182,9 +191,16 @@ export interface FindAppointmentsQuery {
   status?: string;
   from?: string;
   to?: string;
+  search?: string;
 }
 
-let cachedAppointmentsMap: Map<string, AppointmentItem[]> = new Map();
+interface CacheEntry {
+  data: AppointmentItem[];
+  timestamp: number;
+}
+
+let cachedAppointmentsMap: Map<string, CacheEntry> = new Map();
+const CACHE_TTL_MS = 5000; // 5s
 
 function getAppointmentQueryKey(query?: FindAppointmentsQuery): string {
   const params = new URLSearchParams();
@@ -192,6 +208,7 @@ function getAppointmentQueryKey(query?: FindAppointmentsQuery): string {
   if (query?.status) params.append('status', query.status);
   if (query?.from) params.append('from', query.from);
   if (query?.to) params.append('to', query.to);
+  if (query?.search) params.append('search', query.search);
   return params.toString();
 }
 
@@ -205,9 +222,10 @@ export const appointmentService = {
 
   // Đặt lịch khám online
   async createOnlineAppointment(payload: CreateOnlineAppointmentPayload): Promise<AppointmentItem> {
+    const { departmentId, relationship, ...rest } = payload as any;
     const res = await apiFetch<AppointmentItem>('/appointments', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(rest),
     });
     this.invalidateCache();
     return res;
@@ -215,9 +233,10 @@ export const appointmentService = {
 
   // Khách vãng lai (Guest) đặt lịch - Bước 1: Gửi thông tin + yêu cầu mã OTP
   async guestRequestOtp(payload: GuestRequestOtpPayload): Promise<{ message: string }> {
+    const { departmentId, ...rest } = payload as any;
     return apiFetch<{ message: string }>('/appointments/guest/request-otp', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(rest),
     });
   },
 
@@ -231,21 +250,28 @@ export const appointmentService = {
     return res;
   },
 
-  // Lấy dữ liệu cache đồng bộ nếu đã có
+  // Lấy dữ liệu cache đồng bộ nếu đã có (và chưa hết hạn TTL)
   getCachedAppointments(query?: FindAppointmentsQuery): AppointmentItem[] | null {
     const key = getAppointmentQueryKey(query);
-    return cachedAppointmentsMap.get(key) || null;
+    const entry = cachedAppointmentsMap.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+      cachedAppointmentsMap.delete(key);
+      return null;
+    }
+    return entry.data;
   },
 
   invalidateCache() {
     cachedAppointmentsMap.clear();
   },
 
-  // Lấy danh sách lịch hẹn (hỗ trợ Memory Cache + Background Refresh)
+  // Lấy danh sách lịch hẹn (hỗ trợ Memory Cache ngắn hạn + Background Refresh)
   async getAppointments(query?: FindAppointmentsQuery, forceRefresh = false): Promise<AppointmentItem[]> {
     const key = getAppointmentQueryKey(query);
-    if (!forceRefresh && cachedAppointmentsMap.has(key)) {
-      return cachedAppointmentsMap.get(key)!;
+    const entry = cachedAppointmentsMap.get(key);
+    if (!forceRefresh && entry && Date.now() - entry.timestamp < CACHE_TTL_MS) {
+      return entry.data;
     }
 
     const queryParams = new URLSearchParams();
@@ -253,13 +279,14 @@ export const appointmentService = {
     if (query?.status) queryParams.append('status', query.status);
     if (query?.from) queryParams.append('from', query.from);
     if (query?.to) queryParams.append('to', query.to);
+    if (query?.search) queryParams.append('search', query.search);
 
     const queryString = queryParams.toString();
     const url = `/appointments${queryString ? `?${queryString}` : ''}`;
     const data = await apiFetch<AppointmentItem[]>(url, {
       method: 'GET',
     });
-    cachedAppointmentsMap.set(key, data);
+    cachedAppointmentsMap.set(key, { data, timestamp: Date.now() });
     return data;
   },
 
@@ -325,20 +352,19 @@ export const appointmentService = {
     return res;
   },
 
-  // Lễ tân tạo lịch khám trực tiếp tại quầy (bookingChannel = at_hospital)
-  async createAtHospitalAppointment(payload: {
-    patientId?: string;
-    departmentId: string;
-    reasonForVisit?: string;
-    priority?: 'normal' | 'urgent' | 'emergency';
-  }): Promise<{ appointment: AppointmentItem; queueTicket: any }> {
-    const res = await apiFetch<{ appointment: AppointmentItem; queueTicket: any }>('/appointments/at-hospital', {
-      method: 'POST',
+  // Bệnh nhân tự đổi ngày hẹn tái khám (PATCH /appointments/:id/reschedule)
+  async rescheduleAppointment(
+    id: string,
+    payload: { slotId?: string; appointmentDate?: string; appointmentTime?: string; reason?: string }
+  ): Promise<AppointmentItem> {
+    const res = await apiFetch<AppointmentItem>(`/appointments/${id}/reschedule`, {
+      method: 'PATCH',
       body: JSON.stringify(payload),
     });
     this.invalidateCache();
     return res;
   },
+
 
   // Lễ tân đối chiếu CCCD cho case "matched" (appointment có suggestedPatientId, patientId=null)
   async syncPatient(payload: SyncPatientPayload): Promise<AppointmentItem> {

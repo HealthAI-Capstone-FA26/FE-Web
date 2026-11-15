@@ -85,7 +85,7 @@ export const UserProfilePill: React.FC<UserProfilePillProps> = ({
         </div>
 
         {/* Text Section */}
-        <div className="relative z-10 flex flex-col text-left min-w-0 pr-1">
+        <div className="relative z-10 hidden sm:flex flex-col text-left min-w-0 pr-1 max-w-[120px] md:max-w-[180px]">
           <span className="text-[13.5px] font-extrabold text-white leading-tight truncate tracking-tight group-hover:text-blue-100 transition-colors">
             {user?.name || 'Chưa đăng nhập'}
           </span>
@@ -138,7 +138,7 @@ export const UserProfilePill: React.FC<UserProfilePillProps> = ({
       </div>
 
       {/* Name and Role text */}
-      <div className="relative z-10 flex flex-col text-left min-w-0 pr-1">
+      <div className="relative z-10 hidden sm:flex flex-col text-left min-w-0 pr-1 max-w-[120px] md:max-w-[180px]">
         <span className="text-[13px] font-black text-slate-800 leading-tight truncate group-hover:text-blue-950 transition-colors">
           {user?.name || 'Chưa đăng nhập'}
         </span>

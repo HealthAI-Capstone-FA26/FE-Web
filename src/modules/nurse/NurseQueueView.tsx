@@ -10,6 +10,7 @@ import {
   Loader2,
   FileText,
   Filter,
+  X,
 } from 'lucide-react';
 import {
   encounterService,
@@ -28,23 +29,33 @@ import { NurseVitalModal } from './components/NurseVitalModal';
 import { NurseVitalHistoryModal } from './components/NurseVitalHistoryModal';
 import { EncounterDetailModal } from './components/EncounterDetailModal';
 import { NurseAllergyModal } from './components/NurseAllergyModal';
-import { ChangeEncounterDepartmentModal } from './components/ChangeEncounterDepartmentModal';
+import { NurseMedicalHistoryModal } from './components/NurseMedicalHistoryModal';
 
-export const NurseQueueView: React.FC = () => {
+export type NurseDateFilterMode = 'today' | 'yesterday' | '7days' | 'all' | 'custom';
+
+interface NurseQueueViewProps {
+  dateFilterMode?: NurseDateFilterMode;
+  customDate?: string;
+}
+
+export const NurseQueueView: React.FC<NurseQueueViewProps> = ({
+  dateFilterMode = 'today',
+  customDate = '',
+}) => {
   const { user } = useAuth();
 
   const [triageEntries, setTriageEntries] = useState<TriageQueueEntryItem[]>([]);
   const [encounters, setEncounters] = useState<EncounterItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isTakingNext, setIsTakingNext] = useState<boolean>(false);
-  const [filterTab, setFilterTab] = useState<'my_waiting' | 'all_waiting' | 'done' | 'all'>('my_waiting');
+  const [filterTab, setFilterTab] = useState<'waiting' | 'done' | 'abnormal' | 'all'>('waiting');
 
   // State các Modal
   const [selectedRow, setSelectedRow] = useState<NursePatientRow | null>(null);
   const [isInputModalOpen, setIsInputModalOpen] = useState<boolean>(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
   const [isAllergyModalOpen, setIsAllergyModalOpen] = useState<boolean>(false);
-  const [isChangeDeptModalOpen, setIsChangeDeptModalOpen] = useState<boolean>(false);
+  const [isMedicalHistoryModalOpen, setIsMedicalHistoryModalOpen] = useState<boolean>(false);
   const [selectedDetailEncounterId, setSelectedDetailEncounterId] = useState<string | null>(null);
 
   // Toast notification
@@ -52,19 +63,49 @@ export const NurseQueueView: React.FC = () => {
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ text, type });
-    setTimeout(() => setToastMessage(null), 4000);
+    setTimeout(() => setToastMessage(null), type === 'error' ? 8000 : 4000);
   };
 
-  // Tải dữ liệu Hàng đợi Triage & Ca khám
+  // Tính toán tham số date cho API
+  const dateParams = useMemo(() => {
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    if (dateFilterMode === 'today') {
+      return { date: todayStr };
+    }
+    if (dateFilterMode === 'yesterday') {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      const yesterdayStr = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+      return { date: yesterdayStr };
+    }
+    if (dateFilterMode === '7days') {
+      const past = new Date();
+      past.setDate(past.getDate() - 6);
+      const pastStr = `${past.getFullYear()}-${String(past.getMonth() + 1).padStart(2, '0')}-${String(past.getDate()).padStart(2, '0')}`;
+      return { from: pastStr, to: todayStr };
+    }
+    if (dateFilterMode === 'custom' && customDate) {
+      return { date: customDate };
+    }
+    // 'all'
+    return {};
+  }, [dateFilterMode, customDate]);
+
+  // Tải dữ liệu Hàng đợi Triage & Ca khám (lọc ngày trực tiếp từ Backend để tối ưu mạng & Neon DB)
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
+      const triageParams = dateParams.date ? { date: dateParams.date } : undefined;
+      const encounterParams = Object.keys(dateParams).length > 0 ? dateParams : undefined;
+
       const [triageRes, encRes] = await Promise.all([
-        triageQueueService.getTriageQueue().catch((err) => {
+        triageQueueService.getTriageQueue(triageParams).catch((err) => {
           console.warn('Lỗi lấy triage queue:', err);
           return [] as TriageQueueEntryItem[];
         }),
-        encounterService.getEncounters().catch((err) => {
+        encounterService.getEncounters(encounterParams).catch((err) => {
           console.warn('Lỗi lấy encounters:', err);
           return [] as EncounterItem[];
         }),
@@ -78,15 +119,27 @@ export const NurseQueueView: React.FC = () => {
     } finally {
       if (!silent) setIsLoading(false);
     }
-  }, []);
+  }, [dateParams]);
 
   useEffect(() => {
     fetchData();
-    // Tự động làm mới mỗi 15 giây để cập nhật ca mới từ Lễ tân
+    // Tự động làm mới mỗi 30 giây (tạm dừng khi tab ẩn để tiết kiệm băng thông)
     const interval = setInterval(() => {
+      if (document.hidden) return;
       fetchData(true);
-    }, 15000);
-    return () => clearInterval(interval);
+    }, 30000);
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchData(true);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [fetchData]);
 
   // Parse tuổi từ ngày sinh
@@ -222,32 +275,29 @@ export const NurseQueueView: React.FC = () => {
       const prioDiff = getPriorityWeight(b.priority) - getPriorityWeight(a.priority);
       if (prioDiff !== 0) return prioDiff;
 
-      // 3. Thứ tự xếp hàng queueOrder tăng dần
+      // 3. FIFO theo Ngày & Giờ tiếp nhận: Ca đến trước (ngày cũ hơn hoặc giờ sớm hơn) phải xếp TRƯỚC!
+      const timeA = new Date(a.arrivedAt || 0).getTime();
+      const timeB = new Date(b.arrivedAt || 0).getTime();
+      if (timeA !== timeB) {
+        return timeA - timeB;
+      }
+
+      // 4. Nếu cùng thời gian thì mới xét đến số thứ tự trong ngày
       if (a.queueOrder !== undefined && b.queueOrder !== undefined) {
         return a.queueOrder - b.queueOrder;
       }
-      if (a.queueOrder !== undefined) return -1;
-      if (b.queueOrder !== undefined) return 1;
-
-      // 4. Ai đến trước xếp trước (arrivedAt)
-      const timeA = new Date(a.arrivedAt || 0).getTime();
-      const timeB = new Date(b.arrivedAt || 0).getTime();
-      return timeA - timeB;
+      return 0;
     });
   }, [triageEntries, encounters]);
 
+  // Dữ liệu hiển thị (đã được lọc từ Backend theo dateFilterMode)
+  const scopedData = tableData;
+
   // Bộ lọc dữ liệu hiển thị theo Tab
   const filteredData = useMemo(() => {
-    const currentUserId = user?.id;
     switch (filterTab) {
-      case 'my_waiting':
-        return tableData.filter(
-          (r) =>
-            r.assignedNurseUserId === currentUserId &&
-            (r.triageStatus === 'waiting' || r.triageStatus === 'called' || r.triageStatus === 'in_progress')
-        );
-      case 'all_waiting':
-        return tableData.filter(
+      case 'waiting':
+        return scopedData.filter(
           (r) =>
             r.triageStatus === 'waiting' ||
             r.triageStatus === 'called' ||
@@ -255,25 +305,22 @@ export const NurseQueueView: React.FC = () => {
             r.status === 'Pending'
         );
       case 'done':
-        return tableData.filter((r) => r.triageStatus === 'done' || r.status === 'Measured');
+        return scopedData.filter((r) => r.triageStatus === 'done' || r.status === 'Measured');
+      case 'abnormal':
+        return scopedData.filter((r) => r.vitals?.isAbnormal);
       default:
-        return tableData;
+        return scopedData;
     }
-  }, [tableData, filterTab, user?.id]);
+  }, [scopedData, filterTab]);
 
-  // Thống kê nhanh
+  // Thống kê nhanh (theo phạm vi ngày đang chọn)
   const stats = useMemo(() => {
-    const total = tableData.length;
-    const myWaiting = tableData.filter(
-      (r) =>
-        r.assignedNurseUserId === user?.id &&
-        (r.triageStatus === 'waiting' || r.triageStatus === 'called' || r.triageStatus === 'in_progress')
-    ).length;
-    const pending = tableData.filter((r) => r.status === 'Pending' || r.triageStatus === 'waiting').length;
-    const measured = tableData.filter((r) => r.status === 'Measured' || r.triageStatus === 'done').length;
-    const abnormal = tableData.filter((r) => r.vitals?.isAbnormal).length;
-    return { total, myWaiting, pending, measured, abnormal };
-  }, [tableData, user?.id]);
+    const total = scopedData.length;
+    const pending = scopedData.filter((r) => r.status === 'Pending' || r.triageStatus === 'waiting').length;
+    const measured = scopedData.filter((r) => r.status === 'Measured' || r.triageStatus === 'done').length;
+    const abnormal = scopedData.filter((r) => r.vitals?.isAbnormal).length;
+    return { total, pending, measured, abnormal };
+  }, [scopedData]);
 
   // HÀNH ĐỘNG: "LẤY HỒ SƠ TIẾP THEO" (Chỉ bấm là lấy đúng ca tiếp theo theo thứ tự và mở form đo ngay)
   const handleTakeNextPatient = async () => {
@@ -360,10 +407,22 @@ export const NurseQueueView: React.FC = () => {
     setIsAllergyModalOpen(true);
   };
 
-  // Xử lý mở Modal Đổi khoa khám
-  const handleOpenChangeDept = (row: NursePatientRow) => {
+  // Xử lý mở Modal Tiền sử bệnh
+  const handleOpenMedicalHistory = (row: NursePatientRow) => {
     setSelectedRow(row);
-    setIsChangeDeptModalOpen(true);
+    setIsMedicalHistoryModalOpen(true);
+  };
+
+  // Xử lý bắt đầu đo cho bệnh nhân đã gọi (triage-queue start)
+  const handleStartProcessing = async (row: NursePatientRow) => {
+    if (!row.queueEntryId) return;
+    try {
+      await triageQueueService.startProcessing(row.queueEntryId);
+      showToast(`Đã bắt đầu đo sinh hiệu cho bệnh nhân ${row.name}!`);
+      fetchData(true);
+    } catch (err: any) {
+      showToast(err?.message || 'Không thể bắt đầu phiên đo.', 'error');
+    }
   };
 
   return (
@@ -371,7 +430,7 @@ export const NurseQueueView: React.FC = () => {
       {/* Toast Notification */}
       {toastMessage && (
         <div
-          className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-sm font-medium transition-all duration-300 animate-in fade-in ${
+          className={`fixed top-5 right-5 z-[9999] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-medium transition-all duration-300 animate-in fade-in max-w-lg ${
             toastMessage.type === 'success'
               ? 'bg-emerald-600 text-white shadow-emerald-500/20'
               : 'bg-rose-600 text-white shadow-rose-500/20'
@@ -382,11 +441,19 @@ export const NurseQueueView: React.FC = () => {
           ) : (
             <AlertCircle className="w-5 h-5 flex-shrink-0" />
           )}
-          <span>{toastMessage.text}</span>
+          <span className="flex-1 break-words leading-snug">{toastMessage.text}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer border-none bg-transparent shrink-0"
+            aria-label="Đóng thông báo"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
-      {/* Header & Thẻ thống kê */}
+      {/* Header & Thẻ thống kê - bấm thẻ để lọc nhanh */}
       <NurseStatsHeader
         totalCount={stats.total}
         pendingCount={stats.pending}
@@ -394,6 +461,8 @@ export const NurseQueueView: React.FC = () => {
         abnormalCount={stats.abnormal}
         isLoading={isLoading}
         onRefresh={() => fetchData()}
+        activeTab={filterTab}
+        onSelectTab={(tab) => setFilterTab(tab)}
       />
 
       {/* THANH THAO TÁC TIẾP NHẬN HỒ SƠ & BỘ LỌC DANH SÁCH */}
@@ -426,29 +495,19 @@ export const NurseQueueView: React.FC = () => {
         </div>
 
         {/* Tab lọc danh sách & Nút làm mới */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Các tab trạng thái */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
             <button
               type="button"
-              onClick={() => setFilterTab('my_waiting')}
+              onClick={() => setFilterTab('waiting')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                filterTab === 'my_waiting'
+                filterTab === 'waiting'
                   ? 'bg-white text-blue-700 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Hàng đợi của tôi ({stats.myWaiting})
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterTab('all_waiting')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                filterTab === 'all_waiting'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Tất cả đang chờ ({stats.pending})
+              Chờ đo sinh hiệu ({stats.pending})
             </button>
             <button
               type="button"
@@ -460,6 +519,18 @@ export const NurseQueueView: React.FC = () => {
               }`}
             >
               Đã đo xong ({stats.measured})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTab('abnormal')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                filterTab === 'abnormal'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'text-rose-700 hover:bg-rose-50'
+              }`}
+              title="Lọc các ca có chỉ số sinh hiệu bất thường"
+            >
+              Cảnh báo ({stats.abnormal})
             </button>
             <button
               type="button"
@@ -493,10 +564,11 @@ export const NurseQueueView: React.FC = () => {
         onOpenHistory={handleOpenHistory}
         onOpenDetail={handleOpenDetail}
         onOpenAllergy={handleOpenAllergy}
-        onOpenChangeDept={handleOpenChangeDept}
+        onOpenMedicalHistory={handleOpenMedicalHistory}
+        onStartProcessing={handleStartProcessing}
       />
 
-      {/* Modal Chi tiết ca khám (Encounter Detail) */}
+      {/* Modal Chi tiết ca khám (Encounter Detail) - Bao gồm cả Tiền sử dị ứng & Tiền sử bệnh */}
       <EncounterDetailModal
         isOpen={!!selectedDetailEncounterId}
         encounterId={selectedDetailEncounterId}
@@ -507,6 +579,8 @@ export const NurseQueueView: React.FC = () => {
             handleOpenMeasure(row);
           }
         }}
+        onSuccess={(msg) => showToast(msg, 'success')}
+        onError={(err) => showToast(err, 'error')}
       />
 
       {/* Modal Khai báo & Quản lý dị ứng */}
@@ -514,6 +588,18 @@ export const NurseQueueView: React.FC = () => {
         isOpen={isAllergyModalOpen}
         onClose={() => {
           setIsAllergyModalOpen(false);
+          setSelectedRow(null);
+        }}
+        patientRow={selectedRow}
+        onSuccess={(msg) => showToast(msg, 'success')}
+        onError={(err) => showToast(err, 'error')}
+      />
+
+      {/* Modal Khai báo & Quản lý tiền sử bệnh án */}
+      <NurseMedicalHistoryModal
+        isOpen={isMedicalHistoryModalOpen}
+        onClose={() => {
+          setIsMedicalHistoryModalOpen(false);
           setSelectedRow(null);
         }}
         patientRow={selectedRow}
@@ -545,22 +631,6 @@ export const NurseQueueView: React.FC = () => {
           setSelectedRow(null);
         }}
         patientRow={selectedRow}
-      />
-
-      {/* Modal Đổi khoa khám & Tự động xếp bác sĩ (PATCH /api/v1/encounters/:id/department) */}
-      <ChangeEncounterDepartmentModal
-        isOpen={isChangeDeptModalOpen}
-        onClose={() => {
-          setIsChangeDeptModalOpen(false);
-          setSelectedRow(null);
-        }}
-        encounterId={selectedRow?.encounterId || null}
-        patientName={selectedRow?.name}
-        currentDepartmentName={selectedRow?.departmentName}
-        onSuccess={(msg) => {
-          showToast(msg, 'success');
-          fetchData(true);
-        }}
       />
     </div>
   );

@@ -139,7 +139,7 @@ export const LabRoomsView: React.FC = () => {
       {/* Toast Notification */}
       {notification && (
         <div
-          className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl text-sm font-medium transition-all duration-300 ${notification.type === 'success'
+          className={`fixed top-5 right-5 z-[9999] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl text-sm font-medium transition-all duration-300 ${notification.type === 'success'
               ? 'bg-emerald-600 text-white shadow-emerald-500/20'
               : notification.type === 'error'
                 ? 'bg-rose-600 text-white shadow-rose-500/20'

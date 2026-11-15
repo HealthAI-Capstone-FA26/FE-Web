@@ -122,7 +122,7 @@ export async function apiFetch<T = any>(
             localStorage.removeItem('refresh_token');
             localStorage.removeItem('4am_is_logged_in');
             localStorage.removeItem('4am_user_data');
-            window.location.href = '/';
+            window.location.href = '/login';
           }
         } catch (refreshErr) {
           processQueue(refreshErr);

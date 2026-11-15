@@ -47,8 +47,8 @@ const articles = [
   },
   {
     id: "3",
-    title: "Bệnh viện Mai Phương khám sức khỏe miễn phí cho gần 300 người dân",
-    desc: "Hệ thống Bệnh viện Đa khoa Mai Phương TP.HCM phối hợp cùng UBND phường Chợ Quán và Trạm Y tế tổ chức khám bệnh, phát thuốc...",
+    title: "Phòng khám Tim mạch 4AM khám sức khỏe miễn phí cho gần 300 người dân",
+    desc: "Hệ thống Phòng khám Tim mạch 4AM TP.HCM phối hợp cùng UBND phường Chợ Quán và Trạm Y tế tổ chức khám bệnh, phát thuốc...",
     date: "06/08/2026",
     category: categories.sukien,
     image: "/images/news_thumb.png"

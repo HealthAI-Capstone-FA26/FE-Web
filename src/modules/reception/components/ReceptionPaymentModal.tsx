@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import {
   CreditCard, QrCode, CheckCircle2,
   Banknote, XCircle, AlertCircle,
-  Loader2, ChevronRight, Receipt
+  Loader2, ChevronRight, Receipt,
+  RefreshCw, ExternalLink, FileText,
+  User, Clock
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Modal } from '../../../components/common/Modal';
-import { type InvoiceData } from '../../../services/payment/invoice.service';
+import { invoiceService, type InvoiceData } from '../../../services/payment/invoice.service';
 import {
   paymentTransactionService,
   type PaymentTransaction,
@@ -143,6 +145,45 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
     }
   };
 
+  const [isCheckingPayment, setIsCheckingPayment] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+  // Tiếp tân chủ động kiểm tra ngay trạng thái thanh toán từ PayOS
+  const handleManualCheckPayment = async () => {
+    if (!bankTransferResult) return;
+    setIsCheckingPayment(true);
+    setActionError(null);
+    try {
+      const payment = await paymentTransactionService.getById(bankTransferResult.paymentId);
+      if (payment.status === 'success') {
+        setPaymentStep('success');
+        onPaymentSuccess();
+      } else {
+        setActionError('Chưa nhận được xác nhận thanh toán từ PayOS. Vui lòng thử lại sau khi người bệnh đã chuyển khoản thành công.');
+      }
+    } catch (err: any) {
+      setActionError(err?.message || 'Không thể kiểm tra trạng thái thanh toán.');
+    } finally {
+      setIsCheckingPayment(false);
+    }
+  };
+
+  // Tải hoặc in hóa đơn PDF
+  const handleDownloadPdf = async () => {
+    if (!invoice) return;
+    setIsDownloadingPdf(true);
+    try {
+      const { url } = await invoiceService.getPdfUrl(invoice.invoiceId);
+      if (url) {
+        window.open(url, '_blank');
+      }
+    } catch (err: any) {
+      setActionError(err?.message || 'Không thể tải hóa đơn PDF.');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   if (!invoice) return null;
 
   const total = Number(invoice.totalAmount);
@@ -234,13 +275,27 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
 
     if (paymentStep === 'qr_waiting') {
       return (
-        <div className="flex w-full justify-end items-center">
+        <div className="flex w-full justify-between items-center gap-2">
           <button
             type="button"
             onClick={() => setPaymentStep('select_method')}
             className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border-none transition-colors"
           >
-            Đổi phương thức
+            Đổi sang tiền mặt
+          </button>
+          <button
+            type="button"
+            onClick={handleManualCheckPayment}
+            disabled={isCheckingPayment}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl cursor-pointer border-none flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-60"
+            title="Bấm để kiểm tra ngay lập tức nếu người bệnh vừa chuyển khoản xong"
+          >
+            {isCheckingPayment ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            <span>Kiểm tra trạng thái ngay</span>
           </button>
         </div>
       );
@@ -248,7 +303,21 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
 
     if (paymentStep === 'success') {
       return (
-        <div className="flex w-full justify-end items-center">
+        <div className="flex w-full justify-between items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={isDownloadingPdf}
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border border-slate-200 flex items-center gap-1.5 transition-colors disabled:opacity-60"
+            title="Tải hóa đơn điện tử định dạng PDF"
+          >
+            {isDownloadingPdf ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FileText className="w-4 h-4 text-blue-600" />
+            )}
+            <span>Tải Hóa Đơn PDF</span>
+          </button>
           <button
             type="button"
             onClick={onClose}
@@ -292,6 +361,60 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
         {/* ── Bước: Chọn phương thức ────────────────────────────────────── */}
         {paymentStep === 'select_method' && (
           <div className="space-y-4">
+            {/* Thông tin người bệnh */}
+            {invoice.patient && (
+              <div className="bg-blue-50/50 p-3 rounded-2xl border border-blue-100 flex flex-col gap-1.5 text-xs">
+                <div className="flex items-center justify-between border-b border-blue-100/80 pb-1.5">
+                  <span className="font-extrabold text-blue-900 flex items-center gap-1.5 text-[11px]">
+                    <User className="w-3.5 h-3.5 text-blue-600" />
+                    Thông tin bệnh nhân
+                  </span>
+                  <span className="font-mono text-[10px] font-bold text-blue-700 bg-white px-2 py-0.5 rounded-md border border-blue-200">
+                    {invoice.patient.patientCode || 'Mã BN: N/A'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-slate-400">Họ và tên:</span>
+                    <p className="font-bold text-slate-800 text-xs mt-0.5 uppercase">
+                      {invoice.patient.fullName}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Số CCCD / Định danh:</span>
+                    <p className="font-semibold text-slate-800 mt-0.5 font-mono">
+                      {invoice.patient.identityNumber || 'Chưa cập nhật'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Ngày sinh & Giới tính:</span>
+                    <p className="font-medium text-slate-700 mt-0.5">
+                      {invoice.patient.dateOfBirth ? new Date(invoice.patient.dateOfBirth).toLocaleDateString('vi-VN') : '—'}
+                      {invoice.patient.gender ? ` • ${invoice.patient.gender === 'male' ? 'Nam' : invoice.patient.gender === 'female' ? 'Nữ' : invoice.patient.gender}` : ''}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Số điện thoại:</span>
+                    <p className="font-semibold text-slate-700 mt-0.5">
+                      {invoice.patient.phoneNumber || '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Địa chỉ:</span>
+                    <p className="font-medium text-slate-700 mt-0.5 truncate" title={invoice.patient.address || ''}>
+                      {invoice.patient.address || 'Chưa cập nhật'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Lượt khám / Hồ sơ:</span>
+                    <p className="font-mono font-semibold text-blue-700 mt-0.5">
+                      {invoice.encounter?.encounterCode || (invoice.encounterId ? invoice.encounterId.slice(0, 8) : 'Khám ban đầu')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Chi tiết dịch vụ */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
               <p className="font-extrabold text-slate-700 mb-3 flex items-center gap-2">
@@ -402,6 +525,20 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
               </p>
             </div>
 
+            {bankTransferResult.checkoutUrl && (
+              <div className="pt-1">
+                <a
+                  href={bankTransferResult.checkoutUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 hover:underline font-bold bg-blue-50/70 border border-blue-200/60 px-3 py-1.5 rounded-xl transition-all"
+                >
+                  <span>Mở trang thanh toán PayOS</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            )}
+
             {/* Thông tin tài khoản nhận chuyển khoản */}
             {(bankTransferResult.accountNumber || bankTransferResult.accountName || bankTransferResult.description) && (
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-left text-xs space-y-2 max-w-sm mx-auto text-slate-600">
@@ -458,6 +595,60 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
               </span>
             </div>
 
+            {/* Thông tin người bệnh */}
+            {invoice.patient && (
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex flex-col gap-2 text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                  <span className="font-extrabold text-slate-700 flex items-center gap-1.5 text-xs">
+                    <User className="w-4 h-4 text-blue-600" />
+                    Thông tin người bệnh
+                  </span>
+                  <span className="font-mono text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                    {invoice.patient.patientCode || 'Mã BN: N/A'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-slate-400">Họ và tên:</span>
+                    <p className="font-bold text-slate-800 text-xs mt-0.5 uppercase">
+                      {invoice.patient.fullName}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Số CCCD / Định danh:</span>
+                    <p className="font-semibold text-slate-800 mt-0.5 font-mono">
+                      {invoice.patient.identityNumber || 'Chưa cập nhật'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Ngày sinh & Giới tính:</span>
+                    <p className="font-medium text-slate-700 mt-0.5">
+                      {invoice.patient.dateOfBirth ? new Date(invoice.patient.dateOfBirth).toLocaleDateString('vi-VN') : '—'}
+                      {invoice.patient.gender ? ` • ${invoice.patient.gender === 'male' ? 'Nam' : invoice.patient.gender === 'female' ? 'Nữ' : invoice.patient.gender}` : ''}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Số điện thoại:</span>
+                    <p className="font-semibold text-slate-700 mt-0.5">
+                      {invoice.patient.phoneNumber || '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Địa chỉ:</span>
+                    <p className="font-medium text-slate-700 mt-0.5 truncate" title={invoice.patient.address || ''}>
+                      {invoice.patient.address || 'Chưa cập nhật'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Lượt khám / Hồ sơ:</span>
+                    <p className="font-mono font-semibold text-blue-700 mt-0.5">
+                      {invoice.encounter?.encounterCode || (invoice.encounterId ? invoice.encounterId.slice(0, 8) : 'Khám ban đầu')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Chi tiết dịch vụ chỉ định */}
             <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
               <p className="font-extrabold text-slate-700 mb-2 flex items-center gap-1.5 text-xs">
@@ -503,14 +694,20 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
             </div>
 
             {/* Thông tin giao dịch */}
-            <div className="bg-white p-3 rounded-2xl border border-slate-200 grid grid-cols-2 gap-3 text-xs">
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 grid grid-cols-2 gap-3 text-xs">
               <div>
                 <span className="text-slate-400 text-[11px]">Hình thức thanh toán</span>
-                <p className="font-bold text-slate-700 mt-0.5">{paymentMethodLabel}</p>
+                <p className="font-bold text-slate-800 mt-0.5 flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                  <span>{paymentMethodLabel}</span>
+                </p>
               </div>
               <div>
                 <span className="text-slate-400 text-[11px]">Thời gian thanh toán</span>
-                <p className="font-bold text-slate-700 mt-0.5">{fmtDate(paidTime)}</p>
+                <p className="font-bold text-slate-800 mt-0.5 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{fmtDate(paidTime)}</span>
+                </p>
               </div>
             </div>
           </div>

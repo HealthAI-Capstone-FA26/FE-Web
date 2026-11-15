@@ -13,7 +13,6 @@ import {
   FlaskConical,
   FileText,
   ShieldCheck,
-  Bell,
   LogOut,
   ChevronDown,
   ChevronLeft,
@@ -29,12 +28,15 @@ import {
   Megaphone,
   PanelLeft,
   PanelLeftClose,
+  BarChart3,
+  Coins,
   Lock,
   X
 } from 'lucide-react';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { AccountInfoView } from '../../modules/patient/AccountInfoView';
 import { UserProfilePill } from '../common/UserProfilePill';
+import { NotificationDropdown } from './NotificationDropdown';
 
 interface DashboardLayoutProps {
   children?: React.ReactNode;
@@ -42,7 +44,12 @@ interface DashboardLayoutProps {
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const { user, currentRole, logout, can } = useAuth();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024;
+    }
+    return true;
+  });
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -67,15 +74,52 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     }, 3000);
   }, [clearInactivityTimer]);
 
-  // Initial load & route change: start 3s countdown if sidebar is open and user isn't hovering
+  // Initial load & route change: on mobile automatically close sidebar; on desktop handle countdown
   useEffect(() => {
-    if (isSidebarOpen && !isHoveringSidebarRef.current) {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+      clearInactivityTimer();
+    } else if (isSidebarOpen && !isHoveringSidebarRef.current) {
       resetInactivityTimer();
     }
     return () => {
       clearInactivityTimer();
     };
   }, [location.pathname, isSidebarOpen, resetInactivityTimer, clearInactivityTimer]);
+
+  // Scroll direction detection for bottom navigator compact mode
+  const [isBottomNavCompact, setIsBottomNavCompact] = useState(false);
+  const lastScrollYRef = useRef(0);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || currentRole !== 'PATIENT') return;
+
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+          const diff = currentScrollY - lastScrollYRef.current;
+
+          // When scrolled down significantly and past top margin
+          if (diff > 12 && currentScrollY > 50) {
+            setIsBottomNavCompact(true);
+          } else if (diff < -8 || currentScrollY <= 30) {
+            // When scrolled up or back at top
+            setIsBottomNavCompact(false);
+          }
+
+          lastScrollYRef.current = currentScrollY;
+          ticking = false;
+        });
+        ticking = true;
+      };
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [currentRole]);
 
   const rawNavGroups = ROLE_NAV_CONFIG[currentRole] || ROLE_NAV_CONFIG.DOCTOR;
   const navGroups = rawNavGroups
@@ -119,6 +163,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         return ShieldCheck;
       case 'Sparkles':
         return Sparkles;
+      case 'BarChart3':
+        return BarChart3;
+      case 'Coins':
+        return Coins;
       case 'LayoutDashboard':
       default:
         return LayoutDashboard;
@@ -156,12 +204,22 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               <div className="w-10 h-10 rounded-full bg-white border border-slate-200 p-1 flex items-center justify-center shadow-xs group-hover:border-blue-600 transition-colors shrink-0">
                 <img src="/images/logo.png" alt="Logo 4AM" className="w-full h-full object-contain" />
               </div>
-              <div className="flex flex-col">
-                <span className="font-black text-sm text-blue-950 uppercase tracking-tight whitespace-nowrap">
-                  {currentRole === 'PATIENT' ? 'CỔNG THÔNG TIN BỆNH NHÂN (PATIENT PORTAL)' : 'HỆ THỐNG QUẢN LÝ NỘI BỘ (EMR & AI)'}
+              <div className="flex flex-col min-w-0">
+                <span className="font-black text-xs sm:text-sm text-blue-950 uppercase tracking-tight truncate">
+                  {currentRole === 'PATIENT' ? (
+                    <>
+                      <span className="sm:hidden">Cổng Bệnh Nhân</span>
+                      <span className="hidden sm:inline">CỔNG THÔNG TIN BỆNH NHÂN (PATIENT PORTAL)</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="sm:hidden">Hệ Thống Y Tế</span>
+                      <span className="hidden sm:inline">HỆ THỐNG QUẢN LÝ NỘI BỘ (EMR & AI)</span>
+                    </>
+                  )}
                 </span>
-                <span className="text-[10px] text-slate-500 font-semibold whitespace-nowrap">
-                  Bệnh viện Đa khoa 4AM • Chuẩn HL7 FHIR R4
+                <span className="text-[10px] text-slate-500 font-semibold whitespace-nowrap hidden sm:block">
+                  Phòng khám Tim mạch 4AM • Chuẩn HL7 FHIR R4
                 </span>
               </div>
             </Link>
@@ -169,11 +227,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
           {/* Right Topbar Action & Profile */}
           <div className="flex items-center space-x-3">
-            <button className="relative p-2 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer border-none bg-transparent">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full"></span>
-            </button>
+            <NotificationDropdown />
 
             {/* User Profile Card */}
             <div className="relative">
@@ -219,7 +273,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                       onClick={() => {
                         logout();
                         setIsRoleDropdownOpen(false);
-                        navigate('/', { replace: true });
+                        navigate('/login', { replace: true });
                       }}
                       className="w-full px-4 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center space-x-2 cursor-pointer border-none bg-transparent"
                     >
@@ -271,7 +325,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
       {/* Main Screen Container with Flush Left Sidebar */}
       <div className="flex-1 flex w-full relative">
-        {/* Floating Arrow Tab on Left Edge when sidebar is collapsed (Vertically Centered) */}
+        {/* Floating Arrow Tab on Left Edge when sidebar is collapsed (Desktop Only) */}
         {!isSidebarOpen && (
           <button
             onClick={() => {
@@ -284,7 +338,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               resetInactivityTimer();
             }}
             title="Mở menu điều hướng (Hover hoặc Click)"
-            className="fixed left-0 top-1/2 -translate-y-1/2 z-30 flex items-center justify-center w-6 sm:w-7 h-14 bg-white hover:bg-blue-600 text-slate-400 hover:text-white border border-l-0 border-slate-200/90 hover:border-blue-600 shadow-md hover:shadow-lg rounded-r-xl transition-all cursor-pointer group"
+            className="hidden lg:flex fixed left-0 top-1/2 -translate-y-1/2 z-30 items-center justify-center w-6 sm:w-7 h-14 bg-white hover:bg-blue-600 text-slate-400 hover:text-white border border-l-0 border-slate-200/90 hover:border-blue-600 shadow-md hover:shadow-lg rounded-r-xl transition-all cursor-pointer group"
           >
             <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </button>
@@ -414,10 +468,187 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         </aside>
 
         {/* Content Outlet */}
-        <main className={`flex-1 p-3 sm:p-5 lg:p-6 overflow-x-hidden min-w-0 transition-all duration-300 ${!isSidebarOpen ? 'pl-8 sm:pl-10 lg:pl-12' : ''}`}>
+        <main className={`flex-1 p-3 sm:p-5 lg:p-6 overflow-x-hidden min-w-0 transition-all duration-300 ${!isSidebarOpen ? 'pl-3 sm:pl-8 lg:pl-12' : ''} ${currentRole === 'PATIENT' ? 'pb-24 lg:pb-6' : ''}`}>
           {children || <Outlet />}
         </main>
       </div>
+
+      {/* Floating Mobile Bottom Navigation Bar for PATIENT role (Facebook / iOS Floating Dock style) */}
+      {currentRole === 'PATIENT' && (
+        <div className={`fixed z-40 mx-auto lg:hidden transition-all duration-300 ease-out ${
+          isBottomNavCompact
+            ? 'bottom-2.5 inset-x-8 max-w-[285px]'
+            : 'bottom-3 inset-x-3 sm:bottom-4 sm:inset-x-6 max-w-md'
+        }`}>
+          <nav className={`backdrop-blur-2xl border transition-all duration-300 flex items-center justify-between ${
+            isBottomNavCompact
+              ? 'bg-white/80 border-white/60 shadow-[0_8px_24px_rgba(15,23,42,0.12),inset_0_1px_1px_rgba(255,255,255,0.8)] rounded-full px-1.5 py-1'
+              : 'bg-white/95 border-white/80 shadow-[0_12px_36px_rgba(15,23,42,0.16),0_2px_6px_rgba(15,23,42,0.06),inset_0_1px_1px_rgba(255,255,255,0.9)] rounded-[26px] px-2 py-1.5'
+          }`}>
+            <NavLink
+              to="/benh-nhan/ho-so"
+              className={({ isActive }) =>
+                `group relative flex-1 flex flex-col items-center justify-center rounded-2xl transition-all duration-200 active:scale-90 ${
+                  isBottomNavCompact ? 'py-0.5 px-0.5' : 'py-1 px-1'
+                } ${
+                  isActive ? 'text-blue-600 font-extrabold' : 'text-slate-500 hover:text-slate-800 font-medium'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div
+                    className={`rounded-xl transition-all duration-200 ${
+                      isBottomNavCompact ? 'p-1' : 'p-1.5'
+                    } ${
+                      isActive ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30 -translate-y-0.5' : 'bg-transparent text-slate-500 group-hover:text-slate-800'
+                    }`}
+                  >
+                    <User className={`${isBottomNavCompact ? "w-3.5 h-3.5" : "w-4 h-4"} transition-all`} />
+                  </div>
+                  <span className={`text-[10px] tracking-tight transition-all duration-200 overflow-hidden ${
+                    isBottomNavCompact
+                      ? 'max-h-0 opacity-0 -mt-0.5 pointer-events-none'
+                      : 'max-h-4 opacity-100 mt-0.5'
+                  } ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
+                    Hồ sơ
+                  </span>
+                  {isActive && !isBottomNavCompact && (
+                    <span className="w-1 h-1 rounded-full bg-blue-600 mt-0.5 animate-pulse" />
+                  )}
+                </>
+              )}
+            </NavLink>
+
+            <NavLink
+              to="/benh-nhan/ho-so-y-te"
+              className={({ isActive }) =>
+                `group relative flex-1 flex flex-col items-center justify-center rounded-2xl transition-all duration-200 active:scale-90 ${
+                  isBottomNavCompact ? 'py-0.5 px-0.5' : 'py-1 px-1'
+                } ${
+                  isActive ? 'text-blue-600 font-extrabold' : 'text-slate-500 hover:text-slate-800 font-medium'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div
+                    className={`rounded-xl transition-all duration-200 ${
+                      isBottomNavCompact ? 'p-1' : 'p-1.5'
+                    } ${
+                      isActive ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30 -translate-y-0.5' : 'bg-transparent text-slate-500 group-hover:text-slate-800'
+                    }`}
+                  >
+                    <FileText className={`${isBottomNavCompact ? "w-3.5 h-3.5" : "w-4 h-4"} transition-all`} />
+                  </div>
+                  <span className={`text-[10px] tracking-tight transition-all duration-200 overflow-hidden ${
+                    isBottomNavCompact
+                      ? 'max-h-0 opacity-0 -mt-0.5 pointer-events-none'
+                      : 'max-h-4 opacity-100 mt-0.5'
+                  } ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
+                    Bệnh án
+                  </span>
+                  {isActive && !isBottomNavCompact && (
+                    <span className="w-1 h-1 rounded-full bg-blue-600 mt-0.5 animate-pulse" />
+                  )}
+                </>
+              )}
+            </NavLink>
+
+            <NavLink
+              to="/benh-nhan/trieu-chung"
+              className={({ isActive }) =>
+                `group relative flex-1 flex flex-col items-center justify-center rounded-2xl transition-all duration-200 active:scale-90 ${
+                  isBottomNavCompact ? 'py-0.5 px-0.5' : 'py-1 px-1'
+                } ${
+                  isActive ? 'text-blue-600 font-extrabold' : 'text-slate-500 hover:text-slate-800 font-medium'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div
+                    className={`rounded-xl transition-all duration-200 ${
+                      isBottomNavCompact ? 'p-1' : 'p-1.5'
+                    } ${
+                      isActive ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30 -translate-y-0.5' : 'bg-transparent text-slate-500 group-hover:text-slate-800'
+                    }`}
+                  >
+                    <Activity className={`${isBottomNavCompact ? "w-3.5 h-3.5" : "w-4 h-4"} transition-all`} />
+                  </div>
+                  <span className={`text-[10px] tracking-tight transition-all duration-200 overflow-hidden ${
+                    isBottomNavCompact
+                      ? 'max-h-0 opacity-0 -mt-0.5 pointer-events-none'
+                      : 'max-h-4 opacity-100 mt-0.5'
+                  } ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
+                    Khai báo
+                  </span>
+                  {isActive && !isBottomNavCompact && (
+                    <span className="w-1 h-1 rounded-full bg-blue-600 mt-0.5 animate-pulse" />
+                  )}
+                </>
+              )}
+            </NavLink>
+
+            <NavLink
+              to="/benh-nhan/lich-hen"
+              className={({ isActive }) =>
+                `group relative flex-1 flex flex-col items-center justify-center rounded-2xl transition-all duration-200 active:scale-90 ${
+                  isBottomNavCompact ? 'py-0.5 px-0.5' : 'py-1 px-1'
+                } ${
+                  isActive ? 'text-blue-600 font-extrabold' : 'text-slate-500 hover:text-slate-800 font-medium'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div
+                    className={`rounded-xl transition-all duration-200 ${
+                      isBottomNavCompact ? 'p-1' : 'p-1.5'
+                    } ${
+                      isActive ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30 -translate-y-0.5' : 'bg-transparent text-slate-500 group-hover:text-slate-800'
+                    }`}
+                  >
+                    <CalendarDays className={`${isBottomNavCompact ? "w-3.5 h-3.5" : "w-4 h-4"} transition-all`} />
+                  </div>
+                  <span className={`text-[10px] tracking-tight transition-all duration-200 overflow-hidden ${
+                    isBottomNavCompact
+                      ? 'max-h-0 opacity-0 -mt-0.5 pointer-events-none'
+                      : 'max-h-4 opacity-100 mt-0.5'
+                  } ${isActive ? 'text-blue-700 font-black' : 'text-slate-500'}`}>
+                    Lịch khám
+                  </span>
+                  {isActive && !isBottomNavCompact && (
+                    <span className="w-1 h-1 rounded-full bg-blue-600 mt-0.5 animate-pulse" />
+                  )}
+                </>
+              )}
+            </NavLink>
+
+            <button
+              type="button"
+              onClick={() => setIsProfileOpen(true)}
+              className={`group relative flex-1 flex flex-col items-center justify-center rounded-2xl transition-all duration-200 active:scale-90 text-slate-500 hover:text-slate-800 font-medium cursor-pointer border-none bg-transparent ${
+                isBottomNavCompact ? 'py-0.5 px-0.5' : 'py-1 px-1'
+              }`}
+            >
+              <div className={`rounded-xl bg-transparent text-slate-500 group-hover:text-slate-800 transition-all ${
+                isBottomNavCompact ? 'p-1' : 'p-1.5'
+              }`}
+              >
+                <UserCheck className={`${isBottomNavCompact ? "w-3.5 h-3.5" : "w-4 h-4"} transition-all`} />
+              </div>
+              <span className={`text-[10px] tracking-tight text-slate-500 transition-all duration-200 overflow-hidden ${
+                isBottomNavCompact
+                  ? 'max-h-0 opacity-0 -mt-0.5 pointer-events-none'
+                  : 'max-h-4 opacity-100 mt-0.5'
+              }`}>
+                Tài khoản
+              </span>
+            </button>
+          </nav>
+        </div>
+      )}
     </div>
   );
 };

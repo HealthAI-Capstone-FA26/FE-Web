@@ -168,7 +168,7 @@ export const PatientImportRecordView: React.FC = () => {
               className="px-6 py-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2 cursor-pointer shadow-md border-none"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Xác Nhận Nhập Hồ Sơ Về Bệnh Viện 4AM</span>
+              <span>Xác Nhận Nhập Hồ Sơ Về Phòng Khám Tim Mạch 4AM</span>
             </button>
           </div>
         </div>

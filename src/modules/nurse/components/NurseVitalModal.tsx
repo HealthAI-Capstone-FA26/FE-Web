@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Heart,
   Thermometer,
@@ -9,6 +9,10 @@ import {
   Table,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
+  Activity,
+  History,
+  X,
 } from 'lucide-react';
 import { Modal } from '../../../components/common/Modal';
 import { Badge } from '../../../components/common/Badge';
@@ -17,7 +21,9 @@ import {
   type VitalItemResponse,
   type VitalReferenceRangeResponse,
 } from '../../../services/vital/vital.service';
-import type { NursePatientRow } from '../../../services/encounter/encounter.service';
+import { encounterService, type NursePatientRow } from '../../../services/encounter/encounter.service';
+import { EncounterDetailAllergiesTab } from './tabs/EncounterDetailAllergiesTab';
+import { EncounterDetailMedicalHistoryTab } from './tabs/EncounterDetailMedicalHistoryTab';
 
 interface NurseVitalModalProps {
   isOpen: boolean;
@@ -45,7 +51,9 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
   const [height, setHeight] = useState<number | string>('');
   const [weight, setWeight] = useState<number | string>('');
   const [notes, setNotes] = useState<string>('');
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'vitals' | 'allergies' | 'medical_history'>('vitals');
   const [_vitalItems, setVitalItems] = useState<VitalItemResponse[]>([]);
   const [refRangesList, setRefRangesList] = useState<VitalReferenceRangeResponse[]>([]);
   const [showRefTable, setShowRefTable] = useState<boolean>(true);
@@ -54,6 +62,8 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
   // Tải danh mục chỉ số sinh hiệu active & khoảng tham chiếu sinh hiệu riêng cho bệnh nhân theo tuổi/giới tính
   useEffect(() => {
     if (isOpen) {
+      setActiveTab('vitals');
+      setSaveError(null);
       vitalService
         .getVitalItems()
         .then((items) => setVitalItems(items))
@@ -107,6 +117,17 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
     }
   }, [patientRow]);
 
+
+  // Lấy dải tham chiếu chuẩn theo từng chỉ số từ danh sách API Backend (đồng bộ với DB)
+  const refMap = useMemo(() => {
+    const map = new Map<string, VitalReferenceRangeResponse>();
+    refRangesList.forEach((r) => {
+      map.set(r.itemCode.toUpperCase(), r);
+    });
+    return map;
+  }, [refRangesList]);
+
+
   if (!patientRow) return null;
 
   // Tính BMI tự động (nếu cả chiều cao và cân nặng đều đã được nhập)
@@ -124,33 +145,54 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
   const numSpo2 = typeof spo2 === 'number' ? spo2 : parseFloat(spo2) || 0;
   const numResp = typeof respiratoryRate === 'number' ? respiratoryRate : parseFloat(respiratoryRate) || 0;
 
-  // Kiểm tra cảnh báo bất thường trực tiếp trên form theo nhóm tuổi (chỉ kiểm tra các trường đã nhập)
-  const isFormAbnormal = isToddler
-    ? (numBpSys > 0 && (numBpSys > 115 || numBpSys < 75)) ||
-    (numBpDia > 0 && (numBpDia > 75 || numBpDia < 45)) ||
-    (numTemp > 0 && (numTemp >= 37.6 || numTemp < 36.1)) ||
-    (numSpo2 > 0 && numSpo2 < 96) ||
-    (numPulse > 0 && (numPulse > 135 || numPulse < 75)) ||
-    (numResp > 0 && (numResp > 32 || numResp < 18))
-    : isPediatric
-      ? (numBpSys > 0 && (numBpSys > 120 || numBpSys < 80)) ||
-      (numBpDia > 0 && (numBpDia > 78 || numBpDia < 50)) ||
-      (numTemp > 0 && (numTemp >= 37.6 || numTemp < 36.1)) ||
-      (numSpo2 > 0 && numSpo2 < 96) ||
-      (numPulse > 0 && (numPulse > 115 || numPulse < 65)) ||
-      (numResp > 0 && (numResp > 26 || numResp < 14))
-      : (numBpSys > 0 && (numBpSys >= 120 || numBpSys < 90)) ||
-      (numBpDia > 0 && (numBpDia >= 80 || numBpDia < 60)) ||
-      (numTemp > 0 && (numTemp >= 37.5 || numTemp < 36.1)) ||
-      (numSpo2 > 0 && numSpo2 < 96) ||
-      (numPulse > 0 && (numPulse > 90 || numPulse < 60)) ||
-      (numResp > 0 && (numResp > 20 || numResp < 12));
+  const sbpRef = refMap.get('SBP') || refMap.get('BP_SYS') || null;
+  const dbpRef = refMap.get('DBP') || refMap.get('BP_DIA') || null;
+  const hrRef = refMap.get('HR') || refMap.get('PULSE') || null;
+  const tempRef = refMap.get('TEMP') || refMap.get('TEMPERATURE') || null;
+  const spo2Ref = refMap.get('SPO2') || null;
+  const rrRef = refMap.get('RR') || refMap.get('RESP') || null;
+  const bmiRef = refMap.get('BMI') || null;
+
+  // Ngưỡng bình thường (Ưu tiên từ API CSDL, fallback theo độ tuổi nếu API chưa tải xong)
+  const sbpMin = sbpRef ? sbpRef.minNormal : isToddler ? 80 : isPediatric ? 85 : 90;
+  const sbpMax = sbpRef ? sbpRef.maxNormal : isToddler ? 110 : isPediatric ? 115 : 120;
+  const isBpSysAbnormal = numBpSys > 0 && (numBpSys < sbpMin || numBpSys > sbpMax);
+
+  const dbpMin = dbpRef ? dbpRef.minNormal : isToddler ? 50 : isPediatric ? 55 : 60;
+  const dbpMax = dbpRef ? dbpRef.maxNormal : isToddler ? 75 : isPediatric ? 75 : 80;
+  const isBpDiaAbnormal = numBpDia > 0 && (numBpDia < dbpMin || numBpDia > dbpMax);
+
+  const hrMin = hrRef ? hrRef.minNormal : isToddler ? 80 : isPediatric ? 70 : 60;
+  const hrMax = hrRef ? hrRef.maxNormal : isToddler ? 130 : isPediatric ? 110 : 90;
+  const isPulseAbnormal = numPulse > 0 && (numPulse < hrMin || numPulse > hrMax);
+
+  const tempMin = tempRef ? tempRef.minNormal : 36.1;
+  const tempMax = tempRef ? tempRef.maxNormal : 37.5;
+  const isTempAbnormal = numTemp > 0 && (numTemp < tempMin || numTemp > tempMax);
+
+  const spo2Min = spo2Ref ? spo2Ref.minNormal : 96;
+  const spo2Max = spo2Ref ? spo2Ref.maxNormal : 100;
+  const isSpo2Abnormal = numSpo2 > 0 && (numSpo2 < spo2Min || numSpo2 > spo2Max);
+
+  const rrMin = rrRef ? rrRef.minNormal : isToddler ? 20 : isPediatric ? 16 : 12;
+  const rrMax = rrRef ? rrRef.maxNormal : isToddler ? 30 : isPediatric ? 24 : 20;
+  const isRespAbnormal = numResp > 0 && (numResp < rrMin || numResp > rrMax);
+
+  // Kiểm tra cảnh báo bất thường trực tiếp trên form
+  const isFormAbnormal =
+    isBpSysAbnormal ||
+    isBpDiaAbnormal ||
+    isPulseAbnormal ||
+    isTempAbnormal ||
+    isSpo2Abnormal ||
+    isRespAbnormal;
 
   // Luôn ghi nhận lần đo mới (POST) để lưu đầy đủ lịch sử theo dõi
   const handleSave = async () => {
     if (!patientRow) return;
 
     try {
+      setSaveError(null);
       setIsSubmitting(true);
       const recordedByUserId = currentUserId || '00000000-0000-0000-0000-000000000000';
 
@@ -170,51 +212,184 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
         queueEntryId: patientRow.queueEntryId,
       });
 
-      onSuccess(`Đã lưu phiên sinh hiệu mới vào lịch sử cho bệnh nhân ${patientRow.name}!`);
+      let routeMsg = '';
+      try {
+        const routeResult = await encounterService.routeDoctor(patientRow.encounterId);
+        if (routeResult?.doctor?.fullName) {
+          routeMsg = ` & Điều phối vào phòng Bác sĩ ${routeResult.doctor.fullName}`;
+        }
+      } catch {
+        // Tự động bỏ qua nếu đã phân bổ hoặc chưa đủ điều kiện
+      }
+
+      onSuccess(`Đã lưu phiên sinh hiệu cho bệnh nhân ${patientRow.name}${routeMsg}!`);
       onClose();
     } catch (err: any) {
       console.error('Lỗi khi lưu sinh hiệu mới:', err);
-      onError(err.message || 'Không thể lưu phiên sinh hiệu mới. Vui lòng kiểm tra lại.');
+      const errorMsg = err.message || 'Không thể lưu phiên sinh hiệu mới. Vui lòng kiểm tra lại.';
+      setSaveError(errorMsg);
+      onError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const renderSourceReference = (source?: string | null) => {
+    if (!source) return <span className="text-slate-400 italic">Chuẩn Bộ Y Tế</span>;
+
+    const urlRegex = /\((https?:\/\/[^\s)]+)\)/i;
+    const match = source.match(urlRegex);
+
+    if (match) {
+      const url = match[1];
+      const textWithoutUrl = source.replace(urlRegex, '').trim();
+      return (
+        <div className="space-y-1">
+          <p className="text-slate-700 font-medium text-[11px] leading-relaxed">{textWithoutUrl}</p>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-bold"
+            title={url}
+          >
+            <span>Tài liệu tham chiếu gốc</span>
+            <ExternalLink className="w-3 h-3 shrink-0" />
+          </a>
+        </div>
+      );
+    }
+
+    return <p className="text-slate-600 text-[11px] leading-relaxed">{source}</p>;
   };
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={() => !isSubmitting && onClose()}
-      title={`Ghi Nhận Sinh Hiệu: ${patientRow.name}`}
-      subtitle={`Mã ca: ${patientRow.encounterCode} • ${patientRow.age} tuổi • ${patientRow.gender} • Khoa: ${patientRow.departmentName}`}
+      maxWidth="4xl"
+      title={
+        patientRow
+          ? activeTab === 'vitals'
+            ? `Ghi Nhận Sinh Hiệu: ${patientRow.name}`
+            : activeTab === 'allergies'
+            ? `Kê Khai Dị Ứng: ${patientRow.name}`
+            : `Kê Khai Tiền Sử Bệnh: ${patientRow.name}`
+          : 'Ghi Nhận Sinh Hiệu'
+      }
+      subtitle={patientRow ? `Mã ca: ${patientRow.encounterCode} • ${patientRow.age} tuổi • ${patientRow.gender}` : ''}
       footer={
-        <>
+        activeTab === 'vitals' ? (
+          <div className="w-full flex flex-col gap-2.5">
+            {saveError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between gap-2 animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="font-medium text-left">{saveError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSaveError(null)}
+                  className="text-rose-400 hover:text-rose-700 cursor-pointer border-none bg-transparent p-0.5 shrink-0"
+                  aria-label="Đóng cảnh báo"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border-none transition-colors"
+              >
+                Hủy
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isSubmitting}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl cursor-pointer border-none shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50"
+                title="Lưu một phiên đo mới vào lịch sử"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+                <span>Lưu Sinh Hiệu & Đồng Bộ Bác Sĩ</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border-none transition-colors"
+            >
+              Đóng
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('vitals')}
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl cursor-pointer border-none shadow-sm flex items-center gap-1.5 transition-all"
+            >
+              <Activity className="w-4 h-4" />
+              <span>Quay lại Đo Sinh Hiệu</span>
+            </button>
+          </>
+        )
+      }
+    >
+      <div className="space-y-4 text-xs">
+        {/* TAB NAVIGATION CHUYỂN ĐỔI: ĐO SINH HIỆU, TIỀN SỬ DỊ ỨNG, TIỀN SỬ BỆNH */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-2xl border border-slate-200">
           <button
             type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border-none transition-colors"
+            onClick={() => setActiveTab('vitals')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+              activeTab === 'vitals'
+                ? 'bg-white text-blue-700 shadow-xs border border-slate-200/80'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
           >
-            Hủy
+            <Activity className="w-3.5 h-3.5 text-blue-600" />
+            <span>Đo Sinh Hiệu</span>
           </button>
 
           <button
             type="button"
-            onClick={handleSave}
-            disabled={isSubmitting}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl cursor-pointer border-none shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50"
-            title="Lưu một phiên đo mới vào lịch sử"
+            onClick={() => setActiveTab('allergies')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+              activeTab === 'allergies'
+                ? 'bg-white text-rose-800 shadow-xs border border-slate-200/80'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
           >
-            {isSubmitting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4" />
-            )}
-            <span>Lưu Sinh Hiệu & Đồng Bộ Bác Sĩ</span>
+            <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+            <span>Tiền Sử Dị Ứng</span>
           </button>
-        </>
-      }
-    >
-      <div className="space-y-4 text-xs">
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('medical_history')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+              activeTab === 'medical_history'
+                ? 'bg-white text-indigo-800 shadow-xs border border-slate-200/80'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <History className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Tiền Sử Bệnh & Tim Mạch</span>
+          </button>
+        </div>
+
+        {activeTab === 'vitals' && (
+          <div className="space-y-4">
         {patientRow?.chiefComplaint && (
           <div className="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -224,10 +399,10 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
                 {typeof patientRow.chiefComplaint.painLevel === 'number' && (
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${patientRow.chiefComplaint.painLevel >= 7
-                        ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                        : patientRow.chiefComplaint.painLevel >= 4
-                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                      : patientRow.chiefComplaint.painLevel >= 4
+                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                        : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                       }`}
                   >
                     Mức đau: {patientRow.chiefComplaint.painLevel}/10
@@ -259,8 +434,8 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
             <ShieldAlert className="w-5 h-5 shrink-0" />
             <span>
               {isPediatric
-                ? 'CẢNH BÁO SỚM (NHI KHOA): Có chỉ số sinh hiệu ngoài khoảng tham chiếu Nhi khoa'
-                : 'CẢNH BÁO SỚM (NEWS2): Có chỉ số vượt ngưỡng NEWS2 (Huyết áp: 90-119 / 60-79, Mạch: 60-90, Nhiệt độ: 36.1-37.4°C, SpO2: ≥96%)'}
+                ? 'CẢNH BÁO SỚM (NHI KHOA): Có chỉ số sinh hiệu ngoài khoảng tham chiếu an toàn theo độ tuổi của trẻ'
+                : 'CẢNH BÁO SỚM: Có chỉ số sinh hiệu vượt ngưỡng tham chiếu an toàn chuẩn'}
             </span>
           </div>
         )}
@@ -273,20 +448,21 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
               type="number"
               value={bpSystolic}
               onChange={(e) => setBpSystolic(e.target.value)}
-              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${(isToddler && (numBpSys > 115 || (numBpSys > 0 && numBpSys < 75))) ||
-                  (!isToddler && isPediatric && (numBpSys > 120 || (numBpSys > 0 && numBpSys < 80))) ||
-                  (!isPediatric && (numBpSys >= 120 || (numBpSys > 0 && numBpSys < 90)))
+              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${
+                isBpSysAbnormal
                   ? 'border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600'
                   : 'border-slate-200 focus:border-blue-600'
-                }`}
+              }`}
               placeholder={isToddler ? '95' : isPediatric ? '105' : '115'}
             />
             <span className="text-[10px] text-slate-400">
-              {isToddler
+              {sbpRef
+                ? `Bình thường: ${sbpRef.minNormal} - ${sbpRef.maxNormal} ${sbpRef.unit || 'mmHg'}`
+                : isToddler
                 ? 'Bình thường (Nhi khoa 3-5t): 80 - 110'
                 : isPediatric
-                  ? 'Bình thường (Nhi khoa): 85 - 115'
-                  : 'Bình thường (NEWS2): 90 - 119'}
+                ? 'Bình thường (Nhi khoa): 85 - 115'
+                : 'Bình thường: 90 - 120 mmHg'}
             </span>
           </div>
 
@@ -297,20 +473,21 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
               type="number"
               value={bpDiastolic}
               onChange={(e) => setBpDiastolic(e.target.value)}
-              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${(isToddler && (numBpDia > 75 || (numBpDia > 0 && numBpDia < 45))) ||
-                  (!isToddler && isPediatric && (numBpDia > 78 || (numBpDia > 0 && numBpDia < 50))) ||
-                  (!isPediatric && (numBpDia >= 80 || (numBpDia > 0 && numBpDia < 60)))
+              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${
+                isBpDiaAbnormal
                   ? 'border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600'
                   : 'border-slate-200 focus:border-blue-600'
-                }`}
+              }`}
               placeholder={isToddler ? '60' : isPediatric ? '70' : '75'}
             />
             <span className="text-[10px] text-slate-400">
-              {isToddler
+              {dbpRef
+                ? `Bình thường: ${dbpRef.minNormal} - ${dbpRef.maxNormal} ${dbpRef.unit || 'mmHg'}`
+                : isToddler
                 ? 'Bình thường (Nhi khoa 3-5t): 50 - 75'
                 : isPediatric
-                  ? 'Bình thường (Nhi khoa): 55 - 75'
-                  : 'Bình thường (NEWS2): 60 - 79'}
+                ? 'Bình thường (Nhi khoa): 55 - 75'
+                : 'Bình thường: 60 - 80 mmHg'}
             </span>
           </div>
 
@@ -324,20 +501,21 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
               type="number"
               value={pulse}
               onChange={(e) => setPulse(e.target.value)}
-              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${(isToddler && (numPulse > 135 || (numPulse > 0 && numPulse < 75))) ||
-                  (!isToddler && isPediatric && (numPulse > 115 || (numPulse > 0 && numPulse < 65))) ||
-                  (!isPediatric && (numPulse > 90 || (numPulse > 0 && numPulse < 60)))
+              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${
+                isPulseAbnormal
                   ? 'border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600'
                   : 'border-slate-200 focus:border-blue-600'
-                }`}
+              }`}
               placeholder={isToddler ? '100' : isPediatric ? '90' : '80'}
             />
             <span className="text-[10px] text-slate-400">
-              {isToddler
+              {hrRef
+                ? `Bình thường: ${hrRef.minNormal} - ${hrRef.maxNormal} ${hrRef.unit || 'lần/phút'}`
+                : isToddler
                 ? 'Bình thường (Nhi khoa 3-5t): 80 - 130'
                 : isPediatric
-                  ? 'Bình thường (Nhi khoa): 70 - 110'
-                  : 'Bình thường: 60 - 90'}
+                ? 'Bình thường (Nhi khoa): 70 - 110'
+                : 'Bình thường: 60 - 90 lần/phút'}
             </span>
           </div>
 
@@ -352,13 +530,18 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
               step="0.1"
               value={temp}
               onChange={(e) => setTemp(e.target.value)}
-              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${numTemp >= 37.6 || (numTemp > 0 && numTemp < 36.1)
+              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${
+                isTempAbnormal
                   ? 'border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600'
                   : 'border-slate-200 focus:border-blue-600'
-                }`}
+              }`}
               placeholder="37.0"
             />
-            <span className="text-[10px] text-slate-400">Bình thường: 36.1 - 37.5</span>
+            <span className="text-[10px] text-slate-400">
+              {tempRef
+                ? `Bình thường: ${tempRef.minNormal} - ${tempRef.maxNormal} ${tempRef.unit || '°C'}`
+                : 'Bình thường: 36.1 - 37.5 °C'}
+            </span>
           </div>
 
           {/* SpO2 */}
@@ -368,13 +551,18 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
               type="number"
               value={spo2}
               onChange={(e) => setSpo2(e.target.value)}
-              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${numSpo2 > 0 && numSpo2 < 96
+              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${
+                isSpo2Abnormal
                   ? 'border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600'
                   : 'border-slate-200 focus:border-blue-600'
-                }`}
+              }`}
               placeholder="98"
             />
-            <span className="text-[10px] text-slate-400">Bình thường: 96 - 100</span>
+            <span className="text-[10px] text-slate-400">
+              {spo2Ref
+                ? `Bình thường: ${spo2Ref.minNormal} - ${spo2Ref.maxNormal} ${spo2Ref.unit || '%'}`
+                : 'Bình thường: 96 - 100%'}
+            </span>
           </div>
 
           {/* Nhịp thở */}
@@ -384,20 +572,21 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
               type="number"
               value={respiratoryRate}
               onChange={(e) => setRespiratoryRate(e.target.value)}
-              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${(isToddler && (numResp > 32 || (numResp > 0 && numResp < 18))) ||
-                  (!isToddler && isPediatric && (numResp > 26 || (numResp > 0 && numResp < 14))) ||
-                  (!isPediatric && (numResp > 20 || (numResp > 0 && numResp < 12)))
+              className={`w-full p-2.5 rounded-xl border font-extrabold text-sm outline-none ${
+                isRespAbnormal
                   ? 'border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600'
                   : 'border-slate-200 focus:border-blue-600'
-                }`}
+              }`}
               placeholder={isToddler ? '24' : isPediatric ? '20' : '18'}
             />
             <span className="text-[10px] text-slate-400">
-              {isToddler
+              {rrRef
+                ? `Bình thường: ${rrRef.minNormal} - ${rrRef.maxNormal} ${rrRef.unit || 'lần/phút'}`
+                : isToddler
                 ? 'Bình thường (Nhi khoa 3-5t): 20 - 30'
                 : isPediatric
-                  ? 'Bình thường (Nhi khoa): 16 - 24'
-                  : 'Bình thường: 12 - 20'}
+                ? 'Bình thường (Nhi khoa): 16 - 24'
+                : 'Bình thường: 12 - 20 lần/phút'}
             </span>
           </div>
 
@@ -432,10 +621,20 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
               <span className="text-xl font-black text-blue-900">{currentBmi}</span>
             </div>
             <Badge
-              variant={currentBmi >= 25 ? 'warning' : currentBmi < 18.5 ? 'neutral' : 'normal'}
+              variant={
+                currentBmi >= (bmiRef?.maxNormal || 25)
+                  ? 'warning'
+                  : currentBmi < (bmiRef?.minNormal || 18.5)
+                  ? 'neutral'
+                  : 'normal'
+              }
               size="sm"
             >
-              {currentBmi >= 25 ? 'Thừa cân' : currentBmi < 18.5 ? 'Gầy' : 'Bình thường'}
+              {currentBmi >= (bmiRef?.maxNormal || 25)
+                ? 'Thừa cân'
+                : currentBmi < (bmiRef?.minNormal || 18.5)
+                ? 'Gầy'
+                : 'Bình thường'}
             </Badge>
           </div>
         </div>
@@ -462,7 +661,7 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
           >
             <div className="flex items-center gap-2">
               <Table className="w-4 h-4 text-blue-600" />
-              <span>Bảng Ngưỡng Sinh Hiệu Chuẩn (API GET /vital-reference-ranges theo Tuổi & Giới Tính)</span>
+              <span>Bảng Ngưỡng Sinh Hiệu Chuẩn</span>
               {refRangesList.length > 0 && (
                 <span className="px-2 py-0.5 bg-blue-100 text-blue-800 font-extrabold text-[10px] rounded-full">
                   {refRangesList.length} chỉ số
@@ -484,17 +683,17 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
                   Chưa có khoảng tham chiếu cấu hình cho độ tuổi này.
                 </p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-[11px]">
+                <div className="overflow-x-auto rounded-xl border border-slate-200/90 shadow-2xs">
+                  <table className="w-full text-left border-collapse text-xs min-w-[660px]">
                     <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
-                        <th className="py-2 px-3">Chỉ số sinh hiệu</th>
-                        <th className="py-2 px-3">Khoảng Bình Thường Tham Chiếu</th>
-                        <th className="py-2 px-3">Trạng thái Nhập thực tế</th>
-                        <th className="py-2 px-3">Nguồn Chuẩn Y Tế</th>
+                      <tr className="border-b border-slate-200 bg-slate-50/90 text-slate-700 font-bold text-xs">
+                        <th className="py-2.5 px-3.5 w-[24%]">Chỉ số sinh hiệu</th>
+                        <th className="py-2.5 px-3.5 w-[20%]">Khoảng chuẩn tham chiếu</th>
+                        <th className="py-2.5 px-3.5 w-[28%]">Trạng thái giá trị nhập</th>
+                        <th className="py-2.5 px-3.5 w-[28%]">Nguồn chuẩn y tế</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 bg-white">
                       {refRangesList.map((row) => {
                         let val: number | null = null;
                         const code = row.itemCode.toUpperCase();
@@ -506,32 +705,48 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
                         else if (code === 'SPO2' && numSpo2 > 0) val = numSpo2;
                         else if (code === 'HEIGHT' && numHeight > 0) val = numHeight;
                         else if (code === 'WEIGHT' && numWeight > 0) val = numWeight;
+                        else if (code === 'BMI' && currentBmi > 0) val = currentBmi;
 
                         const isAbn = val !== null && (val < row.minNormal || val > row.maxNormal);
 
                         return (
                           <tr
                             key={row.itemCode}
-                            className={`hover:bg-slate-50 transition-colors ${isAbn ? 'bg-rose-50/60 font-medium' : ''
-                              }`}
+                            className={`hover:bg-slate-50/80 transition-colors ${
+                              isAbn ? 'bg-rose-50/50' : ''
+                            }`}
                           >
-                            <td className="py-2 px-3 font-bold text-slate-800">
-                              {row.itemName} <span className="text-[10px] text-slate-400">({row.itemCode})</span>
+                            <td className="py-2.5 px-3.5 font-bold text-slate-900">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span>{row.itemName}</span>
+                                <span className="text-[10px] text-slate-400 font-mono font-normal">
+                                  ({row.itemCode})
+                                </span>
+                              </div>
                             </td>
-                            <td className="py-2 px-3 font-semibold text-emerald-700">
-                              {row.minNormal} - {row.maxNormal} {row.unit}
+                            <td className="py-2.5 px-3.5 font-extrabold text-emerald-700 whitespace-nowrap">
+                              {row.minNormal} - {row.maxNormal}{' '}
+                              <span className="text-[11px] font-normal text-slate-500">{row.unit}</span>
                             </td>
-                            <td className="py-2 px-3">
+                            <td className="py-2.5 px-3.5">
                               {val === null ? (
-                                <Badge variant="neutral" size="sm">Chưa nhập</Badge>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-500">
+                                  Chưa nhập
+                                </span>
                               ) : isAbn ? (
-                                <Badge variant="critical" size="sm">Cảnh báo bất thường 🚨 ({val} {row.unit})</Badge>
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                                  <span>Bất thường ({val} {row.unit})</span>
+                                </span>
                               ) : (
-                                <Badge variant="normal" size="sm">Bình thường ({val} {row.unit})</Badge>
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                                  <span>Bình thường ({val} {row.unit})</span>
+                                </span>
                               )}
                             </td>
-                            <td className="py-2 px-3 text-slate-500 italic text-[10px]">
-                              {row.sourceReference || 'Chuẩn Bộ Y Tế'}
+                            <td className="py-2.5 px-3.5">
+                              {renderSourceReference(row.sourceReference)}
                             </td>
                           </tr>
                         );
@@ -544,6 +759,34 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
           )}
         </div>
       </div>
-    </Modal>
-  );
+      )}
+
+      {/* TAB 2: TIỀN SỬ DỊ ỨNG */}
+      {activeTab === 'allergies' && patientRow && (
+        <div className="py-1">
+          <EncounterDetailAllergiesTab
+            patientId={patientRow.patientId}
+            patientName={patientRow.name}
+            encounterId={patientRow.encounterId}
+            onSuccess={onSuccess}
+            onError={onError}
+          />
+        </div>
+      )}
+
+      {/* TAB 3: TIỀN SỬ BỆNH & TIM MẠCH */}
+      {activeTab === 'medical_history' && patientRow && (
+        <div className="py-1">
+          <EncounterDetailMedicalHistoryTab
+            patientId={patientRow.patientId}
+            patientName={patientRow.name}
+            encounterId={patientRow.encounterId}
+            onSuccess={onSuccess}
+            onError={onError}
+          />
+        </div>
+      )}
+    </div>
+  </Modal>
+);
 };

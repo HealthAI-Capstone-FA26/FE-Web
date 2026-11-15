@@ -147,7 +147,7 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = () => {
               <span>Thông Tin Tài Khoản Đăng Nhập</span>
             </h2>
             <p className="text-[11px] text-blue-200/80 font-medium">
-              Quản lý tài khoản truy cập trực tuyến, bảo mật và thông tin xác thực tại Bệnh viện 4AM.
+              Quản lý tài khoản truy cập trực tuyến, bảo mật và thông tin xác thực tại Phòng khám Tim mạch 4AM.
             </p>
           </div>
         </div>

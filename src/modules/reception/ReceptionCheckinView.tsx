@@ -27,7 +27,7 @@ const MOCK_RECEPTION_PATIENTS: ReceptionPatient[] = [
     insuranceCard: 'DN479205001234',
     bookingType: 'Online',
     hasESignature: true,
-    specialty: 'Khoa Nội Tổng Hợp',
+    specialty: 'Khoa Tim Mạch',
     status: 'Waiting'
   },
   {

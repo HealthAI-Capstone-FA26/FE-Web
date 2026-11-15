@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 const slides = [
   {
     id: 1,
-    topLabel: "BỆNH VIỆN ĐA KHOA",
+    topLabel: "PHÒNG KHÁM TIM MẠCH 4AM",
     title: "HỆ THỐNG Y TẾ CHUẨN QUỐC TẾ",
     highlight: "CHẤT LƯỢNG TỐT NHẤT",
     subtitle: "CÔNG BỐ CỦA SỞ Y TẾ THÀNH PHỐ",

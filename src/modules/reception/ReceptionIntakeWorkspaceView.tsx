@@ -12,13 +12,8 @@ export const ReceptionIntakeWorkspaceView: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    doctorService.getDepartments().catch(() => {});
     patientService.getAllPatients().catch(() => {});
   }, []);
-
-  const handleSelectPatientForWalkin = (patient: any) => {
-    navigate('/tiep-nhan/benh-nhan', { state: { initialPatient: patient } });
-  };
 
   const tabs: WorkspaceTab[] = [
     {
@@ -31,11 +26,7 @@ export const ReceptionIntakeWorkspaceView: React.FC = () => {
       id: 'patients-list',
       label: 'Danh sách bệnh nhân',
       icon: Users,
-      component: (
-        <ReceptionPatientsView
-          onSelectPatientForWalkin={handleSelectPatientForWalkin}
-        />
-      ),
+      component: <ReceptionPatientsView />,
     },
     {
       id: 'create-profile',

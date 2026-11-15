@@ -24,7 +24,7 @@ interface CreateDoctorScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
   doctors: DoctorResponse[];
-  departments: DepartmentResponse[];
+  departments?: DepartmentResponse[];
   defaultDoctorId?: string;
   defaultDate?: string; // YYYY-MM-DD
   onSuccess: (message?: string) => void;
@@ -146,7 +146,6 @@ export const CreateDoctorScheduleModal: React.FC<CreateDoctorScheduleModalProps>
 
   // Form State
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(defaultDoctorId);
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('');
 
   // Single mode state
   const [singleWorkDate, setSingleWorkDate] = useState<string>(() => {
@@ -192,58 +191,10 @@ export const CreateDoctorScheduleModal: React.FC<CreateDoctorScheduleModalProps>
       setMaxPatientsPerSlot(1);
       setFormError(null);
       setMode('single');
-
-      // Tự động gán khoa chính của bác sĩ nếu có
-      if (defaultDoctorId) {
-        const doc = (doctors || []).find((d) => d.doctorId === defaultDoctorId);
-        const primaryDept = doc?.doctorDepartments?.find((dd) => dd.isPrimary);
-        if (primaryDept) {
-          setSelectedDepartmentId(primaryDept.departmentId);
-        } else {
-          setSelectedDepartmentId('');
-        }
-      } else {
-        setSelectedDepartmentId('');
-      }
     }
-  }, [isOpen, defaultDoctorId, defaultDate, doctors]);
-
-  // Khi thay đổi bác sĩ được chọn, tự động gợi ý Khoa chính của bác sĩ
-  useEffect(() => {
-    if (selectedDoctorId) {
-      const doc = (doctors || []).find((d) => d.doctorId === selectedDoctorId);
-      const primaryDept = doc?.doctorDepartments?.find((dd) => dd.isPrimary);
-      if (primaryDept) {
-        setSelectedDepartmentId(primaryDept.departmentId);
-      }
-    }
-  }, [selectedDoctorId, doctors]);
+  }, [isOpen, defaultDoctorId, defaultDate]);
 
   const selectedDoctor = (doctors || []).find((d) => d.doctorId === selectedDoctorId);
-  const primaryDoctorDept = selectedDoctor?.doctorDepartments?.find((dd) => dd.isPrimary);
-  const primaryDepartmentId = primaryDoctorDept?.departmentId;
-
-  // Sắp xếp danh sách khoa: Khoa chính lên đầu (kèm nhãn ⭐), các khoa kiêm nhiệm kế tiếp, sau đó đến các khoa khác
-  const sortedDepartments = useMemo(() => {
-    if (!departments || departments.length === 0) return [];
-    if (!selectedDoctor?.doctorDepartments) return departments;
-
-    const assignedIds = new Set(selectedDoctor.doctorDepartments.map((dd) => dd.departmentId));
-
-    return [...departments].sort((a, b) => {
-      // Khoa chính lên đầu tiên
-      if (a.departmentId === primaryDepartmentId) return -1;
-      if (b.departmentId === primaryDepartmentId) return 1;
-
-      // Các khoa đã gán cho bác sĩ lên tiếp theo
-      const aAssigned = assignedIds.has(a.departmentId);
-      const bAssigned = assignedIds.has(b.departmentId);
-      if (aAssigned && !bAssigned) return -1;
-      if (!aAssigned && bAssigned) return 1;
-
-      return a.departmentName.localeCompare(b.departmentName, 'vi');
-    });
-  }, [departments, selectedDoctor, primaryDepartmentId]);
 
   // Toggle ca trực (Session)
   const toggleSession = (session: ScheduleSession) => {
@@ -383,7 +334,6 @@ export const CreateDoctorScheduleModal: React.FC<CreateDoctorScheduleModalProps>
       const promises = targetShiftsToCreate.map((item) =>
         doctorScheduleService.createSchedule({
           doctorId: selectedDoctorId,
-          departmentId: selectedDepartmentId || undefined,
           workDate: item.workDate,
           session: item.session,
           startTime: item.startTime,
@@ -468,43 +418,7 @@ export const CreateDoctorScheduleModal: React.FC<CreateDoctorScheduleModalProps>
             </select>
           </div>
 
-          {/* 2. Select Department */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="block text-slate-700 font-bold">
-                Khoa phòng khám <span className="text-slate-400 font-normal">(để trống sẽ tự lấy Khoa chính)</span>
-              </label>
-              {primaryDoctorDept && (
-                <span className="text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                  ⭐ Khoa chính: {primaryDoctorDept.department?.departmentName || departments.find((d) => d.departmentId === primaryDepartmentId)?.departmentName}
-                </span>
-              )}
-            </div>
-            <select
-              value={selectedDepartmentId}
-              onChange={(e) => setSelectedDepartmentId(e.target.value)}
-              className="w-full bg-slate-50 text-slate-900 p-2.5 rounded-xl border border-slate-200 outline-none focus:bg-white focus:border-blue-600 transition-all font-semibold cursor-pointer text-xs"
-            >
-              <option value="">
-                -- Mặc định lấy Khoa chính {primaryDoctorDept ? `(${primaryDoctorDept.department?.departmentName || departments.find((d) => d.departmentId === primaryDepartmentId)?.departmentName})` : ''} --
-              </option>
-              {sortedDepartments.map((dept) => {
-                const isPrimary = dept.departmentId === primaryDepartmentId;
-                const isAssigned = selectedDoctor?.doctorDepartments?.some((dd) => dd.departmentId === dept.departmentId);
 
-                return (
-                  <option key={dept.departmentId} value={dept.departmentId}>
-                    {isPrimary
-                      ? `⭐ [KHOA CHÍNH] ${dept.departmentName} (${dept.departmentCode})`
-                      : isAssigned
-                      ? `✓ [Kiêm nhiệm] ${dept.departmentName} (${dept.departmentCode})`
-                      : `${dept.departmentName} (${dept.departmentCode})`}
-                    {dept.roomLocation ? ` - ${dept.roomLocation}` : ''}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
 
           {/* 3. Mode Toggle: Single Date vs Multi-day Batch */}
           <div className="p-1 bg-slate-100 rounded-xl flex items-center gap-1">

@@ -19,10 +19,16 @@ import {
   Activity,
   ShieldCheck,
   Loader2,
+  Volume2,
 } from 'lucide-react';
 import { type AppointmentItem } from '../../../services/appointment/appointment.service';
 import { Badge } from '../../../components/common/Badge';
-import { DepartmentIcon } from '../../../components/common/DepartmentIcon';
+import {
+  postTestConsultationService,
+  type DiagnosisConclusionItem,
+  type TreatmentConsultationItem,
+} from '../../../services/doctor/post-test-consultation.service';
+import { History, HeartPulse, ClipboardList, Info } from 'lucide-react';
 import {
   encounterService,
   type EncounterItem,
@@ -39,6 +45,8 @@ interface ReceptionAppointmentDetailModalProps {
   onCancel?: (appointment: AppointmentItem) => void;
   onSync?: (appointment: AppointmentItem) => void;
   onConfirmMain?: (appointment: AppointmentItem) => void;
+  onCallQueueTicket?: () => void;
+  queueTicketCode?: string;
 }
 
 export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetailModalProps> = ({
@@ -51,9 +59,15 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
   onCancel,
   onSync,
   onConfirmMain,
+  onCallQueueTicket,
+  queueTicketCode,
 }) => {
   const [encounter, setEncounter] = useState<EncounterItem | null>(null);
   const [isLoadingEncounter, setIsLoadingEncounter] = useState<boolean>(false);
+  const [sourceEncounter, setSourceEncounter] = useState<EncounterItem | null>(null);
+  const [sourceDiagnoses, setSourceDiagnoses] = useState<DiagnosisConclusionItem[]>([]);
+  const [sourceTreatment, setSourceTreatment] = useState<TreatmentConsultationItem | null>(null);
+  const [isLoadingSource, setIsLoadingSource] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen && appointment) {
@@ -82,8 +96,32 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
       } else {
         setEncounter(null);
       }
+
+      // Tải chi tiết ca khám gốc đối với ca tái khám
+      const sourceEncId = (appointment as any).sourceEncounterId || (appointment as any).sourceEncounter?.encounterId;
+      if (sourceEncId) {
+        setIsLoadingSource(true);
+        Promise.allSettled([
+          encounterService.getEncounterById(sourceEncId),
+          postTestConsultationService.getDiagnosisConclusions(sourceEncId),
+          postTestConsultationService.getTreatmentConsultation(sourceEncId),
+        ]).then(([encRes, diagRes, treatRes]) => {
+          if (encRes.status === 'fulfilled') setSourceEncounter(encRes.value);
+          if (diagRes.status === 'fulfilled') setSourceDiagnoses(diagRes.value || []);
+          if (treatRes.status === 'fulfilled') setSourceTreatment(treatRes.value);
+        }).finally(() => {
+          setIsLoadingSource(false);
+        });
+      } else {
+        setSourceEncounter(null);
+        setSourceDiagnoses([]);
+        setSourceTreatment(null);
+      }
     } else {
       setEncounter(null);
+      setSourceEncounter(null);
+      setSourceDiagnoses([]);
+      setSourceTreatment(null);
     }
   }, [isOpen, appointment]);
 
@@ -157,7 +195,7 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
             <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
-            Đã xác nhận (Chờ đến viện)
+            Đã xác nhận
           </span>
         );
       case 'checked_in':
@@ -219,12 +257,21 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-extrabold text-white">Chi Tiết Lịch Hẹn Khám</h3>
+                <h3 className="text-base font-extrabold text-white">
+                  {appointment.appointmentType === 'follow_up' || appointment.bookingChannel === 'doctor_follow_up'
+                    ? 'Chi Tiết Lịch Tái Khám'
+                    : 'Chi Tiết Lịch Hẹn Khám'}
+                </h3>
                 <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-500/30 text-blue-200 font-bold border border-blue-400/30">
                   {appointment.bookingChannel === 'online' ? (
                     <>
                       <img src="/images/online_icon.png" alt="Online" className="w-3.5 h-3.5 object-contain" />
                       <span>Đặt Online</span>
+                    </>
+                  ) : appointment.bookingChannel === 'doctor_follow_up' ? (
+                    <>
+                      <Calendar className="w-3.5 h-3.5 text-blue-200" />
+                      <span>BS hẹn tái khám</span>
                     </>
                   ) : (
                     <>
@@ -267,8 +314,8 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
                 return (
                   <div
                     className={`p-2.5 px-4 rounded-2xl flex items-center gap-3 shadow-md ${isPrefixA
-                        ? 'bg-teal-600 text-white'
-                        : 'bg-amber-600 text-white'
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-amber-600 text-white'
                       }`}
                   >
                     <Ticket className="w-6 h-6 text-white/80" />
@@ -346,42 +393,65 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
                     {appointment.patient?.identityNumber || 'Chưa có CCCD'}
                   </span>
                 </div>
+                <div>
+                  <span className="text-slate-400 font-medium block">Ngày sinh:</span>
+                  <span className="font-semibold text-slate-800">
+                    {appointment.patient?.dateOfBirth ? formatDateVN(appointment.patient.dateOfBirth) : '---'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-medium block">Giới tính:</span>
+                  <span className="font-semibold text-slate-800">
+                    {appointment.patient?.gender === 'male'
+                      ? 'Nam'
+                      : appointment.patient?.gender === 'female'
+                      ? 'Nữ'
+                      : appointment.patient?.gender || '---'}
+                  </span>
+                </div>
+                {appointment.patient?.insuranceNumber && (
+                  <div>
+                    <span className="text-slate-400 font-medium block">Mã thẻ BHYT:</span>
+                    <span className="font-mono font-bold text-emerald-700">{appointment.patient.insuranceNumber}</span>
+                  </div>
+                )}
+                {appointment.patient?.address && (
+                  <div className="sm:col-span-2">
+                    <span className="text-slate-400 font-medium block">Địa chỉ thường trú:</span>
+                    <span className="text-slate-800 font-medium">{appointment.patient.address}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {/* Block 2: Department & Doctor */}
+          {/* Block 2: Doctor */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-900 border-b border-slate-100 pb-2">
-              <DepartmentIcon className="w-4 h-4" />
-              <span>Chuyên Khoa & Bác Sĩ Phụ Trách</span>
+              <Stethoscope className="w-4 h-4 text-blue-600" />
+              <span>Bác Sĩ Phụ Trách</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <span className="text-slate-400 font-medium block">Khoa phòng khám:</span>
-                <span className="font-extrabold text-slate-900">
-                  {appointment.department?.departmentName || 'Khoa khám tổng quát'}
-                </span>
-                {appointment.department?.roomLocation && (
-                  <span className="text-[11px] text-indigo-600 font-semibold block mt-0.5">
-                    Phòng: {appointment.department.roomLocation}
+            <div>
+              <span className="text-slate-400 font-medium block">Bác sĩ khám:</span>
+              {appointment.doctor?.fullName ? (
+                <div className="mt-1">
+                  <span className="font-extrabold text-slate-900 text-sm">
+                    {appointment.doctor.title ? `${appointment.doctor.title} ` : ''}
+                    {appointment.doctor.fullName}
                   </span>
-                )}
-              </div>
-              <div>
-                <span className="text-slate-400 font-medium block">Bác sĩ khám:</span>
-                <span className="font-extrabold text-slate-900">
-                  {appointment.doctor?.fullName
-                    ? `${appointment.doctor.title ? `${appointment.doctor.title} ` : ''}${appointment.doctor.fullName}`
-                    : 'Bác sĩ trực chuyên khoa'}
+                  {appointment.doctor?.specialization && (
+                    <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
+                      Chuyên khoa: {appointment.doctor.specialization}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 mt-1 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                  <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  Chưa tạo phiếu tiếp nhận khám (Lễ tân chỉ định khi tiếp đón)
                 </span>
-                {appointment.doctor?.specialization && (
-                  <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
-                    Chuyên khoa: {appointment.doctor.specialization}
-                  </span>
-                )}
-              </div>
+              )}
             </div>
           </div>
 
@@ -421,13 +491,12 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
               </div>
               {typeof encounter?.chiefComplaint?.painLevel === 'number' && (
                 <span
-                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                    encounter.chiefComplaint.painLevel >= 7
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${encounter.chiefComplaint.painLevel >= 7
                       ? 'bg-rose-100 text-rose-700 border border-rose-200'
                       : encounter.chiefComplaint.painLevel >= 4
-                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                      : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                  }`}
+                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                        : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                    }`}
                 >
                   🔥 Mức đau: {encounter.chiefComplaint.painLevel}/10
                 </span>
@@ -465,6 +534,111 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
               </p>
             )}
           </div>
+
+          {/* Block: Hồ sơ lượt khám ban đầu đối với ca tái khám */}
+          {(appointment.appointmentType === 'follow_up' || appointment.bookingChannel === 'doctor_follow_up' || (appointment as any).sourceEncounterId) && (
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-50/70 to-indigo-50/50 border-2 border-purple-200/90 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
+                <div className="flex items-center gap-2">
+                  <History className="w-4 h-4 text-purple-700" />
+                  <span className="font-extrabold text-purple-950 text-xs sm:text-sm">
+                    Hồ Sơ Lượt Khám Ban Đầu (Cơ Sở Chỉ Định Tái Khám)
+                  </span>
+                </div>
+                {sourceEncounter && (
+                  <span className="font-mono text-[10px] font-bold text-purple-700 bg-white px-2 py-0.5 rounded-md border border-purple-200">
+                    Mã ca: {sourceEncounter.encounterCode}
+                  </span>
+                )}
+              </div>
+
+              {isLoadingSource ? (
+                <div className="py-6 text-center space-y-2">
+                  <Loader2 className="w-5 h-5 text-purple-600 animate-spin mx-auto" />
+                  <span className="text-[11px] text-purple-700 font-medium">Đang tải chi tiết ca khám ban đầu...</span>
+                </div>
+              ) : sourceEncounter ? (
+                <div className="space-y-3 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-purple-100">
+                    <div>
+                      <span className="text-slate-400 font-medium block">Bác sĩ khám ban đầu:</span>
+                      <strong className="text-slate-800">{sourceEncounter.doctor?.fullName || 'Bác sĩ chuyên khoa'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-medium block">Thời gian ca khám:</span>
+                      <span className="text-slate-800 font-semibold">
+                        {sourceEncounter.arrivedAt ? formatDateVN(sourceEncounter.arrivedAt) : '---'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {sourceDiagnoses.length > 0 && (
+                    <div className="bg-white p-3 rounded-xl border border-purple-100 space-y-2">
+                      <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                        <ClipboardList className="w-3.5 h-3.5 text-purple-600" />
+                        <span>Chẩn đoán kết luận từ Bác sĩ:</span>
+                      </span>
+                      <div className="space-y-1.5">
+                        {sourceDiagnoses.map((diag) => (
+                          <div
+                            key={diag.diagnosisId}
+                            className="flex items-start gap-2 bg-purple-50/50 p-2 rounded-lg border border-purple-100 text-xs"
+                          >
+                            <span className="font-mono font-bold text-purple-700 bg-white px-2 py-0.5 rounded border border-purple-200 shrink-0">
+                              {diag.icd10Code}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-900">{diag.diagnosisName}</span>
+                                {diag.isPrimary && (
+                                  <span className="text-[9px] bg-red-100 text-red-700 font-extrabold px-1.5 py-0.2 rounded">
+                                    Chính
+                                  </span>
+                                )}
+                              </div>
+                              {diag.notes && <p className="text-[11px] text-slate-500 mt-0.5">{diag.notes}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {sourceTreatment && (
+                    <div className="bg-white p-3 rounded-xl border border-purple-100 space-y-2">
+                      {sourceTreatment.followUpRequired && (
+                        <div className="p-2 bg-purple-100/70 rounded-lg border border-purple-200">
+                          <span className="text-[10px] font-bold text-purple-800 uppercase tracking-wider block">
+                            Chỉ định tái khám từ Bác sĩ:
+                          </span>
+                          <p className="text-purple-950 font-bold text-xs mt-0.5">
+                            Bác sĩ yêu cầu tái khám theo dõi
+                            {sourceTreatment.followUpIntervalDays
+                              ? ` sau ${sourceTreatment.followUpIntervalDays} ngày`
+                              : ''}
+                          </p>
+                        </div>
+                      )}
+
+                      {sourceTreatment.treatmentPlan && (
+                        <div>
+                          <span className="text-slate-400 block text-[11px] font-medium">Kế hoạch điều trị:</span>
+                          <p className="text-slate-800 leading-relaxed font-medium bg-slate-50 p-2 rounded-lg border border-slate-100 mt-0.5">
+                            {sourceTreatment.treatmentPlan}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 bg-white rounded-xl border border-purple-100 text-slate-600 text-[11px] leading-relaxed flex items-start gap-2">
+                  <Info className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                  <span>Lịch tái khám do Bác sĩ chỉ định từ lượt khám trước trong bệnh án điện tử.</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Cancel Reason (if cancelled) */}
           {appointment.status === 'cancelled' && appointment.cancelReason && (
@@ -525,18 +699,18 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
                           encounter.status === 'finished'
                             ? 'success'
                             : encounter.status === 'in_progress'
-                            ? 'info'
-                            : 'warning'
+                              ? 'info'
+                              : 'warning'
                         }
                         size="sm"
                       >
                         {encounter.status === 'arrived'
                           ? 'Đã tiếp nhận'
                           : encounter.status === 'in_progress'
-                          ? 'Đang khám'
-                          : encounter.status === 'finished'
-                          ? 'Đã khám xong'
-                          : encounter.status}
+                            ? 'Đang khám'
+                            : encounter.status === 'finished'
+                              ? 'Đã khám xong'
+                              : encounter.status}
                       </Badge>
                     </div>
                   </div>
@@ -588,9 +762,8 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
                         <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
                           <span className="text-[10px] text-slate-400 block font-medium">SpO2 (Oxy máu)</span>
                           <span
-                            className={`font-extrabold ${
-                              spo2 && Number(spo2) < 95 ? 'text-rose-600' : 'text-teal-700'
-                            }`}
+                            className={`font-extrabold ${spo2 && Number(spo2) < 95 ? 'text-rose-600' : 'text-teal-700'
+                              }`}
                           >
                             {spo2 ?? '---'}{' '}
                             <span className="text-[9px] font-normal text-slate-400">%</span>
@@ -652,11 +825,10 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
                               {iv.verificationMethod.replace(/_/g, ' ')}
                             </span>
                             <span
-                              className={`font-bold ${
-                                iv.verificationStatus === 'verified'
+                              className={`font-bold ${iv.verificationStatus === 'verified'
                                   ? 'text-emerald-700'
                                   : 'text-rose-600'
-                              }`}
+                                }`}
                             >
                               {iv.verificationStatus === 'verified'
                                 ? '✓ Đã xác thực CCCD'
@@ -722,6 +894,21 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
             >
               Đóng
             </button>
+
+            {/* Nút Gọi số nhanh từ modal */}
+            {onCallQueueTicket && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onCallQueueTicket();
+                }}
+                className="px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-all shadow-sm flex items-center gap-1.5 border-none cursor-pointer"
+              >
+                <Volume2 className="w-4 h-4" />
+                <span>Gọi Số {queueTicketCode ? `(${queueTicketCode})` : ''}</span>
+              </button>
+            )}
 
             {/* TH1: Nút đối chiếu CCCD nếu chưa có patientId */}
             {!appointment.patientId && appointment.suggestedPatientId && onSync && (

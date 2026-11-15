@@ -5,12 +5,16 @@ import { ROLE_DEFAULT_PATHS } from './types/dashboard';
 
 // Public Patient-Facing Pages
 import Home from './pages/Home';
+import { AboutPage } from './pages/AboutPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { SpecialtyPage } from './pages/SpecialtyPage';
+import { GuidePage } from './pages/GuidePage';
 import { NewsPage } from './pages/NewsPage';
 import NewsDetailPage from './pages/NewsDetailPage';
 import { CustomerPage } from './pages/CustomerPage';
 import { ExpertsPage } from './pages/ExpertsPage';
+import { KioskQueueTicketPage } from './pages/KioskQueueTicketPage';
+import { LoginPage } from './pages/LoginPage';
 
 // Consolidated Workspaces
 import { DoctorWorkspaceView } from './modules/doctor/DoctorWorkspaceView';
@@ -22,6 +26,8 @@ import { ReceptionBillingWorkspaceView } from './modules/reception/ReceptionBill
 import { NurseWorkspaceView } from './modules/nurse/NurseWorkspaceView';
 import { LabWorkspaceView } from './modules/lab/LabWorkspaceView';
 import { AdminRealtimeWorkspaceView } from './modules/admin/AdminRealtimeWorkspaceView';
+import { AdminFeeWorkspaceView } from './modules/admin/AdminFeeWorkspaceView';
+import { AdminStatisticsWorkspaceView } from './modules/admin/AdminStatisticsWorkspaceView';
 import { AdminSecurityWorkspaceView } from './modules/admin/AdminSecurityWorkspaceView';
 import { PatientIntakeWorkspaceView } from './modules/patient/PatientIntakeWorkspaceView';
 import { PatientMedicalWorkspaceView } from './modules/patient/PatientMedicalWorkspaceView';
@@ -43,16 +49,22 @@ function App() {
         <Routes>
           {/* Public Patient-Facing Routes */}
           <Route path="/" element={<Home />} />
-          <Route path="/gioi-thieu" element={<PlaceholderPage title="Giới thiệu" />} />
+          <Route path="/gioi-thieu" element={<AboutPage />} />
           <Route path="/chuyen-khoa" element={<SpecialtyPage />} />
           <Route path="/khach-hang" element={<CustomerPage />} />
           <Route path="/chuyen-gia" element={<ExpertsPage />} />
           <Route path="/dich-vu" element={<PlaceholderPage title="Dịch vụ đặc biệt" />} />
-          <Route path="/tien-nghi" element={<PlaceholderPage title="Tiện nghi" />} />
-          <Route path="/giai-thuong" element={<PlaceholderPage title="Giải thưởng" />} />
+          <Route path="/huong-dan" element={<GuidePage />} />
+          <Route path="/tien-nghi" element={<Navigate to="/huong-dan" replace />} />
           <Route path="/tin-tuc" element={<NewsPage />} />
           <Route path="/tin-tuc/:id" element={<NewsDetailPage />} />
           <Route path="/lien-he" element={<PlaceholderPage title="Liên hệ" />} />
+          <Route path="/kiosk" element={<KioskQueueTicketPage />} />
+          <Route path="/lay-so" element={<KioskQueueTicketPage />} />
+          <Route path="/dang-nhap" element={<LoginPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/dang-ky" element={<LoginPage initialMode="register" />} />
+          <Route path="/register" element={<LoginPage initialMode="register" />} />
 
           {/* Consolidated Internal Workspaces (Nested under DashboardOverview Layout) */}
           <Route element={<DashboardOverview />}>
@@ -111,9 +123,10 @@ function App() {
             {/* QUẢN TRỊ WORKSPACES */}
             <Route element={<ProtectedRoute requiredRole="ADMIN" />}>
               <Route path="/quan-tri/tong-quan" element={<AdminRealtimeWorkspaceView />} />
+              <Route path="/quan-tri/bang-gia" element={<AdminFeeWorkspaceView />} />
               <Route path="/quan-tri/phong-lab" element={<AdminRealtimeWorkspaceView />} />
               <Route path="/quan-tri/bac-si" element={<AdminRealtimeWorkspaceView />} />
-              <Route path="/quan-tri/bao-cao" element={<AdminRealtimeWorkspaceView />} />
+              <Route path="/quan-tri/bao-cao" element={<AdminStatisticsWorkspaceView />} />
               <Route path="/quan-tri/nhat-ky-he-thong" element={<AdminSecurityWorkspaceView />} />
               <Route path="/quan-tri/fhir-log" element={<AdminSecurityWorkspaceView />} />
             </Route>

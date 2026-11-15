@@ -24,8 +24,8 @@ import {
 } from '../../services/doctor/doctor-schedule.service';
 import {
   doctorService,
+  getSpecializationLabel,
   type DoctorResponse,
-  type DepartmentResponse,
 } from '../../services/doctor/doctor.service';
 import { CreateDoctorScheduleModal } from './components/CreateDoctorScheduleModal';
 import { DoctorScheduleDetailModal } from './components/DoctorScheduleDetailModal';
@@ -57,13 +57,11 @@ export const AdminDoctorSchedulesView: React.FC = () => {
   // Data states
   const [schedules, setSchedules] = useState<DoctorScheduleResponse[]>([]);
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   // Filters
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>('ALL');
-  const [selectedDepartmentFilter, setSelectedDepartmentFilter] = useState<string>('ALL');
   const [selectedSessionFilter, setSelectedSessionFilter] = useState<'ALL' | ScheduleSession>('ALL');
 
   // Modal & Toast states
@@ -97,10 +95,9 @@ export const AdminDoctorSchedulesView: React.FC = () => {
   const fromDateStr = formatDateKey(weekDays[0]);
   const toDateStr = formatDateKey(weekDays[6]);
 
-  // Fetch doctors & departments on mount
+  // Fetch doctors on mount
   useEffect(() => {
     doctorService.getDoctors().then(setDoctors).catch(console.error);
-    doctorService.getDepartments().then(setDepartments).catch(console.error);
   }, []);
 
   // Fetch schedules for current week
@@ -191,13 +188,11 @@ export const AdminDoctorSchedulesView: React.FC = () => {
   // Filtered schedules list
   const filteredSchedules = useMemo(() => {
     return schedules.filter((s) => {
-      const matchesDept =
-        selectedDepartmentFilter === 'ALL' || s.departmentId === selectedDepartmentFilter;
       const matchesSession =
         selectedSessionFilter === 'ALL' || s.session === selectedSessionFilter;
-      return matchesDept && matchesSession;
+      return matchesSession;
     });
-  }, [schedules, selectedDepartmentFilter, selectedSessionFilter]);
+  }, [schedules, selectedSessionFilter]);
 
   // Compute statistics (Chỉ tính các ca và khung giờ đang hoạt động, loại trừ ca đã hủy)
   const stats = useMemo(() => {
@@ -285,13 +280,8 @@ export const AdminDoctorSchedulesView: React.FC = () => {
     if (selectedDoctorFilter !== 'ALL') {
       list = list.filter((d) => d.doctorId === selectedDoctorFilter);
     }
-    if (selectedDepartmentFilter !== 'ALL') {
-      list = list.filter((d) =>
-        d.doctorDepartments?.some((dd) => dd.departmentId === selectedDepartmentFilter)
-      );
-    }
     return list;
-  }, [doctors, selectedDoctorFilter, selectedDepartmentFilter]);
+  }, [doctors, selectedDoctorFilter]);
 
   // Session icon & label helper
   const getSessionBadge = (session: ScheduleSession, startTime?: string, endTime?: string) => {
@@ -427,22 +417,6 @@ export const AdminDoctorSchedulesView: React.FC = () => {
 
         {/* Dropdown Filters */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Filter by Department */}
-          <div className="relative">
-            <select
-              value={selectedDepartmentFilter}
-              onChange={(e) => setSelectedDepartmentFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-2 outline-none focus:bg-white focus:border-blue-600 transition-all cursor-pointer"
-            >
-              <option value="ALL">-- Tất cả chuyên khoa --</option>
-              {departments.map((dept) => (
-                <option key={dept.departmentId} value={dept.departmentId}>
-                  {dept.departmentName}
-                </option>
-              ))}
-            </select>
-          </div>
-
           {/* Filter by Doctor */}
           <div className="relative">
             <select
@@ -450,10 +424,10 @@ export const AdminDoctorSchedulesView: React.FC = () => {
               onChange={(e) => setSelectedDoctorFilter(e.target.value)}
               className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-2 outline-none focus:bg-white focus:border-blue-600 transition-all cursor-pointer"
             >
-              <option value="ALL">-- Tất cả bác sĩ --</option>
+              <option value="ALL">-- Tất cả bác sĩ ({doctors.length}) --</option>
               {doctors.map((doc) => (
                 <option key={doc.doctorId} value={doc.doctorId}>
-                  [{doc.doctorCode}] {doc.title ? `${doc.title} ` : ''}{doc.fullName}
+                  {doc.title ? `${doc.title} ` : ''}{doc.fullName} ({doc.doctorCode})
                 </option>
               ))}
             </select>
@@ -588,7 +562,7 @@ export const AdminDoctorSchedulesView: React.FC = () => {
                           {doc.title ? `${doc.title} ` : ''}{doc.fullName}
                         </div>
                         <div className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
-                          {doc.doctorCode} {primaryDept ? `• ${primaryDept}` : ''}
+                          {doc.doctorCode} {doc.specialization ? `• ${getSpecializationLabel(doc.specialization)}` : ''}
                         </div>
                       </td>
 
@@ -650,7 +624,7 @@ export const AdminDoctorSchedulesView: React.FC = () => {
                                       </div>
 
                                       <div className="text-[10px] text-slate-500 font-medium mt-1 truncate group-hover:text-blue-600 transition-colors">
-                                        {sch.department?.departmentName || 'Khoa'}
+                                        {sch.roomLocation || 'Phòng khám Tim mạch'}
                                       </div>
 
                                       <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 text-[10px]">
@@ -695,7 +669,6 @@ export const AdminDoctorSchedulesView: React.FC = () => {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         doctors={doctors}
-        departments={departments}
         defaultDoctorId={createDefaultDoctorId}
         defaultDate={createDefaultDate}
         onSuccess={handleCreateSuccess}

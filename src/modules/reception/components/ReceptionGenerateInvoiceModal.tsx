@@ -68,16 +68,8 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
 
   // Tra cứu trạng thái hóa đơn của từng ca khám
   const getEncounterBillingInfo = useCallback(
-    (encounterId: string) => {
-      const invs = allInvoicesForLookup.filter((i) => i.encounterId === encounterId);
-      if (invs.length === 0) {
-        return {
-          status: 'none' as const,
-          label: 'Chưa lập HĐ',
-          badgeClass: 'bg-blue-50 text-blue-700 border border-blue-200',
-          invoice: null,
-        };
-      }
+    (enc: EncounterItem) => {
+      const invs = allInvoicesForLookup.filter((i) => i.encounterId === enc.encounterId);
       const pendingInv = invs.find((i) => i.status === 'pending');
       if (pendingInv) {
         return {
@@ -85,8 +77,36 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
           label: `Chờ thanh toán (${pendingInv.invoiceCode})`,
           badgeClass: 'bg-amber-50 text-amber-700 border border-amber-200',
           invoice: pendingInv,
+          canGenerateNew: false,
         };
       }
+
+      // Kiểm tra xem ca khám này đã từng có hoá đơn xét nghiệm CLS chưa (dù pending hay paid, miễn chưa huỷ)
+      const hasDiagnosticsInvoice = invs.some(
+        (i) => (i.invoiceType === 'diagnostics' || i.invoiceType === 'combined') && i.status !== 'cancelled'
+      );
+
+      // Nếu ca khám đang chờ cận lâm sàng VÀ CHƯA TỪNG có hoá đơn xét nghiệm nào
+      if (enc.status === 'awaiting_diagnostics' && !hasDiagnosticsInvoice) {
+        return {
+          status: 'awaiting_diagnostics' as const,
+          label: 'Chỉ định CLS chờ thu phí',
+          badgeClass: 'bg-purple-100 text-purple-800 border border-purple-300 font-bold',
+          invoice: null,
+          canGenerateNew: true,
+        };
+      }
+
+      if (invs.length === 0) {
+        return {
+          status: 'none' as const,
+          label: 'Chưa lập HĐ',
+          badgeClass: 'bg-blue-50 text-blue-700 border border-blue-200',
+          invoice: null,
+          canGenerateNew: true,
+        };
+      }
+
       const paidInvs = invs.filter((i) => i.status === 'paid');
       if (paidInvs.length > 0) {
         return {
@@ -94,13 +114,16 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
           label: `Đã thanh toán (${paidInvs[0].invoiceCode})`,
           badgeClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
           invoice: paidInvs[0],
+          canGenerateNew: false,
         };
       }
+
       return {
         status: 'cancelled' as const,
         label: 'HĐ cũ đã hủy',
         badgeClass: 'bg-purple-50 text-purple-700 border border-purple-200',
         invoice: null,
+        canGenerateNew: true,
       };
     },
     [allInvoicesForLookup]
@@ -136,10 +159,11 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
     }
   };
 
-  // Lọc chỉ lấy các ca chưa tạo HĐ, đang chờ thanh toán, hoặc đã hủy HĐ cũ cần lập lại
+  // Lọc chỉ lấy các ca thực sự cần lập hoá đơn hoặc cần thanh toán (chưa lập HĐ, chờ CLS, có HĐ pending)
+  // Các ca đã thanh toán hoàn tất (status === 'paid') KHÔNG hiển thị ở modal này.
   const unpaidEncounters = recentEncounters.filter((enc) => {
-    const info = getEncounterBillingInfo(enc.encounterId);
-    return info.status === 'none' || info.status === 'pending' || info.status === 'cancelled';
+    const info = getEncounterBillingInfo(enc);
+    return info.status !== 'paid';
   });
 
   const filteredEncounters = unpaidEncounters.filter((enc) => {
@@ -258,13 +282,13 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
             ) : (
               filteredEncounters.map((enc) => {
                 const isSelected = selectedEncounterId === enc.encounterId;
-                const billingInfo = getEncounterBillingInfo(enc.encounterId);
+                const billingInfo = getEncounterBillingInfo(enc);
 
                 return (
                   <div
                     key={enc.encounterId}
                     onClick={() => {
-                      if (billingInfo.status === 'none' || billingInfo.status === 'cancelled') {
+                      if (billingInfo.canGenerateNew) {
                         setSelectedEncounterId(enc.encounterId);
                       }
                     }}
@@ -273,6 +297,8 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
                         ? 'bg-blue-50/90 border-l-4 border-blue-600'
                         : billingInfo.status === 'pending'
                         ? 'hover:bg-amber-50/40 bg-white'
+                        : billingInfo.status === 'awaiting_diagnostics'
+                        ? 'hover:bg-purple-50/60 bg-purple-50/20 cursor-pointer border-l-2 border-purple-400'
                         : 'hover:bg-slate-50/80 bg-white cursor-pointer'
                     }`}
                   >
@@ -342,20 +368,28 @@ export const ReceptionGenerateInvoiceModal: React.FC<ReceptionGenerateInvoiceMod
                           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${billingInfo.badgeClass}`}>
                             {billingInfo.label}
                           </span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedEncounterId(enc.encounterId);
-                            }}
-                            className={`text-xs px-3 py-1.5 rounded-xl font-bold border transition-colors cursor-pointer shrink-0 ${
-                              isSelected
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                                : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                          >
-                            {isSelected ? '✓ Đã chọn' : 'Chọn lập HĐ'}
-                          </button>
+                          {billingInfo.canGenerateNew && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedEncounterId(enc.encounterId);
+                              }}
+                              className={`text-xs px-3 py-1.5 rounded-xl font-bold border transition-colors cursor-pointer shrink-0 ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                  : billingInfo.status === 'awaiting_diagnostics'
+                                  ? 'bg-purple-600 text-white border-purple-600 hover:bg-purple-700 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:text-blue-600'
+                              }`}
+                            >
+                              {isSelected
+                                ? '✓ Đã chọn'
+                                : billingInfo.status === 'awaiting_diagnostics'
+                                ? 'Lập HĐ Xét nghiệm'
+                                : 'Chọn lập HĐ'}
+                            </button>
+                          )}
                         </>
                       )}
                     </div>

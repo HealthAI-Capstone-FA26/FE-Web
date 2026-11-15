@@ -8,7 +8,7 @@ import { Badge } from '../../components/common/Badge';
 
 export const PatientInsuranceView: React.FC = () => {
   const [insuranceNumber, setInsuranceNumber] = useState('DN 4 79 7923456789');
-  const [initialHospital, setInitialHospital] = useState('Bệnh viện Đa khoa 4AM (Mã 79-012)');
+  const [initialHospital, setInitialHospital] = useState('Phòng khám Tim mạch 4AM (Mã 79-012)');
   const [validUntil, setValidUntil] = useState('2026-12-31');
   const [benefitRate, setBenefitRate] = useState<number>(80);
   const [verificationStatus, setVerificationStatus] = useState<'VALID' | 'EXPIRED' | 'UNVERIFIED'>('VALID');

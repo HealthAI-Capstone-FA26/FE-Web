@@ -27,8 +27,8 @@ import { Mascot } from 'page-mascot';
 import { ReceptionCancelAppointmentModal } from './components/ReceptionCancelAppointmentModal';
 import { SyncPatientModal } from './components/SyncPatientModal';
 import { Badge } from '../../components/common/Badge';
-import { DepartmentIcon } from '../../components/common/DepartmentIcon';
 import { ConfirmMainPatientModal } from './components/ConfirmMainPatientModal';
+import { formatTicketCode, getLocalDateString } from '../../utils/booking.utils';
 
 type DatePreset = 'today' | 'tomorrow' | 'this_week' | 'all' | 'custom';
 
@@ -107,7 +107,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
   }, [datePreset, customFromDate, customToDate]);
 
   // Fetch appointments
-  const fetchAppointments = useCallback(async () => {
+  const fetchAppointments = useCallback(async (force = true) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -116,7 +116,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
         from: dateRange.from,
         to: dateRange.to,
         status: selectedStatus === 'ALL' ? undefined : selectedStatus,
-      });
+      }, force);
       setAppointments(data);
     } catch (err: any) {
       console.error('Lỗi khi tải danh sách lịch hẹn:', err);
@@ -127,7 +127,24 @@ export const ReceptionAppointmentsView: React.FC = () => {
   }, [getDateRange, selectedStatus]);
 
   useEffect(() => {
-    fetchAppointments();
+    fetchAppointments(true);
+  }, [fetchAppointments]);
+
+  // Tự động làm mới khi người dùng chuyển lại tab (window focus)
+  useEffect(() => {
+    const handleFocus = () => fetchAppointments(true);
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchAppointments]);
+
+  // Định kỳ tự động đồng bộ mỗi 20 giây để phát hiện lịch hẹn online mới (tạm dừng khi tab ẩn)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!document.hidden) {
+        fetchAppointments(true);
+      }
+    }, 35000);
+    return () => clearInterval(timer);
   }, [fetchAppointments]);
 
   // Filtered appointments on client side (for search, channel, and sorted by newest first)
@@ -149,7 +166,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
           const appCode = app.appointmentCode?.toLowerCase() || '';
           const doctorName = app.doctor?.fullName?.toLowerCase() || '';
           const deptName = app.department?.departmentName?.toLowerCase() || '';
-          const ticketNum = app.queueTicket?.ticketNumber?.toLowerCase() || '';
+          const ticketNum = formatTicketCode(app.queueTicket).toLowerCase();
 
           const match =
             patientName.includes(query) ||
@@ -167,13 +184,19 @@ export const ReceptionAppointmentsView: React.FC = () => {
         return true;
       })
       .sort((a, b) => {
+        // Nếu xem ngày hôm nay, ưu tiên sắp xếp theo giờ khám tăng dần (chronological)
+        if (datePreset === 'today') {
+          const timeA = a.appointmentTime || '';
+          const timeB = b.appointmentTime || '';
+          if (timeA && timeB && timeA !== timeB) return timeA.localeCompare(timeB);
+        }
         // Đưa lịch hẹn tạo mới nhất (createdAt giảm dần) lên đầu danh sách
         const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         if (timeB !== timeA) return timeB - timeA;
         return (b.appointmentCode || '').localeCompare(a.appointmentCode || '');
       });
-  }, [appointments, selectedChannel, searchTerm]);
+  }, [appointments, selectedChannel, searchTerm, datePreset]);
 
   // Metric stats
   const stats = useMemo(() => {
@@ -388,7 +411,10 @@ export const ReceptionAppointmentsView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={fetchAppointments}
+            onClick={() => {
+              appointmentService.invalidateCache();
+              fetchAppointments(true);
+            }}
             disabled={isLoading}
             className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all flex items-center gap-1.5 border-none cursor-pointer disabled:opacity-50"
             title="Tải lại dữ liệu mới nhất"
@@ -533,6 +559,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
                 <option value="ALL">Tất cả kênh</option>
                 <option value="online">📱 Đặt Online</option>
                 <option value="at_hospital">🏥 Trực tiếp tại quầy</option>
+                <option value="doctor_follow_up">🩺 Bác sĩ hẹn tái khám</option>
               </select>
             </div>
           </div>
@@ -571,7 +598,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
             <AlertTriangle className="w-8 h-8 mx-auto text-rose-500" />
             <div className="text-sm font-bold">{error}</div>
             <button
-              onClick={fetchAppointments}
+              onClick={() => fetchAppointments(true)}
               className="mt-2 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl cursor-pointer border-none"
             >
               Thử lại
@@ -596,7 +623,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
                 <tr>
                   <th className="py-3.5 px-4">Mã Lịch Hẹn</th>
                   <th className="py-3.5 px-4">Bệnh Nhân</th>
-                  <th className="py-3.5 px-4">Chuyên Khoa & Bác Sĩ</th>
+                  <th className="py-3.5 px-4">Bác Sĩ Phụ Trách</th>
                   <th className="py-3.5 px-4">Thời Gian Hẹn</th>
                   <th className="py-3.5 px-4 text-center">Số Phiếu (STT)</th>
                   <th className="py-3.5 px-4 text-center">Trạng Thái</th>
@@ -616,20 +643,39 @@ export const ReceptionAppointmentsView: React.FC = () => {
                     >
                       {/* Appointment Code & Channel */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="font-extrabold font-mono text-blue-950">
-                          {app.appointmentCode}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-extrabold font-mono text-blue-950">
+                            {app.appointmentCode}
+                          </span>
+                          {app.appointmentType === 'follow_up' || app.bookingChannel === 'doctor_follow_up' ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-purple-100 text-purple-800 border border-purple-300">
+                              Tái khám
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-sky-100 text-sky-800 border border-sky-300">
+                              Lịch hẹn
+                            </span>
+                          )}
                         </div>
                         <div className="mt-0.5">
                           <span
-                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${app.bookingChannel === 'online'
-                              ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                              : 'bg-slate-100 text-slate-700 border border-slate-200'
-                              }`}
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                              app.bookingChannel === 'online'
+                                ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                : app.bookingChannel === 'doctor_follow_up'
+                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
                           >
                             {app.bookingChannel === 'online' ? (
                               <>
                                 <img src="/images/online_icon.png" alt="Online" className="w-3.5 h-3.5 object-contain" />
                                 <span>Online</span>
+                              </>
+                            ) : app.bookingChannel === 'doctor_follow_up' ? (
+                              <>
+                                <Stethoscope className="w-3.5 h-3.5 text-purple-600" />
+                                <span>BS hẹn tái khám</span>
                               </>
                             ) : (
                               <>
@@ -693,26 +739,28 @@ export const ReceptionAppointmentsView: React.FC = () => {
                         )}
                       </td>
 
-                      {/* Department & Doctor */}
+                      {/* Doctor */}
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-800 flex items-center gap-1">
-                          <DepartmentIcon className="w-4 h-4 shrink-0" />
-                          <span>{app.department?.departmentName || 'Khoa khám'}</span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
-                          {app.doctor?.fullName ? (
-                            <span>
-                              {app.doctor.title ? `${app.doctor.title} ` : ''}
-                              {app.doctor.fullName}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 italic">Bác sĩ trực chuyên khoa</span>
-                          )}
-                        </div>
-                        {app.department?.roomLocation && (
-                          <div className="text-[10px] text-indigo-600 font-semibold mt-0.5">
-                            Phòng: {app.department.roomLocation}
+                        {app.doctor?.fullName ? (
+                          <div>
+                            <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                              <Stethoscope className="w-4 h-4 text-blue-600 shrink-0" />
+                              <span>
+                                {app.doctor.title ? `${app.doctor.title} ` : ''}
+                                {app.doctor.fullName}
+                              </span>
+                            </div>
+                            {app.doctor.specialization && (
+                              <div className="text-[11px] text-slate-500 mt-0.5">
+                                {app.doctor.specialization}
+                              </div>
+                            )}
                           </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            <Clock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                            Chưa tạo phiếu tiếp nhận khám
+                          </span>
                         )}
                       </td>
 
@@ -830,24 +878,47 @@ export const ReceptionAppointmentsView: React.FC = () => {
                               <span>Xác nhận</span>
                             </button>
                           ) : isConfirmed && app.patientId && !app.queueTicket ? (
-                            <button
-                              type="button"
-                              onClick={() => handleCheckInAppointment(app)}
-                              disabled={isProcessing}
-                              className="w-[130px] h-8 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5 border-none cursor-pointer disabled:opacity-50"
-                              title="Tiếp nhận bệnh nhân & cấp số thứ tự vào hàng chờ khám"
-                            >
-                              {isProcessing ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <UserCheck className="w-3.5 h-3.5" />
-                              )}
-                              <span>Check-in</span>
-                            </button>
-                          ) : app.queueTicket ? (
+                            (() => {
+                              const todayStr = getLocalDateString();
+                              const appDateStr = (app.appointmentDate || '').slice(0, 10);
+                              const isToday = appDateStr === todayStr;
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => isToday && handleCheckInAppointment(app)}
+                                  disabled={isProcessing || !isToday}
+                                  className={`w-[130px] h-8 text-xs font-bold rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5 border-none ${
+                                    isToday
+                                      ? 'text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer disabled:opacity-50'
+                                      : 'text-slate-400 bg-slate-100 cursor-not-allowed border border-slate-200 opacity-60'
+                                  }`}
+                                  title={
+                                    !isToday
+                                      ? `Chỉ tiếp nhận check-in trong ngày hôm nay (ngày hẹn: ${formatDateDisplay(app.appointmentDate)})`
+                                      : 'Tiếp nhận bệnh nhân & cấp số thứ tự vào hàng chờ khám'
+                                  }
+                                >
+                                  {isProcessing ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <UserCheck className="w-3.5 h-3.5" />
+                                  )}
+                                  <span>{isToday ? 'Check-in' : 'Chưa đến ngày'}</span>
+                                </button>
+                              );
+                            })()
+                          ) : app.status === 'checked_in' || app.status === 'in_progress' || app.status === 'completed' ? (
                             <div className="w-[130px] h-8 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-center gap-1">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                               <span>Đã check-in</span>
+                            </div>
+                          ) : app.queueTicket ? (
+                            <div
+                              className="w-[130px] h-8 text-xs font-bold text-teal-800 bg-teal-50 rounded-xl border border-teal-200 flex items-center justify-center gap-1"
+                              title="Bệnh nhân đã có số thứ tự, đang đợi gọi tại quầy tiếp nhận"
+                            >
+                              <Ticket className="w-3.5 h-3.5 text-teal-600" />
+                              <span>Chờ gọi số</span>
                             </div>
                           ) : (
                             <div className="w-[130px] h-8" />
@@ -961,7 +1032,7 @@ export const ReceptionAppointmentsView: React.FC = () => {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold animate-in slide-in-from-bottom-5 text-white ${toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'
+          className={`fixed bottom-6 right-6 z-[9999] px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold animate-in slide-in-from-bottom-5 text-white ${toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'
             }`}
         >
           {toast.type === 'error' ? (

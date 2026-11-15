@@ -56,29 +56,4 @@ export const doctorAiService = {
       }
     );
   },
-
-  // 3. POST /api/v1/doctor-examination/encounters/:encounterId/ai-diagnosis-suggestions/generate
-  async generateAiDiagnosisSuggestions(
-    encounterId: string
-  ): Promise<AiDiagnosisSuggestionItem[]> {
-    return apiFetch<AiDiagnosisSuggestionItem[]>(
-      `/doctor-examination/encounters/${encounterId}/ai-diagnosis-suggestions/generate`,
-      {
-        method: 'POST',
-        body: JSON.stringify({}),
-      }
-    );
-  },
-
-  // 4. GET /api/v1/doctor-examination/encounters/:encounterId/ai-diagnosis-suggestions
-  async getAiDiagnosisSuggestions(
-    encounterId: string
-  ): Promise<AiDiagnosisSuggestionItem[]> {
-    return apiFetch<AiDiagnosisSuggestionItem[]>(
-      `/doctor-examination/encounters/${encounterId}/ai-diagnosis-suggestions`,
-      {
-        method: 'GET',
-      }
-    );
-  },
 };

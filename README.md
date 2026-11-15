@@ -1,6 +1,6 @@
-# Bệnh viện Đa khoa Mai Phương - Frontend Web Application
+# Phòng khám Tim mạch 4AM - Frontend Web Application
 
-Dự án Frontend Web App phục vụ cho Cổng thông tin & Hệ thống Y tế của **Bệnh viện Đa khoa Mai Phương** (Thuộc Đồ án Tốt nghiệp Capstone - Mai Phương Health AI).
+Dự án Frontend Web App phục vụ cho Cổng thông tin & Hệ thống Y tế của **Phòng khám Tim mạch 4AM** (Thuộc Đồ án Tốt nghiệp Capstone - 4AM Health AI).
 
 ---
 
@@ -79,4 +79,4 @@ FE_Webapp/
 ```
 
 ---
-*© 2026 Bệnh viện Đa khoa Mai Phương - HealthAI Capstone Project.*
+*© 2026 Phòng khám Tim mạch 4AM - HealthAI Capstone Project.*

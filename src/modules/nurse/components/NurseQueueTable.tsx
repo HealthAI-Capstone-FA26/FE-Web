@@ -4,13 +4,10 @@ import {
   Clock,
   User,
   Phone,
-  Building2,
   Stethoscope,
   History,
   Loader2,
   Eye,
-  ShieldAlert,
-  GitFork,
 } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import { DataTable, type Column } from '../../../components/common/DataTable';
@@ -22,8 +19,8 @@ interface NurseQueueTableProps {
   onOpenMeasure: (row: NursePatientRow) => void;
   onOpenHistory: (row: NursePatientRow) => void;
   onOpenDetail: (row: NursePatientRow) => void;
-  onOpenAllergy: (row: NursePatientRow) => void;
-  onOpenChangeDept?: (row: NursePatientRow) => void;
+  onOpenAllergy?: (row: NursePatientRow) => void;
+  onOpenMedicalHistory?: (row: NursePatientRow) => void;
   onStartProcessing?: (row: NursePatientRow) => void;
 }
 
@@ -34,14 +31,39 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
   onOpenHistory,
   onOpenDetail,
   onOpenAllergy,
-  onOpenChangeDept,
+  onOpenMedicalHistory,
   onStartProcessing,
 }) => {
-  const formatTimeAgo = (dateStr?: string) => {
+  const isSameDayAsToday = (dateStr?: string) => {
+    if (!dateStr) return true;
+    try {
+      const d = new Date(dateStr);
+      const now = new Date();
+      return (
+        d.getDate() === now.getDate() &&
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear()
+      );
+    } catch {
+      return true;
+    }
+  };
+
+  const formatTimeWithDate = (dateStr?: string) => {
     if (!dateStr) return '---';
     try {
       const d = new Date(dateStr);
-      return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+      const now = new Date();
+      const isToday =
+        d.getDate() === now.getDate() &&
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear();
+
+      const timeStr = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+      if (isToday) return timeStr;
+
+      const dateStrFormatted = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+      return `${timeStr} (${dateStrFormatted})`;
     } catch {
       return dateStr;
     }
@@ -89,7 +111,7 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
       case 'in_progress':
         return (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
-            <Activity className="w-2.5 h-2.5" />
+            <Activity className="w-2.5 h-2.5 animate-pulse" />
             Đang đo
           </span>
         );
@@ -115,14 +137,24 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
   const columns: Column<NursePatientRow>[] = [
     {
       header: 'STT & Ưu tiên',
-      cell: (row) => (
-        <div className="flex flex-col items-start gap-1">
-          <span className="font-black text-slate-900 font-mono text-sm">
-            {row.queueOrder !== undefined ? `#${String(row.queueOrder).padStart(2, '0')}` : '---'}
-          </span>
-          {getPriorityBadge(row.priority)}
-        </div>
-      ),
+      cell: (row) => {
+        const isToday = isSameDayAsToday(row.arrivedAt);
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <div className="flex items-center gap-1">
+              <span className="font-black text-slate-900 font-mono text-sm">
+                {row.queueOrder !== undefined ? `#${String(row.queueOrder).padStart(2, '0')}` : '---'}
+              </span>
+              {!isToday && (
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-700 border border-purple-200" title="Ca từ ngày hôm trước chưa hoàn tất">
+                  Tồn đọng
+                </span>
+              )}
+            </div>
+            {getPriorityBadge(row.priority)}
+          </div>
+        );
+      },
     },
     {
       header: 'Mã Lượt Khám',
@@ -132,7 +164,7 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
           <span className="font-extrabold text-blue-950 font-mono block text-xs">{row.encounterCode}</span>
           <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
             <Clock className="w-3 h-3" />
-            Tiếp nhận: {formatTimeAgo(row.arrivedAt)}
+            Tiếp nhận: {formatTimeWithDate(row.arrivedAt)}
           </span>
           <div className="mt-1">
             {getTriageStatusBadge(row.triageStatus, row.status)}
@@ -162,16 +194,12 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
       ),
     },
     {
-      header: 'Chuyên Khoa & Bác Sĩ',
+      header: 'Bác Sĩ Phụ Trách',
       cell: (row) => (
         <div className="text-xs">
-          <div className="font-bold text-slate-800 flex items-center gap-1">
-            <Building2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-            <span>{row.departmentName}</span>
-          </div>
-          <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-            <Stethoscope className="w-3 h-3 text-teal-600 shrink-0" />
-            <span>{row.doctorName}</span>
+          <div className="font-bold text-slate-800 flex items-center gap-1.5">
+            <Stethoscope className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+            <span>{row.doctorName || 'BS. Trực chuyên khoa'}</span>
           </div>
         </div>
       ),
@@ -227,24 +255,14 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
       header: 'Thao Tác',
       cell: (row) => (
         <div className="flex items-center gap-1.5 whitespace-nowrap">
-          {/* Nút Xem chi tiết ca khám */}
+          {/* Nút Xem chi tiết ca khám, Tiền sử dị ứng & Tiền sử bệnh */}
           <button
             type="button"
             onClick={() => onOpenDetail(row)}
-            title="Xem chi tiết hồ sơ ca khám (Lý do khám, Bác sĩ, Sinh hiệu)"
+            title="Xem chi tiết ca khám, Tiền sử dị ứng & Tiền sử bệnh"
             className="p-1.5 rounded-xl text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 transition-colors cursor-pointer"
           >
             <Eye className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Nút Khai báo dị ứng */}
-          <button
-            type="button"
-            onClick={() => onOpenAllergy(row)}
-            title="Khai báo & quản lý dị ứng của bệnh nhân"
-            className="p-1.5 rounded-xl text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer"
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
           </button>
 
           {row.triageStatus === 'called' && onStartProcessing && (
@@ -265,34 +283,30 @@ export const NurseQueueTable: React.FC<NurseQueueTableProps> = ({
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 shadow-2xs ${
               row.status === 'Measured' || row.triageStatus === 'done'
                 ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                : row.triageStatus === 'in_progress'
+                ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600 ring-2 ring-blue-300/60'
                 : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600'
             }`}
           >
-            <Activity className="w-3.5 h-3.5" />
-            <span>{row.status === 'Measured' || row.triageStatus === 'done' ? 'Đo lại' : 'Nhập sinh hiệu'}</span>
+            <Activity className={`w-3.5 h-3.5 ${row.triageStatus === 'in_progress' ? 'animate-pulse' : ''}`} />
+            <span>
+              {row.status === 'Measured' || row.triageStatus === 'done'
+                ? 'Đo lại'
+                : row.triageStatus === 'in_progress'
+                ? 'Tiếp tục đo'
+                : 'Nhập sinh hiệu'}
+            </span>
           </button>
 
           {row.status === 'Measured' && (
-            <>
-              {onOpenChangeDept && (
-                <button
-                  type="button"
-                  onClick={() => onOpenChangeDept(row)}
-                  title="Đổi khoa khám & tự động chọn bác sĩ rảnh nhất"
-                  className="p-1.5 rounded-xl text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer"
-                >
-                  <GitFork className="w-3.5 h-3.5" />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => onOpenHistory(row)}
-                title="Xem lịch sử các lần đo"
-                className="p-1.5 rounded-xl text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
-              >
-                <History className="w-3.5 h-3.5" />
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => onOpenHistory(row)}
+              title="Xem lịch sử các lần đo"
+              className="p-1.5 rounded-xl text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+            >
+              <History className="w-3.5 h-3.5" />
+            </button>
           )}
         </div>
       ),

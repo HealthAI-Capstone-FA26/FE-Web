@@ -85,16 +85,59 @@ export interface LabResultDetail {
   aiLabAnalyses?: any[];
 }
 
+export function resolveAttachmentUrl(fileUrl: string | undefined | null): string {
+  if (!fileUrl) return '';
+  if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('data:') || fileUrl.startsWith('blob:')) {
+    return fileUrl;
+  }
+  const baseUrl = (import.meta.env.VITE_UPLOAD_BASE_URL || 'http://localhost:9000/app-uploads').replace(/\/+$/, '');
+  const cleanPath = fileUrl.replace(/^\/+/, '');
+  return `${baseUrl}/${cleanPath}`;
+}
+
+export function normalizeLabResult(r: any): LabResultDetail {
+  if (!r) return r;
+  const resultId = r.resultId || r.labResultId;
+  const taskId = r.taskId || r.labTaskId;
+  return {
+    ...r,
+    labResultId: resultId,
+    resultId: resultId,
+    labTaskId: taskId,
+    taskId: taskId,
+    attachments: (r.attachments || []).map((att: any) => ({
+      ...att,
+      labResultId: att.resultId || att.labResultId || resultId,
+      fileUrl: resolveAttachmentUrl(att.fileUrl),
+    })),
+    values: (r.values || []).map((v: any) => ({
+      ...v,
+      resultValueId: v.resultValueId || v.valueId,
+      labResultId: resultId,
+      parameter: v.parameter
+        ? {
+            ...v.parameter,
+            labParameterThresholds: (v.parameter.thresholds || v.parameter.labParameterThresholds || []).map((th: any) => ({
+              ...th,
+              labThresholdId: th.thresholdId || th.labThresholdId,
+            })),
+          }
+        : undefined,
+    })),
+  };
+}
+
 export const labResultService = {
   /**
    * POST /api/v1/lab-tasks/:id/results
    * Nhập kết quả xét nghiệm cho nhiệm vụ
    */
   async submitLabResult(labTaskId: string, data: SubmitLabResultDto): Promise<LabResultDetail> {
-    return apiFetch<LabResultDetail>(`/lab-tasks/${labTaskId}/results`, {
+    const raw = await apiFetch<any>(`/lab-tasks/${labTaskId}/results`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    return normalizeLabResult(raw);
   },
 
   /**
@@ -102,9 +145,10 @@ export const labResultService = {
    * Lấy kết quả xét nghiệm theo nhiệm vụ
    */
   async getLabResultByTaskId(labTaskId: string): Promise<LabResultDetail> {
-    return apiFetch<LabResultDetail>(`/lab-tasks/${labTaskId}/result`, {
+    const raw = await apiFetch<any>(`/lab-tasks/${labTaskId}/result`, {
       method: 'GET',
     });
+    return normalizeLabResult(raw);
   },
 
   /**
@@ -112,9 +156,10 @@ export const labResultService = {
    * Chi tiết kết quả xét nghiệm
    */
   async getLabResultById(labResultId: string): Promise<LabResultDetail> {
-    return apiFetch<LabResultDetail>(`/lab-results/${labResultId}`, {
+    const raw = await apiFetch<any>(`/lab-results/${labResultId}`, {
       method: 'GET',
     });
+    return normalizeLabResult(raw);
   },
 
   /**
@@ -122,10 +167,11 @@ export const labResultService = {
    * Cập nhật / Duyệt (final) kết quả xét nghiệm
    */
   async updateLabResult(labResultId: string, data: UpdateLabResultDto): Promise<LabResultDetail> {
-    return apiFetch<LabResultDetail>(`/lab-results/${labResultId}`, {
+    const raw = await apiFetch<any>(`/lab-results/${labResultId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+    return normalizeLabResult(raw);
   },
 
   /**

@@ -5,14 +5,20 @@ import {
   Building2, RefreshCw, Search, AlertCircle, Eye,
   ChevronDown, MapPin, Pencil, AlertTriangle, ShieldAlert,
   ArrowUpRight, ArrowDownRight, Info, Check, ShieldCheck, X,
-  Calendar, Clock, CalendarDays
+  Calendar, Clock, CalendarDays, Image as ImageIcon, ExternalLink, Download, PauseCircle
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { DataTable, type Column } from '../../components/common/DataTable';
 import { Modal } from '../../components/common/Modal';
 import { labRoomService, type LabRoomItem, type LabStaffRoomAssignment } from '../../services/lab/lab-room.service';
 import { labTaskService, type LabTaskItem } from '../../services/lab/lab-task.service';
-import { labResultService, type LabResultDetail } from '../../services/lab/lab-result.service';
+import { labResultService, resolveAttachmentUrl, type LabResultDetail } from '../../services/lab/lab-result.service';
+import { useCan } from '../../hooks/useCan';
+import {
+  LabTaskStatusBadge,
+  ReportExceptionModal,
+  ExceptionTimelineDrawer,
+} from '../../components/lab-exception';
 
 export type LabDateFilterMode = 'today' | 'yesterday' | '7days' | 'all' | 'custom';
 
@@ -39,6 +45,12 @@ export interface ThresholdAlertSummary {
 }
 
 export const LabOrdersView: React.FC = () => {
+  const { hasRole } = useCan();
+  const isLabStaff = hasRole('LAB') || hasRole('ADMIN');
+
+  // Exception Modal & Drawer State
+  const [exceptionModalTask, setExceptionModalTask] = useState<LabTaskItem | null>(null);
+  const [timelineDrawerTask, setTimelineDrawerTask] = useState<LabTaskItem | null>(null);
 
   // Lab Rooms State
   const [labRooms, setLabRooms] = useState<LabRoomItem[]>([]);
@@ -82,6 +94,9 @@ export const LabOrdersView: React.FC = () => {
   const [isEditingInViewModal, setIsEditingInViewModal] = useState<boolean>(false);
   const [editParamValues, setEditParamValues] = useState<Record<string, { valueNumeric?: number; valueText?: string }>>({});
   const [editConclusion, setEditConclusion] = useState<string>('');
+  const [editSelectedFile, setEditSelectedFile] = useState<File | null>(null);
+  const [editAttachedFileName, setEditAttachedFileName] = useState<string>('');
+  const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
 
   // Modal 3: Thông báo tổng kết đối soát ngưỡng ngay sau khi Lưu
@@ -262,7 +277,8 @@ export const LabOrdersView: React.FC = () => {
     const completed = tasksForDate.filter((t) => t.status === 'completed').length;
     const paymentPending = tasksForDate.filter((t) => !t.paymentVerified || t.status === 'payment_pending').length;
 
-    return { total, ready, inProgress, completed, paymentPending };
+    const onHold = tasksForDate.filter((t) => t.status === 'on_hold').length;
+    return { total, ready, inProgress, completed, paymentPending, onHold };
   }, [tasksForDate]);
 
   // Lọc theo search box
@@ -354,6 +370,8 @@ export const LabOrdersView: React.FC = () => {
     setSelectedTask(task);
     setIsLoadingResultDetail(true);
     setIsEditingInViewModal(startInEditMode);
+    setEditSelectedFile(null);
+    setEditAttachedFileName('');
     setIsViewResultModalOpen(true);
     try {
       const result = await labResultService.getLabResultByTaskId(task.labTaskId);
@@ -402,8 +420,30 @@ export const LabOrdersView: React.FC = () => {
         overallConclusion: editConclusion.trim() || undefined,
       });
 
-      setViewingResult(updated);
-      populateEditData(selectedTask, updated);
+      // Nếu có tệp đính kèm bổ sung được chọn, upload luôn vào ca kết quả
+      if (editSelectedFile && viewingResult.labResultId) {
+        await labResultService.uploadAttachment(
+          viewingResult.labResultId,
+          editSelectedFile,
+          'image',
+          'Phiếu in kết quả máy bổ sung'
+        ).catch(() => {});
+        // Refresh lại chi tiết kết quả để lấy attachments mới
+        const refreshed = await labResultService.getLabResultById(viewingResult.labResultId).catch(() => null);
+        if (refreshed) {
+          setViewingResult(refreshed);
+          populateEditData(selectedTask, refreshed);
+        } else {
+          setViewingResult(updated);
+          populateEditData(selectedTask, updated);
+        }
+      } else {
+        setViewingResult(updated);
+        populateEditData(selectedTask, updated);
+      }
+
+      setEditSelectedFile(null);
+      setEditAttachedFileName('');
       setIsEditingInViewModal(false);
       showToast('Đã cập nhật và bổ sung kết quả xét nghiệm EMR thành công!', 'success');
       fetchTasks(true);
@@ -477,7 +517,7 @@ export const LabOrdersView: React.FC = () => {
       // Tổng hợp dữ liệu đối soát ngưỡng cho từng chỉ số
       const summaryItems: ThresholdAlertSummaryItem[] = parameters.map((param) => {
         const val = paramValues[param.parameterId];
-        const threshold = param.labParameterThresholds?.[0];
+        const threshold = param.labParameterThresholds?.find((t) => t.riskLevel === 'normal') || param.labParameterThresholds?.[0];
         const min = threshold?.rangeMin !== undefined && threshold?.rangeMin !== null ? Number(threshold.rangeMin) : undefined;
         const max = threshold?.rangeMax !== undefined && threshold?.rangeMax !== null ? Number(threshold.rangeMax) : undefined;
         const dataType = param.dataType || 'numeric';
@@ -670,37 +710,7 @@ export const LabOrdersView: React.FC = () => {
     },
     {
       header: 'Trạng Thái',
-      cell: (row) => {
-        if (row.status === 'ready') {
-          return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
-              <span>Chờ lấy mẫu</span>
-            </span>
-          );
-        }
-        if (row.status === 'in_progress') {
-          return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-spin shrink-0"></span>
-              <span>Đang xét nghiệm</span>
-            </span>
-          );
-        }
-        if (row.status === 'completed') {
-          return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 whitespace-nowrap shrink-0">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span>Đã có kết quả</span>
-            </span>
-          );
-        }
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 whitespace-nowrap shrink-0">
-            {row.status === 'payment_pending' ? 'Chờ thanh toán' : row.status}
-          </span>
-        );
-      },
+      cell: (row) => <LabTaskStatusBadge status={row.status} task={row} />,
     },
     {
       header: 'Thao Tác KTV',
@@ -720,41 +730,67 @@ export const LabOrdersView: React.FC = () => {
           );
         }
 
-        // 2. Chờ lấy mẫu (ready) -> Nút Tiếp nhận mẫu
+        // 2. Chờ lấy mẫu (ready) -> Nút Tiếp nhận mẫu + Báo sự cố
         if (row.status === 'ready') {
           const isTaskExecutable = !myAssignments.length || myAssignments.some((a) => a.labRoomId === row.labRoomId);
           return (
-            <button
-              onClick={() => handleReceiveTask(row)}
-              disabled={isReceiving || !isTaskExecutable}
-              title={!isTaskExecutable ? 'Bạn không được phân công phụ trách phòng xét nghiệm này' : 'Tiếp nhận mẫu bệnh phẩm'}
-              className="px-3.5 py-1.5 font-bold text-xs rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer border-none disabled:opacity-50 whitespace-nowrap shrink-0"
-            >
-              {isReceiving ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                  <span>Đang nhận...</span>
-                </>
-              ) : (
-                <>
-                  <FlaskConical className="w-3.5 h-3.5 shrink-0" />
-                  <span>Tiếp nhận mẫu</span>
-                </>
+            <div className="flex items-center gap-1.5 whitespace-nowrap shrink-0">
+              <button
+                onClick={() => handleReceiveTask(row)}
+                disabled={isReceiving || !isTaskExecutable}
+                title={!isTaskExecutable ? 'Bạn không được phân công phụ trách phòng xét nghiệm này' : 'Tiếp nhận mẫu bệnh phẩm'}
+                className="px-3.5 py-1.5 font-bold text-xs rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer border-none disabled:opacity-50 whitespace-nowrap shrink-0"
+              >
+                {isReceiving ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    <span>Đang nhận...</span>
+                  </>
+                ) : (
+                  <>
+                    <FlaskConical className="w-3.5 h-3.5 shrink-0" />
+                    <span>Tiếp nhận mẫu</span>
+                  </>
+                )}
+              </button>
+              {isLabStaff && (
+                <button
+                  type="button"
+                  onClick={() => setExceptionModalTask(row)}
+                  title="Báo cáo sự cố mẫu bệnh phẩm"
+                  className="px-2.5 py-1.5 text-xs font-semibold rounded-xl bg-white hover:bg-red-50 text-red-600 border border-red-200 transition-colors flex items-center gap-1 cursor-pointer shrink-0"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                  <span>Báo sự cố</span>
+                </button>
               )}
-            </button>
+            </div>
           );
         }
 
-        // 3. Đang thực hiện (in_progress) -> Nút Nhập kết quả
+        // 3. Đang thực hiện (in_progress) -> Nút Nhập kết quả + Báo sự cố
         if (row.status === 'in_progress') {
           return (
-            <button
-              onClick={() => handleOpenInputModal(row)}
-              className="px-3.5 py-1.5 font-bold text-xs rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer border-none whitespace-nowrap shrink-0"
-            >
-              <FileText className="w-3.5 h-3.5 shrink-0" />
-              <span>Nhập kết quả & AI</span>
-            </button>
+            <div className="flex items-center gap-1.5 whitespace-nowrap shrink-0">
+              <button
+                onClick={() => handleOpenInputModal(row)}
+                className="px-3.5 py-1.5 font-bold text-xs rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer border-none whitespace-nowrap shrink-0"
+              >
+                <FileText className="w-3.5 h-3.5 shrink-0" />
+                <span>Nhập kết quả & AI</span>
+              </button>
+              {isLabStaff && (
+                <button
+                  type="button"
+                  onClick={() => setExceptionModalTask(row)}
+                  title="Báo cáo sự cố trong quá trình thực hiện"
+                  className="px-2.5 py-1.5 text-xs font-semibold rounded-xl bg-white hover:bg-red-50 text-red-600 border border-red-200 transition-colors flex items-center gap-1 cursor-pointer shrink-0"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                  <span>Báo sự cố</span>
+                </button>
+              )}
+            </div>
           );
         }
 
@@ -768,6 +804,40 @@ export const LabOrdersView: React.FC = () => {
               <Eye className="w-3.5 h-3.5 shrink-0" />
               <span>Xem kết quả EMR</span>
             </button>
+          );
+        }
+
+        // 5. Chờ xử lý sự cố (on_hold) -> Text xám + Xem chi tiết
+        if (row.status === 'on_hold') {
+          return (
+            <div className="flex items-center gap-2 whitespace-nowrap shrink-0">
+              <span className="text-[11px] text-amber-700 italic font-medium">Đang chờ bác sĩ quyết định</span>
+              <button
+                type="button"
+                onClick={() => setTimelineDrawerTask(row)}
+                className="px-2.5 py-1 text-xs font-bold rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Xem chi tiết</span>
+              </button>
+            </div>
+          );
+        }
+
+        // 6. Đã huỷ (cancelled)
+        if (row.status === 'cancelled') {
+          return (
+            <div className="flex items-center gap-2 whitespace-nowrap shrink-0">
+              <span className="text-[11px] text-slate-400 italic">Đã huỷ</span>
+              <button
+                type="button"
+                onClick={() => setTimelineDrawerTask(row)}
+                className="px-2.5 py-1 text-xs font-medium rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors flex items-center gap-1 cursor-pointer border border-slate-200"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Xem chi tiết</span>
+              </button>
+            </div>
           );
         }
 
@@ -937,7 +1007,7 @@ export const LabOrdersView: React.FC = () => {
       </div>
 
       {/* KPI Metric Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
           <span className="text-[11px] font-bold text-slate-500 block">Tổng số ca</span>
           <div className="text-xl font-black text-slate-900 mt-1 flex items-center justify-between">
@@ -979,6 +1049,17 @@ export const LabOrdersView: React.FC = () => {
           </div>
           <span className="text-[10px] text-emerald-600 font-medium block mt-0.5">
             Đã hoàn tất & lưu hồ sơ
+          </span>
+        </div>
+
+        <div className="p-3.5 rounded-2xl border border-amber-300/80 bg-amber-50/70 shadow-2xs">
+          <span className="text-[11px] font-bold text-amber-900 block">Chờ bác sĩ xử lý</span>
+          <div className="text-xl font-black text-amber-700 mt-1 flex items-center justify-between">
+            <span>{activeDateStats.onHold}</span>
+            <PauseCircle className="w-4 h-4 text-amber-600" />
+          </div>
+          <span className="text-[10px] text-amber-700 font-medium block mt-0.5">
+            Sự cố chờ quyết định lâm sàng
           </span>
         </div>
       </div>
@@ -1069,6 +1150,7 @@ export const LabOrdersView: React.FC = () => {
             { key: 'ALL', label: 'Tất cả ca' },
             { key: 'ready', label: '📥 Chờ tiếp nhận mẫu' },
             { key: 'in_progress', label: '⚙️ Đang thực hiện' },
+            { key: 'on_hold', label: `⏸ Chờ xử lý sự cố${activeDateStats.onHold > 0 ? ` (${activeDateStats.onHold})` : ''}` },
             { key: 'completed', label: '✅ Đã có kết quả EMR' },
             { key: 'payment_pending', label: '⏳ Chờ thanh toán' },
           ].map((tab) => (
@@ -1121,6 +1203,13 @@ export const LabOrdersView: React.FC = () => {
       ) : (
         <DataTable
           columns={columns}
+          rowClassName={(row) =>
+            row.status === 'on_hold'
+              ? 'bg-amber-50/40 border-l-[3px] border-l-amber-500'
+              : row.status === 'cancelled'
+              ? 'bg-slate-50/50 opacity-75'
+              : ''
+          }
           data={filteredTasks}
           pageSize={10}
           searchPlaceholder="Lọc nhanh danh sách đang hiển thị..."
@@ -1218,7 +1307,7 @@ export const LabOrdersView: React.FC = () => {
                       <tbody className="divide-y divide-slate-100 font-medium">
                         {selectedTask.orderItem.testType.labResultParameters.map((param) => {
                           const val = paramValues[param.parameterId];
-                          const threshold = param.labParameterThresholds?.[0];
+                          const threshold = param.labParameterThresholds?.find((t) => t.riskLevel === 'normal') || param.labParameterThresholds?.[0];
                           const min = threshold?.rangeMin !== undefined && threshold?.rangeMin !== null ? Number(threshold.rangeMin) : undefined;
                           const max = threshold?.rangeMax !== undefined && threshold?.rangeMax !== null ? Number(threshold.rangeMax) : undefined;
                           const dataType = param.dataType || 'numeric';
@@ -1305,11 +1394,15 @@ export const LabOrdersView: React.FC = () => {
                                 )}
                               </td>
                               <td className="p-2.5 text-slate-500 font-mono text-[11px]">{param.unit || '-'}</td>
-                              <td className="p-2.5 text-slate-500 text-[11px]">
+                              <td className="p-2.5 text-slate-600 text-[11px] font-mono">
                                 {isPositiveNegative ? (
                                   <span className="font-semibold text-emerald-700">Âm tính (-)</span>
                                 ) : min !== undefined && max !== undefined ? (
-                                  <span>{min} - {max}</span>
+                                  <span>{min} – {max}</span>
+                                ) : min !== undefined ? (
+                                  <span>&ge; {min}</span>
+                                ) : max !== undefined ? (
+                                  <span>&le; {max}</span>
                                 ) : (
                                   <span>Bình thường</span>
                                 )}
@@ -1586,7 +1679,7 @@ export const LabOrdersView: React.FC = () => {
                         <tbody className="divide-y divide-slate-100 font-medium">
                           {selectedTask.orderItem.testType.labResultParameters.map((param) => {
                             const val = editParamValues[param.parameterId];
-                            const threshold = param.labParameterThresholds?.[0];
+                            const threshold = param.labParameterThresholds?.find((t) => t.riskLevel === 'normal') || param.labParameterThresholds?.[0];
                             const min = threshold?.rangeMin !== undefined && threshold?.rangeMin !== null ? Number(threshold.rangeMin) : undefined;
                             const max = threshold?.rangeMax !== undefined && threshold?.rangeMax !== null ? Number(threshold.rangeMax) : undefined;
                             const dataType = param.dataType || 'numeric';
@@ -1673,11 +1766,15 @@ export const LabOrdersView: React.FC = () => {
                                   )}
                                 </td>
                                 <td className="p-2.5 text-slate-500 font-mono text-[11px]">{param.unit || '-'}</td>
-                                <td className="p-2.5 text-slate-500 text-[11px]">
+                                <td className="p-2.5 text-slate-600 text-[11px] font-mono">
                                   {isPositiveNegative ? (
                                     <span className="font-semibold text-emerald-700">Âm tính (-)</span>
                                   ) : min !== undefined && max !== undefined ? (
-                                    <span>{min} - {max}</span>
+                                    <span>{min} – {max}</span>
+                                  ) : min !== undefined ? (
+                                    <span>&ge; {min}</span>
+                                  ) : max !== undefined ? (
+                                    <span>&le; {max}</span>
                                   ) : (
                                     <span>Bình thường</span>
                                   )}
@@ -1712,6 +1809,72 @@ export const LabOrdersView: React.FC = () => {
                     placeholder="Ghi chú kết luận hoặc nhận xét chuyên môn của kỹ thuật viên..."
                     className="w-full p-3 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:border-indigo-600 bg-white"
                   />
+                </div>
+
+                {/* Tệp đính kèm hiện có & Tải bổ sung */}
+                <div className="space-y-3 pt-2 border-t border-slate-200">
+                  {viewingResult.attachments && viewingResult.attachments.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-[11px] font-extrabold text-slate-700 block">
+                        Tệp đính kèm hiện có ({viewingResult.attachments.length}):
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {viewingResult.attachments.map((att) => {
+                          const isImg = att.fileType === 'image' || att.fileUrl.match(/\.(jpg|jpeg|png|webp|gif|svg)/i);
+                          const resolvedUrl = resolveAttachmentUrl(att.fileUrl);
+                          return (
+                            <div
+                              key={att.attachmentId}
+                              className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                {isImg ? (
+                                  <ImageIcon className="w-4 h-4 text-indigo-600 shrink-0" />
+                                ) : (
+                                  <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                                )}
+                                <span className="font-semibold text-slate-800 truncate text-[11px]">
+                                  {att.description || 'Phiếu in kết quả máy'}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setPreviewModalUrl(resolvedUrl)}
+                                className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors shrink-0"
+                              >
+                                Xem
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Khung tải thêm tệp đính kèm / phiếu in máy */}
+                  <div className="space-y-1.5">
+                    <label className="block font-extrabold text-slate-800 text-xs">
+                      Tải bổ sung tệp đính kèm / Phiếu in kết quả máy (Tùy chọn):
+                    </label>
+                    <label className="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-xl p-3.5 text-center cursor-pointer transition-all bg-slate-50 flex flex-col items-center justify-center gap-1 block">
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setEditSelectedFile(e.target.files[0]);
+                            setEditAttachedFileName(e.target.files[0].name);
+                          }
+                        }}
+                      />
+                      <Upload className="w-4 h-4 text-slate-400" />
+                      <span className="font-bold text-slate-700 text-xs">
+                        {editAttachedFileName ? editAttachedFileName : 'Nhấp để chọn tệp tin tải bổ sung'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">PNG, JPG, PDF tối đa 20MB</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1781,7 +1944,7 @@ export const LabOrdersView: React.FC = () => {
                         {viewingResult.values.map((v) => {
                           const alertItem = v.labResultAlerts?.[0];
                           const thresholds = v.parameter?.labParameterThresholds || [];
-                          const defaultThreshold = thresholds[0];
+                          const defaultThreshold = thresholds.find((t) => t.riskLevel === 'normal') || thresholds[0];
 
                           const min = defaultThreshold?.rangeMin !== undefined && defaultThreshold?.rangeMin !== null 
                             ? Number(defaultThreshold.rangeMin) 
@@ -1819,6 +1982,14 @@ export const LabOrdersView: React.FC = () => {
                                 {min !== undefined && max !== undefined ? (
                                   <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-semibold">
                                     {min} – {max}
+                                  </span>
+                                ) : min !== undefined ? (
+                                  <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-semibold">
+                                    &ge; {min}
+                                  </span>
+                                ) : max !== undefined ? (
+                                  <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-semibold">
+                                    &le; {max}
                                   </span>
                                 ) : (
                                   <span className="text-slate-400 italic">Bình thường</span>
@@ -1872,6 +2043,64 @@ export const LabOrdersView: React.FC = () => {
                     Chưa có ghi chú / kết luận tổng quát của KTV
                   </div>
                 )}
+
+                {/* Tệp đính kèm / Phiếu in kết quả máy */}
+                <div className="pt-2 border-t border-slate-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-800 uppercase flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Tệp đính kèm / Phiếu in kết quả máy ({viewingResult.attachments?.length || 0})</span>
+                    </span>
+                  </div>
+
+                  {viewingResult.attachments && viewingResult.attachments.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {viewingResult.attachments.map((att) => {
+                        const isImg = att.fileType === 'image' || att.fileUrl.match(/\.(jpg|jpeg|png|webp|gif|svg)/i);
+                        const resolvedUrl = resolveAttachmentUrl(att.fileUrl);
+                        return (
+                          <div
+                            key={att.attachmentId}
+                            className="flex items-center justify-between p-2.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl transition-all"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-center shrink-0">
+                                {isImg ? (
+                                  <ImageIcon className="w-4 h-4 text-indigo-600" />
+                                ) : (
+                                  <FileText className="w-4 h-4 text-blue-600" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-900 truncate text-[11px]">
+                                  {att.description || (isImg ? 'Ảnh phiếu in kết quả máy' : 'Tệp kết quả PDF')}
+                                </p>
+                                <span className="text-[10px] text-slate-400 font-mono block">
+                                  {att.uploadedAt ? new Date(att.uploadedAt).toLocaleString('vi-VN') : 'Đã đính kèm'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewModalUrl(resolvedUrl)}
+                                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer border-none shadow-2xs"
+                              >
+                                <Eye className="w-3 h-3" />
+                                <span>Xem tệp</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-slate-400 italic text-[11px] flex items-center gap-1.5">
+                      <Info className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>Chưa có tệp đính kèm hoặc phiếu in máy cho kết quả này.</span>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -2009,6 +2238,14 @@ export const LabOrdersView: React.FC = () => {
                           <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-semibold">
                             {item.rangeMin} – {item.rangeMax}
                           </span>
+                        ) : item.rangeMin !== undefined ? (
+                          <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-semibold">
+                            &ge; {item.rangeMin}
+                          </span>
+                        ) : item.rangeMax !== undefined ? (
+                          <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-semibold">
+                            &le; {item.rangeMax}
+                          </span>
                         ) : (
                           <span className="text-slate-400 italic">Bình thường</span>
                         )}
@@ -2041,6 +2278,84 @@ export const LabOrdersView: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* MODAL PHÓNG TO / XEM TỆP ĐÍNH KÈM / PHIẾU IN KẾT QUẢ MÁY */}
+      {previewModalUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl text-white">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+              <h4 className="text-xs font-extrabold flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-indigo-400" />
+                <span>Xem tệp đính kèm / Phiếu in kết quả máy</span>
+              </h4>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewModalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors no-underline"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Mở tab mới</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewModalUrl(null)}
+                  className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800 transition-colors cursor-pointer border-none bg-transparent"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 flex-1 overflow-auto flex items-center justify-center bg-black/40 min-h-[300px]">
+              {previewModalUrl.match(/\.(jpg|jpeg|png|webp|gif|svg)/i) ? (
+                <img
+                  src={previewModalUrl}
+                  alt="Tệp kết quả cận lâm sàng"
+                  className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg border border-slate-800"
+                />
+              ) : (
+                <div className="text-center space-y-3 p-8">
+                  <FileText className="w-12 h-12 mx-auto text-indigo-400" />
+                  <p className="text-xs text-slate-300">Tệp tài liệu (PDF / Báo cáo xuất từ máy)</p>
+                  <a
+                    href={previewModalUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition-colors no-underline"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Tải về hoặc Xem trong tab mới</span>
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Báo cáo sự cố nhiệm vụ (Lab Staff - Hình 3.62) */}
+      <ReportExceptionModal
+        isOpen={!!exceptionModalTask}
+        task={exceptionModalTask}
+        onClose={() => setExceptionModalTask(null)}
+        onToast={(type, msg) => showToast(msg, type === 'warning' ? 'info' : type)}
+        onSuccess={(updated) => {
+          setAllTasks((prev) =>
+            prev.map((t) => (t.id === updated.id || t.labTaskId === updated.labTaskId ? updated : t)),
+          );
+          if (selectedTask?.id === updated.id || selectedTask?.labTaskId === updated.labTaskId) {
+            setIsInputModalOpen(false);
+          }
+        }}
+      />
+
+      {/* Drawer: Chi tiết tiến trình sự cố nhiệm vụ */}
+      <ExceptionTimelineDrawer
+        isOpen={!!timelineDrawerTask}
+        task={timelineDrawerTask}
+        onClose={() => setTimelineDrawerTask(null)}
+      />
 
     </div>
   );

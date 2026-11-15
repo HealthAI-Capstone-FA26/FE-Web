@@ -2,11 +2,16 @@ import React, { useState, useEffect } from 'react';
 import {
   FileText, ShieldAlert, Heart, Thermometer, Activity,
   AlertTriangle, Loader2, PlayCircle, CheckCircle2, RefreshCw,
-  History, ChevronDown, ChevronUp, Calendar, Stethoscope, Clock
+  History, ChevronDown, ChevronUp, Calendar, Stethoscope,
+  ArrowRight
 } from 'lucide-react';
 import type { PatientEMR } from '../types';
 import type { CaseOverviewData } from '../../../services/doctor';
-import type { PatientAllergyItem, AllergyType, AllergySeverity } from '../../../services/patient/patient-allergy.service';
+import {
+  type PatientAllergyItem,
+  parseAllergyText,
+  parseAllergiesFromText,
+} from '../../../services/patient/patient-allergy.service';
 import type { EncounterItem } from '../../../services/encounter/encounter.service';
 import { getPatientEncounterHistory } from '../../../services/encounter/encounter.service';
 import type { AppointmentItem } from '../../../services/appointment/appointment.service';
@@ -19,6 +24,10 @@ interface PatientAdministrativeCardProps {
   isStartingAppointment?: boolean;
   onStartConsultation?: () => void;
   onRefreshEncounter?: () => void;
+  onOpenMedicalHistory?: () => void;
+  onNavigateToDiagnosis?: () => void;
+  onNavigateToPrescription?: () => void;
+
   activeAllergies: Array<PatientAllergyItem | {
     allergyId: string;
     allergyType: string;
@@ -44,6 +53,9 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
   isStartingAppointment,
   onStartConsultation,
   onRefreshEncounter,
+  onOpenMedicalHistory,
+  onNavigateToDiagnosis,
+  onNavigateToPrescription,
   activeAllergies,
   isLoadingAllergies,
   isLoadingOverview,
@@ -53,73 +65,12 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
   displayTemp,
   hasMeasuredVitals,
 }) => {
-  const getSeverityBadge = (sev: AllergySeverity | string) => {
-    switch (sev) {
-      case 'life_threatening':
-        return (
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
-            🔥 Nguy hiểm tính mạng
-          </span>
-        );
-      case 'severe':
-        return (
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200">
-            ⚠️ Nặng
-          </span>
-        );
-      case 'moderate':
-        return (
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
-            🟡 Trung bình
-          </span>
-        );
-      case 'mild':
-      default:
-        return (
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
-            <img src="/images/mild_icon.png" alt="Nhẹ" className="w-3 h-3 object-contain shrink-0" />
-            <span>Nhẹ</span>
-          </span>
-        );
-    }
-  };
-
-  const getTypeLabel = (type: AllergyType | string) => {
-    switch (type) {
-      case 'drug':
-        return (
-          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-            <img src="/images/drug_icon.png" alt="Thuốc" className="w-4 h-4 object-contain shrink-0 inline-block align-middle" />
-            <span>Thuốc</span>
-          </span>
-        );
-      case 'food':
-        return (
-          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-            <img src="/images/food_icon.png" alt="Thực phẩm" className="w-4 h-4 object-contain shrink-0 inline-block align-middle" />
-            <span>Thực phẩm</span>
-          </span>
-        );
-      case 'environmental':
-        return (
-          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-            <img src="/images/environmental_icon.png" alt="Môi trường" className="w-4 h-4 object-contain shrink-0 inline-block align-middle" />
-            <span>Môi trường</span>
-          </span>
-        );
-      case 'other':
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-            <img src="/images/other_icon.png" alt="Khác" className="w-4 h-4 object-contain shrink-0 inline-block align-middle" />
-            <span>Khác</span>
-          </span>
-        );
-    }
-  };
 
   const activeFilteredAllergies = activeAllergies.filter((a) => a.status === 'active');
-  const hasDrugAllergy = activeFilteredAllergies.some((a) => a.allergyType === 'drug');
+  const hasDrugAllergy = activeFilteredAllergies.some((a) => {
+    const parsed = parseAllergyText((a as any).allergyText);
+    return parsed.drug.length > 0 || (a as any).allergyType === 'drug';
+  });
 
   // Khóa an toàn dữ liệu: Chỉ dùng caseOverview và encounterDetail nếu trùng khớp 100% với bệnh nhân đang chọn
   const isOverviewMatching = Boolean(
@@ -206,42 +157,72 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
           )}
         </div>
 
-        {/* Action Button: Bắt đầu khám / Trạng thái phiên khám */}
-        {onStartConsultation && (
-          <div className="flex items-center gap-2 shrink-0">
-            {currentAppointment?.status === 'in_progress' || safeEncounterDetail?.status === 'in_progress' ? (
+        {/* Action Button: Bắt đầu khám / Trạng thái phiên khám / Điều hướng */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {safeEncounterDetail?.status === 'awaiting_review' ? (
+            <>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 text-xs font-bold animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-purple-600" />
+                <span>Đã có KQ CLS</span>
+              </span>
+              {onNavigateToDiagnosis && (
+                <button
+                  type="button"
+                  onClick={onNavigateToDiagnosis}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-98 text-white text-xs font-extrabold shadow-xs transition-all cursor-pointer"
+                  title="Xem kết quả cận lâm sàng và kết luận chẩn đoán tại Tab 2"
+                >
+                  <span>Xem KQ CLS & Kết luận</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </>
+          ) : currentAppointment?.status === 'in_progress' || safeEncounterDetail?.status === 'in_progress' ? (
+            <>
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span>Đang khám</span>
               </span>
-            ) : currentAppointment?.status === 'completed' || safeEncounterDetail?.status === 'finished' ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
-                <span>Đã hoàn tất khám</span>
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={onStartConsultation}
-                disabled={isStartingAppointment || (!safeEncounterDetail?.appointmentId && !currentAppointment?.appointmentId && !currentPatient?.appointmentId)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Bác sĩ bắt đầu phiên khám lâm sàng (PATCH /appointments/:id/start)"
-              >
-                {isStartingAppointment ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Đang kết nối...</span>
-                  </>
-                ) : (
-                  <>
-                    <PlayCircle className="w-3.5 h-3.5" />
-                    <span>Bắt đầu khám</span>
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        )}
+              {onNavigateToPrescription && (
+                <button
+                  type="button"
+                  onClick={onNavigateToPrescription}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                  title="Ca khám nhẹ không cần CLS, chuyển thẳng sang kê đơn thuốc (Tab 3)"
+                >
+                  <span>Bỏ qua CLS → Kê đơn ngay</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </>
+          ) : currentAppointment?.status === 'completed' || safeEncounterDetail?.status === 'finished' ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
+              <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
+              <span>Đã hoàn tất khám</span>
+            </span>
+          ) : onStartConsultation ? (
+            <button
+              type="button"
+              onClick={onStartConsultation}
+              disabled={isStartingAppointment || (!safeEncounterDetail?.encounterId && !currentPatient?.encounterId && !safeEncounterDetail?.appointmentId && !currentAppointment?.appointmentId)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Bác sĩ bắt đầu phiên khám lâm sàng (POST /doctor-examination/encounters/:id/start)"
+            >
+              {isStartingAppointment ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Đang kết nối...</span>
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="w-3.5 h-3.5" />
+                  <span>Bắt đầu khám</span>
+                </>
+              )}
+            </button>
+          ) : null}
+        </div>
+
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
@@ -306,25 +287,45 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
                 <span className="text-[11px] text-slate-400 italic">Đang tải dị ứng bệnh nhân...</span>
               ) : activeFilteredAllergies.length > 0 ? (
                 <div className="space-y-1.5 pt-0.5">
-                  {activeFilteredAllergies.map((item) => (
-                    <div
-                      key={item.allergyId}
-                      className="p-2 rounded-xl bg-white border border-rose-200/80 shadow-2xs space-y-0.5"
-                    >
-                      <div className="flex items-center justify-between gap-1">
-                        <div className="text-[11px] leading-tight flex items-center gap-1.5 flex-wrap">
-                          {getTypeLabel(item.allergyType)}
-                          <span className="font-extrabold text-rose-900">{item.allergenName}</span>
-                        </div>
-                        {getSeverityBadge(item.severity)}
+                  {activeFilteredAllergies.map((item) => {
+                    const parsedItems = parseAllergiesFromText((item as any).allergyText);
+
+                    return (
+                      <div
+                        key={item.allergyId}
+                        className="p-2 rounded-xl bg-white border border-rose-200/80 shadow-2xs space-y-1"
+                      >
+                        {parsedItems.length === 0 ? (
+                          <div className="text-[11px] font-extrabold text-rose-900">
+                            {(item as any).allergenName || (item as any).allergyText || 'Chưa rõ dị ứng'}
+                          </div>
+                        ) : (
+                          parsedItems.map((p, idx) => (
+                            <div key={idx} className="space-y-0.5">
+                              <div className="flex items-center justify-between gap-1 flex-wrap">
+                                <div className="text-[11px] flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-mono text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                                    {p.typeLabel}
+                                  </span>
+                                  <span className="font-extrabold text-rose-900">{p.name}</span>
+                                </div>
+                                {p.severity && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                                    {p.severityLabel || p.severity}
+                                  </span>
+                                )}
+                              </div>
+                              {p.reaction && (
+                                <p className="text-[10px] text-slate-500 italic pl-1 leading-snug">
+                                  Phản ứng: {p.reaction}
+                                </p>
+                              )}
+                            </div>
+                          ))
+                        )}
                       </div>
-                      {item.reactionDescription && (
-                        <p className="text-[10px] text-slate-500 italic pl-1 leading-snug">
-                          Triệu chứng: {item.reactionDescription}
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {hasDrugAllergy && (
                     <div className="mt-1 p-2 bg-rose-50 rounded-lg border border-rose-200 text-rose-800 text-[10px] font-bold flex items-center gap-1.5 animate-pulse">
@@ -341,8 +342,20 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
             </div>
 
             <div className="pt-1.5 border-t border-slate-200/60 space-y-1">
+              <div className="flex items-center justify-between">
+                <strong className="text-slate-700">Tiền sử bệnh:</strong>
+                {onOpenMedicalHistory && (
+                  <button
+                    type="button"
+                    onClick={onOpenMedicalHistory}
+                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-extrabold flex items-center gap-1 cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 transition-colors"
+                  >
+                    <History className="w-3 h-3" />
+                    <span>Quản lý tiền sử</span>
+                  </button>
+                )}
+              </div>
               <p>
-                <strong className="text-slate-700">Tiền sử bệnh:</strong>{' '}
                 {safeOverview?.medicalHistories && safeOverview.medicalHistories.length > 0 ? (
                   <span className="text-slate-800 font-semibold">
                     {safeOverview.medicalHistories.map((h) => h.conditionName).join(', ')}
@@ -482,9 +495,11 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
                       <div className="flex items-center justify-between font-semibold text-slate-800">
                         <span className="flex items-center gap-1.5">
                           <Stethoscope className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          <span>{enc.department?.departmentName || 'Khoa Nội Tổng hợp'}</span>
+                          <span>{enc.doctor?.fullName || 'BS. Trực chuyên khoa'}</span>
                         </span>
-                        <span className="text-slate-700 font-bold">{enc.doctor?.fullName || 'BS. Trực khoa'}</span>
+                        {enc.doctor?.title && (
+                          <span className="text-[10px] text-slate-500 font-medium">{enc.doctor.title}</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                         <Calendar className="w-3 h-3 text-slate-400 shrink-0" />

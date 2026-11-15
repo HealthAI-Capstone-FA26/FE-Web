@@ -57,8 +57,9 @@ const LabIcon = ({ className }: { className?: string }) => {
 
 export const normalizeRoleKey = (role?: string): string => {
   const r = (role || 'PATIENT').toUpperCase().trim();
-  if (r === 'LAB_STAFF') return 'LAB';
-  if (r === 'RECEPTION') return 'RECEPTIONIST';
+  if (r === 'CARDIOLOGIST') return 'DOCTOR';
+  if (r === 'LAB_STAFF' || r === 'DIAGNOSTIC_TECH') return 'LAB';
+  if (r === 'RECEPTION' || r === 'RECEPTIONIST') return 'RECEPTIONIST';
   return r;
 };
 

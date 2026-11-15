@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Stethoscope,
   Search,
@@ -7,57 +7,35 @@ import {
   Eye,
   Loader2,
   AlertCircle,
-  Building2,
   RefreshCw,
   FileCheck,
-  UserPlus,
-  CheckCircle2,
   UserCheck,
   UserX,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  ChevronDown,
-  Check,
-  Filter,
   X,
 } from 'lucide-react';
-import { DepartmentIcon } from '../../components/common/DepartmentIcon';
-import { doctorService, type DoctorResponse, type DepartmentResponse } from '../../services/doctor/doctor.service';
-import { getAvatarUrl } from '../../services/api';
-import { Mascot } from 'page-mascot';
+import {
+  doctorService,
+  getSpecializationLabel,
+  CARDIOLOGY_SPECIALIZATIONS,
+  type DoctorResponse,
+} from '../../services/doctor/doctor.service';
 import { CreateDoctorModal } from './components/CreateDoctorModal';
 import { EditDoctorModal } from './components/EditDoctorModal';
 import { DetailDoctorModal } from './components/DetailDoctorModal';
-import { AssignDepartmentModal } from './components/AssignDepartmentModal';
 
 export const AdminDoctorsView: React.FC = () => {
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
-  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
-  const [selectedDepartmentTab, setSelectedDepartmentTab] = useState<string>('ALL');
-
-  // Department Dropdown state
-  const [isDeptDropdownOpen, setIsDeptDropdownOpen] = useState<boolean>(false);
-  const [deptSearchInDropdown, setDeptSearchInDropdown] = useState<string>('');
-  const deptDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (deptDropdownRef.current && !deptDropdownRef.current.contains(event.target as Node)) {
-        setIsDeptDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const [selectedSpecialization, setSelectedSpecialization] = useState<string>('ALL');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -68,11 +46,6 @@ export const AdminDoctorsView: React.FC = () => {
   const [editingDoctor, setEditingDoctor] = useState<DoctorResponse | null>(null);
   const [viewingDoctor, setViewingDoctor] = useState<DoctorResponse | null>(null);
 
-  // Assign Department Modal state
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState<boolean>(false);
-  const [assignDefaultDoctorId, setAssignDefaultDoctorId] = useState<string>('');
-  const [assignDefaultDepartmentId, setAssignDefaultDepartmentId] = useState<string>('');
-
   // Toast notification state
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
@@ -80,12 +53,8 @@ export const AdminDoctorsView: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [doctorsData, departmentsData] = await Promise.all([
-        doctorService.getDoctors(),
-        doctorService.getDepartments().catch(() => []),
-      ]);
+      const doctorsData = await doctorService.getDoctors();
       setDoctors(doctorsData);
-      setDepartments(departmentsData);
     } catch (err: any) {
       console.error('Lỗi nạp dữ liệu:', err);
       setError(err?.message || 'Không thể tải dữ liệu từ máy chủ');
@@ -101,7 +70,7 @@ export const AdminDoctorsView: React.FC = () => {
   // Reset pagination when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedStatus, selectedDepartmentTab, pageSize]);
+  }, [searchQuery, selectedStatus, selectedSpecialization, pageSize]);
 
   const handleSuccess = (message?: string) => {
     fetchData();
@@ -113,33 +82,9 @@ export const AdminDoctorsView: React.FC = () => {
     }
   };
 
-  // Compute counts for stat cards & department tabs
+  // Compute counts for stat cards
   const activeCount = useMemo(() => doctors.filter((d) => d.isActive).length, [doctors]);
   const inactiveCount = useMemo(() => doctors.filter((d) => !d.isActive).length, [doctors]);
-
-  const departmentDoctorCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    doctors.forEach((doc) => {
-      doc.doctorDepartments?.forEach((dd) => {
-        counts[dd.departmentId] = (counts[dd.departmentId] || 0) + 1;
-      });
-    });
-    return counts;
-  }, [doctors]);
-
-  // Dropdown filtered departments & selected department object
-  const filteredDeptsInDropdown = useMemo(() => {
-    if (!deptSearchInDropdown.trim()) return departments;
-    return departments.filter(
-      (d) =>
-        d.departmentName.toLowerCase().includes(deptSearchInDropdown.toLowerCase()) ||
-        d.departmentCode.toLowerCase().includes(deptSearchInDropdown.toLowerCase())
-    );
-  }, [departments, deptSearchInDropdown]);
-
-  const currentSelectedDept = useMemo(() => {
-    return departments.find((d) => d.departmentId === selectedDepartmentTab);
-  }, [departments, selectedDepartmentTab]);
 
   // Filtered doctors list
   const filteredDoctors = useMemo(() => {
@@ -156,13 +101,12 @@ export const AdminDoctorsView: React.FC = () => {
         (selectedStatus === 'ACTIVE' && doc.isActive) ||
         (selectedStatus === 'INACTIVE' && !doc.isActive);
 
-      const matchesDepartment =
-        selectedDepartmentTab === 'ALL' ||
-        doc.doctorDepartments?.some((dd) => dd.departmentId === selectedDepartmentTab);
+      const matchesSpec =
+        selectedSpecialization === 'ALL' || doc.specialization === selectedSpecialization;
 
-      return matchesSearch && matchesStatus && matchesDepartment;
+      return matchesSearch && matchesStatus && matchesSpec;
     });
-  }, [doctors, searchQuery, selectedStatus, selectedDepartmentTab]);
+  }, [doctors, searchQuery, selectedStatus, selectedSpecialization]);
 
   // Pagination calculation
   const totalDoctors = filteredDoctors.length;
@@ -172,20 +116,6 @@ export const AdminDoctorsView: React.FC = () => {
     const startIdx = (currentPage - 1) * pageSize;
     return filteredDoctors.slice(startIdx, startIdx + pageSize);
   }, [filteredDoctors, currentPage, pageSize]);
-
-  // Open Assign modal for a specific doctor
-  const handleOpenAssignModalForDoctor = (doctorId: string) => {
-    setAssignDefaultDoctorId(doctorId);
-    setAssignDefaultDepartmentId(selectedDepartmentTab !== 'ALL' ? selectedDepartmentTab : '');
-    setIsAssignModalOpen(true);
-  };
-
-  // Open Assign modal for current department tab
-  const handleOpenAssignModalForCurrentDept = () => {
-    setAssignDefaultDoctorId('');
-    setAssignDefaultDepartmentId(selectedDepartmentTab !== 'ALL' ? selectedDepartmentTab : '');
-    setIsAssignModalOpen(true);
-  };
 
   const handleOpenDetailModal = async (doctorId: string) => {
     try {
@@ -200,42 +130,29 @@ export const AdminDoctorsView: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Toast Notification */}
       {successToast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold animate-in slide-in-from-bottom-5">
-          <CheckCircle2 className="w-4 h-4 text-emerald-100" />
+        <div className="fixed top-5 right-5 z-50 bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 animate-in slide-in-from-top-5 duration-200 text-xs font-bold">
+          <UserCheck className="w-4 h-4 shrink-0" />
           <span>{successToast}</span>
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header View */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Mascot
-            directions="/mascots/admin-directions.png"
-            reactions="/mascots/admin-reactions.png"
-            size={120}
-            className="shrink-0"
-          />
+          <div className="p-2.5 bg-blue-50 text-blue-700 rounded-2xl border border-blue-100">
+            <Stethoscope className="w-6 h-6" />
+          </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-900">
-              Quản Lý Bác Sĩ & Chuyên Khoa Hệ Thống
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">
+              Quản Lý Bác Sĩ & Chuyên Khoa Tim Mạch
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Quản trị toàn bộ danh sách bác sĩ, chứng chỉ hành nghề, học vị chuyên khoa và phân công khoa phòng
+              Quản trị toàn bộ danh sách bác sĩ, chứng chỉ hành nghề, học vị chuyên khoa tại Phòng khám Tim mạch 4AM
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2.5 self-start md:self-auto">
-          {selectedDepartmentTab !== 'ALL' && (
-            <button
-              onClick={handleOpenAssignModalForCurrentDept}
-              className="px-3.5 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all flex items-center gap-1.5 border border-indigo-200 cursor-pointer"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>Gán Bác Sĩ Vào Khoa</span>
-            </button>
-          )}
-
           <button
             onClick={() => setIsCreateModalOpen(true)}
             className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs flex items-center gap-1.5 border-none cursor-pointer"
@@ -256,37 +173,34 @@ export const AdminDoctorsView: React.FC = () => {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
           { key: 'ALL', label: 'Tổng bác sĩ', count: doctors.length, icon: Stethoscope, color: 'text-blue-700 bg-blue-50' },
           { key: 'ACTIVE', label: 'Đang hoạt động', count: activeCount, icon: UserCheck, color: 'text-emerald-700 bg-emerald-50' },
           { key: 'INACTIVE', label: 'Tạm ngưng', count: inactiveCount, icon: UserX, color: 'text-rose-700 bg-rose-50' },
-          { key: 'DEPTS', label: 'Tổng số khoa', count: departments.length, icon: DepartmentIcon, color: 'text-indigo-700 bg-indigo-50' },
         ].map((item) => (
           <button
             key={item.key}
             onClick={() => {
-              if (item.key === 'ACTIVE' || item.key === 'INACTIVE' || item.key === 'ALL') {
-                setSelectedStatus(item.key as any);
-              }
+              setSelectedStatus(item.key as any);
             }}
             className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-              (selectedStatus === item.key || (item.key === 'ALL' && selectedStatus === 'ALL' && selectedDepartmentTab === 'ALL'))
+              selectedStatus === item.key
                 ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/10'
                 : 'bg-white text-slate-800 border-slate-200/90 hover:border-blue-200 hover:bg-slate-50/50'
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className={`text-[11px] font-bold ${(selectedStatus === item.key || (item.key === 'ALL' && selectedStatus === 'ALL' && selectedDepartmentTab === 'ALL')) ? 'text-blue-100' : 'text-slate-500'}`}>
+              <span className={`text-[11px] font-bold ${selectedStatus === item.key ? 'text-blue-100' : 'text-slate-500'}`}>
                 {item.label}
               </span>
               <div
-                className={`p-1.5 rounded-lg ${(selectedStatus === item.key || (item.key === 'ALL' && selectedStatus === 'ALL' && selectedDepartmentTab === 'ALL')) ? 'bg-white/20 text-white' : item.color}`}
+                className={`p-1.5 rounded-lg ${selectedStatus === item.key ? 'bg-white/20 text-white' : item.color}`}
               >
                 <item.icon className="w-3.5 h-3.5" />
               </div>
             </div>
-            <div className={`text-xl font-black mt-2 ${(selectedStatus === item.key || (item.key === 'ALL' && selectedStatus === 'ALL' && selectedDepartmentTab === 'ALL')) ? 'text-white' : 'text-slate-900'}`}>
+            <div className={`text-xl font-black mt-2 ${selectedStatus === item.key ? 'text-white' : 'text-slate-900'}`}>
               {item.count}
             </div>
           </button>
@@ -319,149 +233,33 @@ export const AdminDoctorsView: React.FC = () => {
               )}
             </div>
 
-            {/* 2. Department Dropdown Filter */}
-            <div className="relative" ref={deptDropdownRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsDeptDropdownOpen(!isDeptDropdownOpen);
-                  setDeptSearchInDropdown('');
-                }}
-                className={`w-full sm:w-auto px-3.5 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-between sm:justify-start gap-2.5 cursor-pointer ${
-                  selectedDepartmentTab !== 'ALL'
-                    ? 'bg-blue-50/80 text-blue-700 border-blue-200 shadow-xs'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-                }`}
+            {/* 2. Specialization Filter */}
+            <div className="relative">
+              <select
+                value={selectedSpecialization}
+                onChange={(e) => setSelectedSpecialization(e.target.value)}
+                className="w-full sm:w-auto px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50 transition-all text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 cursor-pointer"
               >
-                <div className="flex items-center gap-2 truncate max-w-[220px]">
-                  <DepartmentIcon className={`w-4 h-4 shrink-0 ${selectedDepartmentTab !== 'ALL' ? 'text-blue-600' : 'text-slate-400'}`} />
-                  <span className="truncate">
-                    {selectedDepartmentTab === 'ALL'
-                      ? 'Tất cả chuyên khoa'
-                      : currentSelectedDept?.departmentName || 'Chọn khoa'}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      selectedDepartmentTab !== 'ALL'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {selectedDepartmentTab === 'ALL'
-                      ? doctors.length
-                      : departmentDoctorCounts[selectedDepartmentTab] || 0}
-                  </span>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
-                      isDeptDropdownOpen ? 'rotate-180 text-blue-600' : ''
-                    }`}
-                  />
-                </div>
-              </button>
-
-              {/* Dropdown Floating Menu */}
-              {isDeptDropdownOpen && (
-                <div className="absolute left-0 mt-1.5 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-30 animate-in fade-in zoom-in-95 duration-150">
-                  {/* Search input in dropdown */}
-                  {departments.length > 5 && (
-                    <div className="px-3 pb-2 mb-1 border-b border-slate-100">
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={deptSearchInDropdown}
-                          onChange={(e) => setDeptSearchInDropdown(e.target.value)}
-                          placeholder="Tìm tên khoa..."
-                          className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:border-blue-500 bg-slate-50 text-slate-700"
-                          autoFocus
-                        />
-                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* List of departments */}
-                  <div className="max-h-64 overflow-y-auto px-1.5 space-y-0.5">
-                    {/* All option */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedDepartmentTab('ALL');
-                        setIsDeptDropdownOpen(false);
-                      }}
-                      className={`w-full px-3 py-2 rounded-xl text-xs font-semibold text-left transition-colors flex items-center justify-between border-none cursor-pointer ${
-                        selectedDepartmentTab === 'ALL'
-                          ? 'bg-blue-50 text-blue-700 font-bold'
-                          : 'bg-transparent text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <DepartmentIcon className="w-4 h-4" />
-                        <span>Tất cả chuyên khoa</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 font-bold">
-                          {doctors.length}
-                        </span>
-                        {selectedDepartmentTab === 'ALL' && <Check className="w-3.5 h-3.5 text-blue-600" />}
-                      </div>
-                    </button>
-
-                    {/* Department items */}
-                    {filteredDeptsInDropdown.map((dept) => {
-                      const count = departmentDoctorCounts[dept.departmentId] || 0;
-                      const isSelected = selectedDepartmentTab === dept.departmentId;
-
-                      return (
-                        <button
-                          key={dept.departmentId}
-                          type="button"
-                          onClick={() => {
-                            setSelectedDepartmentTab(dept.departmentId);
-                            setIsDeptDropdownOpen(false);
-                          }}
-                          className={`w-full px-3 py-2 rounded-xl text-xs font-semibold text-left transition-colors flex items-center justify-between border-none cursor-pointer ${
-                            isSelected
-                              ? 'bg-blue-50 text-blue-700 font-bold'
-                              : 'bg-transparent text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 truncate pr-2">
-                            <span className="truncate">{dept.departmentName}</span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span
-                              className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                                isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              {count}
-                            </span>
-                            {isSelected && <Check className="w-3.5 h-3.5 text-blue-600" />}
-                          </div>
-                        </button>
-                      );
-                    })}
-
-                    {filteredDeptsInDropdown.length === 0 && (
-                      <div className="py-4 text-center text-xs text-slate-400">
-                        Không tìm thấy khoa nào
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+                <option value="ALL">Tất cả phân nhóm Tim mạch ({doctors.length})</option>
+                {Object.entries(CARDIOLOGY_SPECIALIZATIONS).map(([key, label]) => {
+                  const count = doctors.filter((d) => d.specialization === key).length;
+                  return (
+                    <option key={key} value={key}>
+                      {label} ({count})
+                    </option>
+                  );
+                })}
+              </select>
             </div>
 
             {/* Clear All Filters Button if active */}
-            {(searchQuery || selectedDepartmentTab !== 'ALL') && (
+            {(searchQuery || selectedSpecialization !== 'ALL' || selectedStatus !== 'ALL') && (
               <button
                 type="button"
                 onClick={() => {
                   setSearchQuery('');
-                  setSelectedDepartmentTab('ALL');
+                  setSelectedSpecialization('ALL');
+                  setSelectedStatus('ALL');
                 }}
                 className="px-2.5 py-2 text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors flex items-center gap-1 border border-slate-200 hover:border-rose-200 cursor-pointer bg-white shrink-0"
                 title="Xóa tất cả bộ lọc"
@@ -502,7 +300,7 @@ export const AdminDoctorsView: React.FC = () => {
           <div className="p-12 text-center text-slate-400 space-y-2">
             <Stethoscope className="w-10 h-10 mx-auto text-slate-300 stroke-[1.5]" />
             <div className="text-xs font-bold text-slate-700">Không tìm thấy bác sĩ nào</div>
-            <p className="text-[11px] text-slate-400">Hãy thử đổi từ khóa tìm kiếm hoặc chọn lọc khoa phòng khác.</p>
+            <p className="text-[11px] text-slate-400">Hãy thử đổi từ khóa tìm kiếm hoặc lọc phân nhóm chuyên khoa khác.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -511,17 +309,14 @@ export const AdminDoctorsView: React.FC = () => {
                 <tr>
                   <th className="py-3 px-4">Bác sĩ</th>
                   <th className="py-3 px-4">Mã số & Giấy phép</th>
-                  <th className="py-3 px-4">Khoa trực thuộc / Chuyên khoa</th>
+                  <th className="py-3 px-4">Chuyên khoa Tim mạch</th>
                   <th className="py-3 px-4 text-center">Trạng thái</th>
                   <th className="py-3 px-4 text-center">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginatedDoctors.map((doctor) => {
-                  const primaryDept = doctor.doctorDepartments?.find((d) => d.isPrimary)?.department?.departmentName;
-                  const deptText = primaryDept
-                    ? `${primaryDept}${doctor.specialization ? ` (${doctor.specialization})` : ''}`
-                    : (doctor.specialization || 'Chưa cập nhật');
+                  const specLabel = getSpecializationLabel(doctor.specialization);
 
                   return (
                     <tr key={doctor.doctorId} className="hover:bg-slate-50/60 transition-colors">
@@ -552,11 +347,11 @@ export const AdminDoctorsView: React.FC = () => {
                         )}
                       </td>
 
-                      {/* Department */}
+                      {/* Specialization */}
                       <td className="py-3.5 px-4">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                          <DepartmentIcon className="w-4 h-4 shrink-0" />
-                          <span>{deptText}</span>
+                          <Stethoscope className="w-3.5 h-3.5 shrink-0" />
+                          <span>{specLabel}</span>
                         </span>
                       </td>
 
@@ -591,13 +386,6 @@ export const AdminDoctorsView: React.FC = () => {
                             title="Chỉnh sửa thông tin"
                           >
                             <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleOpenAssignModalForDoctor(doctor.doctorId)}
-                            className="p-1.5 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer border-none bg-transparent"
-                            title="Phân công khoa phòng"
-                          >
-                            <Building2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -708,7 +496,6 @@ export const AdminDoctorsView: React.FC = () => {
       <CreateDoctorModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        departments={departments}
         onSuccess={handleSuccess}
       />
 
@@ -721,20 +508,6 @@ export const AdminDoctorsView: React.FC = () => {
       <DetailDoctorModal
         doctor={viewingDoctor}
         onClose={() => setViewingDoctor(null)}
-        onOpenAssignModal={(doctorId) => {
-          setViewingDoctor(null);
-          handleOpenAssignModalForDoctor(doctorId);
-        }}
-      />
-
-      <AssignDepartmentModal
-        isOpen={isAssignModalOpen}
-        onClose={() => setIsAssignModalOpen(false)}
-        doctors={doctors}
-        departments={departments}
-        defaultDoctorId={assignDefaultDoctorId}
-        defaultDepartmentId={assignDefaultDepartmentId}
-        onSuccess={handleSuccess}
       />
     </div>
   );

@@ -2,28 +2,26 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   MapPin, User, Headphones, Calendar, Search, Menu, LogIn, X,
-  Info, Stethoscope, UserCheck, Zap, Building2, Trophy, Newspaper, PhoneCall
+  Info, Stethoscope, UserCheck, Zap, HelpCircle, Newspaper, PhoneCall
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LoginModal } from '../auth/LoginModal';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_DEFAULT_PATHS } from '../../types/dashboard';
 import { UserProfilePill } from '../common/UserProfilePill';
+import { NotificationDropdown } from './NotificationDropdown';
 
 const NAV_ITEMS = [
   { id: 'gioi-thieu', label: 'Giới thiệu', path: '/gioi-thieu', icon: Info },
   { id: 'chuyen-khoa', label: 'Chuyên khoa', path: '/chuyen-khoa', icon: Stethoscope },
   { id: 'chuyen-gia', label: 'Chuyên gia - Bác sĩ', path: '/chuyen-gia', icon: UserCheck },
   { id: 'dich-vu', label: 'Dịch vụ đặc biệt', path: '/dich-vu', icon: Zap },
-  { id: 'tien-nghi', label: 'Tiện nghi', path: '/tien-nghi', icon: Building2 },
-  { id: 'giai-thuong', label: 'Giải thưởng', path: '/giai-thuong', icon: Trophy },
+  { id: 'huong-dan', label: 'Hướng dẫn', path: '/huong-dan', icon: HelpCircle },
   { id: 'tin-tuc', label: 'Tin tức', path: '/tin-tuc', icon: Newspaper },
   { id: 'lien-he', label: 'Liên hệ', path: '/lien-he', icon: PhoneCall },
 ];
 
 export const Header = () => {
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -46,7 +44,7 @@ export const Header = () => {
               </div>
               <div className="flex flex-col">
                 <span className="font-black text-base md:text-lg text-[#0b3c8f] leading-tight uppercase tracking-wide group-hover:text-blue-600 transition-colors">
-                  Bệnh viện Đa khoa 4AM
+                  Phòng khám Tim mạch 4AM
                 </span>
                 <span className="text-[10px] md:text-[11px] text-slate-500 font-medium tracking-wider">Hệ thống Y tế uy tín</span>
               </div>
@@ -79,6 +77,7 @@ export const Header = () => {
 
               {isLoggedIn && user ? (
                 <div className="flex items-center space-x-2 ml-1">
+                  <NotificationDropdown />
                   <UserProfilePill
                     user={user}
                     roleLabel={currentRole === 'PATIENT' ? 'Cổng Bệnh Nhân' : undefined}
@@ -95,7 +94,7 @@ export const Header = () => {
                   <button
                     onClick={() => {
                       logout();
-                      navigate('/', { replace: true });
+                      navigate('/login', { replace: true });
                     }}
                     className="text-[10px] text-slate-400 hover:text-rose-600 font-bold uppercase tracking-wider ml-1 cursor-pointer bg-transparent border-none outline-none"
                     title="Đăng xuất"
@@ -103,15 +102,7 @@ export const Header = () => {
                     [Thoát]
                   </button>
                 </div>
-              ) : (
-                <button
-                  onClick={() => setIsLoginOpen(true)}
-                  className="flex items-center space-x-1 text-xs text-[#0b3c8f] hover:text-white border border-[#0b3c8f] hover:bg-[#0b3c8f] transition-all font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-2xs cursor-pointer bg-transparent"
-                >
-                  <LogIn className="w-3.5 h-3.5" />
-                  <span>Đăng nhập</span>
-                </button>
-              )}
+              ) : null}
 
               <Link to="/dat-lich" className="flex items-center space-x-1 text-xs text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition-all font-bold uppercase tracking-wider px-4 py-1.5 rounded-full shadow-xs border border-orange-600/20">
                 <Calendar className="w-3.5 h-3.5" />
@@ -239,11 +230,6 @@ export const Header = () => {
       </div>
 
       {/* Render Modals */}
-      <LoginModal
-        isOpen={isLoginOpen}
-        onClose={() => setIsLoginOpen(false)}
-        onLoginSuccess={() => { }}
-      />
       <ChangePasswordModal
         isOpen={isChangePasswordOpen}
         onClose={() => setIsChangePasswordOpen(false)}
