@@ -132,79 +132,79 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = () => {
   };
 
   return (
-    <div className="space-y-4 max-w-4xl mx-auto pb-4 animate-in fade-in duration-200">
-      {/* Liquid Glass Header Banner */}
-      <div className="glass-card-dark p-4.5 md:p-5 text-white flex flex-col md:flex-row md:items-center justify-between gap-3">
-        {/* Ambient liquid glow element */}
-        <div className="absolute -top-10 -right-10 w-40 h-40 bg-blue-400/20 rounded-full blur-2xl pointer-events-none" />
-
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="p-2.5 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 shadow-inner shrink-0">
-            <User className="w-5 h-5 text-blue-300" />
-          </div>
-          <div>
-            <h2 className="text-lg font-extrabold text-white tracking-tight flex items-center gap-2">
-              <span>Thông Tin Tài Khoản Đăng Nhập</span>
-            </h2>
-            <p className="text-[11px] text-blue-200/80 font-medium">
-              Quản lý tài khoản truy cập trực tuyến, bảo mật và thông tin xác thực tại Phòng khám Tim mạch 4AM.
-            </p>
-          </div>
+    <div className="space-y-4 max-w-3xl mx-auto pb-4 animate-in fade-in duration-200">
+      {/* Header tối giản, đồng bộ nền sáng */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 px-5 py-4 flex items-center gap-3.5 shadow-2xs">
+        <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-700 shrink-0">
+          <User className="w-4.5 h-4.5 stroke-[1.8]" />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold text-slate-900 tracking-tight">
+            Thông tin tài khoản
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Quản lý hồ sơ đăng nhập, thông tin liên hệ và bảo mật tài khoản.
+          </p>
         </div>
       </div>
 
       {successMessage && (
-        <div className="p-3.5 bg-emerald-500/10 border border-emerald-400/30 backdrop-blur-md rounded-xl flex items-center gap-2.5 text-emerald-800 text-xs font-bold animate-in fade-in shadow-xs">
+        <div className="px-4 py-3 bg-emerald-50 border border-emerald-200/80 rounded-xl flex items-center gap-2.5 text-emerald-800 text-xs font-medium animate-in fade-in">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>{successMessage}</span>
         </div>
       )}
 
       {errorMessage && (
-        <div className="p-3.5 bg-rose-500/10 border border-rose-400/30 backdrop-blur-md rounded-xl flex items-center gap-2.5 text-rose-800 text-xs font-bold animate-in fade-in shadow-xs">
+        <div className="px-4 py-3 bg-rose-50 border border-rose-200/80 rounded-xl flex items-center gap-2.5 text-rose-800 text-xs font-medium animate-in fade-in">
           <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
           <span>{errorMessage}</span>
         </div>
       )}
 
-      {/* Account Overview Glass Card */}
-      <div className="glass-card p-4.5 md:p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row items-center gap-4.5 pb-4 border-b border-slate-200/60">
-          <div className="relative shrink-0">
+      {/* Thẻ thông tin cá nhân */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-5 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 pb-4 border-b border-slate-100">
+          <div className="relative shrink-0 self-center sm:self-auto">
             {avatarPreview ? (
               <img
                 src={avatarPreview}
                 alt={user?.name}
-                className="w-16 h-16 rounded-full object-cover ring-4 ring-blue-500/20 border-2 border-white shadow-md"
+                className="w-14 h-14 rounded-full object-cover border border-slate-200 shadow-2xs"
               />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-50 to-indigo-100 ring-4 ring-blue-500/20 border-2 border-white flex items-center justify-center text-blue-700 shadow-md shrink-0 font-black text-xl">
-                {user?.name ? user.name.charAt(0).toUpperCase() : <User className="w-8 h-8 text-slate-400" />}
+              <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 font-semibold text-lg shrink-0">
+                {user?.name ? user.name.charAt(0).toUpperCase() : <User className="w-6 h-6 text-slate-400" />}
               </div>
             )}
 
             {isEditing && (
-              <label className="absolute bottom-0 right-0 p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full cursor-pointer transition-all shadow-md active:scale-95">
-                <Upload className="w-3.5 h-3.5" />
+              <label
+                title="Tải ảnh đại diện mới"
+                className="absolute -bottom-0.5 -right-0.5 p-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-full cursor-pointer transition shadow-sm active:scale-95 border border-white"
+              >
+                <Upload className="w-3 h-3" />
                 <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
               </label>
             )}
           </div>
 
-          <div className="space-y-1 text-center sm:text-left flex-1">
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
-              <h3 className="text-lg font-black text-slate-900 tracking-tight">{user?.name || user?.email}</h3>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-800 border border-emerald-300/60 backdrop-blur-xs shadow-2xs">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                Tài khoản Online đã xác thực
+          <div className="space-y-1 text-center sm:text-left flex-1 min-w-0">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <h3 className="text-base font-semibold text-slate-900 tracking-tight truncate">
+                {user?.name || user?.email}
+              </h3>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                Đã xác thực
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-medium pt-0.5">
+            <p className="text-xs text-slate-500 truncate">
               {user?.email}
             </p>
           </div>
 
-          <div>
+          <div className="flex justify-center sm:justify-end">
             {!isEditing ? (
               <button
                 type="button"
@@ -213,16 +213,16 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = () => {
                   setPhoneNumber(user?.phone || '');
                   setIsEditing(true);
                 }}
-                className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-blue-500/20 border border-blue-400/30"
+                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-medium text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
                 <Edit className="w-3.5 h-3.5" />
-                <span>Chỉnh sửa Profile</span>
+                <span>Chỉnh sửa</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => setIsEditing(false)}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200"
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200"
               >
                 <X className="w-3.5 h-3.5" />
                 <span>Hủy</span>
@@ -231,98 +231,98 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = () => {
           </div>
         </div>
 
-        {/* Edit Form or Read-only Display Grid */}
+        {/* Form chỉnh sửa hoặc hiển thị thông tin */}
         {isEditing ? (
-          <form onSubmit={handleSaveProfile} className="p-5 bg-white/70 backdrop-blur-md rounded-2xl border border-white/90 shadow-inner space-y-4">
+          <form onSubmit={handleSaveProfile} className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/80 space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-blue-600" />
-                <span>Cập Nhật Thông Tin Cá Nhân</span>
+              <h4 className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-slate-500" />
+                <span>Cập nhật thông tin cá nhân</span>
               </h4>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">Họ và tên tài khoản *</label>
+                <label className="block text-xs font-medium text-slate-700">Họ và tên *</label>
                 <input
                   type="text"
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full bg-white/90 backdrop-blur-sm text-slate-800 font-semibold py-2.5 px-3.5 rounded-xl border border-slate-200/90 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 transition-all text-xs outline-none shadow-xs"
+                  className="w-full bg-white text-slate-900 font-medium py-2 px-3 rounded-xl border border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 transition-all text-xs outline-none"
                   placeholder="Nhập họ và tên đầy đủ"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">Số điện thoại liên hệ *</label>
+                <label className="block text-xs font-medium text-slate-700">Số điện thoại *</label>
                 <input
                   type="tel"
                   required
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full bg-white/90 backdrop-blur-sm text-slate-800 font-semibold py-2.5 px-3.5 rounded-xl border border-slate-200/90 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 transition-all text-xs outline-none shadow-xs"
+                  className="w-full bg-white text-slate-900 font-medium py-2 px-3 rounded-xl border border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 transition-all text-xs outline-none tabular-nums"
                   placeholder="Nhập số điện thoại"
                 />
               </div>
 
               <div className="space-y-1.5 md:col-span-2">
-                <label className="block text-xs font-bold text-slate-700">Email đăng nhập (Cố định)</label>
+                <label className="block text-xs font-medium text-slate-700">Email đăng nhập</label>
                 <input
                   type="email"
                   disabled
                   value={user?.email || ''}
-                  className="w-full bg-slate-100/80 text-slate-500 font-semibold py-2.5 px-3.5 rounded-xl border text-xs cursor-not-allowed border-slate-200"
+                  className="w-full bg-slate-100 text-slate-500 font-medium py-2 px-3 rounded-xl border border-slate-200 text-xs cursor-not-allowed"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  * Email được dùng làm định danh đăng nhập tài khoản trực tuyến và không thể thay đổi trực tiếp.
+                <p className="text-[11px] text-slate-400">
+                  Email được dùng làm định danh đăng nhập cố định.
                 </p>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2.5 pt-2">
+            <div className="flex justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setIsEditing(false)}
-                className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer shadow-2xs"
+                className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 font-medium text-xs rounded-xl border border-slate-200 transition-all cursor-pointer"
               >
                 Hủy
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all flex items-center gap-2 shadow-md shadow-blue-500/20 border-none cursor-pointer"
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-medium text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
               >
                 {isSubmitting ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
                     <Save className="w-3.5 h-3.5" />
-                    <span>Lưu Cập Nhật Profile</span>
+                    <span>Lưu thay đổi</span>
                   </>
                 )}
               </button>
             </div>
           </form>
         ) : (
-          /* Detailed Account Info Grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-            <div className="glass-card p-4 hover:shadow-lg transition-all space-y-1.5">
-              <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-blue-600" />
-                <span>EMAIL LIÊN HỆ ĐĂNG NHẬP</span>
+          /* Lưới thông tin đơn giản, phẳng và đồng bộ */
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div className="bg-slate-50/70 border border-slate-200/70 rounded-xl px-4 py-3 space-y-1">
+              <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-slate-400" />
+                <span>Email đăng nhập</span>
               </div>
-              <div className="text-xs font-black text-slate-800 font-mono">
+              <div className="text-sm font-medium text-slate-900 truncate">
                 {user?.email}
               </div>
             </div>
 
-            <div className="glass-card p-4 hover:shadow-lg transition-all space-y-1.5">
-              <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-blue-600" />
-                <span>SỐ ĐIỆN THOẠI XÁC THỰC</span>
+            <div className="bg-slate-50/70 border border-slate-200/70 rounded-xl px-4 py-3 space-y-1">
+              <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                <span>Số điện thoại xác thực</span>
               </div>
-              <div className="text-xs font-black text-slate-800 font-mono">
+              <div className="text-sm font-medium text-slate-900 tabular-nums">
                 {user?.phone || 'Chưa cập nhật'}
               </div>
             </div>
@@ -330,126 +330,134 @@ export const AccountInfoView: React.FC<AccountInfoViewProps> = () => {
         )}
       </div>
 
-      {/* Security & Change Password Glass Section */}
-      <div className="glass-card p-4.5 md:p-5 space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-200/60">
+      {/* Thẻ Bảo mật & Đổi mật khẩu */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-4 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-blue-500/10 text-blue-600 border border-blue-200/50 backdrop-blur-xs">
-              <Lock className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-700 shrink-0">
+              <Lock className="w-4.5 h-4.5 stroke-[1.8]" />
             </div>
             <div>
-              <h3 className="font-extrabold text-sm text-slate-900 tracking-tight">Bảo Mật & Mật Khẩu Đăng Nhập</h3>
-              <p className="text-xs text-slate-500 font-medium">Đổi mật khẩu định kỳ để đảm bảo an toàn thông tin tài khoản.</p>
+              <h3 className="text-sm font-semibold text-slate-900 tracking-tight">
+                Bảo mật & mật khẩu
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Đổi mật khẩu định kỳ để giữ an toàn cho tài khoản.
+              </p>
             </div>
           </div>
 
           <button
             type="button"
             onClick={() => setShowPasswordSection(!showPasswordSection)}
-            className="px-4 py-2 bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-900 hover:to-black active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-md border border-white/20"
+            className={`self-start sm:self-auto px-3.5 py-2 font-medium text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer active:scale-[0.98] ${
+              showPasswordSection
+                ? 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200'
+                : 'bg-slate-900 hover:bg-slate-800 text-white shadow-2xs'
+            }`}
           >
-            <Key className="w-3.5 h-3.5 text-blue-400" />
-            <span>{showPasswordSection ? 'Ẩn Form Đổi Mật Khẩu' : 'Đổi Mật Khẩu'}</span>
+            <Key className="w-3.5 h-3.5" />
+            <span>{showPasswordSection ? 'Đóng' : 'Đổi mật khẩu'}</span>
           </button>
         </div>
 
         {passSuccessMsg && (
-          <div className="p-4 bg-emerald-500/10 border border-emerald-400/30 backdrop-blur-md rounded-2xl flex items-center gap-3 text-emerald-800 text-xs font-bold animate-in fade-in shadow-xs">
-            <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
+          <div className="px-4 py-3 bg-emerald-50 border border-emerald-200/80 rounded-xl flex items-center gap-2.5 text-emerald-800 text-xs font-medium animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{passSuccessMsg}</span>
           </div>
         )}
 
         {passErrorMsg && (
-          <div className="p-4 bg-rose-500/10 border border-rose-400/30 backdrop-blur-md rounded-2xl flex items-center gap-3 text-rose-800 text-xs font-bold animate-in fade-in shadow-xs">
-            <AlertTriangle className="w-4.5 h-4.5 text-rose-600 shrink-0" />
+          <div className="px-4 py-3 bg-rose-50 border border-rose-200/80 rounded-xl flex items-center gap-2.5 text-rose-800 text-xs font-medium animate-in fade-in">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
             <span>{passErrorMsg}</span>
           </div>
         )}
 
         {showPasswordSection && (
-          <form onSubmit={handleChangePassword} className="p-5 bg-slate-50/80 backdrop-blur-md rounded-2xl border border-slate-200/80 space-y-4 animate-in fade-in duration-200">
-            <div className="space-y-4">
-              {/* Row 1: Mật khẩu hiện tại (Full width) */}
+          <form onSubmit={handleChangePassword} className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/80 space-y-3.5 animate-in fade-in duration-200">
+            <div className="space-y-3.5">
+              {/* Mật khẩu hiện tại */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">Mật khẩu hiện tại *</label>
+                <label className="block text-xs font-medium text-slate-700">Mật khẩu hiện tại *</label>
                 <div className="relative">
                   <input
                     type={showCurrentPass ? 'text' : 'password'}
                     required
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="w-full bg-white text-slate-800 font-semibold py-2.5 pl-3.5 pr-10 rounded-xl border border-slate-200/90 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 transition-all text-xs outline-none shadow-xs"
-                    placeholder="Nhập mật khẩu hiện tại của bạn"
+                    className="w-full bg-white text-slate-900 font-medium py-2 pl-3 pr-9 rounded-xl border border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 transition-all text-xs outline-none"
+                    placeholder="Nhập mật khẩu hiện tại"
                   />
                   <button
                     type="button"
                     onClick={() => setShowCurrentPass(!showCurrentPass)}
-                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer p-1"
+                    className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer p-1"
                   >
-                    {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showCurrentPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
 
-              {/* Row 2: Mật khẩu mới & Xác nhận mật khẩu (2 cột rộng rãi) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Mật khẩu mới & Xác nhận */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700">Mật khẩu mới *</label>
+                  <label className="block text-xs font-medium text-slate-700">Mật khẩu mới *</label>
                   <div className="relative">
                     <input
                       type={showNewPass ? 'text' : 'password'}
                       required
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full bg-white text-slate-800 font-semibold py-2.5 pl-3.5 pr-10 rounded-xl border border-slate-200/90 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 transition-all text-xs outline-none shadow-xs"
+                      className="w-full bg-white text-slate-900 font-medium py-2 pl-3 pr-9 rounded-xl border border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 transition-all text-xs outline-none"
                       placeholder="Ít nhất 8 ký tự"
                     />
                     <button
                       type="button"
                       onClick={() => setShowNewPass(!showNewPass)}
-                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer p-1"
+                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer p-1"
                     >
-                      {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showNewPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700">Xác nhận mật khẩu mới *</label>
+                  <label className="block text-xs font-medium text-slate-700">Xác nhận mật khẩu mới *</label>
                   <div className="relative">
                     <input
                       type={showConfirmPass ? 'text' : 'password'}
                       required
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full bg-white text-slate-800 font-semibold py-2.5 pl-3.5 pr-10 rounded-xl border border-slate-200/90 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 transition-all text-xs outline-none shadow-xs"
+                      className="w-full bg-white text-slate-900 font-medium py-2 pl-3 pr-9 rounded-xl border border-slate-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 transition-all text-xs outline-none"
                       placeholder="Nhập lại mật khẩu mới"
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPass(!showConfirmPass)}
-                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer p-1"
+                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer p-1"
                     >
-                      {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showConfirmPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-1">
               <button
                 type="submit"
                 disabled={isChangingPass}
-                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all flex items-center gap-2 shadow-md shadow-blue-500/20 border-none cursor-pointer"
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-medium text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
               >
                 {isChangingPass ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
                     <Key className="w-3.5 h-3.5" />
-                    <span>Cập Nhật Mật Khẩu Mới</span>
+                    <span>Cập nhật mật khẩu</span>
                   </>
                 )}
               </button>

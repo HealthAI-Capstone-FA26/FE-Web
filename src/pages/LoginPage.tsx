@@ -10,6 +10,7 @@ import { RegisterForm } from '../components/auth/RegisterForm';
 import { ForgotPasswordForm } from '../components/auth/ForgotPasswordForm';
 import { OtpVerificationStep } from '../components/auth/OtpVerificationStep';
 import { ResetPasswordStep } from '../components/auth/ResetPasswordStep';
+import { MatrixField } from '../effects/matrix-field/MatrixField';
 
 interface LoginPageProps {
   initialMode?: 'login' | 'register' | 'forgot-password';
@@ -264,11 +265,11 @@ export const LoginPage = ({ initialMode = 'login' }: LoginPageProps): React.Reac
   };
 
   return (
-    <div className="min-h-screen w-full relative flex items-center justify-center overflow-y-auto font-sans bg-slate-950 p-4 py-8">
-      {/* Background radial glow */}
-      <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/30 via-slate-950 to-slate-950" />
-      <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-32 -right-32 w-96 h-96 rounded-full bg-indigo-600/15 blur-3xl pointer-events-none" />
+    <div className="min-h-screen w-full relative flex items-center justify-center overflow-y-auto font-sans bg-black p-4 py-8">
+      {/* Matrix Field WebGL Background */}
+      <div className="fixed inset-0 z-0 overflow-hidden">
+        <MatrixField />
+      </div>
 
       {/* Main Container Card */}
       <motion.div
