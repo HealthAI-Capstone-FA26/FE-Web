@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { User, Stethoscope, Sparkles, FileText, Calendar } from 'lucide-react';
+import { User, Stethoscope, Sparkles, FileText, Calendar, CheckCircle2 } from 'lucide-react';
 import { Mascot } from 'page-mascot';
 import {
   encounterService,
@@ -1105,6 +1105,13 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
   // Trạng thái quy trình ca khám hiện tại
   const currentWorkflowState = (activeEncounterId ? patientWorkflowStates[activeEncounterId] : undefined) || 'initial';
 
+  // Đã xác nhận chỉ định CLS hoặc đã có kết quả -> ẩn form khám & tạo phiếu chỉ định
+  const hasConfirmedOrderOrResult =
+    currentWorkflowState !== 'initial' ||
+    existingTestOrders.some((order) =>
+      (order.items || []).some((item) => item.status !== 'cancelled')
+    );
+
   const handleToggleCatalogItem = (testTypeId: string) => {
     setSelectedTestTypeIds((prev) =>
       prev.includes(testTypeId) ? prev.filter((id) => id !== testTypeId) : [...prev, testTypeId]
@@ -1448,43 +1455,76 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
               {/* Tab 2: Ghi nhận Khám lâm sàng & Chẩn đoán sơ bộ + Chỉ định Cận lâm sàng + Phiếu đã lập */}
               {activeSubTab === 'clinical_orders' && (
                 <div className="space-y-6 animate-in fade-in duration-150">
-                  {/* Component 4: Doctor Clinical Examination & Preliminary Diagnosis */}
-                  <ClinicalExamForm
-                    encounterId={activeEncounterId}
-                    patientPosition={patientPosition}
-                    setPatientPosition={setPatientPosition}
-                    inspectionFindings={inspectionFindings}
-                    setInspectionFindings={setInspectionFindings}
-                    palpationFindings={palpationFindings}
-                    setPalpationFindings={setPalpationFindings}
-                    percussionFindings={percussionFindings}
-                    setPercussionFindings={setPercussionFindings}
-                    auscultationFindings={auscultationFindings}
-                    setAuscultationFindings={setAuscultationFindings}
-                    clinicalNotes={clinicalNotes}
-                    setClinicalNotes={setClinicalNotes}
-                    clinicalExamNote={auscultationFindings}
-                    setClinicalExamNote={setAuscultationFindings}
-                    preliminaryDiag={preliminaryDiag}
-                    setPreliminaryDiag={setPreliminaryDiag}
-                    onQuickDiagnosisSelect={handleQuickDiagnosisSelect}
-                    examWarningMsg={examWarningMsg}
-                  />
+                  {!hasConfirmedOrderOrResult ? (
+                    <>
+                      {/* Component 4: Doctor Clinical Examination & Preliminary Diagnosis */}
+                      <ClinicalExamForm
+                        encounterId={activeEncounterId}
+                        patientPosition={patientPosition}
+                        setPatientPosition={setPatientPosition}
+                        inspectionFindings={inspectionFindings}
+                        setInspectionFindings={setInspectionFindings}
+                        palpationFindings={palpationFindings}
+                        setPalpationFindings={setPalpationFindings}
+                        percussionFindings={percussionFindings}
+                        setPercussionFindings={setPercussionFindings}
+                        auscultationFindings={auscultationFindings}
+                        setAuscultationFindings={setAuscultationFindings}
+                        clinicalNotes={clinicalNotes}
+                        setClinicalNotes={setClinicalNotes}
+                        clinicalExamNote={auscultationFindings}
+                        setClinicalExamNote={setAuscultationFindings}
+                        preliminaryDiag={preliminaryDiag}
+                        setPreliminaryDiag={setPreliminaryDiag}
+                        onQuickDiagnosisSelect={handleQuickDiagnosisSelect}
+                        examWarningMsg={examWarningMsg}
+                      />
 
-                  {/* Component 5: Test Order Creation Form */}
-                  <TestOrderCreationCard
-                    services={servicesCatalog}
-                    isLoadingServices={isLoadingServices}
-                    selectedTestTypeIds={selectedTestTypeIds}
-                    onToggleCatalogItem={handleToggleCatalogItem}
-                    totalEstimatedCost={totalEstimatedCost}
-                    orderNotes={orderNotes}
-                    setOrderNotes={setOrderNotes}
-                    isSubmittingOrder={isSubmittingOrder}
-                    submitSuccessMsg={submitSuccessMsg}
-                    submitErrorMsg={submitErrorMsg}
-                    onSubmitOrder={handleConfirmDiagnosis}
-                  />
+                      {/* Component 5: Test Order Creation Form */}
+                      <TestOrderCreationCard
+                        services={servicesCatalog}
+                        isLoadingServices={isLoadingServices}
+                        selectedTestTypeIds={selectedTestTypeIds}
+                        onToggleCatalogItem={handleToggleCatalogItem}
+                        totalEstimatedCost={totalEstimatedCost}
+                        orderNotes={orderNotes}
+                        setOrderNotes={setOrderNotes}
+                        isSubmittingOrder={isSubmittingOrder}
+                        submitSuccessMsg={submitSuccessMsg}
+                        submitErrorMsg={submitErrorMsg}
+                        onSubmitOrder={handleConfirmDiagnosis}
+                      />
+                    </>
+                  ) : (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                          <CheckCircle2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-emerald-900">
+                            {currentWorkflowState === 'completed'
+                              ? 'Bệnh nhân đã có kết quả Cận lâm sàng'
+                              : 'Đã xác nhận Khám lâm sàng & Chỉ định Cận lâm sàng'}
+                          </p>
+                          <p className="text-xs text-emerald-700 mt-0.5">
+                            {currentWorkflowState === 'completed'
+                              ? 'Toàn bộ kết quả xét nghiệm đã hoàn tất. Bác sĩ có thể xem chi tiết bên dưới hoặc chuyển sang tab Phân tích ảnh AI / Chẩn đoán.'
+                              : 'Phiếu chỉ định đã được xác nhận cho ca khám này. Chi tiết các dịch vụ đã chỉ định hiển thị ở danh sách bên dưới.'}
+                          </p>
+                        </div>
+                      </div>
+                      {currentWorkflowState === 'completed' && (
+                        <button
+                          type="button"
+                          onClick={() => navigateTab('icd10-diagnosis')}
+                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shrink-0 cursor-pointer"
+                        >
+                          Xem KQ & Chẩn đoán
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {/* Component 6: Test Order History List */}
                   <div id="test-order-history-section">
