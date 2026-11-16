@@ -117,15 +117,18 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
       if (intakeData.identityVerification) {
         try {
           let idNum: string | undefined = intakeData.identityVerification.identityNumber;
-          if (!idNum && patientId) {
+          let insNum: string | undefined = intakeData.identityVerification.insuranceNumber;
+          if ((!idNum || !insNum) && patientId) {
             try {
               const p = await patientService.getPatientById(patientId);
-              idNum = p?.identityNumber || undefined;
+              if (!idNum) idNum = p?.identityNumber || undefined;
+              if (!insNum) insNum = p?.insuranceNumber || undefined;
             } catch { }
           }
           await encounterService.recordIdentityVerification(encId, {
             ...intakeData.identityVerification,
             identityNumber: idNum || undefined,
+            insuranceNumber: insNum || undefined,
           });
         } catch (idErr) {
           console.warn('Lỗi ghi nhận xác minh danh tính:', idErr);

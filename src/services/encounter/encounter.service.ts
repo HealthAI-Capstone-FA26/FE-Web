@@ -8,6 +8,7 @@ export interface EncounterPatient {
   dateOfBirth?: string;
   gender?: string;
   identityNumber?: string;
+  insuranceNumber?: string;
   bloodType?: string;
 }
 
@@ -149,6 +150,7 @@ export interface CreateIdentityVerificationDto {
   verificationStatus: VerificationStatus;
   mismatchNotes?: string;
   identityNumber?: string;
+  insuranceNumber?: string;
 }
 
 export const encounterService = {

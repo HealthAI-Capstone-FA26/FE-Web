@@ -476,6 +476,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       intakeData?.identityVerification?.identityNumber ||
       patientDetail?.identityNumber ||
       undefined;
+    const patientInsuranceNumber =
+      intakeData?.identityVerification?.insuranceNumber ||
+      patientDetail?.insuranceNumber ||
+      undefined;
 
     if (intakeData) {
       // 1. Ghi nhận lý do khám & triệu chứng ban đầu (Chief Complaint)
@@ -493,6 +497,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
           await encounterService.recordIdentityVerification(encId, {
             ...intakeData.identityVerification,
             identityNumber: patientIdentityNumber,
+            insuranceNumber: patientInsuranceNumber,
           });
         } catch (idErr) {
           console.warn('Lỗi ghi nhận xác minh danh tính:', idErr);
@@ -519,6 +524,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
             verificationMethod: 'national_id_card',
             verificationStatus: 'verified',
             identityNumber: patientIdentityNumber,
+            insuranceNumber: patientInsuranceNumber,
           });
         } catch (idErr) {
           console.warn('Lỗi ghi nhận xác minh danh tính bổ sung:', idErr);
@@ -526,24 +532,8 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       }
     }
 
-    // Tự động chuyển hồ sơ từ Draft sang Main nếu là guest đặt lịch online qua OTP
-    if (pId && patientDetail && patientDetail.status === 'draft') {
-      try {
-        await appointmentService.confirmMainPatient(pId, {
-          fullName: patientDetail.fullName,
-          dateOfBirth: patientDetail.dateOfBirth
-            ? new Date(patientDetail.dateOfBirth).toISOString()
-            : new Date().toISOString(),
-          gender: patientDetail.gender,
-          identityNumber: patientDetail.identityNumber || patientIdentityNumber || '',
-          phoneNumber: patientDetail.phoneNumber,
-        });
-      } catch (confirmErr) {
-        console.warn('Tự động chuyển draft sang main thất bại:', confirmErr);
-      }
-    }
-
-    // 4. Kiểm tra đầy đủ điều kiện và chuyển trạng thái Encounter: arrived -> registered, tự động đẩy vào TriageQueueEntry
+    // 4. Kiểm tra đầy đủ điều kiện và chuyển trạng thái Encounter: arrived -> registered
+    // (Backend tự động chuyển Patient.status từ draft -> main và đẩy vào TriageQueueEntry)
     await encounterService.completeRegistration(encId);
   };
 

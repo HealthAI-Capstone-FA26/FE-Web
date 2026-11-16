@@ -56,7 +56,6 @@ export interface GuestVerifyOtpPayload {
 export interface SyncPatientPayload {
   appointmentId: string;
   fullName: string;
-  identityNumber: string;
   phoneNumber: string;
 }
 
@@ -64,8 +63,6 @@ export interface ConfirmMainPatientPayload {
   fullName?: string;
   dateOfBirth?: string;
   gender?: string;
-  identityNumber?: string;
-  insuranceNumber?: string;
   phoneNumber?: string;
 }
 

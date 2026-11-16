@@ -49,6 +49,8 @@ export const IdentityVerificationHistoryModal: React.FC<IdentityVerificationHist
   const [method, setMethod] = useState<VerificationMethod>('national_id_card');
   const [status, setStatus] = useState<VerificationStatus>('verified');
   const [mismatchNotes, setMismatchNotes] = useState<string>('');
+  const [identityNumber, setIdentityNumber] = useState<string>('');
+  const [insuranceNumber, setInsuranceNumber] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const fetchHistory = useCallback(async () => {
@@ -71,14 +73,32 @@ export const IdentityVerificationHistoryModal: React.FC<IdentityVerificationHist
       fetchHistory();
       setIsReverifying(false);
       setMismatchNotes('');
+      setIdentityNumber(patientIdentityNumber || '');
+      setInsuranceNumber('');
+      encounterService
+        .getEncounterById(encounterId)
+        .then((enc) => {
+          if (enc?.patient?.identityNumber) {
+            setIdentityNumber(enc.patient.identityNumber);
+          }
+          if (enc?.patient?.insuranceNumber) {
+            setInsuranceNumber(enc.patient.insuranceNumber);
+          }
+        })
+        .catch(() => {});
     } else {
       setLogs([]);
     }
-  }, [isOpen, encounterId, fetchHistory]);
+  }, [isOpen, encounterId, patientIdentityNumber, fetchHistory]);
 
   const handleCreateVerification = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!encounterId) return;
+
+    if (!identityNumber.trim()) {
+      setErrorMessage('Số CCCD/CMND là bắt buộc khi xác minh danh tính');
+      return;
+    }
 
     if (status === 'failed' && !mismatchNotes.trim()) {
       setErrorMessage('Vui lòng nhập lý do không khớp khi xác minh thất bại');
@@ -97,19 +117,12 @@ export const IdentityVerificationHistoryModal: React.FC<IdentityVerificationHist
         ? (mismatchNotes.trim() ? `${prefix} ${mismatchNotes.trim()}` : prefix)
         : (mismatchNotes.trim() || undefined);
 
-      let idNum = patientIdentityNumber;
-      if (!idNum && encounterId) {
-        try {
-          const enc = await encounterService.getEncounterById(encounterId);
-          idNum = enc?.patient?.identityNumber;
-        } catch { }
-      }
-
       await encounterService.recordIdentityVerification(encounterId, {
         verificationMethod: apiMethod,
         verificationStatus: status,
         mismatchNotes: finalNotes,
-        identityNumber: idNum || undefined,
+        identityNumber: identityNumber.trim(),
+        insuranceNumber: insuranceNumber.trim() || undefined,
       });
 
       // Tự động hoàn tất tiếp đón nếu ca khám đủ điều kiện nhưng đang bị dừng ở arrived
@@ -301,6 +314,33 @@ export const IdentityVerificationHistoryModal: React.FC<IdentityVerificationHist
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Số CCCD / CMND đối chiếu: <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={identityNumber}
+                  onChange={(e) => setIdentityNumber(e.target.value)}
+                  placeholder="Nhập số CCCD/CMND..."
+                  className="w-full p-2 bg-white border border-slate-200 rounded-xl font-mono font-semibold text-slate-800 focus:outline-none focus:border-teal-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Mã thẻ BHYT (không bắt buộc):
+                </label>
+                <input
+                  type="text"
+                  value={insuranceNumber}
+                  onChange={(e) => setInsuranceNumber(e.target.value)}
+                  placeholder="Nhập mã thẻ BHYT (nếu có)..."
+                  className="w-full p-2 bg-white border border-slate-200 rounded-xl font-mono font-semibold text-slate-800 focus:outline-none focus:border-teal-500"
+                />
+              </div>
+
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Phương thức đối chiếu:</label>
                 <select
