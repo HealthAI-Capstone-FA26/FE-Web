@@ -19,6 +19,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
+import { LiquidChromeButton } from '../../components/common/LiquidChromeButton';
 import { queueTicketService, type QueueTicketItem } from '../../services/queue/queue-ticket.service';
 import { doctorService, type DoctorResponse } from '../../services/doctor/doctor.service';
 import { encounterService } from '../../services/encounter/encounter.service';
@@ -743,8 +744,8 @@ const ReceptionQueueCallingBoard: React.FC = () => {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2.5 mb-1.5">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-teal-500/20">
-                <Megaphone className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-b from-white to-slate-100 border border-slate-200/90 flex items-center justify-center text-slate-700 shadow-xs">
+                <Megaphone className="w-5 h-5 stroke-[1.8]" />
               </div>
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight">
@@ -766,7 +767,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 value={selectedCounter}
                 onChange={(e) => setSelectedCounter(e.target.value)}
                 aria-label="Chọn quầy phục vụ"
-                className="bg-transparent text-sm font-bold text-teal-700 outline-none cursor-pointer"
+                className="bg-transparent text-sm font-semibold text-slate-800 outline-none cursor-pointer"
               >
                 <option value="Quầy 01">Quầy 01 (Tiếp nhận chung)</option>
                 <option value="Quầy 02">Quầy 02 (Khám trực tiếp)</option>
@@ -777,13 +778,13 @@ const ReceptionQueueCallingBoard: React.FC = () => {
 
             {/* Bộ chọn Ngày hàng đợi */}
             <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
-              <Calendar className="w-4 h-4 text-teal-600" />
+              <Calendar className="w-4 h-4 text-slate-500" />
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
                 aria-label="Chọn ngày hàng đợi"
-                className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer tabular-nums"
                 title="Chọn ngày hàng đợi khám"
               />
             </div>
@@ -797,9 +798,9 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                   speakQueueAnnouncement('TEST', 'Thử Giọng Đọc', selectedCounter, e.target.value);
                 }}
                 aria-label="Chọn giọng đọc phát thanh"
-                className="bg-transparent text-xs font-bold text-teal-700 outline-none cursor-pointer max-w-[150px] sm:max-w-[200px] truncate"
+                className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer max-w-[150px] sm:max-w-[200px] truncate"
               >
-                <option value="google_tts_vi">🔊 Tiếng Việt Chuẩn (AI Voice)</option>
+                <option value="google_tts_vi">Tiếng Việt Chuẩn (AI Voice)</option>
                 {availableVoices.map((v) => {
                   const isVi = v.lang.toLowerCase().includes('vi') || v.name.toLowerCase().includes('vietnamese') || v.name.toLowerCase().includes('tiếng việt');
                   return (
@@ -820,12 +821,12 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 }
               }}
               title={isAudioEnabled ? 'Âm thanh tự động: Đang BẬT (Bấm để TẮT)' : 'Âm thanh tự động: Đang TẮT (Bấm để BẬT)'}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer ${isAudioEnabled
-                ? 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100'
-                : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition cursor-pointer ${isAudioEnabled
+                ? 'bg-slate-100 border-slate-300 text-slate-800 hover:bg-slate-200/80'
+                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
                 }`}
             >
-              {isAudioEnabled ? <Volume2 className="w-4 h-4 text-teal-600" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+              {isAudioEnabled ? <Volume2 className="w-4 h-4 text-slate-700" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
               <span>{isAudioEnabled ? 'Âm loa: Bật' : 'Âm loa: Tắt'}</span>
             </button>
 
@@ -855,18 +856,56 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       {/* HERO SECTION: Bảng điều khiển Gọi Số Trực Tiếp */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* CỘT TRÁI: Số ĐANG ĐƯỢC GỌI TẠI QUẦY */}
-        <div className="lg:col-span-7 bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="lg:col-span-7 bg-white rounded-2xl p-6 text-slate-900 border border-teal-200/80 shadow-[0_12px_32px_-12px_rgba(13,148,136,0.16)] relative overflow-hidden flex flex-col justify-between">
+          {/* Ambient depth: mesh gradient nhẹ + micro dot pattern đồng bộ light-mode */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-60"
+            style={{
+              backgroundImage:
+                'radial-gradient(circle at 92% 10%, rgba(20, 184, 166, 0.12) 0%, transparent 45%), radial-gradient(circle at 8% 95%, rgba(6, 182, 212, 0.08) 0%, transparent 40%)',
+            }}
+          />
+          <div
+            className="absolute inset-0 pointer-events-none opacity-[0.35]"
+            style={{
+              backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)',
+              backgroundSize: '20px 20px',
+            }}
+          />
 
-          <div>
-            <div className="flex items-center justify-between border-b border-slate-700/60 pb-3 mb-5">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-ping" />
-                <span className="text-xs font-bold uppercase tracking-wider text-teal-300">
+          <div className="relative z-10">
+            {/* Header bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3.5 mb-5">
+              <div className="flex items-center gap-2.5">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span
+                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                      stats.currentServingTicket ? 'bg-emerald-400' : 'bg-teal-400'
+                    }`}
+                  />
+                  <span
+                    className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                      stats.currentServingTicket ? 'bg-emerald-500' : 'bg-teal-500'
+                    }`}
+                  />
+                </span>
+                <span className="text-xs font-extrabold uppercase tracking-wider text-teal-800">
                   Đang phục vụ tại {selectedCounter}
                 </span>
               </div>
-              <span className="text-xs font-medium text-slate-400">
+
+              <span
+                className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border tabular-nums ${
+                  stats.currentServingTicket?.calledAt
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                    : 'bg-slate-50 text-slate-600 border-slate-200/80'
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    stats.currentServingTicket?.calledAt ? 'bg-emerald-500' : 'bg-slate-400'
+                  }`}
+                />
                 {stats.currentServingTicket?.calledAt
                   ? `Đã gọi lúc ${new Date(stats.currentServingTicket.calledAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
                   : 'Sẵn sàng phục vụ'}
@@ -875,43 +914,55 @@ const ReceptionQueueCallingBoard: React.FC = () => {
 
             {stats.currentServingTicket ? (
               <div className="space-y-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`text-5xl font-black tracking-tight font-mono px-4 py-1.5 rounded-2xl shadow-inner ${stats.currentServingTicket.ticketPrefix === 'A'
-                          ? 'bg-teal-500/20 text-teal-300 border border-teal-400/30'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
-                          }`}
-                      >
-                        {formatTicketCode(stats.currentServingTicket)}
-                      </span>
-                      <div>
-                        <h3 className="text-2xl font-bold text-white tracking-tight">
-                          {stats.currentServingTicket.ticketPrefix === 'B' && !stats.currentServingTicket.appointment
-                            ? 'Khách vãng lai (Lấy số tại quầy/Kiosk)'
-                            : (stats.currentServingTicket.appointment?.patient?.fullName || 'Bệnh nhân chưa đặt tên')}
-                        </h3>
-                        <div className="flex items-center gap-3 text-xs text-slate-300 mt-1">
-                          {stats.currentServingTicket.ticketPrefix === 'B' && !stats.currentServingTicket.appointment ? (
-                            <span className="text-amber-300 font-semibold">Chưa có hồ sơ • Bấm "Xử lý tiếp nhận" để chọn/tạo hồ sơ</span>
-                          ) : (
-                            <>
-                              <span>CCCD: {stats.currentServingTicket.appointment?.patient?.identityNumber || '---'}</span>
-                              <span>•</span>
-                              <span>SĐT: {stats.currentServingTicket.appointment?.patient?.phoneNumber || '---'}</span>
-                            </>
-                          )}
-                        </div>
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`text-4xl sm:text-5xl font-black tracking-tight font-mono tabular-nums px-4 py-2.5 rounded-2xl border shadow-xs ${
+                        stats.currentServingTicket.ticketPrefix === 'A'
+                          ? 'bg-gradient-to-br from-teal-50 to-cyan-50 text-teal-700 border-teal-200'
+                          : 'bg-gradient-to-br from-amber-50 to-orange-50 text-amber-700 border-amber-200'
+                      }`}
+                    >
+                      {formatTicketCode(stats.currentServingTicket)}
+                    </div>
+                    <div>
+                      <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight leading-snug">
+                        {stats.currentServingTicket.ticketPrefix === 'B' && !stats.currentServingTicket.appointment
+                          ? 'Khách vãng lai (Lấy số tại quầy/Kiosk)'
+                          : (stats.currentServingTicket.appointment?.patient?.fullName || 'Bệnh nhân chưa đặt tên')}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 mt-1 tabular-nums">
+                        {stats.currentServingTicket.ticketPrefix === 'B' && !stats.currentServingTicket.appointment ? (
+                          <span className="text-amber-700 font-semibold">
+                            Chưa có hồ sơ • Bấm "Hoàn Tất Tiếp Nhận & Chuyển Khám" để chọn hoặc tạo hồ sơ
+                          </span>
+                        ) : (
+                          <>
+                            <span>
+                              CCCD:{' '}
+                              <strong className="font-semibold text-slate-800">
+                                {stats.currentServingTicket.appointment?.patient?.identityNumber || '---'}
+                              </strong>
+                            </span>
+                            <span className="text-slate-300">•</span>
+                            <span>
+                              SĐT:{' '}
+                              <strong className="font-semibold text-slate-800">
+                                {stats.currentServingTicket.appointment?.patient?.phoneNumber || '---'}
+                              </strong>
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   <span
-                    className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider ${stats.currentServingTicket.ticketPrefix === 'A'
-                      ? 'bg-teal-900/60 text-teal-300 border border-teal-600/40'
-                      : 'bg-amber-900/60 text-amber-300 border border-amber-600/40'
-                      }`}
+                    className={`self-start inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-lg font-bold uppercase tracking-wider border ${
+                      stats.currentServingTicket.ticketPrefix === 'A'
+                        ? 'bg-teal-50 text-teal-700 border-teal-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}
                   >
                     {stats.currentServingTicket.ticketPrefix === 'A' ? (
                       <>
@@ -928,54 +979,73 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 </div>
 
                 {/* Thông tin khám */}
-                <div className="bg-slate-800/60 backdrop-blur-xs rounded-xl p-3.5 border border-slate-700/50 grid grid-cols-2 gap-3 text-xs">
+                <div className="bg-slate-50/90 rounded-xl p-4 border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
                   <div>
-                    <span className="text-slate-400 block mb-0.5">Mã lịch hẹn:</span>
-                    <span className="font-mono font-bold text-teal-300">
+                    <span className="text-slate-500 font-medium block mb-0.5">Mã lịch hẹn</span>
+                    <span className="font-mono font-bold text-teal-700 tabular-nums">
                       {stats.currentServingTicket.appointment?.appointmentCode || '---'}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block mb-0.5">Bác sĩ khám:</span>
-                    <span className="font-semibold text-slate-200">
+                    <span className="text-slate-500 font-medium block mb-0.5">Bác sĩ phụ trách</span>
+                    <span className="font-semibold text-slate-800">
                       {stats.currentServingTicket.appointment?.doctor?.user?.fullName ||
                         stats.currentServingTicket.appointment?.doctor?.fullName ||
                         '(Chưa gán bác sĩ)'}
                     </span>
                   </div>
-                  <div className="col-span-2">
-                    <span className="text-slate-400 block mb-0.5">Lý do khám / Triệu chứng:</span>
-                    <span className="text-slate-300 italic">
+                  <div className="sm:col-span-2 pt-2 border-t border-slate-200/70">
+                    <span className="text-slate-500 font-medium block mb-0.5">Lý do khám / Triệu chứng</span>
+                    <span className="text-slate-700">
                       {stats.currentServingTicket.appointment?.reasonForVisit || 'Khám tổng quát theo yêu cầu'}
                     </span>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8 text-slate-400">
-                <Megaphone className="w-12 h-12 mx-auto mb-2 text-slate-600 opacity-60" />
-                <p className="text-sm font-medium">Chưa có số thứ tự nào đang được gọi tại quầy này.</p>
-                <p className="text-xs text-slate-500 mt-1">Bấm "Gọi số tiếp theo" bên phải để đón tiếp bệnh nhân.</p>
+              <div className="py-7 px-4 flex flex-col items-center justify-center text-center">
+                <div className="relative mb-4">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-200/80 shadow-xs flex items-center justify-center">
+                    <Megaphone className="w-7 h-7 text-teal-600" />
+                  </div>
+                  <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-teal-700 shadow-2xs tabular-nums">
+                    {selectedCounter.replace(/\D/g, '') || '01'}
+                  </span>
+                </div>
+
+                <h4 className="text-base font-bold text-slate-800 tracking-tight">
+                  Chưa có số thứ tự nào đang được gọi
+                </h4>
+                <p className="text-xs text-slate-500 mt-1.5 max-w-md leading-relaxed">
+                  {stats.waitingCount > 0
+                    ? `Hiện có ${stats.waitingCount} bệnh nhân đang chờ. Chọn "Gọi số tiếp theo" ở bảng bên phải để bắt đầu tiếp đón.`
+                    : 'Hàng chờ hiện tại đang trống. Khi bệnh nhân lấy số tại Kiosk hoặc đặt lịch đến check-in, thông tin sẽ hiển thị tại đây.'}
+                </p>
+
+                <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200/80 text-[11px] font-semibold text-slate-600 tabular-nums">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
+                  <span>Đang chờ trong hàng đợi: {stats.waitingCount} lượt</span>
+                </div>
               </div>
             )}
           </div>
 
           {/* Nút thao tác của Thẻ Đang Phục Vụ */}
           {stats.currentServingTicket && (
-            <div className="flex items-center gap-3 pt-5 mt-5 border-t border-slate-700/60">
+            <div className="relative z-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 mt-5 border-t border-slate-100">
               <button
                 onClick={() => handleReplayAudio(stats.currentServingTicket!)}
                 disabled={actionLoadingId === stats.currentServingTicket.ticketId}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-700/70 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition cursor-pointer border border-slate-600/50"
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-100 hover:bg-slate-200/80 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.98] cursor-pointer border border-slate-200/80"
               >
-                <Volume2 className="w-4 h-4 text-teal-400" />
+                <Volume2 className="w-4 h-4 text-teal-600" />
                 <span>Phát Lại Âm Thanh</span>
               </button>
 
               <button
                 onClick={() => handleServeTicket(stats.currentServingTicket!)}
                 disabled={actionLoadingId === stats.currentServingTicket.ticketId || isCheckingInvoice === stats.currentServingTicket.ticketId}
-                className="flex-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-teal-500/25 cursor-pointer disabled:opacity-60"
+                className="flex-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.98] shadow-md shadow-teal-600/20 cursor-pointer disabled:opacity-60"
               >
                 {isCheckingInvoice === stats.currentServingTicket.ticketId ? (
                   <>
@@ -1056,18 +1126,14 @@ const ReceptionQueueCallingBoard: React.FC = () => {
             )}
           </div>
 
-          {/* NÚT GỌI SỐ TO NỔI BẬT */}
-          <button
+          {/* NÚT GỌI SỐ TO NỔI BẬT (Tactile Liquid-Chrome & Crystal Knob) */}
+          <LiquidChromeButton
             onClick={handleCallNext}
             disabled={!stats.nextTicket || isCallingNext}
-            className={`w-full py-4 px-6 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 shadow-lg transition transform active:scale-98 cursor-pointer ${stats.nextTicket
-              ? 'bg-gradient-to-r from-teal-600 via-cyan-600 to-teal-700 hover:from-teal-700 hover:to-cyan-700 text-white shadow-teal-600/30'
-              : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-              }`}
-          >
-            <Megaphone className={`w-5 h-5 ${isCallingNext ? 'animate-bounce' : ''}`} />
-            <span>{isCallingNext ? 'Đang kích hoạt gọi số...' : '🔊 GỌI SỐ TIẾP THEO'}</span>
-          </button>
+            isActive={isCallingNext}
+            label={isCallingNext ? 'ĐANG KÍCH HOẠT GỌI SỐ...' : 'GỌI SỐ TIẾP THEO'}
+            icon={<Megaphone className={`w-4 h-4 ${isCallingNext ? 'animate-bounce' : ''}`} />}
+          />
         </div>
       </div>
 
