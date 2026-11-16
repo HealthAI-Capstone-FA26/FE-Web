@@ -39,7 +39,6 @@ export interface GuestRequestOtpPayload {
   fullName: string;
   dateOfBirth: string;
   gender: 'male' | 'female' | 'other';
-  identityNumber: string;
   departmentId?: string;
   doctorId: string;
   slotId: string;
