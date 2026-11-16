@@ -33,9 +33,7 @@ export const ConfirmMainPatientModal: React.FC<ConfirmMainPatientModalProps> = (
   const [fullName, setFullName] = useState<string>('');
   const [dateOfBirth, setDateOfBirth] = useState<string>('');
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
-  const [identityNumber, setIdentityNumber] = useState<string>('');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
-  const [insuranceNumber, setInsuranceNumber] = useState<string>('');
 
   const [isLoadingDetail, setIsLoadingDetail] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -46,9 +44,7 @@ export const ConfirmMainPatientModal: React.FC<ConfirmMainPatientModalProps> = (
       setFullName('');
       setDateOfBirth('');
       setGender('male');
-      setIdentityNumber('');
       setPhoneNumber('');
-      setInsuranceNumber('');
       setErrorMessage(null);
       return;
     }
@@ -63,9 +59,7 @@ export const ConfirmMainPatientModal: React.FC<ConfirmMainPatientModalProps> = (
           setFullName(detail.fullName || '');
           setDateOfBirth(detail.dateOfBirth ? detail.dateOfBirth.slice(0, 10) : '');
           setGender((detail.gender as any) || 'male');
-          setIdentityNumber(detail.identityNumber || '');
           setPhoneNumber(detail.phoneNumber || '');
-          setInsuranceNumber(detail.insuranceNumber || '');
         }
       } catch (err: any) {
         // Fallback dùng tạm dữ liệu từ prop nếu API getPatientById lỗi
@@ -73,9 +67,7 @@ export const ConfirmMainPatientModal: React.FC<ConfirmMainPatientModalProps> = (
           setFullName(patient.fullName || '');
           setDateOfBirth(patient.dateOfBirth ? patient.dateOfBirth.slice(0, 10) : '');
           setGender((patient.gender as any) || 'male');
-          setIdentityNumber(patient.identityNumber || '');
           setPhoneNumber(patient.phoneNumber || '');
-          setInsuranceNumber(patient.insuranceNumber || '');
         }
       } finally {
         if (isMounted) {
@@ -103,10 +95,6 @@ export const ConfirmMainPatientModal: React.FC<ConfirmMainPatientModalProps> = (
       setErrorMessage('Vui lòng chọn Ngày sinh');
       return;
     }
-    if (!identityNumber.trim()) {
-      setErrorMessage('Vui lòng nhập Số CCCD/CMND');
-      return;
-    }
     if (!phoneNumber.trim()) {
       setErrorMessage('Vui lòng nhập Số điện thoại');
       return;
@@ -120,9 +108,7 @@ export const ConfirmMainPatientModal: React.FC<ConfirmMainPatientModalProps> = (
         fullName: fullName.trim(),
         dateOfBirth,
         gender,
-        identityNumber: identityNumber.trim(),
         phoneNumber: phoneNumber.trim(),
-        insuranceNumber: insuranceNumber.trim() || undefined,
       });
 
       onSuccess();
@@ -235,52 +221,19 @@ export const ConfirmMainPatientModal: React.FC<ConfirmMainPatientModalProps> = (
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1 flex items-center gap-1">
-                    <CreditCard className="w-3.5 h-3.5 text-slate-400" />
-                    Số CCCD/CMND <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={identityNumber}
-                    onChange={(e) => setIdentityNumber(e.target.value)}
-                    placeholder="12 số CCCD"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-xs font-mono font-semibold"
-                    disabled={isSubmitting}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1 flex items-center gap-1">
-                    <Phone className="w-3.5 h-3.5 text-slate-400" />
-                    Số điện thoại <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="0901234567"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-xs font-mono font-semibold"
-                    disabled={isSubmitting}
-                    required
-                  />
-                </div>
-              </div>
-
               <div>
                 <label className="block text-slate-600 font-semibold mb-1 flex items-center gap-1">
-                  <CreditCard className="w-3.5 h-3.5 text-slate-400" />
-                  Mã thẻ BHYT (nếu có)
+                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  Số điện thoại <span className="text-rose-500">*</span>
                 </label>
                 <input
-                  type="text"
-                  value={insuranceNumber}
-                  onChange={(e) => setInsuranceNumber(e.target.value)}
-                  placeholder="Ví dụ: DN4791234567890 (không bắt buộc)"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-xs font-mono"
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  placeholder="0901234567"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-xs font-mono font-semibold"
                   disabled={isSubmitting}
+                  required
                 />
               </div>
 

@@ -738,7 +738,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
     }
   }, [verifiedEncounterDetail?.appointmentId, currentPatient?.appointmentId, currentPatient?.encounterId]);
 
-  // Bác sĩ bấm nút bắt đầu phiên khám (gọi POST /doctor-examination/encounters/:encounterId/start và PATCH /appointments/:id/start)
+  // Bác sĩ bấm nút bắt đầu phiên khám (gọi POST /doctor-examination/encounters/:encounterId/start — Backend tự đồng bộ Appointment sang in_progress)
   const handleStartConsultation = async () => {
     const encId = currentPatient?.encounterId || selectedEncounterDetail?.encounterId;
     const apptId = currentAppointment?.appointmentId || selectedEncounterDetail?.appointmentId || currentPatient?.appointmentId;
@@ -751,8 +751,9 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
     try {
       if (encId) {
         await clinicalExamService.startExamination(encId);
-      }
-      if (apptId) {
+        appointmentService.invalidateCache();
+        setCurrentAppointment((prev) => (prev ? { ...prev, status: 'in_progress' } : null));
+      } else if (apptId) {
         const updatedAppt = await appointmentService.startAppointment(apptId).catch(() => null);
         if (updatedAppt) {
           setCurrentAppointment(updatedAppt);

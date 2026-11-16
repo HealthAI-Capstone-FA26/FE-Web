@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, AlertTriangle, Loader2 } from 'lucide-react';
 import { appointmentService, type AppointmentItem } from '../../../services/appointment/appointment.service';
+import { formatSlotTimeRange } from '../../../utils/booking.utils';
 
 interface ReceptionCancelAppointmentModalProps {
   isOpen: boolean;
@@ -89,7 +90,9 @@ export const ReceptionCancelAppointmentModal: React.FC<ReceptionCancelAppointmen
               Thời gian hẹn:{' '}
               <span className="font-bold text-slate-800">
                 {new Date(appointment.appointmentDate).toLocaleDateString('vi-VN')}
-                {appointment.slot ? ` (${appointment.slot.slotStartTime.slice(0, 5)} - ${appointment.slot.slotEndTime.slice(0, 5)})` : ''}
+                {appointment.slot || appointment.appointmentTime
+                  ? ` (${formatSlotTimeRange(appointment.slot?.slotStartTime || appointment.appointmentTime, appointment.slot?.slotEndTime)})`
+                  : ''}
               </span>
             </div>
           </div>
