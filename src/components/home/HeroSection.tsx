@@ -82,108 +82,116 @@ export const HeroSection = () => {
   const slide = slides[currentSlide];
 
   useEffect(() => {
-    const cleanups: Array<{ revert: () => void }> = [];
+    const cleanups: Array<{ revert: () => void; html?: string }> = [];
 
-    if (titleRef.current) {
-      const titleSplit = splitText(titleRef.current, {
-        lines: { wrap: 'clip' },
-      });
-      titleSplit.addEffect(({ lines }) =>
-        animate(lines, {
-          y: ['100%', '0%'],
-          duration: 750,
-          ease: 'out(3)',
-          delay: stagger(150, { start: 80 }),
-        })
-      );
-      cleanups.push(titleSplit);
-    }
+    const frameId = requestAnimationFrame(() => {
+      if (titleRef.current) {
+        const titleSplit = splitText(titleRef.current, {
+          lines: { wrap: 'clip' },
+        });
+        titleSplit.addEffect(({ lines }) =>
+          animate(lines, {
+            y: ['100%', '0%'],
+            duration: 750,
+            ease: 'out(3)',
+            delay: stagger(150, { start: 80 }),
+          })
+        );
+        cleanups.push(titleSplit);
+      }
 
-    if (highlightRef.current) {
-      const highlightSplit = splitText(highlightRef.current, {
-        lines: { wrap: 'clip' },
-      });
-      highlightSplit.addEffect(({ lines }) =>
-        animate(lines, {
-          y: ['100%', '0%'],
-          duration: 750,
-          ease: 'out(3)',
-          delay: stagger(180, { start: 220 }),
-        })
-      );
-      cleanups.push(highlightSplit);
-    }
+      if (highlightRef.current) {
+        const highlightSplit = splitText(highlightRef.current, {
+          lines: { wrap: 'clip' },
+        });
+        highlightSplit.addEffect(({ lines }) =>
+          animate(lines, {
+            y: ['100%', '0%'],
+            duration: 750,
+            ease: 'out(3)',
+            delay: stagger(180, { start: 220 }),
+          })
+        );
+        cleanups.push(highlightSplit);
+      }
 
-    if (subtitleRef.current) {
-      const subtitleSplit = splitText(subtitleRef.current, {
-        lines: { wrap: 'clip' },
-      });
-      subtitleSplit.addEffect(({ lines }) =>
-        animate(lines, {
-          y: ['100%', '0%'],
-          duration: 700,
-          ease: 'out(3)',
-          delay: stagger(150, { start: 380 }),
-        })
-      );
-      cleanups.push(subtitleSplit);
-    }
+      if (subtitleRef.current) {
+        const subtitleSplit = splitText(subtitleRef.current, {
+          lines: { wrap: 'clip' },
+        });
+        subtitleSplit.addEffect(({ lines }) =>
+          animate(lines, {
+            y: ['100%', '0%'],
+            duration: 700,
+            ease: 'out(3)',
+            delay: stagger(150, { start: 380 }),
+          })
+        );
+        cleanups.push(subtitleSplit);
+      }
 
-    if (topLabelRef.current) {
-      cleanups.push(
-        animate(topLabelRef.current, {
-          y: [-16, 0],
-          opacity: [0, 1],
-          scale: [0.94, 1],
-          duration: 500,
-          ease: 'out(3)',
-        })
-      );
-    }
+      if (topLabelRef.current) {
+        cleanups.push(
+          animate(topLabelRef.current, {
+            y: [-16, 0],
+            opacity: [0, 1],
+            scale: [0.94, 1],
+            duration: 500,
+            ease: 'out(3)',
+          })
+        );
+      }
 
-    if (subtitleLineLeftRef.current && subtitleLineRightRef.current) {
-      cleanups.push(
-        animate([subtitleLineLeftRef.current, subtitleLineRightRef.current], {
-          scaleX: [0, 1],
-          opacity: [0, 1],
-          duration: 500,
-          ease: 'out(3)',
-          delay: 360,
-        })
-      );
-    }
+      if (subtitleLineLeftRef.current && subtitleLineRightRef.current) {
+        cleanups.push(
+          animate([subtitleLineLeftRef.current, subtitleLineRightRef.current], {
+            scaleX: [0, 1],
+            opacity: [0, 1],
+            duration: 500,
+            ease: 'out(3)',
+            delay: 360,
+          })
+        );
+      }
 
-    const badgeItems = badgesRef.current
-      ? Array.from(badgesRef.current.children)
-      : [];
-    if (badgeItems.length) {
-      cleanups.push(
-        animate(badgeItems, {
-          y: [18, 0],
-          opacity: [0, 1],
-          scale: [0.92, 1],
-          duration: 550,
-          ease: 'out(3)',
-          delay: stagger(90, { start: 500 }),
-        })
-      );
-    }
+      const badgeItems = badgesRef.current
+        ? Array.from(badgesRef.current.children)
+        : [];
+      if (badgeItems.length) {
+        cleanups.push(
+          animate(badgeItems, {
+            y: [18, 0],
+            opacity: [0, 1],
+            scale: [0.92, 1],
+            duration: 550,
+            ease: 'out(3)',
+            delay: stagger(90, { start: 500 }),
+          })
+        );
+      }
 
-    if (ctaRef.current) {
-      cleanups.push(
-        animate(ctaRef.current, {
-          y: [18, 0],
-          opacity: [0, 1],
-          scale: [0.95, 1],
-          duration: 550,
-          ease: 'out(3)',
-          delay: 680,
-        })
-      );
-    }
+      if (ctaRef.current) {
+        cleanups.push(
+          animate(ctaRef.current, {
+            y: [18, 0],
+            opacity: [0, 1],
+            scale: [0.95, 1],
+            duration: 550,
+            ease: 'out(3)',
+            delay: 680,
+          })
+        );
+      }
+    });
 
     return () => {
-      cleanups.forEach((item) => item.revert());
+      cancelAnimationFrame(frameId);
+      cleanups.forEach((item) => {
+        item.revert();
+        if ('html' in item) {
+          item.html = '';
+        }
+      });
     };
   }, [currentSlide]);
 
