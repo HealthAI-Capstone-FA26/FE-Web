@@ -413,8 +413,11 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
       ? validTimeline.medicalHistories.map((h) => h.conditionName).join(', ')
       : 'Chưa ghi nhận tiền sử';
 
-    // Trích xuất các sự kiện từ timeline đúng ca khám
-    const diagEvent = validTimeline?.timeline?.find((t) => t.type === 'diagnosis');
+    // Trích xuất các sự kiện từ timeline đúng ca khám (Ưu tiên lấy chẩn đoán chính thức 'final', sau đó lấy chẩn đoán mới nhất)
+    const diagEvents = (validTimeline?.timeline || []).filter((t) => t.type === 'diagnosis');
+    const diagEvent =
+      [...diagEvents].reverse().find((t) => t.data?.diagnosisType === 'final') ||
+      diagEvents[diagEvents.length - 1];
     const clinicalExamEvent = validTimeline?.timeline?.find((t) => t.type === 'clinical_examination');
     const chiefComplaintEvent = validTimeline?.timeline?.find((t) => t.type === 'chief_complaint');
     const consultEvent = validTimeline?.timeline?.find((t) => t.type === 'treatment_consultation');
@@ -1149,7 +1152,26 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
             <>
               {/* 1. Paraclinical Readiness & Completion Progress Banner */}
               <div className="space-y-3">
-                {timelineData?.readyForConclusion ? (
+                {activeEncounter?.status === 'finished' || activeEncounter?.status === 'completed' ? (
+                  <div className="p-4 bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-blue-50 border border-blue-400/50 rounded-3xl flex items-start gap-3.5 shadow-xs">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-600/20">
+                      <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-black text-blue-950 uppercase tracking-tight">
+                          Ca khám đã hoàn tất & đóng hồ sơ bệnh án
+                        </h4>
+                        <span className="text-[11px] font-black text-blue-800 bg-blue-200/80 px-2.5 py-0.5 rounded-full">
+                          Đã xong
+                        </span>
+                      </div>
+                      <p className="text-xs text-blue-800 mt-1 leading-relaxed">
+                        Lượt khám này đã được Bác sĩ kết luận chẩn đoán, tư vấn điều trị và đóng ca khám chính thức trên hệ thống EMR.
+                      </p>
+                    </div>
+                  </div>
+                ) : timelineData?.readyForConclusion || activeEncounter?.status === 'awaiting_review' ? (
                   <div className="p-4 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-50 border border-emerald-500/40 rounded-3xl flex items-start gap-3.5 shadow-xs">
                     <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20">
                       <CheckCircle2 className="w-5 h-5" />
@@ -1164,7 +1186,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                         </span>
                       </div>
                       <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
-                        {timelineData.paraclinicalProgress
+                        {timelineData?.paraclinicalProgress
                           ? `Tất cả ${timelineData.paraclinicalProgress.totalOrders} dịch vụ Cận lâm sàng đã có kết quả chính thức từ các phòng chức năng.`
                           : 'Tất cả các dịch vụ Cận lâm sàng đã có kết quả chính thức từ các phòng chức năng.'}
                       </p>

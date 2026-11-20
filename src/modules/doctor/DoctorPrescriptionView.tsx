@@ -361,8 +361,12 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
       ? timelineData.medicalHistories.map((h) => h.conditionName).join(', ')
       : 'Chưa ghi nhận tiền sử';
 
-    const diagEvent = timelineData?.timeline?.find((t) => t.type === 'diagnosis');
-    const icd10Code = diagEvent?.data?.icd10?.icd10Code || diagEvent?.data?.icd10Code || 'R69';
+    // Ưu tiên lấy chẩn đoán chính thức (diagnosisType === 'final'), nếu chưa có mới lấy bản ghi chẩn đoán mới nhất
+    const diagEvents = (timelineData?.timeline || []).filter((t) => t.type === 'diagnosis');
+    const diagEvent =
+      [...diagEvents].reverse().find((t) => t.data?.diagnosisType === 'final') ||
+      diagEvents[diagEvents.length - 1];
+    const icd10Code = diagEvent?.data?.icd10?.icd10Code || diagEvent?.data?.icd10Code || 'I10';
     const diagnosis = diagEvent?.data?.diagnosisName || diagEvent?.data?.icd10?.descriptionVi || 'Chưa có chẩn đoán chính thức';
 
     return {
@@ -642,18 +646,8 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
           items: itemsPayload,
         });
       } else {
-        // Resolve diagnosis
+        // Resolve final diagnosis (Backend bắt buộc diagnosisType === 'final')
         let diagId = finalDiagnosisId;
-        if (!diagId) {
-          try {
-            const initDiags = await initialDiagnosisService.getByEncounterId(activeEncounterId);
-            if (initDiags && initDiags.length > 0) {
-              diagId = initDiags[0].diagnosisId;
-              setFinalDiagnosisId(diagId);
-            }
-          } catch {}
-        }
-
         if (!diagId) {
           try {
             const conclusions = await postTestConsultationService.getDiagnosisConclusions(activeEncounterId);
@@ -666,28 +660,23 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
 
         if (!diagId) {
           try {
-            const createdDiag = await initialDiagnosisService.create(activeEncounterId, {
-              icd10Code: currentPatient?.icd10Code || 'R69',
-              diagnosisName: currentPatient?.diagnosis || 'Chẩn đoán xác định',
+            const createdFinal = await postTestConsultationService.createDiagnosisConclusion(activeEncounterId, {
+              icd10Code: currentPatient?.icd10Code || 'I10',
+              diagnosisName:
+                currentPatient?.diagnosis && currentPatient.diagnosis !== 'Chưa có chẩn đoán chính thức'
+                  ? currentPatient.diagnosis
+                  : 'Chẩn đoán xác định chuyên khoa Tim mạch',
               isPrimary: true,
             });
-            diagId = createdDiag.diagnosisId;
+            diagId = createdFinal.diagnosisId;
             setFinalDiagnosisId(diagId);
-          } catch (initErr) {
-            try {
-              const createdFinal = await postTestConsultationService.createDiagnosisConclusion(activeEncounterId, {
-                icd10Code: currentPatient?.icd10Code || 'R69',
-                diagnosisName: currentPatient?.diagnosis || 'Chẩn đoán xác định',
-                isPrimary: true,
-              });
-              diagId = createdFinal.diagnosisId;
-              setFinalDiagnosisId(diagId);
-            } catch {}
-          }
+          } catch {}
         }
 
         if (!diagId) {
-          throw new Error('Chưa có chẩn đoán cho ca khám này. Vui lòng xác lập chẩn đoán trước khi kê đơn.');
+          throw new Error(
+            'Chưa có chẩn đoán chính thức (Final Diagnosis) cho ca khám này. Vui lòng lưu kết luận chẩn đoán ở Tab 2 trước khi kê đơn.'
+          );
         }
 
         updatedPrescription = await prescriptionService.create({
@@ -1141,15 +1130,28 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
     }
   };
 
-  // Finish Encounter Without Follow-up (POST /prescriptions/encounters/:encounterId/finish)
+  // Finish Encounter Without Follow-up (POST /encounters/:encounterId/finish)
   const handleFinishEncounter = async () => {
     if (!activeEncounterId) return;
-    if (!window.confirm('Bạn có chắc chắn muốn kết thúc lượt khám này mà không cần đặt lịch hẹn tái khám?')) {
+    if (!window.confirm('Bạn có chắc chắn muốn kết thúc lượt khám này?')) {
       return;
     }
 
     try {
       setIsFinishingEncounter(true);
+
+      // Nếu bác sĩ đã thêm thuốc vào danh sách nhưng chưa lưu hoặc đơn thuốc đang ở trạng thái nháp, tự động lưu trước khi đóng ca
+      if (prescribedList.length > 0 && (!currentPrescription || currentPrescription.status === 'draft')) {
+        const saved = await handleSavePrescription(true);
+        if (!saved) {
+          showToast(
+            'error',
+            'Không thể lưu đơn thuốc trước khi đóng ca khám. Vui lòng kiểm tra lại chẩn đoán chính thức (Tab 2) hoặc danh sách thuốc.'
+          );
+          return;
+        }
+      }
+
       await prescriptionService.finishEncounter(activeEncounterId);
       showToast('success', 'Lượt khám đã được kết thúc thành công!');
       fetchEncounters();
@@ -1191,14 +1193,19 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
   };
 
   const isPrescriptionSigned = currentPrescription?.status === 'signed';
+  const isEncounterFinished =
+    activeEncounter?.status === 'finished' ||
+    activeEncounter?.status === 'completed' ||
+    timelineData?.encounter?.status === 'finished';
+  const isPrescriptionLocked = isPrescriptionSigned || isEncounterFinished;
 
   // Xác định bước hiện tại trong quy trình kê đơn 4 bước
   const currentStep = useMemo(() => {
-    if (isFollowUpSynced || activeEncounter?.status === 'finished') return 4;
+    if (isFollowUpSynced || isEncounterFinished) return 4;
     if (isPrescriptionSigned) return 3;
     if (prescribedList.length > 0) return 2;
     return 1;
-  }, [isFollowUpSynced, activeEncounter?.status, isPrescriptionSigned, prescribedList.length]);
+  }, [isFollowUpSynced, isEncounterFinished, isPrescriptionSigned, prescribedList.length]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -1778,10 +1785,17 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
                 />
               </div>
 
-              <div className="md:col-span-2 pt-2 flex justify-end">
+              <div className="md:col-span-2 pt-2 flex items-center justify-between gap-2">
+                {isEncounterFinished ? (
+                  <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl">
+                    Ca khám này đã kết thúc (Đã xong) nên không thể thêm hoặc sửa đơn thuốc.
+                  </span>
+                ) : (
+                  <span />
+                )}
                 <button
                   type="submit"
-                  disabled={isPrescriptionSigned}
+                  disabled={isPrescriptionLocked}
                   className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-extrabold rounded-xl flex items-center gap-1.5 cursor-pointer border-none shadow-xs text-xs"
                 >
                   <Plus className="w-4 h-4" />
@@ -1817,12 +1831,12 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-500">{prescribedList.length} thuốc đã kê</span>
 
-                {!isPrescriptionSigned && (
+                {!isPrescriptionLocked && (
                   <button
                     type="button"
                     onClick={() => handleSavePrescription(false)}
                     disabled={isSavingPrescription || prescribedList.length === 0}
-                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer border-none shadow-xs transition-colors"
+                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer border-none shadow-xs transition-colors disabled:opacity-50"
                   >
                     {isSavingPrescription ? (
                       <>
@@ -1896,7 +1910,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
                         <td className="py-3 px-3 text-center">
                           <button
                             type="button"
-                            disabled={isPrescriptionSigned}
+                            disabled={isPrescriptionLocked}
                             onClick={() => handleDeleteDrug(d.catalogCode)}
                             className="p-1 text-slate-400 hover:text-rose-600 disabled:opacity-30 transition-colors cursor-pointer border-none bg-transparent"
                             title="Xóa thuốc"
@@ -2014,7 +2028,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
               ) : (
                 <button
                   onClick={handleOpenDigitalSignModal}
-                  disabled={prescribedList.length === 0 || isSavingPrescription}
+                  disabled={prescribedList.length === 0 || isSavingPrescription || isEncounterFinished}
                   className="px-6 py-3 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer border-none flex items-center gap-2 shrink-0 transition-all uppercase tracking-wide"
                 >
                   <FileCheck className="w-4.5 h-4.5 text-cyan-300" />
