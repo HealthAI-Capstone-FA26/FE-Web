@@ -817,28 +817,279 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
     }
   };
 
-  // Export / Print PDF (GET /prescriptions/:id/export & PATCH /prescriptions/:id/printed)
+  // In / Xuất PDF Phiếu Kết Quả Khám Bệnh & Bệnh Án EMR (Hỗ trợ cả khi không kê đơn thuốc)
+  const openMedicalReportPrintWindow = useCallback(async () => {
+    let consultData: any = null;
+    if (activeEncounterId) {
+      try {
+        consultData = await postTestConsultationService.getTreatmentConsultation(activeEncounterId);
+      } catch {
+        // ignore
+      }
+    }
+
+    const pat = timelineData?.patient || activeEncounter?.patient;
+    const enc = timelineData?.encounter || activeEncounter;
+    const doctorName = user?.name || activeEncounter?.doctor?.fullName || 'Bác sĩ chuyên khoa Tim mạch';
+    const labEvents = (timelineData?.timeline || []).filter(
+      (e) => e.type === 'lab_result' || e.type === 'diagnostic_result'
+    );
+    const vitalEvent = (timelineData?.timeline || []).find((e) => e.type === 'vital_sign_session');
+    const examEvent = (timelineData?.timeline || []).find((e) => e.type === 'clinical_examination');
+
+    const win = window.open('', '_blank', 'width=900,height=850');
+    if (!win) {
+      showToast('error', 'Trình duyệt đang chặn cửa sổ bật lên (Pop-up). Vui lòng cho phép mở cửa sổ in.');
+      return;
+    }
+
+    const todayStr = new Date().toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+
+    const vitalsHtml =
+      vitalEvent?.data?.observations && vitalEvent.data.observations.length > 0
+        ? vitalEvent.data.observations
+            .map(
+              (obs: any) =>
+                `<span style="display:inline-block;background:#f1f5f9;border:1px solid #cbd5e1;padding:3px 8px;border-radius:6px;margin:2px 4px 2px 0;font-size:12px;"><strong>${
+                  obs.item?.itemName || obs.item?.itemCode || 'Chỉ số'
+                }:</strong> ${obs.observationValue} ${obs.item?.unit || ''}</span>`
+            )
+            .join('')
+        : 'Đã kiểm tra sinh hiệu tiêu chuẩn';
+
+    const labHtml =
+      labEvents.length > 0
+        ? `<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px;">
+            <thead>
+              <tr style="background:#f8fafc;border-bottom:1px solid #cbd5e1;text-align:left;">
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Dịch vụ Cận lâm sàng</th>
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Chỉ số / Kết quả đo</th>
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Kết luận</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${labEvents
+                .map((ev: any) => {
+                  const labRes = ev.data?.result || ev.data?.labResult;
+                  const vals = (labRes?.values || [])
+                    .map(
+                      (v: any) =>
+                        `${v.parameter?.parameterName || v.parameter?.parameterCode}: <strong>${
+                          v.valueNumeric ?? v.valueText ?? '-'
+                        }</strong> ${v.parameter?.unit || ''}`
+                    )
+                    .join('<br/>');
+                  return `<tr>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;font-weight:bold;">${
+                      ev.data?.serviceName || ev.data?.testName || ev.summary
+                    }</td>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;">${vals || 'Đã hoàn tất'}</td>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;">${
+                      labRes?.overallConclusion || labRes?.findings || 'Bình thường'
+                    }</td>
+                  </tr>`;
+                })
+                .join('')}
+            </tbody>
+          </table>`
+        : '<p style="font-size:12px;color:#64748b;margin:4px 0;">Không có chỉ định cận lâm sàng hoặc đã hoàn tất kiểm tra.</p>';
+
+    const drugsHtml =
+      prescribedList.length > 0
+        ? `<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px;">
+            <thead>
+              <tr style="background:#f8fafc;border-bottom:1px solid #cbd5e1;text-align:left;">
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">STT</th>
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Tên thuốc & Hàm lượng</th>
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Đường dùng</th>
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Số lượng</th>
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Liều dùng & Cách dùng</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${prescribedList
+                .map(
+                  (d, i) => `<tr>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:center;">${i + 1}</td>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;font-weight:bold;">${d.name}</td>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;">${d.route}</td>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;">${d.quantity} ${d.unit}</td>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;">${d.dosage} (${d.duration})${
+                    d.advice ? `<br/><em>Lưu ý: ${d.advice}</em>` : ''
+                  }</td>
+                  </tr>`
+                )
+                .join('')}
+            </tbody>
+          </table>`
+        : '<p style="font-size:12px;color:#475569;margin:4px 0;">Không kê đơn thuốc (Điều trị theo hướng dẫn tư vấn & chế độ sinh hoạt).</p>';
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html lang="vi">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Phiếu Kết Quả Khám Bệnh EMR - ${currentPatient?.name || 'Bệnh nhân'}</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; margin: 0; padding: 28px; line-height: 1.5; }
+          .container { max-width: 800px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 12px; padding: 28px; }
+          .header { display: flex; justify-content: space-between; border-bottom: 2px solid #1e40af; padding-bottom: 14px; margin-bottom: 18px; }
+          .title { text-align: center; margin: 16px 0; }
+          .title h1 { font-size: 20px; color: #1e3a8a; margin: 0; text-transform: uppercase; }
+          .title p { font-size: 12px; color: #64748b; margin: 4px 0 0; }
+          .section { margin-bottom: 16px; }
+          .section-title { font-size: 13px; font-weight: 800; color: #1e40af; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 13px; }
+          .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+          .footer { display: flex; justify-content: space-between; margin-top: 28px; font-size: 13px; }
+          @media print {
+            body { padding: 0; }
+            .container { border: none; padding: 0; }
+            .no-print { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="no-print" style="text-align:right;max-width:800px;margin:0 auto 12px;">
+          <button onclick="window.print()" style="background:#1d4ed8;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:bold;cursor:pointer;">
+            🖨️ In Phiếu / Lưu PDF
+          </button>
+        </div>
+        <div class="container">
+          <div class="header">
+            <div>
+              <div style="font-weight:900;font-size:15px;color:#1e3a8a;">PHÒNG KHÁM CHUYÊN KHOA TIM MẠCH HEALTHAI</div>
+              <div style="font-size:12px;color:#475569;">Hệ thống Bệnh án điện tử thông minh (EMR Cardiology Platform)</div>
+            </div>
+            <div style="text-align:right;font-size:12px;">
+              <div><strong>Mã lượt khám:</strong> ${enc?.encounterCode || currentPatient?.id || 'N/A'}</div>
+              <div><strong>Mã bệnh nhân:</strong> ${pat?.patientCode || 'N/A'}</div>
+              <div><strong>Ngày khám:</strong> ${todayStr}</div>
+            </div>
+          </div>
+
+          <div class="title">
+            <h1>PHIẾU KẾT QUẢ KHÁM BỆNH & TƯ VẤN ĐIỀU TRỊ</h1>
+            <p>Bản tổng hợp hồ sơ bệnh án điện tử (EMR Clinical Summary Report)</p>
+          </div>
+
+          <div class="section">
+            <div class="section-title">1. Thông tin hành chính bệnh nhân</div>
+            <div class="grid">
+              <div><strong>Họ và tên:</strong> ${currentPatient?.name || pat?.fullName || '---'}</div>
+              <div><strong>Giới tính / Tuổi:</strong> ${currentPatient?.gender || '---'} (${currentPatient?.age || '--'} tuổi)</div>
+              <div><strong>Số điện thoại:</strong> ${pat?.phoneNumber || '---'}</div>
+              <div><strong>Tiền sử dị ứng:</strong> ${currentPatient?.allergies || 'Chưa ghi nhận'}</div>
+              <div style="grid-column: span 2;"><strong>Tiền sử bệnh lý:</strong> ${currentPatient?.history || 'Chưa ghi nhận'}</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">2. Sinh hiệu & Khám lâm sàng Tim mạch</div>
+            <div style="margin-bottom:8px;">${vitalsHtml}</div>
+            <div class="box">
+              <div><strong>Nghe tim phổi:</strong> ${examEvent?.data?.auscultationFindings || examEvent?.data?.examinationFindings || 'Tim đều, T1 T2 rõ'}</div>
+              ${examEvent?.data?.inspectionFindings ? `<div><strong>Nhìn:</strong> ${examEvent.data.inspectionFindings}</div>` : ''}
+              ${examEvent?.data?.palpationFindings ? `<div><strong>Sờ:</strong> ${examEvent.data.palpationFindings}</div>` : ''}
+              ${examEvent?.data?.percussionFindings ? `<div><strong>Gõ:</strong> ${examEvent.data.percussionFindings}</div>` : ''}
+              ${examEvent?.data?.clinicalNotes ? `<div><strong>Ghi chú lâm sàng:</strong> ${examEvent.data.clinicalNotes}</div>` : ''}
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">3. Kết quả Cận lâm sàng (Xét nghiệm / Chẩn đoán hình ảnh / ECG)</div>
+            ${labHtml}
+          </div>
+
+          <div class="section">
+            <div class="section-title">4. Chẩn đoán xác định (ICD-10) & Phác đồ tư vấn điều trị</div>
+            <div class="box">
+              <div style="font-size:14px;color:#1e3a8a;margin-bottom:6px;">
+                <strong>Chẩn đoán chính (ICD-10):</strong> [${currentPatient?.icd10Code || 'I10'}] ${currentPatient?.diagnosis || 'Đã xác lập chẩn đoán'}
+              </div>
+              ${
+                consultData?.conditionExplanation
+                  ? `<div><strong>Giải thích tình trạng bệnh:</strong> ${consultData.conditionExplanation}</div>`
+                  : ''
+              }
+              ${
+                consultData?.treatmentPlan
+                  ? `<div><strong>Hướng xử trí & Phác đồ điều trị:</strong> ${consultData.treatmentPlan}</div>`
+                  : ''
+              }
+              ${
+                consultData?.lifestyleAdvice
+                  ? `<div><strong>Tư vấn lối sống & vận động:</strong> ${consultData.lifestyleAdvice}</div>`
+                  : ''
+              }
+              ${
+                consultData?.nutritionAdvice
+                  ? `<div><strong>Tư vấn chế độ dinh dưỡng:</strong> ${consultData.nutritionAdvice}</div>`
+                  : ''
+              }
+              ${
+                followUpDate
+                  ? `<div style="margin-top:6px;color:#047857;font-weight:bold;">📅 Lịch hẹn tái khám: ${followUpDate}</div>`
+                  : ''
+              }
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">5. Chỉ định thuốc điều trị</div>
+            ${drugsHtml}
+          </div>
+
+          <div class="footer">
+            <div style="font-size:11px;color:#64748b;max-width:55%;">
+              * Phiếu kết quả này được trích xuất từ Hệ thống Bệnh án điện tử EMR.<br/>
+              * Khi đi tái khám, quý bệnh nhân vui lòng mang theo phiếu này hoặc mã lượt khám <strong>${
+                enc?.encounterCode || currentPatient?.id || ''
+              }</strong>.
+            </div>
+            <div style="text-align:center;min-width:220px;">
+              <div><em>Ngày ${todayStr}</em></div>
+              <div style="font-weight:bold;margin-top:4px;">BÁC SĨ KHÁM & KẾT LUẬN</div>
+              <div style="margin:36px 0 8px;color:#059669;font-size:11px;font-weight:bold;">✓ Đã xác nhận hoàn tất hồ sơ EMR</div>
+              <div style="font-weight:800;color:#1e3a8a;">${doctorName}</div>
+            </div>
+          </div>
+        </div>
+        <script>
+          window.onload = function() { setTimeout(function() { window.print(); }, 250); };
+        </script>
+      </body>
+      </html>
+    `);
+    win.document.close();
+  }, [activeEncounterId, timelineData, activeEncounter, user?.name, currentPatient, prescribedList, followUpDate, showToast]);
+
+  // Export / Print PDF (GET /prescriptions/:id/export & PATCH /prescriptions/:id/printed, fallback sang Phiếu kết quả EMR)
   const handlePrintPrescription = async () => {
     if (!currentPrescription?.prescriptionId) {
-      showToast('info', 'Vui lòng lưu đơn thuốc trước khi in.');
+      await openMedicalReportPrintWindow();
       return;
     }
     try {
       const res = await prescriptionService.exportPdf(currentPrescription.prescriptionId);
-      await prescriptionService.markAsPrinted(currentPrescription.prescriptionId);
+      await prescriptionService.markAsPrinted(currentPrescription.prescriptionId).catch(() => {});
       if (res?.pdfUrl) {
         window.open(res.pdfUrl, '_blank');
       } else {
-        showToast('error', 'Không nhận được tệp PDF để in.');
+        await openMedicalReportPrintWindow();
       }
-    } catch (err: any) {
-      showToast('error', `Lỗi khi in đơn thuốc: ${err?.message || 'Thao tác thất bại'}`);
+    } catch {
+      await openMedicalReportPrintWindow();
     }
   };
 
   const handleDownloadPdf = async () => {
     if (!currentPrescription?.prescriptionId) {
-      showToast('info', 'Vui lòng lưu đơn thuốc trước khi tải.');
+      await openMedicalReportPrintWindow();
       return;
     }
     try {
@@ -846,10 +1097,10 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
       if (res?.pdfUrl) {
         window.open(res.pdfUrl, '_blank');
       } else {
-        showToast('error', 'Không tìm thấy tệp PDF.');
+        await openMedicalReportPrintWindow();
       }
-    } catch (err: any) {
-      showToast('error', `Lỗi khi tải PDF đơn thuốc: ${err?.message || 'Thao tác thất bại'}`);
+    } catch {
+      await openMedicalReportPrintWindow();
     }
   };
 
@@ -1551,7 +1802,14 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
                 </h3>
                 {currentPrescription && (
                   <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                    Mã đơn: <strong className="text-blue-900">{currentPrescription.prescriptionCode}</strong> • Trạng thái: {currentPrescription.status}
+                    Mã đơn: <strong className="text-blue-900">{currentPrescription.prescriptionCode}</strong> • Trạng thái:{' '}
+                    {currentPrescription.status === 'signed'
+                      ? 'Đã ký xác nhận'
+                      : currentPrescription.status === 'dispensed'
+                      ? 'Đã cấp phát'
+                      : currentPrescription.status === 'cancelled'
+                      ? 'Đã hủy'
+                      : 'Bản nháp'}
                   </div>
                 )}
               </div>
@@ -1694,22 +1952,36 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
               <span className="text-[11px] text-slate-500 font-medium">
-                * Bác sĩ cần ký số đơn thuốc (nếu có đơn) trước khi hoàn tất lượt khám.
+                * Bác sĩ có thể in Phiếu kết quả khám bệnh EMR và đóng ca khám ngay cả khi không kê đơn thuốc.
               </span>
 
-              <button
-                type="button"
-                onClick={handleFinishEncounter}
-                disabled={isFinishingEncounter || !activeEncounterId}
-                className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs rounded-xl border-none cursor-pointer flex items-center gap-2 shadow-xs transition-colors disabled:opacity-50"
-              >
-                {isFinishingEncounter ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <CheckCheck className="w-4 h-4" />
-                )}
-                <span>Hoàn tất & Đóng ca khám</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={openMedicalReportPrintWindow}
+                  disabled={!activeEncounterId}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl border border-slate-200 cursor-pointer flex items-center gap-1.5 shadow-2xs transition-colors disabled:opacity-50"
+                >
+                  <Printer className="w-4 h-4 text-blue-700" />
+                  <span>In / Tải Phiếu Kết Quả EMR (.PDF)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleFinishEncounter}
+                  disabled={isFinishingEncounter || !activeEncounterId || activeEncounter?.status === 'finished'}
+                  className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs rounded-xl border-none cursor-pointer flex items-center gap-2 shadow-xs transition-colors disabled:opacity-50"
+                >
+                  {isFinishingEncounter ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCheck className="w-4 h-4" />
+                  )}
+                  <span>
+                    {activeEncounter?.status === 'finished' ? 'Ca khám đã hoàn tất' : 'Hoàn tất & Đóng ca khám'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
 

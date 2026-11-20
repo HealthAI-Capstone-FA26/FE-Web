@@ -282,10 +282,10 @@ export const prescriptionService = {
   },
 
   /**
-   * Đóng lượt khám (status=finished) khi hoàn tất kê đơn không cần đặt lịch tái khám
+   * Đóng lượt khám (status=finished) khi hoàn tất tư vấn / kê đơn
    */
   async finishEncounter(encounterId: string): Promise<any> {
-    return apiFetch<any>(`/prescriptions/encounters/${encounterId}/finish`, {
+    return apiFetch<any>(`/encounters/${encounterId}/finish`, {
       method: 'POST',
     });
   },
