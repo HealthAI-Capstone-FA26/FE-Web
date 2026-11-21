@@ -413,8 +413,11 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
       ? validTimeline.medicalHistories.map((h) => h.conditionName).join(', ')
       : 'Chưa ghi nhận tiền sử';
 
-    // Trích xuất các sự kiện từ timeline đúng ca khám
-    const diagEvent = validTimeline?.timeline?.find((t) => t.type === 'diagnosis');
+    // Trích xuất các sự kiện từ timeline đúng ca khám (Ưu tiên lấy chẩn đoán chính thức 'final', sau đó lấy chẩn đoán mới nhất)
+    const diagEvents = (validTimeline?.timeline || []).filter((t) => t.type === 'diagnosis');
+    const diagEvent =
+      [...diagEvents].reverse().find((t) => t.data?.diagnosisType === 'final') ||
+      diagEvents[diagEvents.length - 1];
     const clinicalExamEvent = validTimeline?.timeline?.find((t) => t.type === 'clinical_examination');
     const chiefComplaintEvent = validTimeline?.timeline?.find((t) => t.type === 'chief_complaint');
     const consultEvent = validTimeline?.timeline?.find((t) => t.type === 'treatment_consultation');
@@ -866,14 +869,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                       }`}
                   >
                     <div>
-                      <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                        <span>{patName}</span>
-                        {enc.status && (
-                          <span className="text-[9px] font-semibold text-slate-600 bg-slate-200/70 px-1.5 py-0.2 rounded font-mono">
-                            {enc.status}
-                          </span>
-                        )}
-                      </div>
+                      <div className="text-xs font-extrabold text-slate-800">{patName}</div>
                       <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{patCode}</div>
                     </div>
                     <div>
@@ -908,9 +904,9 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
 
           {/* EMR Timeline View */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-blue-700 animate-pulse" />
+                <Clock className="w-4 h-4 text-blue-700 animate-pulse shrink-0" />
                 <span>Tiến trình bệnh án điện tử (EMR Timeline)</span>
               </h3>
               {activeEncounterId && (
@@ -921,9 +917,9 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                     fetchTimeline(activeEncounterId, true);
                   }}
                   disabled={isLoadingTimeline}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 cursor-pointer"
+                  className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <RefreshCw className={`w-3 h-3 ${isLoadingTimeline ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-3 h-3 shrink-0 ${isLoadingTimeline ? 'animate-spin' : ''}`} />
                   <span>Cập nhật</span>
                 </button>
               )}
@@ -948,7 +944,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                         <span className="w-3.5 h-3.5 bg-blue-600 rounded-full absolute -left-[32px] top-0.5 ring-4 ring-blue-100 flex items-center justify-center">
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
-                        <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">
+                        <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide whitespace-nowrap">
                           {eventTime} — Tiếp nhận khám (Mô-đun 3)
                         </span>
                         <div className="space-y-0.5">
@@ -970,7 +966,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                         <span className="w-3.5 h-3.5 bg-emerald-600 rounded-full absolute -left-[32px] top-0.5 ring-4 ring-emerald-100 flex items-center justify-center">
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
-                        <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">
+                        <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide whitespace-nowrap">
                           {eventTime} — Đo sinh hiệu tim mạch (Mô-đun 4)
                         </span>
                         <div className="space-y-1">
@@ -1001,7 +997,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                         <span className="w-3.5 h-3.5 bg-purple-600 rounded-full absolute -left-[32px] top-0.5 ring-4 ring-purple-100 flex items-center justify-center">
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
-                        <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">
+                        <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide whitespace-nowrap">
                           {eventTime} — Khám lâm sàng tim mạch (Mô-đun 5)
                         </span>
                         <div className="space-y-0.5 text-xs">
@@ -1042,7 +1038,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                         <span className="w-3.5 h-3.5 bg-indigo-600 rounded-full absolute -left-[32px] top-0.5 ring-4 ring-indigo-100 flex items-center justify-center">
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
-                        <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">
+                        <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide whitespace-nowrap">
                           {eventTime} — Chỉ định CLS tim mạch (Mô-đun 5)
                         </span>
                         <p className="font-extrabold text-slate-800">
@@ -1063,24 +1059,26 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                         <span className="w-3.5 h-3.5 bg-amber-500 rounded-full absolute -left-[32px] top-0.5 ring-4 ring-amber-100 flex items-center justify-center">
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide whitespace-nowrap">
                             {eventTime} — Kết quả CLS (Mô-đun 7)
                           </span>
                           <button
                             type="button"
                             onClick={() => setSelectedLabEvent(event)}
-                            className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 cursor-pointer bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 transition-all hover:bg-blue-100"
+                            className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 cursor-pointer bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 transition-all hover:bg-blue-100 whitespace-nowrap shrink-0"
                           >
-                            <Eye className="w-3 h-3" />
+                            <Eye className="w-3 h-3 shrink-0" />
                             <span>Xem chi tiết</span>
                           </button>
                         </div>
 
-                        <div className="space-y-1 mt-1 bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/80">
-                          <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-slate-900">{testTitle}</span>
-                            <Badge variant={abnormalCount > 0 ? 'critical' : 'normal'} size="sm">
+                        <div className="space-y-1.5 mt-1 bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/80">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-extrabold text-slate-900 whitespace-nowrap truncate" title={testTitle}>
+                              {testTitle}
+                            </span>
+                            <Badge variant={abnormalCount > 0 ? 'critical' : 'normal'} size="sm" className="whitespace-nowrap shrink-0">
                               {abnormalCount > 0 ? `${abnormalCount} chỉ số bất thường` : 'Bình thường'}
                             </Badge>
                           </div>
@@ -1100,7 +1098,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                         <span className="w-3.5 h-3.5 bg-rose-600 rounded-full absolute -left-[32px] top-0.5 ring-4 ring-rose-100 flex items-center justify-center">
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
-                        <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">
+                        <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide whitespace-nowrap">
                           {eventTime} — Chẩn đoán: {event.data?.diagnosisType === 'final' ? 'Chính thức' : 'Sơ bộ'}
                         </span>
                         <p className="font-extrabold text-slate-800">
@@ -1115,7 +1113,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                       <span className="w-3.5 h-3.5 bg-slate-400 rounded-full absolute -left-[32px] top-0.5 ring-4 ring-slate-100 flex items-center justify-center">
                         <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                       </span>
-                      <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide">{eventTime} — {event.summary}</span>
+                      <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide whitespace-nowrap">{eventTime} — {event.summary}</span>
                     </div>
                   );
                 })}
@@ -1154,7 +1152,26 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
             <>
               {/* 1. Paraclinical Readiness & Completion Progress Banner */}
               <div className="space-y-3">
-                {timelineData?.readyForConclusion ? (
+                {activeEncounter?.status === 'finished' || activeEncounter?.status === 'completed' ? (
+                  <div className="p-4 bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-blue-50 border border-blue-400/50 rounded-3xl flex items-start gap-3.5 shadow-xs">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-600/20">
+                      <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-black text-blue-950 uppercase tracking-tight">
+                          Ca khám đã hoàn tất & đóng hồ sơ bệnh án
+                        </h4>
+                        <span className="text-[11px] font-black text-blue-800 bg-blue-200/80 px-2.5 py-0.5 rounded-full">
+                          Đã xong
+                        </span>
+                      </div>
+                      <p className="text-xs text-blue-800 mt-1 leading-relaxed">
+                        Lượt khám này đã được Bác sĩ kết luận chẩn đoán, tư vấn điều trị và đóng ca khám chính thức trên hệ thống EMR.
+                      </p>
+                    </div>
+                  </div>
+                ) : timelineData?.readyForConclusion || activeEncounter?.status === 'awaiting_review' ? (
                   <div className="p-4 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-50 border border-emerald-500/40 rounded-3xl flex items-start gap-3.5 shadow-xs">
                     <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20">
                       <CheckCircle2 className="w-5 h-5" />
@@ -1169,7 +1186,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                         </span>
                       </div>
                       <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
-                        {timelineData.paraclinicalProgress
+                        {timelineData?.paraclinicalProgress
                           ? `Tất cả ${timelineData.paraclinicalProgress.totalOrders} dịch vụ Cận lâm sàng đã có kết quả chính thức từ các phòng chức năng.`
                           : 'Tất cả các dịch vụ Cận lâm sàng đã có kết quả chính thức từ các phòng chức năng.'}
                       </p>

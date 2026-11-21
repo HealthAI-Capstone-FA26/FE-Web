@@ -56,13 +56,14 @@ export const NurseVitalModal: React.FC<NurseVitalModalProps> = ({
   const [activeTab, setActiveTab] = useState<'vitals' | 'allergies' | 'medical_history'>('vitals');
   const [_vitalItems, setVitalItems] = useState<VitalItemResponse[]>([]);
   const [refRangesList, setRefRangesList] = useState<VitalReferenceRangeResponse[]>([]);
-  const [showRefTable, setShowRefTable] = useState<boolean>(true);
+  const [showRefTable, setShowRefTable] = useState<boolean>(false);
   const [isLoadingRefRanges, setIsLoadingRefRanges] = useState<boolean>(false);
 
   // Tải danh mục chỉ số sinh hiệu active & khoảng tham chiếu sinh hiệu riêng cho bệnh nhân theo tuổi/giới tính
   useEffect(() => {
     if (isOpen) {
       setActiveTab('vitals');
+      setShowRefTable(false);
       setSaveError(null);
       vitalService
         .getVitalItems()
