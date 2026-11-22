@@ -12,7 +12,7 @@ import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { BorderBeam } from '../../components/ui/border-beam';
 import { Mascot } from 'page-mascot';
-import { encounterService, type EncounterItem } from '../../services/encounter/encounter.service';
+import { encounterService, formatPdfDeliveryNote, type EncounterItem } from '../../services/encounter/encounter.service';
 import { caseTimelineService, type CaseTimelineResponse } from '../../services/doctor/case-timeline.service';
 import { useAuth } from '../../context/AuthContext';
 import { drugCatalogService, type DrugCatalogItem as ApiDrugItem, type DrugCatalogDetail } from '../../services/doctor/drug-catalog.service';
@@ -1133,6 +1133,10 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
   // Finish Encounter Without Follow-up (POST /encounters/:encounterId/finish)
   const handleFinishEncounter = async () => {
     if (!activeEncounterId) return;
+    if (!isPrescriptionSigned) {
+      showToast('error', 'Vui lòng ký số đơn thuốc trước khi hoàn tất & đóng ca khám.');
+      return;
+    }
     if (!window.confirm('Bạn có chắc chắn muốn kết thúc lượt khám này?')) {
       return;
     }
@@ -1152,12 +1156,13 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
         }
       }
 
-      await prescriptionService.finishEncounter(activeEncounterId);
-      showToast('success', 'Lượt khám đã được kết thúc thành công!');
+      const finishRes = await prescriptionService.finishEncounter(activeEncounterId);
+      const zaloNote = formatPdfDeliveryNote(finishRes?.pdfDelivery);
+      showToast('success', `Lượt khám đã được kết thúc thành công!${zaloNote}`);
       fetchEncounters();
       setCompletionModal({
         isOpen: true,
-        message: `Đã hoàn tất ca khám cho bệnh nhân ${currentPatient?.name || ''}.`,
+        message: `Đã hoàn tất ca khám cho bệnh nhân ${currentPatient?.name || ''}.${zaloNote}`,
       });
     } catch (err: any) {
       showToast('error', `Lỗi khi kết thúc lượt khám: ${err?.message || 'Thao tác thất bại'}`);
@@ -1983,7 +1988,8 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
                 <button
                   type="button"
                   onClick={handleFinishEncounter}
-                  disabled={isFinishingEncounter || !activeEncounterId || activeEncounter?.status === 'finished'}
+                  disabled={isFinishingEncounter || !activeEncounterId || isEncounterFinished || !isPrescriptionSigned}
+                  title={!isPrescriptionSigned && !isEncounterFinished ? 'Vui lòng ký số đơn thuốc trước khi đóng ca khám' : undefined}
                   className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs rounded-xl border-none cursor-pointer flex items-center gap-2 shadow-xs transition-colors disabled:opacity-50"
                 >
                   {isFinishingEncounter ? (

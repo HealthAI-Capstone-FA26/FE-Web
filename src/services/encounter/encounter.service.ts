@@ -153,6 +153,35 @@ export interface CreateIdentityVerificationDto {
   insuranceNumber?: string;
 }
 
+export interface PdfDeliveryResult {
+  sent: boolean;
+  reason?: string;
+}
+
+export interface CompleteRegistrationResponse {
+  encounter: EncounterItem;
+  triageQueueEntry: any;
+}
+
+const PDF_DELIVERY_REASON_LABELS: Record<string, string> = {
+  NO_CONTACT: 'bệnh nhân chưa liên kết Zalo Bot',
+  ZALO_OA_NOT_CONFIGURED: 'hệ thống chưa cấu hình Zalo',
+  DISABLED_BY_PREFERENCE: 'bệnh nhân đã tắt nhận thông báo Zalo',
+};
+
+/** Tạo ghi chú trạng thái gửi phiếu khám PDF qua Zalo để hiển thị khi kết thúc lượt khám */
+export function formatPdfDeliveryNote(pdfDelivery?: PdfDeliveryResult): string {
+  if (!pdfDelivery) return '';
+  if (pdfDelivery.sent) {
+    return ' Đã gửi phiếu khám PDF qua Zalo cho bệnh nhân.';
+  }
+  const detail =
+    (pdfDelivery.reason && PDF_DELIVERY_REASON_LABELS[pdfDelivery.reason]) ||
+    pdfDelivery.reason ||
+    'chưa rõ nguyên nhân';
+  return ` (Chưa gửi phiếu khám Zalo: ${detail}).`;
+}
+
 export const encounterService = {
   // Lấy danh sách ca khám (hỗ trợ lọc theo trạng thái, bệnh nhân, bác sĩ, khoa phòng, ngày)
   async getEncounters(params?: {
@@ -221,11 +250,8 @@ export const encounterService = {
   },
 
   // Hoàn tất tiếp đón: kiểm tra chief complaint + xác minh danh tính + consent, chuyển sang registered và xếp vào hàng đợi triage
-  async completeRegistration(encounterId: string): Promise<{
-    encounter: EncounterItem;
-    triageQueueEntry: any;
-  }> {
-    return apiFetch(`/encounters/${encounterId}/complete-registration`, {
+  async completeRegistration(encounterId: string): Promise<CompleteRegistrationResponse> {
+    return apiFetch<CompleteRegistrationResponse>(`/encounters/${encounterId}/complete-registration`, {
       method: 'POST',
     });
   },
