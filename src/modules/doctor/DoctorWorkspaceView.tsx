@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Stethoscope, FileText, Pill, Activity, Calendar } from 'lucide-react';
+import { Stethoscope, FileText, Pill, Activity, Calendar, QrCode } from 'lucide-react';
 import { EcgWorkspacePage } from '../lab/ecg/EcgWorkspacePage';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
+import { ZaloBotQrPanel } from '../../components/common/ZaloBotQrPanel';
 import { DoctorEMRView, type DoctorDateFilterMode } from './DoctorEMRView';
 import { DoctorDiagnosisView } from './DoctorDiagnosisView';
 import { DoctorPrescriptionView } from './DoctorPrescriptionView';
@@ -185,6 +186,12 @@ export const DoctorWorkspaceView: React.FC = () => {
       icon: Activity,
       badge: 'AI',
       component: <EcgWorkspacePage defaultMode="review" />
+    },
+    {
+      id: 'zalo-bot-qr',
+      label: 'QR Zalo Bot',
+      icon: QrCode,
+      component: <ZaloBotQrPanel />
     }
   ], [encounterCount, handleNavigateTab, dateFilterMode, customDate]);
 
