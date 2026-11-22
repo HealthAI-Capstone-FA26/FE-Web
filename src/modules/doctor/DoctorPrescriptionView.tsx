@@ -12,7 +12,7 @@ import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { BorderBeam } from '../../components/ui/border-beam';
 import { Mascot } from 'page-mascot';
-import { encounterService, type EncounterItem } from '../../services/encounter/encounter.service';
+import { encounterService, formatPdfDeliveryNote, type EncounterItem } from '../../services/encounter/encounter.service';
 import { caseTimelineService, type CaseTimelineResponse } from '../../services/doctor/case-timeline.service';
 import { useAuth } from '../../context/AuthContext';
 import { drugCatalogService, type DrugCatalogItem as ApiDrugItem, type DrugCatalogDetail } from '../../services/doctor/drug-catalog.service';
@@ -96,6 +96,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
 
   // Completion Modal with Next Patient button
   const [completionModal, setCompletionModal] = useState<{ isOpen: boolean; message: string } | null>(null);
+  const [isFinishConfirmOpen, setIsFinishConfirmOpen] = useState(false);
 
   // Sync selected patient from localStorage
   const [selectedPatientId, setSelectedPatientId] = useState<string>(() => {
@@ -1130,12 +1131,19 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
     }
   };
 
-  // Finish Encounter Without Follow-up (POST /encounters/:encounterId/finish)
-  const handleFinishEncounter = async () => {
+  // Mở modal xác nhận kết thúc lượt khám
+  const handleFinishEncounter = () => {
     if (!activeEncounterId) return;
-    if (!window.confirm('Bạn có chắc chắn muốn kết thúc lượt khám này?')) {
+    if (!isPrescriptionSigned) {
+      showToast('error', 'Vui lòng ký số đơn thuốc trước khi hoàn tất & đóng ca khám.');
       return;
     }
+    setIsFinishConfirmOpen(true);
+  };
+
+  // Xác nhận kết thúc lượt khám (POST /encounters/:encounterId/finish)
+  const handleConfirmFinishEncounter = async () => {
+    if (!activeEncounterId) return;
 
     try {
       setIsFinishingEncounter(true);
@@ -1152,12 +1160,14 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
         }
       }
 
-      await prescriptionService.finishEncounter(activeEncounterId);
-      showToast('success', 'Lượt khám đã được kết thúc thành công!');
+      const finishRes = await prescriptionService.finishEncounter(activeEncounterId);
+      const zaloNote = formatPdfDeliveryNote(finishRes?.pdfDelivery);
+      setIsFinishConfirmOpen(false);
+      showToast('success', `Lượt khám đã được kết thúc thành công!${zaloNote}`);
       fetchEncounters();
       setCompletionModal({
         isOpen: true,
-        message: `Đã hoàn tất ca khám cho bệnh nhân ${currentPatient?.name || ''}.`,
+        message: `Đã hoàn tất ca khám cho bệnh nhân ${currentPatient?.name || ''}.${zaloNote}`,
       });
     } catch (err: any) {
       showToast('error', `Lỗi khi kết thúc lượt khám: ${err?.message || 'Thao tác thất bại'}`);
@@ -1966,7 +1976,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
               <span className="text-[11px] text-slate-500 font-medium">
-                * Bác sĩ có thể in Phiếu kết quả khám bệnh EMR và đóng ca khám ngay cả khi không kê đơn thuốc.
+                * Bác sĩ cần ký xác nhận đơn thuốc trước khi hoàn tất &amp; đóng ca khám.
               </span>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -1983,7 +1993,8 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
                 <button
                   type="button"
                   onClick={handleFinishEncounter}
-                  disabled={isFinishingEncounter || !activeEncounterId || activeEncounter?.status === 'finished'}
+                  disabled={isFinishingEncounter || !activeEncounterId || isEncounterFinished || !isPrescriptionSigned}
+                  title={!isPrescriptionSigned && !isEncounterFinished ? 'Vui lòng ký số đơn thuốc trước khi đóng ca khám' : undefined}
                   className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs rounded-xl border-none cursor-pointer flex items-center gap-2 shadow-xs transition-colors disabled:opacity-50"
                 >
                   {isFinishingEncounter ? (
@@ -2249,6 +2260,52 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* FINISH CONFIRM MODAL */}
+      <Modal
+        isOpen={isFinishConfirmOpen}
+        onClose={() => {
+          if (!isFinishingEncounter) setIsFinishConfirmOpen(false);
+        }}
+        title="Xác Nhận Kết Thúc Lượt Khám"
+        subtitle="Hoàn tất phiên khám và gửi phiếu thông tin cho bệnh nhân"
+      >
+        <div className="space-y-4 text-xs font-semibold">
+          <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl text-slate-700 space-y-1.5">
+            <p className="text-sm font-extrabold text-slate-900">
+              Bạn có chắc chắn muốn kết thúc lượt khám của bệnh nhân{' '}
+              <span className="text-blue-700">{currentPatient?.name || 'hiện tại'}</span>?
+            </p>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Sau khi xác nhận, hệ thống sẽ chuyển trạng thái lượt khám sang hoàn tất, tự động gửi phiếu thông tin lượt khám qua Zalo (nếu bệnh nhân đã liên kết) và email hướng dẫn cổng bệnh nhân (nếu chưa có tài khoản).
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsFinishConfirmOpen(false)}
+              disabled={isFinishingEncounter}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border-none disabled:opacity-50"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmFinishEncounter}
+              disabled={isFinishingEncounter}
+              className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs rounded-xl cursor-pointer border-none flex items-center gap-2 shadow-xs disabled:opacity-50"
+            >
+              {isFinishingEncounter ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CheckCheck className="w-4 h-4" />
+              )}
+              <span>{isFinishingEncounter ? 'Đang xử lý...' : 'Xác Nhận Kết Thúc'}</span>
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* COMPLETION MODAL WITH NEXT PATIENT CALL */}
