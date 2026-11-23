@@ -556,8 +556,8 @@ export const LabOrdersView: React.FC = () => {
       // Đối với dịch vụ báo cáo hình ảnh (image_report: X-quang, Siêu âm tim), backend giữ task ở 'in_progress'
       // cho tới khi gọi POST /lab-results/:id/complete để chuyển task sang 'completed' và báo kết quả cho Bác sĩ.
       if (result.labResultId) {
-        await labResultService
-          .completeLabResult(
+        try {
+          await labResultService.completeLabResult(
             result.labResultId,
             hasUploadedAttachment
               ? {}
@@ -567,8 +567,14 @@ export const LabOrdersView: React.FC = () => {
                       ? overallConclusion.trim().slice(0, 200)
                       : 'Hoàn tất nhập chỉ số và kết luận chuyên môn trên hệ thống EMR',
                 }
-          )
-          .catch(() => null);
+          );
+        } catch (completeErr: any) {
+          const msg = String(completeErr?.message || '');
+          // Nếu dịch vụ không phải image_report (đã tự động hoàn tất ở submitLabResult) thì bỏ qua
+          if (!msg.includes('báo cáo hình ảnh') && !msg.includes('đã được hoàn tất')) {
+            throw completeErr;
+          }
+        }
       }
 
       // Kích hoạt phát hiện bất thường từ backend để lấy phân loại nguy cơ chuẩn y tế
@@ -646,7 +652,7 @@ export const LabOrdersView: React.FC = () => {
       setIsInputModalOpen(false);
       setIsAlertSummaryModalOpen(true);
       showToast(`Đã lưu kết quả EMR cho ca ${selectedTask.orderItem?.testType?.testName || ''}!`, 'success');
-      fetchTasks(true);
+      await fetchTasks(true);
     } catch (err: any) {
       const errMessage = err?.message || 'Không thể lưu kết quả xét nghiệm. Vui lòng thử lại.';
       setModalError(errMessage);
