@@ -15,6 +15,12 @@ import {
 import type { EncounterItem } from '../../../services/encounter/encounter.service';
 import { getPatientEncounterHistory } from '../../../services/encounter/encounter.service';
 import type { AppointmentItem } from '../../../services/appointment/appointment.service';
+import { testOrderService } from '../../../services/doctor';
+import {
+  invoiceService,
+  resolveEncounterLabPaymentState,
+  type LabWorkflowPaymentState,
+} from '../../../services/payment/invoice.service';
 
 interface PatientAdministrativeCardProps {
   currentPatient: PatientEMR | null;
@@ -99,6 +105,44 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
   const [encounterHistory, setEncounterHistory] = useState<EncounterItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
+  const [historyLabStates, setHistoryLabStates] = useState<Record<string, LabWorkflowPaymentState | null>>({});
+
+  useEffect(() => {
+    setHistoryLabStates({});
+  }, [realPatientId]);
+
+  useEffect(() => {
+    if (!isHistoryOpen || encounterHistory.length === 0) return;
+    let isMounted = true;
+
+    encounterHistory.forEach(async (enc) => {
+      if (enc.encounterId in historyLabStates) return;
+      try {
+        const [orders, invoices] = await Promise.all([
+          testOrderService.getTestOrdersByEncounter(enc.encounterId).catch(() => []),
+          invoiceService.findMany({ encounterId: enc.encounterId }).catch(() => []),
+        ]);
+        const state = resolveEncounterLabPaymentState(orders, invoices);
+        if (isMounted) {
+          setHistoryLabStates((prev) => ({
+            ...prev,
+            [enc.encounterId]: state,
+          }));
+        }
+      } catch {
+        if (isMounted) {
+          setHistoryLabStates((prev) => ({
+            ...prev,
+            [enc.encounterId]: null,
+          }));
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isHistoryOpen, encounterHistory, historyLabStates]);
 
   useEffect(() => {
     if (!realPatientId) {
@@ -486,9 +530,26 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
                       <span className="font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-extrabold">
                         {enc.encounterCode}
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700">
-                        {formatEncounterStatus(enc.status)}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        {historyLabStates[enc.encounterId] === 'ordered' && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                            Chờ đóng phí Lab
+                          </span>
+                        )}
+                        {historyLabStates[enc.encounterId] === 'paid' && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                            Đã đóng phí • Chờ Lab
+                          </span>
+                        )}
+                        {historyLabStates[enc.encounterId] === 'completed' && enc.status !== 'finished' && enc.status !== 'completed' && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            Đã có KQ Lab
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700">
+                          {formatEncounterStatus(enc.status)}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="space-y-1 text-[11px] text-slate-600">

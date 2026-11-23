@@ -137,3 +137,61 @@ export const invoiceService = {
     });
   },
 };
+
+export type LabWorkflowPaymentState = 'ordered' | 'paid' | 'completed';
+
+/**
+ * Kiểm tra danh sách hóa đơn của 1 encounter có hóa đơn phí xét nghiệm/CLS đã thanh toán hay chưa
+ * (loại trừ hóa đơn phí khám consultation riêng lẻ).
+ */
+export function hasPaidLabInvoice(invoices: InvoiceData[]): boolean {
+  return invoices.some(
+    (inv) =>
+      inv.status === 'paid' &&
+      (inv.invoiceType === 'diagnostics' ||
+        inv.invoiceType === 'tests' ||
+        inv.invoiceType === 'combined' ||
+        inv.items?.some((item) => item.itemType === 'tests' || item.itemType === 'diagnostics'))
+  );
+}
+
+/**
+ * Xác định trạng thái đóng phí & thực hiện xét nghiệm của một encounter
+ * dựa trên chỉ định CLS và hóa đơn phí xét nghiệm riêng của encounter đó.
+ */
+export function resolveEncounterLabPaymentState(
+  orders: Array<{
+    items?: Array<{
+      status?: string;
+      task?: { status?: string; paymentVerified?: boolean } | null;
+      labTask?: { status?: string; paymentVerified?: boolean } | null;
+    }>;
+  }>,
+  invoices: InvoiceData[]
+): LabWorkflowPaymentState | null {
+  const activeItems = orders
+    .flatMap((o) => o.items || [])
+    .filter((i) => i.status !== 'cancelled');
+
+  if (activeItems.length === 0) return null;
+
+  const allCompleted = activeItems.every(
+    (i) => (i.task?.status || i.labTask?.status) === 'completed'
+  );
+  if (allCompleted) return 'completed';
+
+  const isPaid =
+    hasPaidLabInvoice(invoices) ||
+    activeItems.some((i) => {
+      const task = i.task || i.labTask;
+      return (
+        task?.paymentVerified === true ||
+        task?.status === 'ready' ||
+        task?.status === 'sample_collected' ||
+        task?.status === 'in_progress' ||
+        task?.status === 'completed'
+      );
+    });
+
+  return isPaid ? 'paid' : 'ordered';
+}

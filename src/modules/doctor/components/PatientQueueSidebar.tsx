@@ -239,17 +239,17 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
                       Chờ khám
                     </span>
                   )}
-                  {workflowState === 'ordered' && (
+                  {workflowState === 'ordered' && p.status !== 'finished' && p.status !== 'completed' && (
                     <span className="text-[8px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded border border-amber-200">
                       Chờ đóng phí
                     </span>
                   )}
-                  {workflowState === 'paid' && (
+                  {workflowState === 'paid' && p.status !== 'finished' && p.status !== 'completed' && (
                     <span className="text-[8px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded border border-blue-200">
                       Đã đóng phí • Chờ Lab
                     </span>
                   )}
-                  {workflowState === 'completed' && p.status !== 'awaiting_review' && (
+                  {workflowState === 'completed' && p.status !== 'awaiting_review' && p.status !== 'finished' && p.status !== 'completed' && (
                     <span className="text-[8px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded border border-emerald-200">
                       Đã có KQ Lab
                     </span>

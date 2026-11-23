@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { User, Stethoscope, Sparkles, FileText, Calendar, CheckCircle2 } from 'lucide-react';
+import { User, Stethoscope, FileText, Calendar, CheckCircle2 } from 'lucide-react';
 import { Mascot } from 'page-mascot';
 import {
   encounterService,
@@ -28,7 +28,7 @@ import {
   type TestOrderDetail,
   type CaseOverviewData,
 } from '../../services/doctor';
-import { invoiceService } from '../../services/payment/invoice.service';
+import { invoiceService, resolveEncounterLabPaymentState } from '../../services/payment/invoice.service';
 
 // Modular Sub-Components
 import type { PatientEMR, PatientWorkflowState } from './types';
@@ -57,7 +57,6 @@ let globalApiEncounters: EncounterItem[] = [];
 let globalPatientWorkflowStates: Record<string, PatientWorkflowState> = {};
 let globalLastSelectedPatientId: string = '';
 
-import { AiImagingAnalysisCard } from './components/AiImagingAnalysisCard';
 import { ClinicalExamForm } from './components/ClinicalExamForm';
 import { TestOrderCreationCard } from './components/TestOrderCreationCard';
 import { TestOrderHistoryList } from './components/TestOrderHistoryList';
@@ -104,8 +103,8 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
 
   const [isMedicalHistoryModalOpen, setIsMedicalHistoryModalOpen] = useState<boolean>(false);
 
-  // Tab con nội bộ: 'emr_summary' (Hồ sơ EMR & AI01) | 'clinical_orders' (Khám & Chỉ định) | 'ai_imaging' (Phân tích ảnh AI02)
-  const [activeSubTab, setActiveSubTab] = useState<'emr_summary' | 'clinical_orders' | 'ai_imaging'>('emr_summary');
+  // Tab con nội bộ: 'emr_summary' (Hồ sơ EMR & AI01) | 'clinical_orders' (Khám & Chỉ định)
+  const [activeSubTab, setActiveSubTab] = useState<'emr_summary' | 'clinical_orders'>('emr_summary');
 
   const effectiveCustomDate = useMemo(() => {
     if (customDate) return customDate;
@@ -233,32 +232,8 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
           testOrderService.getTestOrdersByEncounter(enc.encounterId),
           invoiceService.findMany({ encounterId: enc.encounterId }).catch(() => []),
         ]);
-        const activeItems = orders
-          .flatMap((o) => o.items || [])
-          .filter((i) => i.status !== 'cancelled');
-
-        if (activeItems.length > 0) {
-          const allCompleted = activeItems.every((i) => (i.task?.status || i.labTask?.status) === 'completed');
-          const isPaid =
-            invoices.some((inv) => inv.status === 'paid') ||
-            activeItems.some((i) => {
-              const task = i.task || i.labTask;
-              return (
-                task?.paymentVerified === true ||
-                task?.status === 'ready' ||
-                task?.status === 'sample_collected' ||
-                task?.status === 'in_progress' ||
-                task?.status === 'completed'
-              );
-            });
-
-          let state: PatientWorkflowState = 'ordered';
-          if (allCompleted) {
-            state = 'completed';
-          } else if (isPaid) {
-            state = 'paid';
-          }
-
+        const state = resolveEncounterLabPaymentState(orders, invoices);
+        if (state) {
           setPatientWorkflowStates((prev) => {
             const next = {
               ...prev,
@@ -994,32 +969,9 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
       ]);
 
       if (Array.isArray(orders)) {
-        const activeItems = orders
-          .flatMap((o) => o.items || [])
-          .filter((i) => i.status !== 'cancelled');
+        const nextState = resolveEncounterLabPaymentState(orders, invoices);
 
-        if (activeItems.length > 0) {
-          const allCompleted = activeItems.every((i) => (i.task?.status || i.labTask?.status) === 'completed');
-          const isPaid =
-            invoices.some((inv) => inv.status === 'paid') ||
-            activeItems.some((i) => {
-              const task = i.task || i.labTask;
-              return (
-                task?.paymentVerified === true ||
-                task?.status === 'ready' ||
-                task?.status === 'sample_collected' ||
-                task?.status === 'in_progress' ||
-                task?.status === 'completed'
-              );
-            });
-
-          let nextState: PatientWorkflowState = 'ordered';
-          if (allCompleted) {
-            nextState = 'completed';
-          } else if (isPaid) {
-            nextState = 'paid';
-          }
-
+        if (nextState) {
           setPatientWorkflowStates((prev) => {
             const next: Record<string, PatientWorkflowState> = {
               ...prev,
@@ -1289,10 +1241,10 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
           />
           <div>
             <h2 className="text-xl font-bold text-slate-900">
-              Hồ Sơ EMR & Phân Tích AI
+              Hồ Sơ Bệnh Án Điện Tử (EMR)
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Xem hồ sơ bệnh án EMR và khoanh vùng bất thường AI (AI02).
+              Xem hồ sơ bệnh án EMR, ghi nhận khám lâm sàng và chỉ định cận lâm sàng.
             </p>
           </div>
         </div>
@@ -1404,24 +1356,6 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                     </span>
                   )}
                 </button>
-
-                {/* Tab 3: Mô-đun AI02 — Kết quả phân tích hình ảnh xét nghiệm */}
-                <button
-                  type="button"
-                  onClick={() => setActiveSubTab('ai_imaging')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeSubTab === 'ai_imaging'
-                      ? 'bg-white text-purple-700 shadow-xs border border-slate-200/60'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                    }`}
-                >
-                  <Sparkles className="w-4 h-4 text-purple-600" />
-                  <span>Phân tích ảnh AI (AI02)</span>
-                  {currentWorkflowState === 'completed' && (
-                    <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-extrabold animate-pulse">
-                      Đã có KQ
-                    </span>
-                  )}
-                </button>
               </div>
 
               {/* Tab 1: Hồ sơ Bệnh án Điện tử (EMR) - Thông tin Hành chính & Sinh hiệu + AI01 Tóm tắt bệnh án */}
@@ -1510,7 +1444,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                           </p>
                           <p className="text-xs text-emerald-700 mt-0.5">
                             {currentWorkflowState === 'completed'
-                              ? 'Toàn bộ kết quả xét nghiệm đã hoàn tất. Bác sĩ có thể xem chi tiết bên dưới hoặc chuyển sang tab Phân tích ảnh AI / Chẩn đoán.'
+                              ? 'Toàn bộ kết quả xét nghiệm đã hoàn tất. Bác sĩ có thể xem chi tiết bên dưới hoặc chuyển sang tab Chẩn đoán.'
                               : 'Phiếu chỉ định đã được xác nhận cho ca khám này. Chi tiết các dịch vụ đã chỉ định hiển thị ở danh sách bên dưới.'}
                           </p>
                         </div>
@@ -1545,23 +1479,6 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                       onViewResult={() => navigateTab('icd10-diagnosis')}
                     />
                   </div>
-                </div>
-              )}
-
-
-              {/* Tab 3: Mô-đun AI02 — Kết quả phân tích hình ảnh xét nghiệm & Đề xuất AI */}
-              {activeSubTab === 'ai_imaging' && (
-                <div className="space-y-6 animate-in fade-in duration-150">
-                  {/* Component 3: AI02 Lab Image Analysis & ROI Simulation */}
-                  <AiImagingAnalysisCard
-                    currentWorkflowState={currentWorkflowState}
-                    onSimulateLabCompletion={handleSimulateLabCompletion}
-                    preliminaryDiag={preliminaryDiag}
-                    aiConfidence={currentPatient?.aiConfidence}
-                    aiProposedDiag={currentPatient?.aiProposedDiag}
-                    realImageUrl={latestLabImage?.url}
-                    realImageDescription={latestLabImage?.description}
-                  />
                 </div>
               )}
             </>
