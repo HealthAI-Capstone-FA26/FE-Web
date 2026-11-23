@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Eye, EyeOff, ShieldAlert, Check, ArrowLeft, ShieldCheck, Lock, UserPlus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -18,6 +18,7 @@ interface LoginPageProps {
 
 export const LoginPage = ({ initialMode = 'login' }: LoginPageProps): React.ReactElement => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isLoggedIn, user, currentRole, loginWithTokens } = useAuth();
 
   // If already logged in, redirect to workspace
@@ -31,6 +32,33 @@ export const LoginPage = ({ initialMode = 'login' }: LoginPageProps): React.Reac
   // Auth Mode: 'login' | 'register' | 'forgot-password' | 'otp' | 'reset-password'
   const [mode, setMode] = useState<'login' | 'register' | 'forgot-password' | 'otp' | 'reset-password'>(initialMode);
   const [otpFlow, setOtpFlow] = useState<'register' | 'forgot-password'>('register');
+
+  // Đồng bộ mode khi route thay đổi giữa /login <-> /register (hoặc /dang-nhap <-> /dang-ky)
+  useEffect(() => {
+    setMode(initialMode);
+    setError('');
+    setInfoMessage('');
+  }, [initialMode]);
+
+  const switchAuthMode = (target: 'login' | 'register', keepInfoMessage = false) => {
+    setError('');
+    if (!keepInfoMessage) setInfoMessage('');
+    setMode(target);
+
+    const isViRoute = location.pathname.startsWith('/dang-');
+    const targetPath =
+      target === 'register'
+        ? isViRoute
+          ? '/dang-ky'
+          : '/register'
+        : isViRoute
+          ? '/dang-nhap'
+          : '/login';
+
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
+    }
+  };
 
   // Login form fields
   const [emailOrPhone, setEmailOrPhone] = useState('');
@@ -212,8 +240,8 @@ export const LoginPage = ({ initialMode = 'login' }: LoginPageProps): React.Reac
         setTimeout(() => {
           setIsSuccess(false);
           setEmailOrPhone(regEmail);
-          setMode('login');
           setOtpCode('');
+          switchAuthMode('login', true);
         }, 1500);
       } else if (otpFlow === 'forgot-password') {
         const res = await authService.verifyForgotPasswordOtp(forgotEmail.trim(), otpCode.trim());
@@ -299,11 +327,7 @@ export const LoginPage = ({ initialMode = 'login' }: LoginPageProps): React.Reac
             <div className="mt-4 grid grid-cols-2 bg-slate-100 p-1 rounded-2xl w-full border border-slate-200/70 text-xs font-bold">
               <button
                 type="button"
-                onClick={() => {
-                  setError('');
-                  setInfoMessage('');
-                  setMode('login');
-                }}
+                onClick={() => switchAuthMode('login')}
                 className={`py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   mode === 'login'
                     ? 'bg-white text-[#0b3c8f] shadow-sm font-extrabold'
@@ -315,11 +339,7 @@ export const LoginPage = ({ initialMode = 'login' }: LoginPageProps): React.Reac
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setError('');
-                  setInfoMessage('');
-                  setMode('register');
-                }}
+                onClick={() => switchAuthMode('register')}
                 className={`py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   mode === 'register'
                     ? 'bg-white text-[#0b3c8f] shadow-sm font-extrabold'
@@ -380,11 +400,7 @@ export const LoginPage = ({ initialMode = 'login' }: LoginPageProps): React.Reac
                 error={error}
                 isSubmitting={isSubmitting}
                 onSubmit={handleRegisterSubmit}
-                onSwitchToLogin={() => {
-                  setError('');
-                  setInfoMessage('');
-                  setMode('login');
-                }}
+                onSwitchToLogin={() => switchAuthMode('login')}
               />
             </motion.div>
           ) : mode === 'otp' ? (
@@ -542,11 +558,7 @@ export const LoginPage = ({ initialMode = 'login' }: LoginPageProps): React.Reac
                 Chưa có tài khoản bệnh nhân?{' '}
                 <button
                   type="button"
-                  onClick={() => {
-                    setError('');
-                    setInfoMessage('');
-                    setMode('register');
-                  }}
+                  onClick={() => switchAuthMode('register')}
                   className="text-[#0b3c8f] hover:underline font-bold cursor-pointer border-none bg-transparent"
                 >
                   Đăng ký ngay

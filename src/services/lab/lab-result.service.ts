@@ -175,6 +175,18 @@ export const labResultService = {
   },
 
   /**
+   * POST /api/v1/lab-results/:id/complete
+   * Hoàn tất kết quả dạng báo cáo hình ảnh (siêu âm tim, X-quang ngực)
+   */
+  async completeLabResult(labResultId: string, data?: { noImageReason?: string }): Promise<LabResultDetail> {
+    const raw = await apiFetch<any>(`/lab-results/${labResultId}/complete`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    });
+    return normalizeLabResult(raw);
+  },
+
+  /**
    * POST /api/v1/lab-results/:id/attachments
    * Tải ảnh/tệp đính kèm kết quả
    */

@@ -1,4 +1,5 @@
 import { apiFetch } from '../api';
+import type { PdfDeliveryResult } from '../encounter/encounter.service';
 
 export interface PrescriptionItemInput {
   drugId: string;
@@ -282,10 +283,15 @@ export const prescriptionService = {
   },
 
   /**
-   * Đóng lượt khám (status=finished) khi hoàn tất kê đơn không cần đặt lịch tái khám
+   * Đóng lượt khám (status=finished) khi hoàn tất tư vấn / kê đơn
    */
-  async finishEncounter(encounterId: string): Promise<any> {
-    return apiFetch<any>(`/prescriptions/encounters/${encounterId}/finish`, {
+  async finishEncounter(encounterId: string): Promise<{
+    encounter: any;
+    appointment: any;
+    doctorQueueEntry: any;
+    pdfDelivery?: PdfDeliveryResult;
+  }> {
+    return apiFetch(`/encounters/${encounterId}/finish`, {
       method: 'POST',
     });
   },

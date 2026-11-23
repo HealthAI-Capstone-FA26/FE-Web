@@ -319,6 +319,7 @@ export const LabOrdersView: React.FC = () => {
   const handleOpenInputModal = (task: LabTaskItem) => {
     setSelectedTask(task);
     setModalError(null);
+    const existingResult = task.labResult;
     const initialParams: Record<string, { valueNumeric?: number; valueText?: string }> = {};
     const parameters = task.orderItem?.testType?.labResultParameters || [];
     parameters.forEach((p) => {
@@ -328,8 +329,20 @@ export const LabOrdersView: React.FC = () => {
         valueText: isPositiveNegative ? 'Âm tính (-)' : '',
       };
     });
+
+    if (existingResult?.values && Array.isArray(existingResult.values)) {
+      existingResult.values.forEach((v: any) => {
+        if (v.parameterId) {
+          initialParams[v.parameterId] = {
+            valueNumeric: v.valueNumeric !== null && v.valueNumeric !== undefined ? Number(v.valueNumeric) : undefined,
+            valueText: v.valueText || (v.parameter?.dataType === 'positive_negative' ? 'Âm tính (-)' : ''),
+          };
+        }
+      });
+    }
+
     setParamValues(initialParams);
-    setOverallConclusion('');
+    setOverallConclusion(existingResult?.overallConclusion || existingResult?.findings || '');
     setSelectedFile(null);
     setAttachedFileName('');
     setIsAIAnalyzed(false);
@@ -497,15 +510,65 @@ export const LabOrdersView: React.FC = () => {
 
     setIsSubmittingResult(true);
     try {
-      const result = await labResultService.submitLabResult(selectedTask.labTaskId, {
-        values: valuesPayload.filter((v) => v.valueNumeric !== undefined || (v.valueText && v.valueText.trim() !== '')),
-        overallConclusion: overallConclusion.trim() || undefined,
-        resultStatus: 'final',
-      });
+      const existingResultId = selectedTask.labResult?.labResultId || selectedTask.labResult?.resultId;
+      let result: LabResultDetail;
+      const filteredValues = valuesPayload.filter(
+        (v) => v.valueNumeric !== undefined || (v.valueText && v.valueText.trim() !== '')
+      );
+
+      if (existingResultId) {
+        result = await labResultService.updateLabResult(existingResultId, {
+          values: filteredValues,
+          overallConclusion: overallConclusion.trim() || undefined,
+          resultStatus: 'final',
+        });
+      } else {
+        try {
+          result = await labResultService.submitLabResult(selectedTask.labTaskId, {
+            values: filteredValues,
+            overallConclusion: overallConclusion.trim() || undefined,
+            resultStatus: 'final',
+          });
+        } catch (submitErr: any) {
+          // Trường hợp kết quả đã tồn tại trên server nhưng worklist trong RAM chưa đồng bộ
+          const existing = await labResultService.getLabResultByTaskId(selectedTask.labTaskId).catch(() => null);
+          if (existing?.labResultId) {
+            result = await labResultService.updateLabResult(existing.labResultId, {
+              values: filteredValues,
+              overallConclusion: overallConclusion.trim() || undefined,
+              resultStatus: 'final',
+            });
+          } else {
+            throw submitErr;
+          }
+        }
+      }
 
       // Nếu có đính kèm file, upload đính kèm luôn
+      let hasUploadedAttachment = Boolean(result.attachments && result.attachments.length > 0);
       if (selectedFile && result.labResultId) {
-        await labResultService.uploadAttachment(result.labResultId, selectedFile, 'image', 'Hình ảnh xét nghiệm đính kèm').catch(() => {});
+        const uploaded = await labResultService
+          .uploadAttachment(result.labResultId, selectedFile, 'image', 'Hình ảnh xét nghiệm đính kèm')
+          .catch(() => null);
+        if (uploaded) hasUploadedAttachment = true;
+      }
+
+      // Đối với dịch vụ báo cáo hình ảnh (image_report: X-quang, Siêu âm tim), backend giữ task ở 'in_progress'
+      // cho tới khi gọi POST /lab-results/:id/complete để chuyển task sang 'completed' và báo kết quả cho Bác sĩ.
+      if (result.labResultId) {
+        await labResultService
+          .completeLabResult(
+            result.labResultId,
+            hasUploadedAttachment
+              ? {}
+              : {
+                  noImageReason:
+                    overallConclusion.trim().length >= 10
+                      ? overallConclusion.trim().slice(0, 200)
+                      : 'Hoàn tất nhập chỉ số và kết luận chuyên môn trên hệ thống EMR',
+                }
+          )
+          .catch(() => null);
       }
 
       // Kích hoạt phát hiện bất thường từ backend để lấy phân loại nguy cơ chuẩn y tế

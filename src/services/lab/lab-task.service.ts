@@ -145,7 +145,8 @@ export function normalizeLabTask(raw: any): LabTaskItem {
           testTypeId: service.serviceId || service.testTypeId,
           testCode: service.serviceCode || service.testCode,
           testName: service.serviceName || service.testName,
-          category: service.category || 'blood_test',
+          category: service.category || service.modality || 'blood_test',
+          resultKind: service.resultKind,
           specimenType: service.specimenType || 'Máu tĩnh mạch',
           price: service.price ?? orderItem.unitPrice,
           labResultParameters: (service.resultParameters || service.labResultParameters || []).map((p: any) => ({
