@@ -210,6 +210,16 @@ export const labResultService = {
   },
 
   /**
+   * DELETE /api/v1/lab-attachments/:attachmentId
+   * Xoá 1 tệp đính kèm của kết quả xét nghiệm
+   */
+  async deleteAttachment(attachmentId: string): Promise<void> {
+    await apiFetch(`/lab-attachments/${attachmentId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
    * GET /api/v1/lab-results/:id/attachments
    * Danh sách tệp đính kèm của kết quả
    */
