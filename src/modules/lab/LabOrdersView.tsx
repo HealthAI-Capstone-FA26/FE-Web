@@ -5,7 +5,7 @@ import {
   Building2, RefreshCw, Search, AlertCircle, Eye,
   ChevronDown, MapPin, Pencil, AlertTriangle, ShieldAlert,
   ArrowUpRight, ArrowDownRight, Info, Check, ShieldCheck, X,
-  Calendar, Clock, CalendarDays, Image as ImageIcon, ExternalLink, Download, PauseCircle
+  Calendar, Clock, CalendarDays, Image as ImageIcon, ExternalLink, Download, PauseCircle, Trash2
 } from 'lucide-react';
 import { Badge } from '../../components/common/Badge';
 import { DataTable, type Column } from '../../components/common/DataTable';
@@ -98,6 +98,7 @@ export const LabOrdersView: React.FC = () => {
   const [editAttachedFileName, setEditAttachedFileName] = useState<string>('');
   const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
 
   // Modal 3: Thông báo tổng kết đối soát ngưỡng ngay sau khi Lưu
   const [alertSummary, setAlertSummary] = useState<ThresholdAlertSummary | null>(null);
@@ -398,6 +399,34 @@ export const LabOrdersView: React.FC = () => {
     }
   };
 
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!viewingResult?.labResultId) return;
+    setDeletingAttachmentId(attachmentId);
+    setEditModalError(null);
+    try {
+      await labResultService.deleteAttachment(attachmentId);
+      const refreshed = await labResultService.getLabResultById(viewingResult.labResultId).catch(() => null);
+      if (refreshed) {
+        setViewingResult(refreshed);
+        if (selectedTask) populateEditData(selectedTask, refreshed);
+      } else {
+        setViewingResult((prev) =>
+          prev
+            ? { ...prev, attachments: (prev.attachments || []).filter((a) => a.attachmentId !== attachmentId) }
+            : prev
+        );
+      }
+      showToast('Đã xoá tệp đính kèm.', 'success');
+      await fetchTasks(true);
+    } catch (err: any) {
+      const msg = err?.message || 'Không thể xoá tệp đính kèm.';
+      setEditModalError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setDeletingAttachmentId(null);
+    }
+  };
+
   // Lưu chỉnh sửa / bổ sung trực tiếp trong Modal Xem kết quả
   const handleSaveEditInViewModal = async () => {
     if (!selectedTask || !viewingResult) return;
@@ -426,20 +455,36 @@ export const LabOrdersView: React.FC = () => {
       return;
     }
 
+    const filteredValues = valuesPayload.filter(
+      (v) => v.valueNumeric !== undefined || (v.valueText && v.valueText.trim() !== '')
+    );
+
+    if (filteredValues.length === 0 && !editSelectedFile) {
+      const err = 'Vui lòng nhập ít nhất một chỉ số hoặc chọn tệp đính kèm bổ sung';
+      setEditModalError(err);
+      showToast(err, 'error');
+      return;
+    }
+
     setIsSavingEdit(true);
     try {
-      const updated = await labResultService.updateLabResult(viewingResult.labResultId, {
-        values: valuesPayload.filter((v) => v.valueNumeric !== undefined || (v.valueText && v.valueText.trim() !== '')),
-        overallConclusion: editConclusion.trim() || undefined,
-      });
+      let updated: LabResultDetail = viewingResult;
+      if (filteredValues.length > 0) {
+        updated = await labResultService.updateLabResult(viewingResult.labResultId, {
+          values: filteredValues,
+          overallConclusion: editConclusion.trim() || undefined,
+        });
+      }
 
       // Nếu có tệp đính kèm bổ sung được chọn, upload luôn vào ca kết quả
       if (editSelectedFile && viewingResult.labResultId) {
+        const isEditPdf =
+          editSelectedFile.type === 'application/pdf' || editSelectedFile.name.toLowerCase().endsWith('.pdf');
         await labResultService.uploadAttachment(
           viewingResult.labResultId,
           editSelectedFile,
-          'image',
-          'Phiếu in kết quả máy bổ sung'
+          isEditPdf ? 'pdf' : 'image',
+          isEditPdf ? 'Phiếu kết quả PDF bổ sung' : 'Phiếu in kết quả máy bổ sung'
         ).catch(() => {});
         // Refresh lại chi tiết kết quả để lấy attachments mới
         const refreshed = await labResultService.getLabResultById(viewingResult.labResultId).catch(() => null);
@@ -547,8 +592,14 @@ export const LabOrdersView: React.FC = () => {
       // Nếu có đính kèm file, upload đính kèm luôn
       let hasUploadedAttachment = Boolean(result.attachments && result.attachments.length > 0);
       if (selectedFile && result.labResultId) {
+        const isPdf = selectedFile.type === 'application/pdf' || selectedFile.name.toLowerCase().endsWith('.pdf');
         const uploaded = await labResultService
-          .uploadAttachment(result.labResultId, selectedFile, 'image', 'Hình ảnh xét nghiệm đính kèm')
+          .uploadAttachment(
+            result.labResultId,
+            selectedFile,
+            isPdf ? 'pdf' : 'image',
+            isPdf ? 'Phiếu kết quả PDF đính kèm' : 'Hình ảnh xét nghiệm đính kèm'
+          )
           .catch(() => null);
         if (uploaded) hasUploadedAttachment = true;
       }
@@ -556,8 +607,8 @@ export const LabOrdersView: React.FC = () => {
       // Đối với dịch vụ báo cáo hình ảnh (image_report: X-quang, Siêu âm tim), backend giữ task ở 'in_progress'
       // cho tới khi gọi POST /lab-results/:id/complete để chuyển task sang 'completed' và báo kết quả cho Bác sĩ.
       if (result.labResultId) {
-        await labResultService
-          .completeLabResult(
+        try {
+          await labResultService.completeLabResult(
             result.labResultId,
             hasUploadedAttachment
               ? {}
@@ -567,8 +618,14 @@ export const LabOrdersView: React.FC = () => {
                       ? overallConclusion.trim().slice(0, 200)
                       : 'Hoàn tất nhập chỉ số và kết luận chuyên môn trên hệ thống EMR',
                 }
-          )
-          .catch(() => null);
+          );
+        } catch (completeErr: any) {
+          const msg = String(completeErr?.message || '');
+          // Nếu dịch vụ không phải image_report (đã tự động hoàn tất ở submitLabResult) thì bỏ qua
+          if (!msg.includes('báo cáo hình ảnh') && !msg.includes('đã được hoàn tất')) {
+            throw completeErr;
+          }
+        }
       }
 
       // Kích hoạt phát hiện bất thường từ backend để lấy phân loại nguy cơ chuẩn y tế
@@ -646,7 +703,7 @@ export const LabOrdersView: React.FC = () => {
       setIsInputModalOpen(false);
       setIsAlertSummaryModalOpen(true);
       showToast(`Đã lưu kết quả EMR cho ca ${selectedTask.orderItem?.testType?.testName || ''}!`, 'success');
-      fetchTasks(true);
+      await fetchTasks(true);
     } catch (err: any) {
       const errMessage = err?.message || 'Không thể lưu kết quả xét nghiệm. Vui lòng thử lại.';
       setModalError(errMessage);
@@ -1900,13 +1957,29 @@ export const LabOrdersView: React.FC = () => {
                                   {att.description || 'Phiếu in kết quả máy'}
                                 </span>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => setPreviewModalUrl(resolvedUrl)}
-                                className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors shrink-0"
-                              >
-                                Xem
-                              </button>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewModalUrl(resolvedUrl)}
+                                  className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                                >
+                                  Xem
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={deletingAttachmentId === att.attachmentId}
+                                  onClick={() => void handleDeleteAttachment(att.attachmentId)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-bold cursor-pointer transition-colors disabled:opacity-50"
+                                  title="Xoá tệp đính kèm này"
+                                >
+                                  {deletingAttachmentId === att.attachmentId ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="w-3 h-3" />
+                                  )}
+                                  <span>Xoá</span>
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
@@ -2371,27 +2444,42 @@ export const LabOrdersView: React.FC = () => {
               </div>
             </div>
             <div className="p-4 flex-1 overflow-auto flex items-center justify-center bg-black/40 min-h-[300px]">
-              {previewModalUrl.match(/\.(jpg|jpeg|png|webp|gif|svg)/i) ? (
-                <img
-                  src={previewModalUrl}
-                  alt="Tệp kết quả cận lâm sàng"
-                  className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg border border-slate-800"
-                />
-              ) : (
-                <div className="text-center space-y-3 p-8">
-                  <FileText className="w-12 h-12 mx-auto text-indigo-400" />
-                  <p className="text-xs text-slate-300">Tệp tài liệu (PDF / Báo cáo xuất từ máy)</p>
-                  <a
-                    href={previewModalUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition-colors no-underline"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    <span>Tải về hoặc Xem trong tab mới</span>
-                  </a>
-                </div>
-              )}
+              {(() => {
+                const cleanUrl = previewModalUrl.split('?')[0].split('#')[0];
+                if (/\.pdf$/i.test(cleanUrl)) {
+                  return (
+                    <iframe
+                      src={previewModalUrl}
+                      title="Xem tệp PDF kết quả cận lâm sàng"
+                      className="w-full h-[72vh] rounded-xl bg-white border border-slate-700"
+                    />
+                  );
+                }
+                if (/\.(jpg|jpeg|png|webp|gif|svg)$/i.test(cleanUrl)) {
+                  return (
+                    <img
+                      src={previewModalUrl}
+                      alt="Tệp kết quả cận lâm sàng"
+                      className="max-w-full max-h-[70vh] object-contain rounded-xl shadow-lg border border-slate-800"
+                    />
+                  );
+                }
+                return (
+                  <div className="text-center space-y-3 p-8">
+                    <FileText className="w-12 h-12 mx-auto text-indigo-400" />
+                    <p className="text-xs text-slate-300">Tệp tài liệu (PDF / Báo cáo xuất từ máy)</p>
+                    <a
+                      href={previewModalUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition-colors no-underline"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      <span>Tải về hoặc Xem trong tab mới</span>
+                    </a>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
