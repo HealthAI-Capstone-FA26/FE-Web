@@ -185,7 +185,7 @@ const ReceptionQueueCallingBoard: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(getLocalDateString());
   const [selectedCounter, setSelectedCounter] = useState<string>('Quầy 01');
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'all' | 'waiting' | 'called' | 'done'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'waiting' | 'called' | 'done'>('waiting');
   const [searchKeyword, setSearchKeyword] = useState<string>('');
   const [isAudioEnabled, setIsAudioEnabled] = useState<boolean>(true);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -1186,15 +1186,6 @@ const ReceptionQueueCallingBoard: React.FC = () => {
         <div className="p-4 sm:p-5 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
             <button
-              onClick={() => setActiveTab('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${activeTab === 'all'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-                }`}
-            >
-              Tất cả ({stats.totalCount})
-            </button>
-            <button
               onClick={() => setActiveTab('waiting')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${activeTab === 'waiting'
                 ? 'bg-white text-amber-700 shadow-xs'
@@ -1220,6 +1211,15 @@ const ReceptionQueueCallingBoard: React.FC = () => {
                 }`}
             >
               Đã xong ({stats.doneCount})
+            </button>
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${activeTab === 'all'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
+            >
+              Tất cả ({stats.totalCount})
             </button>
           </div>
 
