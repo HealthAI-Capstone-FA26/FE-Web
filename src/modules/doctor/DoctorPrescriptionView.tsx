@@ -1,8 +1,8 @@
-import { formatAllergySummary, parseAllergyText } from '../../services/patient/patient-allergy.service';
+import { formatAllergySummary } from '../../services/patient/patient-allergy.service';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Pill, CheckCircle2, AlertTriangle, FileCheck, Printer,
+  Pill, CheckCircle2, FileCheck, Printer,
   Download, Calendar, Search, Plus, Trash2, ShieldAlert,
   Award, Check, RefreshCw, User, X, Loader2, Save,
   CheckCircle, ArrowRight, Clock, FileText, CheckCheck,
@@ -19,7 +19,6 @@ import { drugCatalogService, type DrugCatalogItem as ApiDrugItem, type DrugCatal
 import {
   prescriptionService,
   type PrescriptionDetail,
-  type PrescriptionSafetyAlert,
 } from '../../services/prescription';
 import { postTestConsultationService } from '../../services/doctor/post-test-consultation.service';
 import { initialDiagnosisService } from '../../services/doctor/initial-diagnosis.service';
@@ -133,14 +132,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
   const [currentPrescription, setCurrentPrescription] = useState<PrescriptionDetail | null>(null);
   const [isLoadingPrescription, setIsLoadingPrescription] = useState(false);
   const [isSavingPrescription, setIsSavingPrescription] = useState(false);
-  const [backendAlerts, setBackendAlerts] = useState<PrescriptionSafetyAlert[]>([]);
   const [finalDiagnosisId, setFinalDiagnosisId] = useState<string | null>(null);
-
-  // Override Alert Modal state
-  const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
-  const [selectedAlertToOverride, setSelectedAlertToOverride] = useState<PrescriptionSafetyAlert | null>(null);
-  const [overrideReasonText, setOverrideReasonText] = useState('');
-  const [isSubmittingOverride, setIsSubmittingOverride] = useState(false);
 
   // Real Drug Catalog State from Backend API
   const [dbDrugs, setDbDrugs] = useState<ApiDrugItem[]>([]);
@@ -394,7 +386,6 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
     if (!activeEncounterId) {
       setCurrentPrescription(null);
       setPrescribedList([]);
-      setBackendAlerts([]);
       setIsFollowUpSynced(false);
       setFinalDiagnosisId(null);
       return;
@@ -423,7 +414,6 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
           if (!isMounted) return;
 
           setCurrentPrescription(detail);
-          setBackendAlerts(detail.safetyAlerts || []);
 
           if (detail.diagnosisId) {
             setFinalDiagnosisId(detail.diagnosisId);
@@ -467,7 +457,6 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
           // No prescription yet
           setCurrentPrescription(null);
           setPrescribedList([]);
-          setBackendAlerts([]);
           setIsFollowUpSynced(false);
         }
       } catch (err) {
@@ -577,42 +566,6 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
     setPrescribedList(prescribedList.filter((item) => item.catalogCode !== code));
   };
 
-  // Client preview warnings
-  const clientSafetyWarnings = useMemo(() => {
-    const warnings: { type: 'danger' | 'warning'; text: string }[] = [];
-
-    prescribedList.forEach((drug) => {
-      if (timelineData?.allergies && timelineData.allergies.length > 0) {
-        timelineData.allergies.forEach((al: any) => {
-          const parsed = parseAllergyText(al.allergyText);
-          const drugAllergens = parsed.drug.length > 0 ? parsed.drug : (al.allergenName ? [al.allergenName] : []);
-          drugAllergens.forEach((allergenName) => {
-            const allergen = allergenName.toLowerCase();
-            const dName = (drug.name || '').toLowerCase();
-            const dClass = (drug.class || '').toLowerCase();
-            if (allergen && (dName.includes(allergen) || dClass.includes(allergen))) {
-              warnings.push({
-                type: 'danger',
-                text: `Cảnh báo dị ứng: Bệnh nhân có tiền sử dị ứng "${allergenName}". Nguy cơ phản ứng khi dùng "${drug.name}"!`,
-              });
-            }
-          });
-        });
-      }
-    });
-
-    const drugClasses = prescribedList.map((d) => d.class);
-    const duplicates = drugClasses.filter((c, index) => drugClasses.indexOf(c) !== index);
-    duplicates.forEach((dupClass) => {
-      warnings.push({
-        type: 'warning',
-        text: `Cảnh báo trùng lặp nhóm hoạt chất [${dupClass}]. Vui lòng xem xét tối ưu đơn thuốc.`,
-      });
-    });
-
-    return warnings;
-  }, [prescribedList, timelineData]);
-
   // Save / Update Prescription to Backend API (POST /prescriptions or PATCH /prescriptions/:id/items)
   const handleSavePrescription = async (silent = false): Promise<PrescriptionDetail | null> => {
     if (!activeEncounterId) {
@@ -688,9 +641,6 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
       }
 
       setCurrentPrescription(updatedPrescription);
-      if (updatedPrescription.safetyAlerts) {
-        setBackendAlerts(updatedPrescription.safetyAlerts);
-      }
 
       // Refresh follow-up suggestion
       try {
@@ -701,7 +651,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
       } catch {}
 
       if (!silent) {
-        showToast('success', 'Lưu đơn thuốc (bản nháp) thành công! Hệ thống đã chạy Safety Check.');
+        showToast('success', 'Lưu đơn thuốc (bản nháp) thành công!');
       }
       return updatedPrescription;
     } catch (err: any) {
@@ -714,53 +664,10 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
     }
   };
 
-  // Confirm Alert Override (PATCH /prescriptions/:id/alerts/:alertId/confirm)
-  const handleConfirmAlertOverride = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedAlertToOverride || !currentPrescription) return;
-    if (!overrideReasonText.trim()) {
-      showToast('info', 'Vui lòng nhập lý do giải trình override cảnh báo!');
-      return;
-    }
-
-    try {
-      setIsSubmittingOverride(true);
-      const updatedAlert = await prescriptionService.confirmAlert(
-        currentPrescription.prescriptionId,
-        selectedAlertToOverride.alertId,
-        { overrideReason: overrideReasonText.trim() }
-      );
-
-      setBackendAlerts((prev) =>
-        prev.map((a) => (a.alertId === updatedAlert.alertId ? updatedAlert : a))
-      );
-      setIsOverrideModalOpen(false);
-      setSelectedAlertToOverride(null);
-      setOverrideReasonText('');
-      showToast('success', 'Đã xác nhận ghi đè cảnh báo an toàn thuốc thành công!');
-    } catch (err: any) {
-      showToast('error', `Lỗi khi xác nhận override: ${err?.message || 'Thao tác thất bại'}`);
-    } finally {
-      setIsSubmittingOverride(false);
-    }
-  };
-
   // Open CA Digital Signing Modal
   const handleOpenDigitalSignModal = () => {
     if (prescribedList.length === 0) {
       showToast('info', 'Đơn thuốc chưa có thuốc, không thể ký số!');
-      return;
-    }
-
-    // Check unconfirmed blocking alerts
-    const hasUnconfirmedBlocking = backendAlerts.some(
-      (a) => a.status === 'active' && (a.severity === 'severe' || a.severity === 'contraindicated')
-    );
-    if (hasUnconfirmedBlocking) {
-      showToast(
-        'error',
-        'Đơn thuốc còn cảnh báo an toàn mức độ nặng/chống chỉ định chưa được xác nhận! Vui lòng ấn "Xác nhận Override" và nhập lý do chuyên môn trước khi ký số.'
-      );
       return;
     }
 
@@ -1209,11 +1116,10 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
     timelineData?.encounter?.status === 'finished';
   const isPrescriptionLocked = isPrescriptionSigned || isEncounterFinished;
 
-  // Xác định bước hiện tại trong quy trình kê đơn 4 bước
+  // Xác định bước hiện tại trong quy trình kê đơn 3 bước
   const currentStep = useMemo(() => {
-    if (isFollowUpSynced || isEncounterFinished) return 4;
-    if (isPrescriptionSigned) return 3;
-    if (prescribedList.length > 0) return 2;
+    if (isFollowUpSynced || isEncounterFinished) return 3;
+    if (isPrescriptionSigned || prescribedList.length > 0) return 2;
     return 1;
   }, [isFollowUpSynced, isEncounterFinished, isPrescriptionSigned, prescribedList.length]);
 
@@ -1274,7 +1180,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
               )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Lập đơn thuốc điện tử, tự động kiểm tra tương tác thuốc, xử lý cảnh báo dị ứng và ký số pháp lý CA.
+              Lập đơn thuốc điện tử và ký số pháp lý CA.
             </p>
           </div>
         </div>
@@ -1508,17 +1414,16 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
 
         </div>
 
-        {/* Right Column: Prescription editor, directory selector, safety checks, follow-up, signing (8 cols) */}
+        {/* Right Column: Prescription editor, directory selector, follow-up, signing (8 cols) */}
         <div className="lg:col-span-8 space-y-6">
 
-          {/* Stepper Quy trình Kê đơn 4 bước */}
+          {/* Stepper Quy trình Kê đơn 3 bước */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               {[
                 { step: 1, title: 'Soạn đơn thuốc', desc: 'Chọn thuốc & liều' },
-                { step: 2, title: 'Kiểm tra an toàn', desc: 'Tương tác & Dị ứng' },
-                { step: 3, title: 'Ký số CA & In', desc: 'Xác thực pháp lý' },
-                { step: 4, title: 'Hẹn tái khám', desc: 'Hoàn tất ca khám' },
+                { step: 2, title: 'Ký số CA & In', desc: 'Xác thực pháp lý' },
+                { step: 3, title: 'Hẹn tái khám', desc: 'Hoàn tất ca khám' },
               ].map((s) => {
                 const isPassed = currentStep > s.step;
                 const isCurrent = currentStep === s.step;
@@ -1558,120 +1463,6 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
                 );
               })}
             </div>
-          </div>
-
-          {/* Drug Safety Checks Alerts (Combined Backend API Alerts & Client Heuristics) */}
-          <div className="space-y-2">
-            {backendAlerts.length > 0 ? (
-              backendAlerts.map((alert) => {
-                const isBlocking = alert.severity === 'severe' || alert.severity === 'contraindicated';
-                const isConfirmed = alert.status === 'confirmed';
-
-                return (
-                  <div
-                    key={alert.alertId}
-                    className={`p-4 rounded-2xl border text-xs font-bold flex items-start justify-between gap-3 animate-in slide-in-from-top-2 duration-200 ${
-                      isConfirmed
-                        ? 'bg-slate-50 border-slate-200 text-slate-700'
-                        : isBlocking
-                        ? 'bg-rose-50 border-rose-200 text-rose-900 shadow-xs'
-                        : 'bg-amber-50 border-amber-200 text-amber-900 shadow-xs'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      {isConfirmed ? (
-                        <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                      ) : isBlocking ? (
-                        <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                      ) : (
-                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                      )}
-                      <div className="space-y-1 leading-snug">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`uppercase text-[9px] tracking-wider block font-black ${
-                              isConfirmed
-                                ? 'text-emerald-700'
-                                : isBlocking
-                                ? 'text-rose-800'
-                                : 'text-amber-800'
-                            }`}
-                          >
-                            {alert.alertType === 'drug_allergy'
-                              ? 'CẢNH BÁO DỊ ỨNG THUỐC'
-                              : alert.alertType === 'drug_interaction'
-                              ? 'TƯƠNG TÁC THUỐC'
-                              : 'CẢNH BÁO AN TOÀN DƯỢC LÂM SÀNG'}
-                          </span>
-                          <span
-                            className={`text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase ${
-                              alert.severity === 'contraindicated'
-                                ? 'bg-rose-200 text-rose-900'
-                                : alert.severity === 'severe'
-                                ? 'bg-rose-150 text-rose-850'
-                                : 'bg-amber-200 text-amber-900'
-                            }`}
-                          >
-                            {alert.severity}
-                          </span>
-                        </div>
-                        <p className="font-extrabold text-xs">{alert.message}</p>
-                        {isConfirmed && alert.overrideReason && (
-                          <div className="text-[11px] text-emerald-800 bg-emerald-50 p-2 rounded-lg font-medium mt-1">
-                            <strong>Đã xác nhận override:</strong> {alert.overrideReason}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {!isConfirmed && isBlocking && !isPrescriptionSigned && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedAlertToOverride(alert);
-                          setOverrideReasonText('');
-                          setIsOverrideModalOpen(true);
-                        }}
-                        className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[11px] rounded-xl shrink-0 cursor-pointer border-none shadow-xs transition-colors"
-                      >
-                        Xác nhận Override
-                      </button>
-                    )}
-                  </div>
-                );
-              })
-            ) : clientSafetyWarnings.length > 0 ? (
-              clientSafetyWarnings.map((w, idx) => (
-                <div
-                  key={idx}
-                  className={`p-4 rounded-2xl border text-xs font-bold flex items-start gap-2.5 animate-in slide-in-from-top-2 duration-200 ${
-                    w.type === 'danger'
-                      ? 'bg-rose-50 border-rose-200 text-rose-900 shadow-xs'
-                      : 'bg-amber-50 border-amber-200 text-amber-900 shadow-xs'
-                  }`}
-                >
-                  {w.type === 'danger' ? (
-                    <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                  ) : (
-                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  )}
-                  <div className="space-y-1 leading-snug">
-                    <span className="uppercase text-[9px] tracking-wider block font-black text-rose-800">
-                      {w.type === 'danger' ? 'HỆ THỐNG CẢNH BÁO NGUY HIỂM' : 'CẢNH BÁO LÂM SÀNG'}
-                    </span>
-                    <p className="font-extrabold">{w.text}</p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-800 flex items-center justify-between font-bold shadow-xs">
-                <div className="flex items-center gap-2">
-                  <Check className="w-5 h-5 bg-emerald-600 text-white rounded-full p-0.5 shrink-0" />
-                  <span>Kiểm tra an toàn (Safety Check): Không phát hiện tương tác hoặc chống chỉ định dị ứng.</span>
-                </div>
-                <Badge variant="normal" size="sm">Safety Passed</Badge>
-              </div>
-            )}
           </div>
 
           {/* Add medication from National Drug Directory Form */}
@@ -2052,69 +1843,6 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
         </div>
 
       </div>
-
-      {/* OVERRIDE ALERT REASON MODAL */}
-      <Modal
-        isOpen={isOverrideModalOpen}
-        onClose={() => {
-          if (!isSubmittingOverride) setIsOverrideModalOpen(false);
-        }}
-        title="Xác Nhận Đã Biết Rủi Ro An Toàn Thuốc (Override Alert)"
-        subtitle="Giải trình chuyên môn trước khi bỏ qua cảnh báo nghiêm trọng"
-      >
-        <form onSubmit={handleConfirmAlertOverride} className="space-y-4 text-xs font-semibold">
-          {selectedAlertToOverride && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-900 space-y-1">
-              <span className="uppercase text-[9px] font-black text-rose-800 tracking-wider block">
-                Nội dung cảnh báo an toàn:
-              </span>
-              <p className="font-extrabold text-xs leading-relaxed">{selectedAlertToOverride.message}</p>
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <label className="block text-slate-700 font-bold">
-              Lý do Bác sĩ xác nhận override (*):
-            </label>
-            <textarea
-              rows={3}
-              value={overrideReasonText}
-              onChange={(e) => setOverrideReasonText(e.target.value)}
-              placeholder="vd: Đã cân nhắc lợi ích điều trị vượt trội so với nguy cơ; hướng dẫn bệnh nhân theo dõi sát và tái khám ngay nếu có dấu hiệu bất thường..."
-              required
-              className="w-full p-3 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-blue-600 bg-white"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              disabled={isSubmittingOverride}
-              onClick={() => setIsOverrideModalOpen(false)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer border-none"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmittingOverride || !overrideReasonText.trim()}
-              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl flex items-center gap-1.5 cursor-pointer border-none shadow-xs disabled:opacity-50"
-            >
-              {isSubmittingOverride ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Đang lưu...</span>
-                </>
-              ) : (
-                <>
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Xác Nhận Ghi Đè</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </Modal>
 
       {/* Digital Signature execution CA verify Modal */}
       <Modal
