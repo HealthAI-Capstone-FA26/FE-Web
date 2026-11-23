@@ -21,7 +21,14 @@ export function useEcgRecording(taskId: string | null) {
   const [signalNonce, setSignalNonce] = useState(0);
 
   const refreshList = useCallback(async () => {
-    if (!taskId) return;
+    if (!taskId) {
+      setRecordings([]);
+      setSelectedId(null);
+      setDetail(null);
+      setSignalState({ kind: 'idle' });
+      setListError(null);
+      return;
+    }
     setListLoading(true);
     setListError(null);
     try {
@@ -67,7 +74,10 @@ export function useEcgRecording(taskId: string | null) {
   const detailId = detail?.id ?? null;
   useEffect(() => {
     const current = detailRef.current;
-    if (!current) return;
+    if (!current) {
+      setSignalState({ kind: 'idle' });
+      return;
+    }
     let cancelled = false;
     setSignalState({ kind: 'loading' });
     ecgService

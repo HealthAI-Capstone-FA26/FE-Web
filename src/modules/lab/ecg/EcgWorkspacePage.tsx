@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
-  Cpu,
   FlaskConical,
   Keyboard,
   Menu,
   Radio,
+  RefreshCw,
   Upload,
+  UserCheck,
   WifiOff,
   X,
 } from 'lucide-react';
@@ -18,8 +19,6 @@ import { useEcgRecording } from '../../../hooks/useEcgRecording';
 import {
   ecgErrorMessage,
   ecgService,
-  isEcgMockMode,
-  setEcgMockMode,
 } from '../../../services/lab/ecg.service';
 import { labTaskService, type LabTaskItem } from '../../../services/lab/lab-task.service';
 import {
@@ -61,17 +60,10 @@ export const EcgWorkspacePage: React.FC<EcgWorkspacePageProps> = ({
   const canAcknowledge = hasRole(['LAB', 'DOCTOR']);
   const canReview = isDoctor;
 
-  const [mockEnabled, setMockEnabled] = useState<boolean>(() => {
-    // Mặc định bật dữ liệu mô phỏng nếu chưa cấu hình tắt để luôn chạy được ngay khi chưa có BE
-    if (localStorage.getItem('ecg_mock') === null) {
-      setEcgMockMode(true);
-      return true;
-    }
-    return isEcgMockMode();
-  });
-
   const [tasks, setTasks] = useState<LabTaskItem[]>([]);
-  const [taskId, setTaskId] = useState<string>(initialTaskId ?? 'task-ecg-demo');
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [receivingTask, setReceivingTask] = useState(false);
+  const [taskId, setTaskId] = useState<string>(initialTaskId ?? '');
   const [viewMode, setViewMode] = useState<EcgViewMode>(defaultMode);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -137,21 +129,37 @@ export const EcgWorkspacePage: React.FC<EcgWorkspacePageProps> = ({
     }, 3600);
   }, []);
 
-  // Tải danh sách task ECG thật khi tắt chế độ mock
-  useEffect(() => {
-    if (mockEnabled) return;
-    labTaskService
-      .getLabTasks({ limit: 30 })
-      .then((list) => {
-        setTasks(list);
-        if (list.length > 0 && taskId === 'task-ecg-demo') {
-          setTaskId(list[0].labTaskId);
-        }
-      })
-      .catch(() => {
-        // Giữ taskId hiện tại
+  const loadEcgTasks = useCallback(async () => {
+    setTasksLoading(true);
+    try {
+      const list = await labTaskService.getLabTasks({ limit: 100 });
+      const isEcg = (t: LabTaskItem) => {
+        const modality = ((t.orderItem?.testType as { modality?: string } | undefined)?.modality || '').toLowerCase();
+        const name = (t.orderItem?.testType?.testName || '').toLowerCase();
+        const code = (t.orderItem?.testType?.testCode || '').toLowerCase();
+        return modality === 'ecg' || name.includes('ecg') || name.includes('điện tâm đồ') || code.includes('ecg');
+      };
+      const ecgOnly = list.filter(isEcg);
+      const displayList = ecgOnly.length > 0 ? ecgOnly : list;
+      const statusWeight = (s: LabTaskItem['status']) =>
+        s === 'in_progress' ? 0 : s === 'ready' ? 1 : s === 'completed' ? 2 : 3;
+      const sorted = [...displayList].sort((a, b) => statusWeight(a.status) - statusWeight(b.status));
+      setTasks(sorted);
+      setTaskId((cur) => {
+        if (cur && sorted.some((t) => t.labTaskId === cur)) return cur;
+        return sorted[0]?.labTaskId ?? '';
       });
-  }, [mockEnabled, taskId]);
+    } catch {
+      // Giữ nguyên danh sách hiện tại
+    } finally {
+      setTasksLoading(false);
+    }
+  }, []);
+
+  // Tải danh sách nhiệm vụ ECG thật khi mở workspace
+  useEffect(() => {
+    void loadEcgTasks();
+  }, [loadEcgTasks]);
 
   useEffect(() => {
     setViewRange({ startMs: 0, endMs: durationMs });
@@ -399,128 +407,213 @@ export const EcgWorkspacePage: React.FC<EcgWorkspacePageProps> = ({
     });
   };
 
-  const handleToggleMock = () => {
-    const next = !mockEnabled;
-    setEcgMockMode(next);
-    setMockEnabled(next);
-    if (next) setTaskId('task-ecg-demo');
-    void refreshList();
+  const selectedTask = useMemo(
+    () => tasks.find((t) => t.labTaskId === taskId) ?? null,
+    [tasks, taskId],
+  );
+
+  const handleReceiveTask = async () => {
+    if (!selectedTask) return;
+    setReceivingTask(true);
+    try {
+      await labTaskService.receiveLabTask(selectedTask.labTaskId);
+      await loadEcgTasks();
+      pushToast('success', 'Đã tiếp nhận ca ECG. Bạn có thể tải bản ghi lên ngay.');
+    } catch (err) {
+      pushToast('error', ecgErrorMessage(err, 'load'));
+    } finally {
+      setReceivingTask(false);
+    }
   };
 
-  const patientName = detail?.patientName ?? 'Lương Thị Hải Yến';
-  const encounterCode = detail?.encounterCode ?? 'KB-20261101-0412';
+  const patientName =
+    selectedTask?.orderItem?.order?.encounter?.patient?.fullName ??
+    detail?.patientName ??
+    'Chưa chọn bệnh nhân';
+  const encounterCode =
+    selectedTask?.orderItem?.order?.encounter?.encounterCode ??
+    detail?.encounterCode ??
+    '—';
+  const taskStatusBadge: Record<string, { label: string; cls: string }> = {
+    in_progress: { label: 'Đang thực hiện (Sẵn sàng upload)', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+    ready: { label: 'Chờ tiếp nhận', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
+    payment_pending: { label: 'Chờ thu phí', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
+    completed: { label: 'Đã hoàn tất', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    on_hold: { label: 'Tạm dừng sự cố', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+  };
+  const activeTaskBadge = selectedTask ? taskStatusBadge[selectedTask.status] : undefined;
 
   return (
     <div className="space-y-4">
-      {/* HEADER BAR: Bệnh nhân · Mã lượt khám · Loại ghi · Thiết bị · Trạng thái Socket + Mock toggle */}
-      <header className="glass-card !rounded-[20px] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Nút mở drawer sidebar trên Tablet/Mobile */}
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            className="xl:hidden p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer"
-            title="Mở bảng điều khiển bản ghi & đạo trình"
-          >
-            <Menu className="w-4 h-4" />
-          </button>
+      {/* HEADER BAR: Chọn bệnh nhân / Ca ECG · Thông tin bệnh nhân · Trạng thái Socket · Upload */}
+      <header className="glass-card !rounded-[20px] px-4 py-3 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Nút mở drawer sidebar trên Tablet/Mobile */}
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              className="xl:hidden p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer"
+              title="Mở bảng điều khiển bản ghi & đạo trình"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
 
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-red-50 border border-red-200/80 text-[#B91C1C] flex items-center justify-center">
-              <Activity className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold text-slate-900">{patientName}</span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-semibold tabular-nums border border-slate-200/80">
-                  {encounterCode}
-                </span>
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-red-50 border border-red-200/80 text-[#B91C1C] flex items-center justify-center">
+                <Activity className="w-5 h-5" />
               </div>
-              <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-2">
-                <span>Thiết bị: {detail?.deviceModel ?? 'Nihon Kohden ECG-2350'}</span>
-                {detail?.deviceSerial && <span className="tabular-nums">({detail.deviceSerial})</span>}
-                <span>· Tần số: {detail?.sampleRateHz ?? 500} Hz</span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-slate-900">{patientName}</span>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-semibold tabular-nums border border-slate-200/80">
+                    {encounterCode}
+                  </span>
+                  {activeTaskBadge && (
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${activeTaskBadge.cls}`}>
+                      {activeTaskBadge.label}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-2">
+                  <span>
+                    {detail
+                      ? `Thiết bị: ${detail.deviceModel ?? 'Không rõ'}${detail.deviceSerial ? ` (${detail.deviceSerial})` : ''} · Tần số: ${detail.sampleRateHz} Hz`
+                      : selectedTask?.orderItem?.testType?.testName ?? 'Chưa có bản ghi ECG cho ca này'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Cụm trạng thái kết nối + chọn Task + Phím tắt + Chế độ Demo */}
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          {!mockEnabled && tasks.length > 0 && (
-            <select
-              value={taskId}
-              onChange={(e) => setTaskId(e.target.value)}
-              className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-medium text-slate-700"
-            >
-              {tasks.map((t) => (
-                <option key={t.labTaskId} value={t.labTaskId}>
-                  {t.orderItem?.order?.encounter?.patient?.fullName ?? t.labTaskId.slice(0, 8)} ·{' '}
-                  {t.orderItem?.testType?.testName ?? 'ECG'}
-                </option>
-              ))}
-            </select>
-          )}
+          {/* Cụm trạng thái kết nối + Phím tắt */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {socketState === 'reconnecting' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-medium">
+                <WifiOff className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                <span>Mất kết nối realtime — đang thử lại</span>
+              </span>
+            )}
+            {socketState === 'connected' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                <Radio className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Realtime /lab-alerts</span>
+              </span>
+            )}
 
-          {/* Trạng thái Socket (mục 5: Mất socket → chấm cam) */}
-          {socketState === 'reconnecting' && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-medium">
-              <WifiOff className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-              <span>Mất kết nối realtime — đang thử lại</span>
-            </span>
-          )}
-          {(socketState === 'connected' || socketState === 'mock') && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
-              <Radio className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{socketState === 'mock' ? 'Realtime (Mô phỏng)' : 'Realtime /lab-alerts'}</span>
-            </span>
-          )}
-
-          <button
-            type="button"
-            onClick={() => {
-              setSyncStreamEval((prev) => {
-                const next = !prev;
-                if (next) {
-                  clock.seek(0);
-                  clock.play();
-                }
-                return next;
-              });
-            }}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold transition cursor-pointer ${
-              syncStreamEval
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-            }`}
-            title="Mục 11.4: Khi bật, cứ mỗi cửa sổ 100 mẫu mà Card 2 stream xong thì Card 1 cập nhật sóng và dải màu tới vị trí đó"
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>{syncStreamEval ? 'Stream API 2→3: ĐỒNG BỘ' : 'Stream API 2→3: TOÀN CẢNH'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleToggleMock}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold transition cursor-pointer ${mockEnabled
-                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            <button
+              type="button"
+              onClick={() => {
+                setSyncStreamEval((prev) => {
+                  const next = !prev;
+                  if (next) {
+                    clock.seek(0);
+                    clock.play();
+                  }
+                  return next;
+                });
+              }}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold transition cursor-pointer ${
+                syncStreamEval
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               }`}
-            title="Chuyển đổi giữa dữ liệu tổng hợp (P-QRS-T 500Hz) và API Backend thực tế"
-          >
-            <Cpu className="w-3.5 h-3.5" />
-            <span>{mockEnabled ? 'Dữ liệu mô phỏng: BẬT' : 'Dữ liệu mô phỏng: TẮT'}</span>
-          </button>
+              title="Khi bật, cứ mỗi cửa sổ 100 mẫu mà Card 2 stream xong thì Card 1 cập nhật sóng và dải màu tới vị trí đó"
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>{syncStreamEval ? 'Stream API 2→3: ĐỒNG BỘ' : 'Stream API 2→3: TOÀN CẢNH'}</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setShowShortcuts((s) => !s)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white hover:bg-slate-50 text-slate-600 border border-slate-200/90 font-medium cursor-pointer"
-            title="Xem danh sách phím tắt"
+            <button
+              type="button"
+              onClick={() => setShowShortcuts((s) => !s)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white hover:bg-slate-50 text-slate-600 border border-slate-200/90 font-medium cursor-pointer"
+              title="Xem danh sách phím tắt"
           >
             <Keyboard className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Phím tắt</span>
           </button>
+        </div>
+        </div>
+
+        {/* Thanh chọn Bệnh nhân / Ca ECG cho KTV Lab & Bác sĩ */}
+        <div className="pt-2.5 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
+            <label htmlFor="ecg-patient-task-select" className="font-semibold text-slate-600 shrink-0">
+              Chọn bệnh nhân / Ca ECG:
+            </label>
+            <select
+              id="ecg-patient-task-select"
+              value={taskId}
+              onChange={(e) => setTaskId(e.target.value)}
+              disabled={tasksLoading || tasks.length === 0}
+              className="flex-1 min-w-[220px] max-w-xl px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-medium text-slate-800 disabled:opacity-60"
+            >
+              {tasks.length === 0 ? (
+                <option value="">
+                  {tasksLoading ? 'Đang tải danh sách bệnh nhân...' : 'Chưa có ca chỉ định ECG nào'}
+                </option>
+              ) : (
+                tasks.map((t) => {
+                  const pName = t.orderItem?.order?.encounter?.patient?.fullName ?? 'Bệnh nhân';
+                  const pCode = t.orderItem?.order?.encounter?.patient?.patientCode;
+                  const enc = t.orderItem?.order?.encounter?.encounterCode ?? t.labTaskId.slice(0, 8);
+                  const testName = t.orderItem?.testType?.testName ?? 'ECG';
+                  const statusText =
+                    t.status === 'in_progress'
+                      ? 'Đang thực hiện'
+                      : t.status === 'ready'
+                        ? 'Chờ tiếp nhận'
+                        : t.status === 'completed'
+                          ? 'Hoàn tất'
+                          : t.status;
+                  return (
+                    <option key={t.labTaskId} value={t.labTaskId}>
+                      {pName}
+                      {pCode ? ` (${pCode})` : ''} · {enc} · {testName} [{statusText}]
+                    </option>
+                  );
+                })
+              )}
+            </select>
+
+            <button
+              type="button"
+              onClick={() => void loadEcgTasks()}
+              disabled={tasksLoading}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 font-medium cursor-pointer disabled:opacity-60"
+              title="Làm mới danh sách ca ECG"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${tasksLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Làm mới</span>
+            </button>
+          </div>
+
+          {isLabStaff && selectedTask && (
+            <div className="flex items-center gap-2">
+              {selectedTask.status === 'ready' && (
+                <button
+                  type="button"
+                  onClick={() => void handleReceiveTask()}
+                  disabled={receivingTask}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-2xs cursor-pointer disabled:opacity-60"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>{receivingTask ? 'Đang tiếp nhận...' : 'Tiếp nhận ca để upload'}</span>
+                </button>
+              )}
+              {selectedTask.status === 'in_progress' && (
+                <button
+                  type="button"
+                  onClick={() => setUploadOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-2xs cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Tải lên bản ghi ECG</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </header>
 

@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { EcgAlertSocketPayload } from '../types/ecg';
-import { ecgMockBus, isEcgMockMode } from '../services/lab/ecg.service';
 
-export type EcgSocketState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'mock';
+export type EcgSocketState = 'idle' | 'connecting' | 'connected' | 'reconnecting';
 
 interface UseEcgAlertSocketOptions {
   encounterId?: string | null;
@@ -28,16 +27,6 @@ export function useEcgAlertSocket({ encounterId, enabled = true, onUpdate, onRec
     if (!enabled || !encounterId) {
       setState('idle');
       return;
-    }
-
-    if (isEcgMockMode()) {
-      setState('mock');
-      const handler = (e: Event) => {
-        const detail = (e as CustomEvent<EcgAlertSocketPayload>).detail;
-        onUpdateRef.current?.(detail);
-      };
-      ecgMockBus.addEventListener('ecg-alert-update', handler);
-      return () => ecgMockBus.removeEventListener('ecg-alert-update', handler);
     }
 
     const rawApiUrl: string = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
