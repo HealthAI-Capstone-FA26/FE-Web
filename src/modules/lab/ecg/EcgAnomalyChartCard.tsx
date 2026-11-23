@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Download, Link2, Link2Off, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import type { EcgAnalysis, EcgAnomalyEvent, EcgSignal } from '../../../types/ecg';
 import type { SignalState } from '../../../hooks/useEcgRecording';
 import { EcgCanvas, type EcgCanvasHandle } from './chart/EcgCanvas';
 import { AnomalyScoreSubChart } from './chart/AnomalyScoreSubChart';
 import { Minimap } from './chart/Minimap';
+import { augmentSignalWithAnomalies } from './chart/data/augmentAnomalySignal';
 import { formatTimeMs, getAnomalyLabel, SEVERITY_LABEL_VI } from './ecgMeta';
 
 interface EcgAnomalyChartCardProps {
@@ -91,7 +92,11 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
     a.click();
   };
 
-  const signal: EcgSignal | null = signalState.kind === 'ready' ? signalState.signal : null;
+  const rawSignal: EcgSignal | null = signalState.kind === 'ready' ? signalState.signal : null;
+  const signal = useMemo(
+    () => augmentSignalWithAnomalies(rawSignal, anomalies),
+    [rawSignal, anomalies],
+  );
   const totalSamples = signal?.leads[0]?.length ?? 0;
   const displayPts =
     typeof evaluatedSampleLimit === 'number' && evaluatedSampleLimit >= 0
