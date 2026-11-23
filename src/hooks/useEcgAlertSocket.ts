@@ -39,7 +39,7 @@ export function useEcgAlertSocket({ encounterId, enabled = true, onUpdate, onRec
     }
 
     setState('connecting');
-    const token = localStorage.getItem('access_token');
+    const token = sessionStorage.getItem('access_token');
     const socket: Socket = io(`${socketBaseUrl}/lab-alerts`, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: Infinity,
