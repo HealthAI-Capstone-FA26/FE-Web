@@ -1,5 +1,6 @@
 import { ApiError, apiFetch } from '../api';
 import type {
+  EcgAiModelOption,
   EcgAlertSocketPayload,
   EcgAlertStatus,
   EcgAnalysis,
@@ -20,88 +21,8 @@ import type {
   EcgUploadPayload,
 } from '../../types/ecg';
 import { STANDARD_12_LEADS } from '../../types/ecg';
-import {
-  buildEcgAAnalysis,
-  buildMockAnalysis,
-  buildMockRecordings,
-  getEcgASignal,
-  getMockSignal,
-} from './ecg.mock';
 import { parseSignalInWorker } from '../../modules/lab/ecg/chart/data/parserClient';
-
-/* ------------------------------------------------------------------ */
-/* Chế độ mock                                                          */
-/* ------------------------------------------------------------------ */
-
-const MOCK_STORAGE_KEY = 'ecg_mock';
-
-export function isEcgMockMode(): boolean {
-  if (import.meta.env.VITE_ECG_MOCK === 'true') return true;
-  try {
-    const val = localStorage.getItem(MOCK_STORAGE_KEY);
-    return val === null ? true : val === 'true';
-  } catch {
-    return true;
-  }
-}
-
-export function setEcgMockMode(enabled: boolean): void {
-  localStorage.setItem(MOCK_STORAGE_KEY, enabled ? 'true' : 'false');
-}
-
-/** Bus giả lập socket `ecg-alert-update` khi chạy mock. */
-export const ecgMockBus = new EventTarget();
-
-function emitMock(payload: EcgAlertSocketPayload): void {
-  ecgMockBus.dispatchEvent(new CustomEvent<EcgAlertSocketPayload>('ecg-alert-update', { detail: payload }));
-}
-
-let mockStore: EcgRecordingDetail[] | null = null;
-function store(): EcgRecordingDetail[] {
-  if (!mockStore) {
-    mockStore = buildMockRecordings();
-    // Bản ghi thứ 2 đang phân tích → mô phỏng queued → running → completed.
-    const pending = mockStore.find((r) => r.status === 'analyzing');
-    if (pending) simulateMockAnalysis(pending.id, 0.5, undefined);
-  }
-  return mockStore;
-}
-
-const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-const clone = <T,>(v: T): T => structuredClone(v);
-
-function simulateMockAnalysis(recordingId: string, threshold: number, modelVersionId: string | undefined): EcgAnalysis {
-  const rec = store().find((r) => r.id === recordingId);
-  const isEcgA = recordingId === 'rec-ecg-a' || rec?.fileName === 'ECG_A';
-  const id = `ana-${Date.now().toString(36)}`;
-  const baseBuilder = isEcgA ? buildEcgAAnalysis : buildMockAnalysis;
-  const queued: EcgAnalysis = {
-    ...baseBuilder(id),
-    status: 'queued', overallResult: null, maxAnomalyScore: null, signalQuality: null,
-    summaryMetrics: null, inferenceLatencyMs: null, anomalies: [], scoreSeries: undefined,
-    thresholdUsed: threshold, modelVersion: modelVersionId ? modelVersionId.slice(0, 8) : isEcgA ? '1.0.0' : '2.3.1',
-    createdAt: new Date().toISOString(),
-  };
-  if (rec) {
-    rec.analyses = [queued, ...rec.analyses];
-    rec.latestAnalysis = queued;
-    rec.status = 'analyzing';
-  }
-  const update = (patch: Partial<EcgAnalysis>, recStatus?: EcgRecordingStatus) => {
-    const r = store().find((x) => x.id === recordingId);
-    if (!r) return;
-    r.analyses = r.analyses.map((a) => (a.id === id ? { ...a, ...patch } : a));
-    r.latestAnalysis = r.analyses[0] ?? null;
-    if (recStatus) r.status = recStatus;
-    emitMock({ encounterId: r.encounterId ?? '', recordingId, analysisId: id, status: patch.status });
-  };
-  setTimeout(() => update({ status: 'running' }), 1400);
-  setTimeout(() => {
-    const done = baseBuilder(id, { thresholdUsed: threshold, createdAt: queued.createdAt, modelVersion: queued.modelVersion });
-    update(done, 'completed');
-  }, 4200);
-  return queued;
-}
+import { parseNpyBuffer } from '../../modules/lab/ecg/chart/data/parseNpy';
 
 /* ------------------------------------------------------------------ */
 /* Adapter DTO → model (component KHÔNG phụ thuộc trực tiếp DTO)        */
@@ -333,21 +254,11 @@ function uploadWithProgress(endpoint: string, form: FormData, onProgress: (pct: 
 
 export const ecgService = {
   async listRecordings(taskId: string): Promise<EcgRecording[]> {
-    if (isEcgMockMode()) {
-      await delay(250);
-      return clone(store());
-    }
     const raw = await apiFetch<unknown>(`/lab-tasks/${taskId}/ecg-recordings`, { method: 'GET' });
     return list(raw).map(mapEcgRecordingDto);
   },
 
   async getRecording(id: string): Promise<EcgRecordingDetail> {
-    if (isEcgMockMode()) {
-      await delay(200);
-      const rec = store().find((r) => r.id === id);
-      if (!rec) throw new ApiError('Không tìm thấy bản ghi', 404);
-      return clone(rec);
-    }
     const [detail, analyses] = await Promise.all([
       apiFetch<unknown>(`/ecg-recordings/${id}`, { method: 'GET' }),
       apiFetch<unknown>(`/ecg-recordings/${id}/analyses`, { method: 'GET' }).catch(() => null),
@@ -373,21 +284,20 @@ export const ecgService = {
 
   /** Tải + parse tín hiệu. Tự lấy lại signal-url khi URL tạm (10 phút) hết hạn. */
   async loadSignal(recording: EcgRecording): Promise<EcgSignal> {
-    if (recording.id === 'rec-ecg-a' || recording.fileName === 'ECG_A') {
-      await delay(180);
-      return getEcgASignal();
-    }
-    if (isEcgMockMode()) {
-      await delay(350);
-      const { signal } = getMockSignal();
-      if (recording.recordingType === 'rhythm_strip') {
-        const ii = signal.leadNames.indexOf('II');
-        return { ...signal, leadNames: ['II'], leads: [signal.leads[ii]], overview: [signal.overview[ii]] };
-      }
-      return signal;
-    }
-    if (recording.signalFormat !== 'csv' && recording.signalFormat !== 'json') {
+    if (recording.signalFormat !== 'csv' && recording.signalFormat !== 'json' && recording.signalFormat !== 'npy') {
       throw new EcgUnsupportedFormatError(recording.signalFormat);
+    }
+    if (recording.signalFormat === 'npy') {
+      let buf: ArrayBuffer | null = null;
+      for (let attempt = 0; attempt < 2 && buf === null; attempt++) {
+        const url = await this.getSignalUrl(recording.id);
+        const res = await fetch(url);
+        if (res.ok) buf = await res.arrayBuffer();
+        else if (!(res.status === 403 || res.status === 401 || res.status === 410) || attempt === 1) {
+          throw new Error(`Không tải được tín hiệu (${res.status}).`);
+        }
+      }
+      return parseNpyBuffer(buf ?? new ArrayBuffer(0), recording.sampleRateHz, recording.leadNames, 1600);
     }
     let text: string | null = null;
     for (let attempt = 0; attempt < 2 && text === null; attempt++) {
@@ -408,24 +318,6 @@ export const ecgService = {
   },
 
   async uploadRecording(taskId: string, payload: EcgUploadPayload, onProgress: (pct: number) => void): Promise<EcgRecording> {
-    if (isEcgMockMode()) {
-      for (let p = 0; p <= 100; p += 10) { onProgress(p); await delay(90); }
-      const base = store()[0];
-      const rec: EcgRecordingDetail = {
-        ...clone(base),
-        id: `rec-${Date.now().toString(36)}`,
-        recordingType: payload.recordingType,
-        signalFormat: payload.signalFormat,
-        fileName: payload.file.name,
-        createdAt: new Date().toISOString(),
-        status: payload.autoAnalyze === false ? 'uploaded' : 'analyzing',
-        latestAnalysis: null,
-        analyses: [],
-      };
-      store().unshift(rec);
-      if (payload.autoAnalyze !== false) simulateMockAnalysis(rec.id, 0.5, undefined);
-      return clone(rec);
-    }
     const form = new FormData();
     form.append('file', payload.file);
     form.append('recordingType', payload.recordingType);
@@ -443,22 +335,26 @@ export const ecgService = {
   },
 
   async cancelRecording(id: string): Promise<void> {
-    if (isEcgMockMode()) {
-      const rec = store().find((r) => r.id === id);
-      if (rec) rec.status = 'cancelled';
-      return;
-    }
     await apiFetch(`/ecg-recordings/${id}/cancel`, { method: 'PATCH' });
   },
 
+  async listModels(): Promise<EcgAiModelOption[]> {
+    const raw = await apiFetch<unknown>('/ecg-ai-models', { method: 'GET' });
+    return list(raw).map((item) => {
+      const d = obj(item);
+      return {
+        modelVersionId: str(d.modelVersionId, d.id) ?? '',
+        modelName: str(d.modelName, d.name) ?? 'tcn-vae-diff',
+        version: str(d.version) ?? '1.0.0',
+        status: str(d.status) ?? 'active',
+        isDefault: Boolean(d.isDefault),
+        defaultThreshold: num(d.defaultThreshold),
+        description: str(d.description),
+      };
+    }).filter((m) => m.modelVersionId.length > 0);
+  },
+
   async reanalyze(recordingId: string, body: { modelVersionId?: string; threshold?: number }): Promise<EcgAnalysis> {
-    if (isEcgMockMode()) {
-      await delay(300);
-      const rec = store().find((r) => r.id === recordingId);
-      const busy = rec?.analyses[0] && (rec.analyses[0].status === 'queued' || rec.analyses[0].status === 'running');
-      if (busy) throw new ApiError('Analysis in progress', 409);
-      return clone(simulateMockAnalysis(recordingId, body.threshold ?? 0.5, body.modelVersionId));
-    }
     const raw = await apiFetch<unknown>(`/ecg-recordings/${recordingId}/analyses`, {
       method: 'POST',
       body: JSON.stringify(body),
@@ -467,13 +363,6 @@ export const ecgService = {
   },
 
   async listEncounterEvents(encounterId: string, filter: EcgAnomalyFilter): Promise<EcgAnomalyEvent[]> {
-    if (isEcgMockMode()) {
-      const all = store().flatMap((r) => r.latestAnalysis?.anomalies ?? []);
-      return clone(all.filter((e) =>
-        (!filter.alertStatus || e.alertStatus === filter.alertStatus) &&
-        (!filter.severity || e.severity === filter.severity) &&
-        (!filter.reviewVerdict || e.reviewVerdict === filter.reviewVerdict)));
-    }
     const qs = new URLSearchParams();
     if (filter.alertStatus) qs.set('alertStatus', filter.alertStatus);
     if (filter.severity) qs.set('severity', filter.severity);
@@ -483,46 +372,14 @@ export const ecgService = {
   },
 
   async updateEventStatus(eventId: string, action: 'acknowledge' | 'resolve'): Promise<void> {
-    if (isEcgMockMode()) {
-      await delay(250);
-      mutateMockEvent(eventId, (e) => {
-        if (action === 'acknowledge' && e.alertStatus !== 'active') throw new ApiError('Not active', 409);
-        e.alertStatus = action === 'acknowledge' ? 'acknowledged' : 'resolved';
-      });
-      return;
-    }
     await apiFetch(`/ecg-anomaly-events/${eventId}/${action}`, { method: 'PATCH' });
   },
 
-  async reviewEvent(eventId: string, verdict: Exclude<EcgReviewVerdict, 'pending'>, note: string, reviewerName: string): Promise<void> {
-    if (isEcgMockMode()) {
-      await delay(300);
-      mutateMockEvent(eventId, (e) => {
-        e.reviewVerdict = verdict;
-        e.reviewNote = note || null;
-        e.reviewedByName = reviewerName;
-        e.reviewedAt = new Date().toISOString();
-      });
-      return;
-    }
+  async reviewEvent(eventId: string, verdict: Exclude<EcgReviewVerdict, 'pending'>, note: string, _reviewerName: string): Promise<void> {
     await apiFetch(`/ecg-anomaly-events/${eventId}/review`, {
       method: 'PATCH',
       body: JSON.stringify({ verdict, note: note || undefined }),
     });
   },
 };
-
-function mutateMockEvent(eventId: string, fn: (e: EcgAnomalyEvent) => void): void {
-  for (const rec of store()) {
-    for (const a of rec.analyses) {
-      const e = a.anomalies.find((x) => x.id === eventId);
-      if (e) {
-        fn(e);
-        rec.latestAnalysis = rec.analyses[0] ?? null;
-        return;
-      }
-    }
-  }
-  throw new ApiError('Không tìm thấy sự kiện', 404);
-}
 
