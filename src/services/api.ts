@@ -42,11 +42,28 @@ const processQueue = (error: any = null) => {
   failedQueue = [];
 };
 
+const AUTH_STORAGE_KEYS = [
+  'access_token',
+  'refresh_token',
+  '4am_is_logged_in',
+  '4am_active_role',
+  '4am_user_data',
+  '4am_user_name',
+  '4am_cached_doctor',
+];
+
+export function clearAuthStorage(): void {
+  for (const key of AUTH_STORAGE_KEYS) {
+    sessionStorage.removeItem(key);
+    localStorage.removeItem(key);
+  }
+}
+
 export async function apiFetch<T = any>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  let token = localStorage.getItem('access_token');
+  let token = sessionStorage.getItem('access_token');
 
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -73,7 +90,7 @@ export async function apiFetch<T = any>(
     !endpoint.includes('/auth/login') &&
     !endpoint.includes('/auth/refresh-token')
   ) {
-    const refreshToken = localStorage.getItem('refresh_token');
+    const refreshToken = sessionStorage.getItem('refresh_token');
 
     if (refreshToken) {
       if (isRefreshing) {
@@ -81,7 +98,7 @@ export async function apiFetch<T = any>(
         await new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         });
-        token = localStorage.getItem('access_token');
+        token = sessionStorage.getItem('access_token');
         if (token) {
           headers['Authorization'] = `Bearer ${token}`;
         }
@@ -101,10 +118,10 @@ export async function apiFetch<T = any>(
           if (res.ok) {
             const data = await res.json();
             if (data.accessToken) {
-              localStorage.setItem('access_token', data.accessToken);
+              sessionStorage.setItem('access_token', data.accessToken);
             }
             if (data.refreshToken) {
-              localStorage.setItem('refresh_token', data.refreshToken);
+              sessionStorage.setItem('refresh_token', data.refreshToken);
             }
 
             processQueue(null);
@@ -119,10 +136,7 @@ export async function apiFetch<T = any>(
           } else {
             // Refresh token cũng đã hết hạn/không hợp lệ -> Đăng xuất người dùng
             processQueue(new Error('Session expired'));
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
-            localStorage.removeItem('4am_is_logged_in');
-            localStorage.removeItem('4am_user_data');
+            clearAuthStorage();
             window.location.href = '/login';
           }
         } catch (refreshErr) {

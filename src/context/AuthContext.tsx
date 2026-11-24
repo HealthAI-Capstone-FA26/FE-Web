@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { UserProfile, UserRole } from '../types/auth';
 import { authService } from '../services/auth/auth.service';
+import { clearAuthStorage } from '../services/api';
 import { doctorService } from '../services/doctor/doctor.service';
 import { patientService } from '../services/patient/patient.service';
 import { appointmentService } from '../services/appointment/appointment.service';
@@ -89,18 +90,25 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Dọn phiên đăng nhập cũ lưu trong localStorage (nếu có) để đóng tab/trình duyệt là tự đăng xuất
+  useEffect(() => {
+    for (const key of ['access_token', 'refresh_token', '4am_is_logged_in', '4am_active_role', '4am_user_data', '4am_user_name']) {
+      localStorage.removeItem(key);
+    }
+  }, []);
+
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
-    const saved = localStorage.getItem('4am_active_role');
+    const saved = sessionStorage.getItem('4am_active_role');
     return (saved as UserRole) || 'PATIENT';
   });
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    const savedLoggedIn = localStorage.getItem('4am_is_logged_in');
+    const savedLoggedIn = sessionStorage.getItem('4am_is_logged_in');
     return savedLoggedIn === 'true';
   });
 
   const [user, setUser] = useState<UserProfile | null>(() => {
-    const savedUser = localStorage.getItem('4am_user_data');
+    const savedUser = sessionStorage.getItem('4am_user_data');
     if (savedUser) {
       try {
         return JSON.parse(savedUser);
@@ -108,7 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Fallback
       }
     }
-    const savedLoggedIn = localStorage.getItem('4am_is_logged_in');
+    const savedLoggedIn = sessionStorage.getItem('4am_is_logged_in');
     if (savedLoggedIn === 'true' && savedUser) {
       try {
         return JSON.parse(savedUser);
@@ -121,8 +129,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (isLoggedIn) {
-      localStorage.setItem('4am_active_role', currentRole);
-      localStorage.setItem('4am_is_logged_in', 'true');
+      sessionStorage.setItem('4am_active_role', currentRole);
+      sessionStorage.setItem('4am_is_logged_in', 'true');
 
       if (currentRole === 'RECEPTIONIST' || currentRole === 'ADMIN') {
         patientService.getAllPatients().catch(() => {});
@@ -130,18 +138,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } else {
       setUser(null);
-      localStorage.removeItem('4am_is_logged_in');
-      localStorage.removeItem('4am_user_name');
-      localStorage.removeItem('4am_user_data');
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      clearAuthStorage();
     }
   }, [currentRole, isLoggedIn]);
 
   const switchRole = (role: UserRole) => {
     appointmentService.invalidateCache();
     setCurrentRole(role);
-    localStorage.setItem('4am_active_role', role);
+    sessionStorage.setItem('4am_active_role', role);
 
     if (role === 'RECEPTIONIST' || role === 'ADMIN') {
       patientService.getAllPatients(undefined, true).catch(() => {});
@@ -166,8 +170,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshToken: string,
     backendUser: { userId: string; email: string; fullName: string; actorRole: string; avatarUrl?: string; phoneNumber?: string; permissions?: string[] }
   ) => {
-    localStorage.setItem('access_token', accessToken);
-    localStorage.setItem('refresh_token', refreshToken);
+    sessionStorage.setItem('access_token', accessToken);
+    sessionStorage.setItem('refresh_token', refreshToken);
 
     let mappedRole: UserRole = 'PATIENT';
     let rawRole = backendUser.actorRole?.toUpperCase();
@@ -203,10 +207,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(userProfile);
     setIsLoggedIn(true);
     appointmentService.invalidateCache();
-    localStorage.setItem('4am_active_role', mappedRole);
-    localStorage.setItem('4am_is_logged_in', 'true');
-    localStorage.setItem('4am_user_data', JSON.stringify(userProfile));
-    localStorage.setItem('4am_user_name', userProfile.name);
+    sessionStorage.setItem('4am_active_role', mappedRole);
+    sessionStorage.setItem('4am_is_logged_in', 'true');
+    sessionStorage.setItem('4am_user_data', JSON.stringify(userProfile));
+    sessionStorage.setItem('4am_user_name', userProfile.name);
 
     if (mappedRole === 'RECEPTIONIST' || mappedRole === 'ADMIN') {
       patientService.getAllPatients(undefined, true).catch(() => {});
@@ -219,8 +223,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (doctor) {
           const updatedProfile = { ...userProfile, doctorId: doctor.doctorId };
           setUser(updatedProfile);
-          localStorage.setItem('4am_user_data', JSON.stringify(updatedProfile));
-          localStorage.setItem('4am_cached_doctor', JSON.stringify(doctor));
+          sessionStorage.setItem('4am_user_data', JSON.stringify(updatedProfile));
+          sessionStorage.setItem('4am_cached_doctor', JSON.stringify(doctor));
         }
       }).catch(() => {});
     }
@@ -231,12 +235,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     authService.logout().catch(() => {});
     setIsLoggedIn(false);
     setUser(null);
-    localStorage.removeItem('4am_is_logged_in');
-    localStorage.removeItem('4am_user_name');
-    localStorage.removeItem('4am_user_data');
-    localStorage.removeItem('4am_cached_doctor');
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    clearAuthStorage();
   };
 
   const updateUserProfile = (partial: { name?: string; phone?: string; avatar?: string }) => {
@@ -248,9 +247,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...(partial.phone !== undefined && { phone: partial.phone }),
         ...(partial.avatar !== undefined && { avatar: partial.avatar }),
       };
-      localStorage.setItem('4am_user_data', JSON.stringify(updated));
+      sessionStorage.setItem('4am_user_data', JSON.stringify(updated));
       if (partial.name) {
-        localStorage.setItem('4am_user_name', partial.name);
+        sessionStorage.setItem('4am_user_name', partial.name);
       }
       return updated;
     });
