@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { User, Loader2, Clock, Search, X, AlertTriangle, Calendar } from 'lucide-react';
 import { Badge } from '../../../components/common/Badge';
 import type { PatientEMR, PatientWorkflowState } from '../types';
+import { QueueStatusFilter, type QueueStatusKey } from './QueueStatusFilter';
 
 export type DoctorDateFilterMode = 'today' | 'yesterday' | '7days' | 'all' | 'custom';
 
@@ -23,7 +24,7 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
   onHoldEncounterIds = [],
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'waiting' | 'in_progress' | 'awaiting_review' | 'finished'>('all');
+  const [statusFilter, setStatusFilter] = useState<QueueStatusKey>('all');
   const patientList = Object.values(patients);
 
   // Thống kê số lượng theo từng nhóm trạng thái
@@ -109,39 +110,8 @@ export const PatientQueueSidebar: React.FC<PatientQueueSidebarProps> = ({
         )}
       </div>
 
-      {/* Bộ lọc nhanh trạng thái hàng chờ (Segmented Status Pills) */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar text-[11px]">
-        {[
-          { key: 'all', label: 'Tất cả', count: counts.all },
-          { key: 'waiting', label: 'Chờ khám', count: counts.waiting },
-          { key: 'in_progress', label: 'Đang khám', count: counts.in_progress },
-          { key: 'awaiting_review', label: 'Đã có KQ', count: counts.awaiting_review, highlight: true },
-          { key: 'finished', label: 'Đã xong', count: counts.finished },
-        ].map((tab) => {
-          const isActive = statusFilter === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setStatusFilter(tab.key as any)}
-              className={`px-2.5 py-1 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1 border shrink-0 ${
-                isActive
-                  ? tab.highlight
-                    ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
-                    : 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                  : tab.highlight && tab.count > 0
-                  ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 font-black animate-pulse'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span className={`text-[10px] px-1 rounded-full ${isActive ? 'bg-white/25 text-white' : 'bg-slate-200/70 text-slate-700'}`}>
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {/* Bộ lọc nhanh trạng thái hàng chờ */}
+      <QueueStatusFilter value={statusFilter} onChange={setStatusFilter} counts={counts} />
 
       <div className="space-y-2.5 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
         {isLoading ? (

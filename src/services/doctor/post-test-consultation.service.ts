@@ -134,6 +134,27 @@ export interface TreatmentConsultationItem {
   };
 }
 
+export type FollowUpAppointmentInfo = NonNullable<
+  NonNullable<TreatmentConsultationItem['encounter']>['followUpAppointment']
+>;
+
+/**
+ * Định dạng thông tin lịch hẹn tái khám (ngày dd/mm/yyyy, thứ, khung giờ) theo giờ bệnh viện.
+ * Dùng chuỗi ISO trả về từ BE (wall-clock) để tránh lệch ngày do múi giờ trình duyệt.
+ */
+export function formatFollowUpAppointment(appt: FollowUpAppointmentInfo) {
+  const rawDate = appt.slot?.slotStartTime || appt.appointmentDate || '';
+  const [y, m, d] = rawDate.slice(0, 10).split('-').map(Number);
+  const weekdays = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+  const hasDate = Boolean(y && m && d);
+  const weekday = hasDate ? weekdays[new Date(y, m - 1, d).getDay()] : '';
+  const dateText = hasDate ? `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}` : '—';
+  const start = (appt.slot?.slotStartTime || appt.appointmentTime || '').slice(11, 16);
+  const end = (appt.slot?.slotEndTime || '').slice(11, 16);
+  const timeText = start ? (end ? `${start} - ${end}` : start) : '';
+  return { isoDate: rawDate.slice(0, 10), dateText, weekday, timeText };
+}
+
 export const postTestConsultationService = {
   /**
    * Lấy dòng thời gian tiến trình bệnh án tổng hợp (Case Timeline)

@@ -172,6 +172,9 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
               return nextId;
             });
           } else {
+            setSelectedPatientId('');
+            globalLastSelectedPatientId = '';
+            localStorage.removeItem('doctor_selected_patient_id');
             setExistingTestOrders([]);
           }
         }
@@ -278,7 +281,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
         if (patCode) encounterCacheRef.current[patCode] = encounterCacheRef.current[encId];
         if (enc.encounterCode) encounterCacheRef.current[enc.encounterCode] = encounterCacheRef.current[encId];
         globalEncounterCache[encId] = encounterCacheRef.current[encId];
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     if (patId && encounterCacheRef.current[encId]?.allergies === undefined) {
@@ -291,7 +294,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
         if (patCode) encounterCacheRef.current[patCode] = encounterCacheRef.current[encId];
         if (enc.encounterCode) encounterCacheRef.current[enc.encounterCode] = encounterCacheRef.current[encId];
         globalEncounterCache[encId] = encounterCacheRef.current[encId];
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [selectedPatientId, apiEncounters]);
 
@@ -322,11 +325,11 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
     // Kiểm tra xem ca khám này đã có trong Cache chưa
     const cached = !forceRefresh
       ? (encounterCacheRef.current[id] || globalEncounterCache[id] || Object.values(globalEncounterCache).find(
-          (c) =>
-            c.encounterDetail?.encounterId === id ||
-            c.encounterDetail?.encounterCode === id ||
-            c.encounterDetail?.patient?.patientCode === id
-        ))
+        (c) =>
+          c.encounterDetail?.encounterId === id ||
+          c.encounterDetail?.encounterCode === id ||
+          c.encounterDetail?.patient?.patientCode === id
+      ))
       : undefined;
 
     if (cached) {
@@ -343,8 +346,8 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
       setClinicalNotes(cached.clinicalExam?.clinicalNotes || '');
       setPreliminaryDiag(
         cached.clinicalExam?.preliminaryDiag ||
-          extractPrimaryInitialDiagnosisText(cached.caseOverview?.initialDiagnoses) ||
-          ''
+        extractPrimaryInitialDiagnosisText(cached.caseOverview?.initialDiagnoses) ||
+        ''
       );
       setIsLoadingOverview(false);
       setIsLoadingAllergies(false);
@@ -623,23 +626,23 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
           caseOverview: newOverview || encounterCacheRef.current[targetId]?.caseOverview || null,
           clinicalExam: newExam || loadedPreliminaryDiag || prevExamCache
             ? {
-                patientPosition: newExam?.patientPosition ?? prevExamCache?.patientPosition ?? '',
-                inspectionFindings: newExam?.inspectionFindings ?? prevExamCache?.inspectionFindings ?? '',
-                palpationFindings: newExam?.palpationFindings ?? prevExamCache?.palpationFindings ?? '',
-                percussionFindings: newExam?.percussionFindings ?? prevExamCache?.percussionFindings ?? '',
-                auscultationFindings:
-                  newExam?.auscultationFindings ||
-                  newExam?.examinationFindings ||
-                  prevExamCache?.auscultationFindings ||
-                  '',
-                examinationFindings:
-                  newExam?.auscultationFindings ||
-                  newExam?.examinationFindings ||
-                  prevExamCache?.examinationFindings ||
-                  '',
-                clinicalNotes: newExam?.clinicalNotes ?? prevExamCache?.clinicalNotes ?? '',
-                preliminaryDiag: loadedPreliminaryDiag || prevExamCache?.preliminaryDiag || '',
-              }
+              patientPosition: newExam?.patientPosition ?? prevExamCache?.patientPosition ?? '',
+              inspectionFindings: newExam?.inspectionFindings ?? prevExamCache?.inspectionFindings ?? '',
+              palpationFindings: newExam?.palpationFindings ?? prevExamCache?.palpationFindings ?? '',
+              percussionFindings: newExam?.percussionFindings ?? prevExamCache?.percussionFindings ?? '',
+              auscultationFindings:
+                newExam?.auscultationFindings ||
+                newExam?.examinationFindings ||
+                prevExamCache?.auscultationFindings ||
+                '',
+              examinationFindings:
+                newExam?.auscultationFindings ||
+                newExam?.examinationFindings ||
+                prevExamCache?.examinationFindings ||
+                '',
+              clinicalNotes: newExam?.clinicalNotes ?? prevExamCache?.clinicalNotes ?? '',
+              preliminaryDiag: loadedPreliminaryDiag || prevExamCache?.preliminaryDiag || '',
+            }
             : null,
         };
         encounterCacheRef.current[targetId] = updatedCache;
@@ -850,7 +853,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
   const activeSpo2 = getActiveEncounterObs('SPO2');
 
   const hasMeasuredVitals = Boolean(
-    (activeEncounterSession && (activePulse !== undefined || activeBpSys !== undefined || activeBpDia !== undefined || activeTemp !== undefined || activeSpo2 !== undefined)) ||
+    (activeEncounterSession && activeEncounterSession.observations && activeEncounterSession.observations.length > 0) ||
     (currentPatient?.hasVitals && currentPatient?.vitals)
   );
 
@@ -1241,7 +1244,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
           />
           <div>
             <h2 className="text-xl font-bold text-slate-900">
-              Hồ Sơ Bệnh Án Điện Tử (EMR)
+              Hồ Sơ Bệnh Án Điện Tử
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Xem hồ sơ bệnh án EMR, ghi nhận khám lâm sàng và chỉ định cận lâm sàng.
@@ -1254,12 +1257,12 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
           <span>
             {currentPatient
               ? (() => {
-                  const name = verifiedEncounterDetail?.patient?.fullName || currentPatient.name;
-                  const pCode = verifiedEncounterDetail?.patient?.patientCode || currentPatient.patientCode;
-                  const encCode = verifiedEncounterDetail?.encounterCode || currentPatient.encounterCode;
-                  const codeDetails = [pCode, encCode].filter(Boolean).join(' • ');
-                  return `Bệnh nhân: ${name}${codeDetails ? ` (${codeDetails})` : ''}`;
-                })()
+                const name = verifiedEncounterDetail?.patient?.fullName || currentPatient.name;
+                const pCode = verifiedEncounterDetail?.patient?.patientCode || currentPatient.patientCode;
+                const encCode = verifiedEncounterDetail?.encounterCode || currentPatient.encounterCode;
+                const codeDetails = [pCode, encCode].filter(Boolean).join(' • ');
+                return `Bệnh nhân: ${name}${codeDetails ? ` (${codeDetails})` : ''}`;
+              })()
               : 'Chưa chọn bệnh nhân'}
           </span>
         </div>
@@ -1299,7 +1302,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                     isForCurrentPatient
                       ? currentPatient?.name
                       : displayedOnHoldTasks[0]?.orderItem?.order?.encounter?.patient?.fullName ||
-                        'Bệnh nhân'
+                      'Bệnh nhân'
                   }
                   isCurrentPatient={isForCurrentPatient}
                   onResolveTask={(task) => setDoctorResolvingTask(task)}
@@ -1331,12 +1334,12 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                   type="button"
                   onClick={() => setActiveSubTab('emr_summary')}
                   className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeSubTab === 'emr_summary'
-                      ? 'bg-white text-blue-700 shadow-xs border border-slate-200/60'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    ? 'bg-white text-blue-700 shadow-xs border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                     }`}
                 >
                   <FileText className="w-4 h-4 text-blue-600" />
-                  <span>Hồ sơ Bệnh Án Điện Tử (EMR)</span>
+                  <span>Hồ sơ bệnh nhân</span>
                 </button>
 
                 {/* Tab 2: Ghi nhận Khám lâm sàng & Chỉ định Cận lâm sàng */}
@@ -1344,8 +1347,8 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                   type="button"
                   onClick={() => setActiveSubTab('clinical_orders')}
                   className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeSubTab === 'clinical_orders'
-                      ? 'bg-white text-blue-700 shadow-xs border border-slate-200/60'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    ? 'bg-white text-blue-700 shadow-xs border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                     }`}
                 >
                   <Stethoscope className="w-4 h-4 text-blue-600" />
@@ -1455,7 +1458,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                           onClick={() => navigateTab('icd10-diagnosis')}
                           className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shrink-0 cursor-pointer"
                         >
-                          Xem KQ & Chẩn đoán
+                          Xem kết quả
                         </button>
                       )}
                     </div>
