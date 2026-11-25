@@ -100,7 +100,6 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
   const [symptoms, setSymptoms] = useState<string>('');
   const [symptomOnsetDate, setSymptomOnsetDate] = useState<string>('');
   const [painLevel, setPainLevel] = useState<number>(0);
-  const [priority, setPriority] = useState<'normal' | 'urgent' | 'emergency'>('normal');
 
   // Phân biệt lượt khám Online (Prefix A) hay Vãng lai (Prefix B / chưa có appointment)
   const isWalkIn = !ticket?.appointment || ticket.ticketPrefix === 'B';
@@ -159,7 +158,6 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
   useEffect(() => {
     if (isOpen && ticket) {
       setSelectedDoctorId(ticket.appointment?.doctorId || '');
-      setPriority(ticket.appointment?.priority as any || 'normal');
       setReasonForVisit(ticket.appointment?.reasonForVisit || '');
       setSymptoms('');
       setSymptomOnsetDate(getLocalDateString());
@@ -441,7 +439,7 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
         doctorId: selectedDoctorId,
         reasonForVisit: finalReason,
         symptoms: symptoms.trim() || undefined,
-        priority: priority,
+        priority: (ticket.appointment?.priority as any) || 'normal',
       };
 
       if (isWalkIn) {
@@ -1004,49 +1002,6 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
                 </option>
               ))}
             </select>
-          </div>
-
-          {/* Mức độ ưu tiên tiếp nhận */}
-          <div className="space-y-1.5">
-            <label className="font-bold text-slate-700 flex items-center gap-1.5 text-xs">
-              <Activity className="w-3.5 h-3.5 text-teal-600" />
-              <span>Mức độ ưu tiên khám:</span>
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setPriority('normal')}
-                className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                  priority === 'normal'
-                    ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-2xs'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <span>Bình thường</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPriority('urgent')}
-                className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                  priority === 'urgent'
-                    ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-2xs'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <span>Ưu tiên (VIP/Người già)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPriority('emergency')}
-                className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                  priority === 'emergency'
-                    ? 'bg-rose-50 border-rose-500 text-rose-700 shadow-2xs'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <span>Cấp cứu</span>
-              </button>
-            </div>
           </div>
 
           {/* KHỐI XÁC MINH DANH TÍNH TẠI QUẦY (CCCD / BHYT / BỆNH NHI) */}

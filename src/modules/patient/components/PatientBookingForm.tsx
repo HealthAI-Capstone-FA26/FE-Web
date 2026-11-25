@@ -13,8 +13,6 @@ import {
   Sparkles,
   Check,
   ChevronDown,
-  Activity,
-  Award,
   ShieldAlert,
   Plus,
   X,
@@ -54,8 +52,6 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
   });
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
   const [reasonForVisit, setReasonForVisit] = useState<string>('');
-  const [priority, setPriority] = useState<'normal' | 'urgent'>('normal');
-  const [serviceLevel, setServiceLevel] = useState<'tieu-chuan' | 'vip'>('tieu-chuan');
 
   // Loading & error states
   const [loadingInitial, setLoadingInitial] = useState(true);
@@ -368,51 +364,12 @@ export const PatientBookingForm: React.FC<PatientBookingFormProps> = ({ onSucces
               </div>
             </div>
 
-            {/* KHUNG 2: THÔNG TIN LOẠI HÌNH & BÁC SĨ TIM MẠCH */}
+            {/* KHUNG 2: THÔNG TIN BÁC SĨ TIM MẠCH & LỊCH HẸN */}
             <div className="bg-white/5 p-4.5 rounded-xl border border-white/10 space-y-4 font-sans">
-              {/* Chọn loại hình khám (Tiêu chuẩn / VIP) */}
-              <div className="space-y-2">
-                <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                  * 2. Chọn loại hình khám
-                </span>
-                <div className="grid grid-cols-2 bg-white p-1 rounded-xl border border-slate-200/50 text-center font-bold shadow-inner">
-                  {[
-                    { id: 'tieu-chuan', label: 'Khám tiêu chuẩn', icon: Activity },
-                    { id: 'vip', label: 'Khám VIP', icon: Award },
-                  ].map((tab, idx) => {
-                    const isActive = serviceLevel === tab.id;
-                    const Icon = tab.icon;
-                    return (
-                      <div key={tab.id} className="relative flex items-center w-full">
-                        {idx > 0 && !isActive && (
-                          <div className="absolute left-0 h-4 w-[1px] bg-slate-200/80" />
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setServiceLevel(tab.id as any);
-                            if (tab.id === 'vip') setPriority('urgent');
-                            else setPriority('normal');
-                          }}
-                          className={`py-2 rounded-lg w-full flex items-center justify-center gap-1.5 transition-all duration-300 uppercase tracking-tight text-xs cursor-pointer font-bold ${
-                            isActive
-                              ? 'bg-[#0b3c8f] text-white shadow-md'
-                              : 'text-slate-700 hover:text-[#0b3c8f] hover:bg-slate-50'
-                          }`}
-                        >
-                          <Icon className="w-3.5 h-3.5" />
-                          {tab.label}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
               {/* Chọn bác sĩ tim mạch */}
               <div className="space-y-2">
                 <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                  * Chọn bác sĩ Tim mạch phụ trách
+                  * 2. Chọn bác sĩ Tim mạch phụ trách
                 </span>
                 <div className="relative">
                   <select

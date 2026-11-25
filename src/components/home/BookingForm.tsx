@@ -4,9 +4,7 @@ import {
   Calendar as CalendarIcon,
   User,
   Check,
-  Activity,
   ShieldAlert,
-  Award,
   ChevronDown,
   Stethoscope,
   Building2,
@@ -50,7 +48,6 @@ export const BookingForm = () => {
     return getLocalDateString(tomorrow);
   });
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
-  const [serviceLevel, setServiceLevel] = useState<'tieu-chuan' | 'vip'>('tieu-chuan');
   const [reasonForVisit, setReasonForVisit] = useState<string>('');
 
   // Guest Patient Info State (No login required)
@@ -445,32 +442,11 @@ export const BookingForm = () => {
                   </div>
                 </div>
 
-                {/* KHUNG 3: CHỌN LOẠI HÌNH & BÁC SĨ TIM MẠCH */}
+                {/* KHUNG 3: CHỌN BÁC SĨ TIM MẠCH & KHUNG GIỜ */}
                 <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-3 font-sans">
-                  {/* Chọn loại hình khám */}
-                  <div className="space-y-1">
-                    <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                      * 3. Chọn loại hình khám & Bác sĩ phụ trách
-                    </span>
-                    <div className="grid grid-cols-2 bg-white p-1 rounded-lg text-center font-bold">
-                      <button
-                        type="button"
-                        onClick={() => setServiceLevel('tieu-chuan')}
-                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer ${serviceLevel === 'tieu-chuan' ? 'bg-[#0b3c8f] text-white' : 'text-slate-700'
-                          }`}
-                      >
-                        <Activity className="w-3.5 h-3.5" /> Khám Tiêu Chuẩn
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setServiceLevel('vip')}
-                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer ${serviceLevel === 'vip' ? 'bg-[#0b3c8f] text-white' : 'text-slate-700'
-                          }`}
-                      >
-                        <Award className="w-3.5 h-3.5" /> Khám VIP
-                      </button>
-                    </div>
-                  </div>
+                  <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
+                    * 3. Bác sĩ phụ trách & Lịch khám
+                  </span>
 
                   {/* Bác sĩ Tim mạch */}
                   <div>
