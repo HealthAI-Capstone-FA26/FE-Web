@@ -57,14 +57,20 @@ export interface CaseOverviewData {
   chiefComplaint?: {
     reasonForVisit?: string;
     symptoms?: string;
+    symptomOnsetDate?: string;
+    painLevel?: number;
     recordedAt?: string;
   };
   clinicalExamination?: ClinicalExaminationData | null;
   latestVitalSession?: {
-    sessionId: string;
+    sessionId?: string;
+    vitalSessionId?: string;
     measuredAt?: string;
+    createdAt?: string;
+    notes?: string;
     observations?: Array<{
       observationValue?: string | number;
+      isAbnormal?: boolean;
       item?: {
         itemCode: string;
         itemName: string;

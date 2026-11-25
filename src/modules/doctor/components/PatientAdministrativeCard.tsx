@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  FileText, ShieldAlert, Heart, Thermometer, Activity,
+  User, ShieldAlert, Heart, Thermometer, Activity,
   AlertTriangle, Loader2, PlayCircle, CheckCircle2, RefreshCw,
   History, ChevronDown, ChevronUp, Calendar, Stethoscope,
   ArrowRight
@@ -83,7 +83,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
     caseOverview &&
     currentPatient &&
     ((caseOverview.encounter?.encounterId && caseOverview.encounter.encounterId === currentPatient.encounterId) ||
-     (caseOverview.patient?.patientId && caseOverview.patient.patientId === currentPatient.patientId))
+      (caseOverview.patient?.patientId && caseOverview.patient.patientId === currentPatient.patientId))
   );
   const safeOverview = isOverviewMatching ? caseOverview : null;
 
@@ -91,9 +91,101 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
     selectedEncounterDetail &&
     currentPatient &&
     (selectedEncounterDetail.encounterId === currentPatient.encounterId ||
-     selectedEncounterDetail.patientId === currentPatient.patientId)
+      selectedEncounterDetail.patientId === currentPatient.patientId)
   );
   const safeEncounterDetail = isEncounterMatching ? selectedEncounterDetail : null;
+
+  // Trích xuất đầy đủ sinh hiệu từ phiên đo gần nhất (đồng bộ 8 chỉ số với Điều dưỡng)
+  const vitalSession =
+    safeOverview?.latestVitalSession ||
+    (safeEncounterDetail?.vitalSignSessions && safeEncounterDetail.vitalSignSessions.length > 0
+      ? safeEncounterDetail.vitalSignSessions[0]
+      : undefined);
+
+  const findVitalObs = (...codes: string[]) => {
+    if (!vitalSession?.observations) return undefined;
+    return vitalSession.observations.find(
+      (o) => o.item?.itemCode && codes.some((code) => code.toLowerCase() === o.item?.itemCode?.toLowerCase())
+    );
+  };
+
+  const bpSysObs = findVitalObs('SBP', 'BP_SYS', 'BP_SYSTOLIC');
+  const bpDiaObs = findVitalObs('DBP', 'BP_DIA', 'BP_DIASTOLIC');
+  const hrObs = findVitalObs('HR', 'PULSE');
+  const tempObs = findVitalObs('TEMP', 'TEMPERATURE');
+  const spo2Obs = findVitalObs('SPO2');
+  const respObs = findVitalObs('RR', 'RESP', 'RESPIRATORY_RATE');
+  const heightObs = findVitalObs('HEIGHT');
+  const weightObs = findVitalObs('WEIGHT');
+  const bmiObs = findVitalObs('BMI');
+
+  const bpValue =
+    bpSysObs?.observationValue !== undefined && bpDiaObs?.observationValue !== undefined
+      ? `${bpSysObs.observationValue}/${bpDiaObs.observationValue}`
+      : bpSysObs?.observationValue !== undefined
+        ? `${bpSysObs.observationValue}`
+        : displayBp
+          ? displayBp.replace(/\s*mmHg$/i, '')
+          : undefined;
+  const hrValue = hrObs?.observationValue ?? displayHr;
+  const tempValue =
+    tempObs?.observationValue ?? (displayTemp ? displayTemp.replace(/\s*°C$/i, '') : undefined);
+  const spo2Value =
+    spo2Obs?.observationValue ?? (displaySpo2 ? displaySpo2.replace(/\s*%$/i, '') : undefined);
+  const respValue = respObs?.observationValue;
+  const heightValue = heightObs?.observationValue;
+  const weightValue = weightObs?.observationValue;
+  const bmiValue =
+    bmiObs?.observationValue !== undefined
+      ? bmiObs.observationValue
+      : heightValue !== undefined && weightValue !== undefined && Number(heightValue) > 0 && Number(weightValue) > 0
+        ? (Number(weightValue) / Math.pow(Number(heightValue) / 100, 2)).toFixed(2)
+        : undefined;
+
+  const isBpAbnormal = Boolean(bpSysObs?.isAbnormal || bpDiaObs?.isAbnormal);
+  const isHrAbnormal = Boolean(hrObs?.isAbnormal);
+  const isTempAbnormal = Boolean(tempObs?.isAbnormal);
+  const isSpo2Abnormal = Boolean(spo2Obs?.isAbnormal || (spo2Value !== undefined && Number(spo2Value) < 95));
+  const isRespAbnormal = Boolean(respObs?.isAbnormal);
+  const isBmiAbnormal = Boolean(bmiObs?.isAbnormal);
+
+  const vitalMeasuredRaw = vitalSession?.measuredAt || vitalSession?.createdAt;
+  const vitalMeasuredTimeText = (() => {
+    if (!vitalMeasuredRaw) return '';
+    const d = new Date(vitalMeasuredRaw);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  })();
+  const vitalNotes = vitalSession?.notes;
+  const effectiveHasVitals = Boolean(
+    hasMeasuredVitals || (vitalSession?.observations && vitalSession.observations.length > 0)
+  );
+
+  // Thông tin Tiếp đón lâm sàng (Chief Complaint) từ Điều dưỡng
+  const reasonForVisit =
+    safeEncounterDetail?.chiefComplaint?.reasonForVisit ||
+    safeOverview?.chiefComplaint?.reasonForVisit;
+  const symptomOnsetDate = (
+    safeEncounterDetail?.chiefComplaint?.symptomOnsetDate ||
+    safeOverview?.chiefComplaint?.symptomOnsetDate ||
+    ''
+  ).slice(0, 10);
+  const painLevel =
+    typeof safeEncounterDetail?.chiefComplaint?.painLevel === 'number'
+      ? safeEncounterDetail.chiefComplaint.painLevel
+      : typeof safeOverview?.chiefComplaint?.painLevel === 'number'
+        ? safeOverview.chiefComplaint.painLevel
+        : undefined;
+  const symptomsDescription =
+    safeEncounterDetail?.chiefComplaint?.symptoms ||
+    safeOverview?.chiefComplaint?.symptoms ||
+    currentPatient?.symptoms;
 
   // Lịch sử các ca khám cũ của bệnh nhân (GET /api/v1/encounters?patientId=UUID)
   const realPatientId =
@@ -169,6 +261,12 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
     };
   }, [realPatientId]);
 
+  const formatDateDdMmYyyy = (val?: string | null) => {
+    if (!val || val === '---') return '---';
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(val.trim());
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : val;
+  };
+
   const formatEncounterStatus = (status: string) => {
     switch (status) {
       case 'finished': return 'Đã hoàn thành';
@@ -182,23 +280,60 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
 
   return (
     <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-blue-700" />
-            <span>Hồ sơ Bệnh án Điện tử (EMR) - Thông tin Hành chính & Sinh hiệu</span>
-          </h3>
-          {onRefreshEncounter && (
-            <button
-              type="button"
-              onClick={onRefreshEncounter}
-              disabled={isLoadingOverview}
-              className="p-1 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50"
-              title="Tải lại dữ liệu mới nhất cho ca khám này"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingOverview ? 'animate-spin text-blue-600' : ''}`} />
-            </button>
-          )}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 mt-0.5">
+            <User className="w-5 h-5 text-blue-700" />
+          </div>
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                Thông tin cá nhân
+              </span>
+              {onRefreshEncounter && (
+                <button
+                  type="button"
+                  onClick={onRefreshEncounter}
+                  disabled={isLoadingOverview}
+                  className="p-1 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50"
+                  title="Tải lại dữ liệu mới nhất cho ca khám này"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isLoadingOverview ? 'animate-spin text-blue-600' : ''}`} />
+                </button>
+              )}
+              {isLoadingOverview && !safeOverview && (
+                <span className="text-[10px] font-bold text-blue-600 flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Đang cập nhật...
+                </span>
+              )}
+            </div>
+            <div className="text-sm font-extrabold text-slate-900 truncate">
+              {safeOverview?.patient?.fullName || safeEncounterDetail?.patient?.fullName || currentPatient?.name}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+              <span>
+                <strong className="text-slate-700">Tuổi/Giới:</strong> {currentPatient?.age} tuổi (
+                {safeOverview?.patient?.gender === 'female' || safeEncounterDetail?.patient?.gender === 'female'
+                  ? 'Nữ'
+                  : safeOverview?.patient?.gender === 'male' || safeEncounterDetail?.patient?.gender === 'male'
+                    ? 'Nam'
+                    : currentPatient?.gender}
+                )
+              </span>
+              <span className="text-slate-300">•</span>
+              <span>
+                <strong className="text-slate-700">Ngày sinh:</strong>{' '}
+                {formatDateDdMmYyyy(safeOverview?.patient?.dateOfBirth || safeEncounterDetail?.patient?.dateOfBirth || currentPatient?.dob)}
+              </span>
+              <span className="text-slate-300">•</span>
+              <span>
+                <strong className="text-slate-700">Nhóm máu:</strong>{' '}
+                <span className="font-bold text-slate-800">
+                  {safeOverview?.patient?.bloodType || safeEncounterDetail?.patient?.bloodType || currentPatient?.bloodType}
+                </span>
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Action Button: Bắt đầu khám / Trạng thái phiên khám / Điều hướng */}
@@ -269,51 +404,12 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
 
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-        {/* 1. Personal Info */}
-        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-              Thông tin bệnh nhân
-            </span>
-            {isLoadingOverview && !safeOverview && (
-              <span className="text-[10px] font-bold text-blue-600 flex items-center gap-1">
-                <Loader2 className="w-3 h-3 animate-spin" /> Đang cập nhật...
-              </span>
-            )}
-          </div>
-          <div className="space-y-1">
-            <p>
-              <strong className="text-slate-700">Họ tên:</strong>{' '}
-              <span className="font-bold text-slate-800">
-                {safeOverview?.patient?.fullName || safeEncounterDetail?.patient?.fullName || currentPatient?.name}
-              </span>
-            </p>
-            <p>
-              <strong className="text-slate-700">Tuổi/Giới:</strong> {currentPatient?.age} tuổi (
-              {safeOverview?.patient?.gender === 'female' || safeEncounterDetail?.patient?.gender === 'female'
-                ? 'Nữ'
-                : safeOverview?.patient?.gender === 'male' || safeEncounterDetail?.patient?.gender === 'male'
-                ? 'Nam'
-                : currentPatient?.gender}
-              )
-            </p>
-            <p>
-              <strong className="text-slate-700">Ngày sinh:</strong>{' '}
-              {safeOverview?.patient?.dateOfBirth?.slice(0, 10) || safeEncounterDetail?.patient?.dateOfBirth?.slice(0, 10) || currentPatient?.dob}
-            </p>
-            <p>
-              <strong className="text-slate-700">Nhóm máu:</strong>{' '}
-              {safeOverview?.patient?.bloodType || safeEncounterDetail?.patient?.bloodType || currentPatient?.bloodType}
-            </p>
-          </div>
-        </div>
-
-        {/* 2. Clinical History & Allergies */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        {/* 1. Clinical History, Allergies & Chief Complaint */}
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2.5">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-              Tiền sử & Dị ứng
+              Tiền sử, Dị ứng & Tiếp đón lâm sàng
             </span>
             {isLoadingAllergies && !safeOverview && activeFilteredAllergies.length === 0 && (
               <Loader2 className="w-3.5 h-3.5 text-rose-600 animate-spin" />
@@ -410,70 +506,180 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
                   </span>
                 )}
               </p>
-              <p>
-                <strong className="text-slate-700">Triệu chứng khai báo:</strong>{' '}
-                <span className="text-slate-800 font-semibold">
-                  {safeOverview?.chiefComplaint?.symptoms || safeEncounterDetail?.chiefComplaint?.symptoms || currentPatient?.symptoms}
+            </div>
+
+            {/* Tiếp đón lâm sàng (Chief Complaint) */}
+            <div className="pt-2 border-t border-slate-200/60 space-y-1.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <strong className="text-slate-700 text-[11px]">Tiếp đón lâm sàng:</strong>
+                {painLevel !== undefined && (
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                      painLevel >= 7
+                        ? 'bg-rose-100 text-rose-700 border-rose-200'
+                        : painLevel >= 4
+                          ? 'bg-amber-100 text-amber-800 border-amber-200'
+                          : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    }`}
+                  >
+                    Mức đau: {painLevel}/10
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-1 text-[11px]">
+                <div>
+                  <span className="text-slate-500">Lý do đến khám: </span>
+                  <span className="font-bold text-slate-800">{reasonForVisit || 'Chưa ghi nhận'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Khởi phát triệu chứng: </span>
+                  <span className="font-semibold text-slate-800">{symptomOnsetDate ? formatDateDdMmYyyy(symptomOnsetDate) : 'Chưa ghi nhận'}</span>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-slate-500 text-[11px]">Triệu chứng mô tả: </span>
+                <span className="font-semibold text-slate-800 text-[11px]">
+                  {symptomsDescription || 'Không có ghi chú triệu chứng đặc biệt'}
                 </span>
-              </p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* 3. Vital Signs from Reception */}
-        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
-          <div className="flex items-center justify-between">
+        {/* 2. Vital Signs from Nurse / Reception (Full 8 indicators) */}
+        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2.5">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
               Chỉ số sinh hiệu lúc đón tiếp
             </span>
-            {isLoadingOverview && !safeOverview && <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />}
+            <div className="flex items-center gap-2">
+              {vitalMeasuredTimeText && (
+                <span className="text-[10px] text-slate-500 font-medium">
+                  Đo lúc: <strong className="text-slate-700 font-mono">{vitalMeasuredTimeText}</strong>
+                </span>
+              )}
+              {isLoadingOverview && !safeOverview && <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />}
+            </div>
           </div>
 
-          {hasMeasuredVitals ? (
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              {/* BP */}
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200/70 shadow-2xs space-y-0.5">
-                <div className="flex items-center gap-1.5 text-emerald-600">
-                  <Activity className="w-3.5 h-3.5" />
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">HA</span>
+          {effectiveHasVitals ? (
+            <div className="space-y-2 pt-0.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {/* 1. Huyết áp */}
+                <div
+                  className={`bg-white p-2.5 rounded-xl border shadow-2xs space-y-0.5 ${
+                    isBpAbnormal ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200/70'
+                  }`}
+                >
+                  <div className="flex items-center gap-1 text-emerald-600">
+                    <Activity className="w-3 h-3 shrink-0" />
+                    <span className="text-[10px] font-bold text-slate-500">Huyết áp</span>
+                  </div>
+                  <div className={`text-xs font-mono font-extrabold ${isBpAbnormal ? 'text-rose-700' : 'text-blue-900'}`}>
+                    {bpValue ?? '---'}{' '}
+                    <span className="text-[10px] font-sans font-normal text-slate-400">mmHg</span>
+                  </div>
                 </div>
-                <div className="text-xs font-mono font-extrabold text-slate-800">
-                  {displayBp || '---'}
+
+                {/* 2. Mạch / Nhịp tim */}
+                <div
+                  className={`bg-white p-2.5 rounded-xl border shadow-2xs space-y-0.5 ${
+                    isHrAbnormal ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200/70'
+                  }`}
+                >
+                  <div className="flex items-center gap-1 text-rose-500">
+                    <Heart className="w-3 h-3 shrink-0" />
+                    <span className="text-[10px] font-bold text-slate-500">Mạch / Nhịp tim</span>
+                  </div>
+                  <div className="text-xs font-mono font-extrabold text-rose-700">
+                    {hrValue ?? '---'}{' '}
+                    <span className="text-[10px] font-sans font-normal text-slate-400">bpm</span>
+                  </div>
+                </div>
+
+                {/* 3. Thân nhiệt */}
+                <div
+                  className={`bg-white p-2.5 rounded-xl border shadow-2xs space-y-0.5 ${
+                    isTempAbnormal ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200/70'
+                  }`}
+                >
+                  <div className="flex items-center gap-1 text-amber-500">
+                    <Thermometer className="w-3 h-3 shrink-0" />
+                    <span className="text-[10px] font-bold text-slate-500">Thân nhiệt</span>
+                  </div>
+                  <div className={`text-xs font-mono font-extrabold ${isTempAbnormal ? 'text-rose-700' : 'text-amber-700'}`}>
+                    {tempValue ?? '---'}{' '}
+                    <span className="text-[10px] font-sans font-normal text-slate-400">°C</span>
+                  </div>
+                </div>
+
+                {/* 4. SpO2 */}
+                <div
+                  className={`bg-white p-2.5 rounded-xl border shadow-2xs space-y-0.5 ${
+                    isSpo2Abnormal ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200/70'
+                  }`}
+                >
+                  <div className="flex items-center gap-1 text-blue-600">
+                    <Activity className="w-3 h-3 shrink-0" />
+                    <span className="text-[10px] font-bold text-slate-500">SpO2 (Oxy máu)</span>
+                  </div>
+                  <div className={`text-xs font-mono font-extrabold ${isSpo2Abnormal ? 'text-rose-600' : 'text-teal-700'}`}>
+                    {spo2Value ?? '---'}{' '}
+                    <span className="text-[10px] font-sans font-normal text-slate-400">%</span>
+                  </div>
+                </div>
+
+                {/* 5. Nhịp thở */}
+                <div
+                  className={`bg-white p-2.5 rounded-xl border shadow-2xs space-y-0.5 ${
+                    isRespAbnormal ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200/70'
+                  }`}
+                >
+                  <span className="text-[10px] font-bold text-slate-500 block">Nhịp thở</span>
+                  <div className={`text-xs font-mono font-extrabold ${isRespAbnormal ? 'text-rose-700' : 'text-slate-800'}`}>
+                    {respValue ?? '---'}{' '}
+                    <span className="text-[10px] font-sans font-normal text-slate-400">lần/phút</span>
+                  </div>
+                </div>
+
+                {/* 6. Chiều cao */}
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200/70 shadow-2xs space-y-0.5">
+                  <span className="text-[10px] font-bold text-slate-500 block">Chiều cao</span>
+                  <div className="text-xs font-mono font-extrabold text-slate-800">
+                    {heightValue ?? '---'}{' '}
+                    <span className="text-[10px] font-sans font-normal text-slate-400">cm</span>
+                  </div>
+                </div>
+
+                {/* 7. Cân nặng */}
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200/70 shadow-2xs space-y-0.5">
+                  <span className="text-[10px] font-bold text-slate-500 block">Cân nặng</span>
+                  <div className="text-xs font-mono font-extrabold text-slate-800">
+                    {weightValue ?? '---'}{' '}
+                    <span className="text-[10px] font-sans font-normal text-slate-400">kg</span>
+                  </div>
+                </div>
+
+                {/* 8. Chỉ số BMI */}
+                <div
+                  className={`bg-white p-2.5 rounded-xl border shadow-2xs space-y-0.5 ${
+                    isBmiAbnormal ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200/70'
+                  }`}
+                >
+                  <span className="text-[10px] font-bold text-slate-500 block">Chỉ số BMI</span>
+                  <div className={`text-xs font-mono font-extrabold ${isBmiAbnormal ? 'text-rose-700' : 'text-slate-800'}`}>
+                    {bmiValue ?? '---'}
+                  </div>
                 </div>
               </div>
 
-              {/* Heart rate */}
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200/70 shadow-2xs space-y-0.5">
-                <div className="flex items-center gap-1.5 text-rose-500">
-                  <Heart className="w-3.5 h-3.5" />
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Nhịp tim</span>
+              {vitalNotes && (
+                <div className="p-2 bg-white rounded-xl border border-slate-200/70 text-[11px] text-slate-600">
+                  <strong className="text-slate-700">Ghi chú đo sinh hiệu:</strong> {vitalNotes}
                 </div>
-                <div className="text-xs font-mono font-extrabold text-slate-800">
-                  {displayHr !== undefined ? `${displayHr} bpm` : '---'}
-                </div>
-              </div>
-
-              {/* SpO2 */}
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200/70 shadow-2xs space-y-0.5">
-                <div className="flex items-center gap-1.5 text-blue-600">
-                  <Activity className="w-3.5 h-3.5" />
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">SpO2</span>
-                </div>
-                <div className="text-xs font-mono font-extrabold text-slate-800">
-                  {displaySpo2 || '---'}
-                </div>
-              </div>
-
-              {/* Temp */}
-              <div className="bg-white p-2.5 rounded-xl border border-slate-200/70 shadow-2xs space-y-0.5">
-                <div className="flex items-center gap-1.5 text-amber-500">
-                  <Thermometer className="w-3.5 h-3.5" />
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Nhiệt độ</span>
-                </div>
-                <div className="text-xs font-mono font-extrabold text-slate-800">
-                  {displayTemp || '---'}
-                </div>
-              </div>
+              )}
             </div>
           ) : (
             <div className="p-3 bg-amber-50/90 rounded-xl border border-amber-200/80 text-amber-900 space-y-1">
