@@ -32,7 +32,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
   }, []);
 
   const hasValidToken = useCallback(() => {
-    return isLoggedIn && Boolean(localStorage.getItem('access_token'));
+    return isLoggedIn && Boolean(sessionStorage.getItem('access_token'));
   }, [isLoggedIn]);
 
   /**

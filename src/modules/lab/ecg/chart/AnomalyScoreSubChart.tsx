@@ -365,8 +365,11 @@ export const AnomalyScoreSubChart: React.FC<AnomalyScoreSubChartProps> = ({
                   : `< τ (${clampedThreshold.toFixed(2)}) · Bình thường`}
               </span>
               {hover.anomaly && (
-                <span className="ml-1.5 text-amber-300 font-medium">
-                  ({getAnomalyLabel(hover.anomaly.anomalyType)} · {SEVERITY_LABEL_VI[hover.anomaly.severity]})
+                <span className="ml-1.5 text-slate-300 font-medium">
+                  ({hover.anomaly.anomalyType && hover.anomaly.anomalyType !== 'unclassified'
+                    ? `${getAnomalyLabel(hover.anomaly.anomalyType)} · `
+                    : ''}
+                  {SEVERITY_LABEL_VI[hover.anomaly.severity]})
                 </span>
               )}
             </div>

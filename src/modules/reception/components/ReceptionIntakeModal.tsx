@@ -32,7 +32,7 @@ import {
 import { consentService, type ConsentPolicyItem, type ConsentItem } from '../../../services/consent/consent.service';
 import { patientService, type PatientResponse } from '../../../services/patient/patient.service';
 import { appointmentService, type AppointmentItem } from '../../../services/appointment/appointment.service';
-import { getLocalDateString } from '../../../utils/booking.utils';
+import { getLocalDateString, formatSlotTimeRange } from '../../../utils/booking.utils';
 
 const QUICK_SYMPTOM_TAGS = [
   'Đau đầu / Chóng mặt',
@@ -59,6 +59,7 @@ export interface IntakeData {
     verificationStatus: VerificationStatus;
     mismatchNotes?: string;
     identityNumber?: string;
+    insuranceNumber?: string;
   };
   consents: {
     policyIds: string[];
@@ -99,7 +100,6 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
   const [symptoms, setSymptoms] = useState<string>('');
   const [symptomOnsetDate, setSymptomOnsetDate] = useState<string>('');
   const [painLevel, setPainLevel] = useState<number>(0);
-  const [priority, setPriority] = useState<'normal' | 'urgent' | 'emergency'>('normal');
 
   // Phân biệt lượt khám Online (Prefix A) hay Vãng lai (Prefix B / chưa có appointment)
   const isWalkIn = !ticket?.appointment || ticket.ticketPrefix === 'B';
@@ -128,6 +128,8 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
   const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>('national_id_card');
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('verified');
   const [mismatchNotes, setMismatchNotes] = useState<string>('');
+  const [verifyIdentityNumber, setVerifyIdentityNumber] = useState<string>('');
+  const [verifyInsuranceNumber, setVerifyInsuranceNumber] = useState<string>('');
   const [isPediatricPatient, setIsPediatricPatient] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -156,7 +158,6 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
   useEffect(() => {
     if (isOpen && ticket) {
       setSelectedDoctorId(ticket.appointment?.doctorId || '');
-      setPriority(ticket.appointment?.priority as any || 'normal');
       setReasonForVisit(ticket.appointment?.reasonForVisit || '');
       setSymptoms('');
       setSymptomOnsetDate(getLocalDateString());
@@ -197,6 +198,8 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
       setVerificationMethod(isChild ? 'health_insurance_card' : 'national_id_card');
       setVerificationStatus('verified');
       setMismatchNotes('');
+      setVerifyIdentityNumber(ticket.appointment?.patient?.identityNumber || '');
+      setVerifyInsuranceNumber(ticket.appointment?.patient?.insuranceNumber || '');
 
       // Nạp danh sách chính sách Consent
       consentService.getEffectivePolicies()
@@ -282,6 +285,8 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
     }
     setIsPediatricPatient(isChild);
     setVerificationMethod(isChild ? 'health_insurance_card' : 'national_id_card');
+    setVerifyIdentityNumber(appt.patient?.identityNumber || '');
+    setVerifyInsuranceNumber(appt.patient?.insuranceNumber || '');
 
     const pid = appt.patientId || (appt as any).suggestedPatientId;
     if (pid) {
@@ -404,7 +409,28 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
       }
     }
 
-    // 3. Kiểm tra Lý do khám (Chief Complaint)
+    // 3. Kiểm tra Số CCCD/CMND đối chiếu (bắt buộc theo CreateIdentityVerificationDto)
+    const resolvedIdentityNumber = (
+      verifyIdentityNumber.trim() ||
+      newIdentityNumber.trim() ||
+      patient?.identityNumber ||
+      selectedWalkinPatient?.identityNumber ||
+      ''
+    ).trim();
+    const resolvedInsuranceNumber = (
+      verifyInsuranceNumber.trim() ||
+      newInsuranceNumber.trim() ||
+      patient?.insuranceNumber ||
+      selectedWalkinPatient?.insuranceNumber ||
+      ''
+    ).trim();
+
+    if (!resolvedIdentityNumber) {
+      showToast('Vui lòng nhập Số CCCD / CMND tại mục Xác minh danh tính', 'error');
+      return;
+    }
+
+    // 4. Kiểm tra Lý do khám (Chief Complaint)
     const finalReason = reasonForVisit.trim() || symptoms.trim() || ticket.appointment?.reasonForVisit?.trim() || 'Khám bệnh';
 
     setIsSubmitting(true);
@@ -413,7 +439,7 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
         doctorId: selectedDoctorId,
         reasonForVisit: finalReason,
         symptoms: symptoms.trim() || undefined,
-        priority: priority,
+        priority: (ticket.appointment?.priority as any) || 'normal',
       };
 
       if (isWalkIn) {
@@ -435,8 +461,8 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
             phoneNumber: newPhoneNumber.trim(),
             dateOfBirth: newDateOfBirth,
             gender: newGender,
-            identityNumber: newIdentityNumber.trim() || undefined,
-            insuranceNumber: newInsuranceNumber.trim() || undefined,
+            identityNumber: resolvedIdentityNumber,
+            insuranceNumber: resolvedInsuranceNumber || undefined,
             address: newAddress.trim() || undefined,
           };
         }
@@ -463,7 +489,8 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
           verificationMethod,
           verificationStatus,
           mismatchNotes: mismatchNotes.trim() || undefined,
-          identityNumber: patient?.identityNumber || newIdentityNumber.trim() || selectedWalkinPatient?.identityNumber || undefined,
+          identityNumber: resolvedIdentityNumber,
+          insuranceNumber: resolvedInsuranceNumber || undefined,
         },
         consents: {
           policyIds: selectedPolicyIds,
@@ -622,11 +649,14 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
                       {appointmentResults.length > 0 && (
                         <div className="max-h-56 overflow-y-auto space-y-2 bg-white p-2 rounded-xl border border-slate-200 shadow-xs">
                           {appointmentResults.map((appt) => {
-                            const pName = appt.patient?.fullName || 'Khách chưa đồng bộ';
-                            const pPhone = appt.patient?.phoneNumber;
+                            const pName = appt.patient?.fullName || appt.suggestedPatient?.fullName || 'Khách chưa đồng bộ';
+                            const pPhone = appt.patient?.phoneNumber || appt.suggestedPatient?.phoneNumber;
                             const dName = appt.doctor?.user?.fullName || appt.doctor?.fullName || 'Chưa gán bác sĩ';
                             const dateStr = appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString('vi-VN') : '';
-                            const timeStr = appt.slot ? `${appt.slot.slotStartTime} - ${appt.slot.slotEndTime}` : appt.appointmentTime || '';
+                            const timeStr = formatSlotTimeRange(
+                              appt.slot?.slotStartTime || appt.appointmentTime,
+                              appt.slot?.slotEndTime
+                            );
 
                             return (
                               <div
@@ -678,9 +708,20 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
                           </span>
                         </div>
                         <div className="text-[11px] text-emerald-800 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                          <span>Bệnh nhân: <strong>{selectedOnlineAppointment.patient?.fullName || 'Chưa đồng bộ'}</strong></span>
-                          <span>SĐT: <strong>{selectedOnlineAppointment.patient?.phoneNumber || 'N/A'}</strong></span>
+                          <span>Bệnh nhân: <strong>{selectedOnlineAppointment.patient?.fullName || selectedOnlineAppointment.suggestedPatient?.fullName || 'Chưa đồng bộ'}</strong></span>
+                          <span>SĐT: <strong>{selectedOnlineAppointment.patient?.phoneNumber || selectedOnlineAppointment.suggestedPatient?.phoneNumber || 'N/A'}</strong></span>
                           <span>Bác sĩ: <strong>{selectedOnlineAppointment.doctor?.user?.fullName || selectedOnlineAppointment.doctor?.fullName || 'N/A'}</strong></span>
+                          {(selectedOnlineAppointment.slot || selectedOnlineAppointment.appointmentTime) && (
+                            <span>
+                              Khung giờ:{' '}
+                              <strong>
+                                {formatSlotTimeRange(
+                                  selectedOnlineAppointment.slot?.slotStartTime || selectedOnlineAppointment.appointmentTime,
+                                  selectedOnlineAppointment.slot?.slotEndTime
+                                )}
+                              </strong>
+                            </span>
+                          )}
                         </div>
                         {selectedOnlineAppointment.reasonForVisit && (
                           <div className="text-[11px] text-emerald-700 italic">
@@ -731,7 +772,12 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
                           {searchResults.map((p) => (
                             <div
                               key={p.patientId}
-                              onClick={() => { setSelectedWalkinPatient(p); setSearchResults([]); }}
+                              onClick={() => {
+                                setSelectedWalkinPatient(p);
+                                setVerifyIdentityNumber(p.identityNumber || '');
+                                setVerifyInsuranceNumber(p.insuranceNumber || '');
+                                setSearchResults([]);
+                              }}
                               className="p-2.5 hover:bg-teal-50 rounded-lg border border-transparent hover:border-teal-200 transition cursor-pointer flex items-center justify-between"
                             >
                               <div>
@@ -817,11 +863,14 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-700">Số CCCD / Định danh</label>
+                    <label className="text-[10px] font-bold text-slate-700">Số CCCD / Định danh <span className="text-rose-500">*</span></label>
                     <input
                       type="text"
                       value={newIdentityNumber}
-                      onChange={(e) => setNewIdentityNumber(e.target.value)}
+                      onChange={(e) => {
+                        setNewIdentityNumber(e.target.value);
+                        setVerifyIdentityNumber(e.target.value);
+                      }}
                       placeholder="12 chữ số"
                       className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs mt-0.5 focus:border-teal-500 focus:outline-none"
                     />
@@ -831,7 +880,10 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
                     <input
                       type="text"
                       value={newInsuranceNumber}
-                      onChange={(e) => setNewInsuranceNumber(e.target.value)}
+                      onChange={(e) => {
+                        setNewInsuranceNumber(e.target.value);
+                        setVerifyInsuranceNumber(e.target.value);
+                      }}
                       placeholder="VD: GD401..."
                       className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs mt-0.5 focus:border-teal-500 focus:outline-none"
                     />
@@ -952,49 +1004,6 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
             </select>
           </div>
 
-          {/* Mức độ ưu tiên tiếp nhận */}
-          <div className="space-y-1.5">
-            <label className="font-bold text-slate-700 flex items-center gap-1.5 text-xs">
-              <Activity className="w-3.5 h-3.5 text-teal-600" />
-              <span>Mức độ ưu tiên khám:</span>
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setPriority('normal')}
-                className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                  priority === 'normal'
-                    ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-2xs'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <span>Bình thường</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPriority('urgent')}
-                className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                  priority === 'urgent'
-                    ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-2xs'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <span>Ưu tiên (VIP/Người già)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPriority('emergency')}
-                className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                  priority === 'emergency'
-                    ? 'bg-rose-50 border-rose-500 text-rose-700 shadow-2xs'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <span>Cấp cứu</span>
-              </button>
-            </div>
-          </div>
-
           {/* KHỐI XÁC MINH DANH TÍNH TẠI QUẦY (CCCD / BHYT / BỆNH NHI) */}
           <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/90 space-y-2.5">
             <div className="flex items-center justify-between">
@@ -1017,6 +1026,44 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Số CCCD / CMND đối chiếu */}
+              <div className="space-y-1">
+                <span className="text-[11px] font-semibold text-slate-600 block">
+                  Số CCCD / CMND đối chiếu: <span className="text-rose-500">*</span>
+                </span>
+                <input
+                  type="text"
+                  value={verifyIdentityNumber}
+                  onChange={(e) => {
+                    setVerifyIdentityNumber(e.target.value);
+                    if (isWalkIn && walkinMode === 'create') {
+                      setNewIdentityNumber(e.target.value);
+                    }
+                  }}
+                  placeholder="Nhập số CCCD/CMND thực tế..."
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono font-semibold text-slate-800 text-xs focus:outline-none focus:border-teal-500"
+                />
+              </div>
+
+              {/* Số thẻ BHYT đối chiếu */}
+              <div className="space-y-1">
+                <span className="text-[11px] font-semibold text-slate-600 block">
+                  Mã thẻ BHYT (không bắt buộc):
+                </span>
+                <input
+                  type="text"
+                  value={verifyInsuranceNumber}
+                  onChange={(e) => {
+                    setVerifyInsuranceNumber(e.target.value);
+                    if (isWalkIn && walkinMode === 'create') {
+                      setNewInsuranceNumber(e.target.value);
+                    }
+                  }}
+                  placeholder="Nhập mã thẻ BHYT (nếu có)..."
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono font-semibold text-slate-800 text-xs focus:outline-none focus:border-teal-500"
+                />
+              </div>
+
               {/* Chọn phương thức */}
               <div className="space-y-1">
                 <span className="text-[11px] font-semibold text-slate-600 block">Phương thức đối chiếu:</span>

@@ -23,7 +23,6 @@ export const SyncPatientModal: React.FC<SyncPatientModalProps> = ({
   const [isLoadingSuggested, setIsLoadingSuggested] = useState<boolean>(false);
 
   const [fullName, setFullName] = useState<string>('');
-  const [identityNumber, setIdentityNumber] = useState<string>('');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -34,7 +33,6 @@ export const SyncPatientModal: React.FC<SyncPatientModalProps> = ({
     if (!isOpen || !appointment?.suggestedPatientId) {
       setSuggestedPatient(null);
       setFullName('');
-      setIdentityNumber('');
       setPhoneNumber('');
       setErrorMessage(null);
       return;
@@ -50,7 +48,6 @@ export const SyncPatientModal: React.FC<SyncPatientModalProps> = ({
           setSuggestedPatient(data);
           // Điền trước thông tin hồ sơ gợi ý để lễ tân tiện kiểm tra/đối chiếu
           setFullName(data.fullName || '');
-          setIdentityNumber(data.identityNumber || '');
           setPhoneNumber(data.phoneNumber || '');
         }
       } catch (err: any) {
@@ -80,10 +77,6 @@ export const SyncPatientModal: React.FC<SyncPatientModalProps> = ({
       setErrorMessage('Vui lòng nhập Họ và tên bệnh nhân');
       return;
     }
-    if (!identityNumber.trim()) {
-      setErrorMessage('Vui lòng nhập Số CCCD/CMND');
-      return;
-    }
     if (!phoneNumber.trim()) {
       setErrorMessage('Vui lòng nhập Số điện thoại');
       return;
@@ -96,7 +89,6 @@ export const SyncPatientModal: React.FC<SyncPatientModalProps> = ({
       await appointmentService.syncPatient({
         appointmentId: appointment.appointmentId,
         fullName: fullName.trim(),
-        identityNumber: identityNumber.trim(),
         phoneNumber: phoneNumber.trim(),
       });
 
@@ -106,7 +98,7 @@ export const SyncPatientModal: React.FC<SyncPatientModalProps> = ({
       console.error('Lỗi khi đồng bộ hồ sơ bệnh nhân:', err);
       setErrorMessage(
         err.message ||
-          'Thông tin Họ tên, CCCD hoặc SĐT không khớp với hồ sơ bệnh nhân được gợi ý. Vui lòng kiểm tra lại.'
+          'Thông tin Họ tên hoặc SĐT không khớp với hồ sơ bệnh nhân được gợi ý. Vui lòng kiểm tra lại.'
       );
     } finally {
       setIsSubmitting(false);
@@ -123,7 +115,7 @@ export const SyncPatientModal: React.FC<SyncPatientModalProps> = ({
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-white">Đối Chiếu CCCD & Đồng Bộ Hồ Sơ</h3>
+              <h3 className="text-base font-extrabold text-white">Đối Chiếu & Đồng Bộ Hồ Sơ Gợi Ý</h3>
               <p className="text-xs text-amber-100 font-medium">
                 Mã lịch hẹn: <span className="font-mono font-bold text-white">{appointment.appointmentCode}</span>
               </p>
@@ -143,10 +135,10 @@ export const SyncPatientModal: React.FC<SyncPatientModalProps> = ({
           <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-amber-900 leading-relaxed">
-              <strong className="block font-bold">Lịch hẹn khách vãng lai (Trùng khớp CCCD & SĐT)</strong>
+              <strong className="block font-bold">Lịch hẹn khách vãng lai (Trùng khớp SĐT / Email)</strong>
               Người bệnh đặt lịch qua luồng khách vãng lai nhưng hệ thống phát hiện thông tin trùng khớp với một hồ sơ
-              chính thức có sẵn. Vui lòng <strong>kiểm tra thẻ CCCD/CMND gốc</strong> của bệnh nhân tại quầy trước khi
-              xác nhận đồng bộ.
+              chính thức có sẵn. Vui lòng đối chiếu <strong>Họ tên và Số điện thoại</strong> của bệnh nhân trước khi
+              xác nhận đồng bộ (CCCD sẽ được kiểm tra khi bệnh nhân đến quầy tiếp đón).
             </div>
           </div>
 
@@ -212,22 +204,6 @@ export const SyncPatientModal: React.FC<SyncPatientModalProps> = ({
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Ví dụ: NGUYỄN VĂN A"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 text-xs font-semibold"
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-600 font-semibold mb-1 flex items-center gap-1">
-                <CreditCard className="w-3.5 h-3.5 text-slate-400" />
-                Số CCCD/CMND <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={identityNumber}
-                onChange={(e) => setIdentityNumber(e.target.value)}
-                placeholder="Nhập đủ 12 số CCCD"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 text-xs font-mono font-semibold"
                 disabled={isSubmitting}
                 required
               />

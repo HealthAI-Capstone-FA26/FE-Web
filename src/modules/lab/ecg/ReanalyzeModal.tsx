@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RefreshCw, X } from 'lucide-react';
+import { ecgService } from '../../../services/lab/ecg.service';
+import type { EcgAiModelOption } from '../../../types/ecg';
 
 interface ReanalyzeModalProps {
   open: boolean;
@@ -8,22 +10,46 @@ interface ReanalyzeModalProps {
   onSubmit: (payload: { modelVersionId?: string; threshold: number }) => Promise<void>;
 }
 
-const MODEL_OPTIONS = [
-  { id: 'model-v2.3.1', label: 'ECG-AnomalyNet v2.3.1 (Đa đạo trình · Khuyến nghị)' },
-  { id: 'model-v2.1.0', label: 'ECG-AnomalyNet v2.1.0 (Ổn định)' },
-  { id: 'model-unsupervised-v1', label: 'BeatAutoEncoder v1.4 (Không giám sát)' },
-];
-
 export const ReanalyzeModal: React.FC<ReanalyzeModalProps> = ({
   open,
   onClose,
   defaultThreshold,
   onSubmit,
 }) => {
-  const [modelVersionId, setModelVersionId] = useState(MODEL_OPTIONS[0].id);
+  const [models, setModels] = useState<EcgAiModelOption[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelVersionId, setModelVersionId] = useState<string>('');
   const [threshold, setThreshold] = useState(defaultThreshold);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setThreshold(defaultThreshold);
+    setError(null);
+    let cancelled = false;
+    setLoadingModels(true);
+    ecgService
+      .listModels()
+      .then((items) => {
+        if (cancelled) return;
+        setModels(items);
+        const preferred = items.find((m) => m.isDefault) ?? items[0];
+        setModelVersionId(preferred?.modelVersionId ?? '');
+        if (preferred?.defaultThreshold !== null && preferred?.defaultThreshold !== undefined) {
+          setThreshold(preferred.defaultThreshold);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setModels([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingModels(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, defaultThreshold]);
 
   if (!open) return null;
 
@@ -32,7 +58,10 @@ export const ReanalyzeModal: React.FC<ReanalyzeModalProps> = ({
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit({ modelVersionId, threshold });
+      await onSubmit({
+        modelVersionId: modelVersionId || undefined,
+        threshold,
+      });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không gửi được yêu cầu phân tích lại.');
@@ -64,13 +93,21 @@ export const ReanalyzeModal: React.FC<ReanalyzeModalProps> = ({
               id="ecg-model-select"
               value={modelVersionId}
               onChange={(e) => setModelVersionId(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-800 font-medium"
+              disabled={loadingModels}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-800 font-medium disabled:opacity-60"
             >
-              {MODEL_OPTIONS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
+              {models.length === 0 ? (
+                <option value="">
+                  {loadingModels ? 'Đang tải danh sách model...' : 'Mặc định hệ thống (Active model)'}
                 </option>
-              ))}
+              ) : (
+                models.map((m) => (
+                  <option key={m.modelVersionId} value={m.modelVersionId}>
+                    {m.modelName} v{m.version} ({m.status}
+                    {m.isDefault ? ' · Mặc định' : ''})
+                  </option>
+                ))
+              )}
             </select>
           </div>
 

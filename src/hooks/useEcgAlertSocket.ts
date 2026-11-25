@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { EcgAlertSocketPayload } from '../types/ecg';
-import { ecgMockBus, isEcgMockMode } from '../services/lab/ecg.service';
 
-export type EcgSocketState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'mock';
+export type EcgSocketState = 'idle' | 'connecting' | 'connected' | 'reconnecting';
 
 interface UseEcgAlertSocketOptions {
   encounterId?: string | null;
@@ -30,16 +29,6 @@ export function useEcgAlertSocket({ encounterId, enabled = true, onUpdate, onRec
       return;
     }
 
-    if (isEcgMockMode()) {
-      setState('mock');
-      const handler = (e: Event) => {
-        const detail = (e as CustomEvent<EcgAlertSocketPayload>).detail;
-        onUpdateRef.current?.(detail);
-      };
-      ecgMockBus.addEventListener('ecg-alert-update', handler);
-      return () => ecgMockBus.removeEventListener('ecg-alert-update', handler);
-    }
-
     const rawApiUrl: string = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
     let socketBaseUrl = 'http://localhost:3000';
     try {
@@ -50,7 +39,7 @@ export function useEcgAlertSocket({ encounterId, enabled = true, onUpdate, onRec
     }
 
     setState('connecting');
-    const token = localStorage.getItem('access_token');
+    const token = sessionStorage.getItem('access_token');
     const socket: Socket = io(`${socketBaseUrl}/lab-alerts`, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: Infinity,

@@ -847,20 +847,10 @@ export const ReceptionAppointmentsView: React.FC = () => {
                               type="button"
                               onClick={() => setSelectedAppointmentForSync(app)}
                               className="w-[130px] h-8 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5 border-none cursor-pointer"
-                              title="Đối chiếu thẻ CCCD của khách và đồng bộ vào hồ sơ có sẵn"
+                              title="Đối chiếu Họ tên & SĐT để đồng bộ lịch hẹn vào hồ sơ có sẵn"
                             >
                               <ShieldCheck className="w-3.5 h-3.5" />
-                              <span>Đối chiếu CCCD</span>
-                            </button>
-                          ) : app.patient?.status === 'draft' ? (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedAppointmentForConfirmMain(app)}
-                              className="w-[130px] h-8 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                              title="Kiểm tra giấy tờ và chuyển hồ sơ bệnh nhân từ Draft sang Main"
-                            >
-                              <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Xác thực HS</span>
+                              <span>Đồng bộ HS</span>
                             </button>
                           ) : isPending && app.patientId ? (
                             <button

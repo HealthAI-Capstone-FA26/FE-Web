@@ -11,7 +11,7 @@ export type EcgAnomalyType =
   | 'st_elevation' | 'st_depression' | 'av_block' | 'unclassified';
 
 export type EcgRecordingType = 'resting_12_lead' | 'continuous_monitoring' | 'holter' | 'rhythm_strip';
-export type EcgSignalFormat = 'wfdb' | 'edf' | 'csv' | 'json' | 'dicom_ecg' | 'scp_ecg';
+export type EcgSignalFormat = 'wfdb' | 'edf' | 'csv' | 'json' | 'npy' | 'dicom_ecg' | 'scp_ecg';
 export type EcgRecordingStatus = 'uploaded' | 'analyzing' | 'completed' | 'failed' | 'cancelled';
 
 export interface EcgAnomalyEvent {
@@ -141,6 +141,16 @@ export interface EcgAlertSocketPayload {
   analysisId?: string;
   status?: EcgAnalysisStatus;
   anomalies?: unknown[];
+}
+
+export interface EcgAiModelOption {
+  modelVersionId: string;
+  modelName: string;
+  version: string;
+  status: 'active' | 'candidate' | string;
+  isDefault: boolean;
+  defaultThreshold?: number | null;
+  description?: string | null;
 }
 
 export const STANDARD_12_LEADS = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'];

@@ -1,8 +1,9 @@
-import { formatAllergySummary, parseAllergyText } from '../../services/patient/patient-allergy.service';
+import { formatAllergySummary } from '../../services/patient/patient-allergy.service';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { QueueStatusFilter, type QueueStatusKey } from './components/QueueStatusFilter';
 import {
-  Pill, CheckCircle2, AlertTriangle, FileCheck, Printer,
+  Pill, CheckCircle2, FileCheck, Printer,
   Download, Calendar, Search, Plus, Trash2, ShieldAlert,
   Award, Check, RefreshCw, User, X, Loader2, Save,
   CheckCircle, ArrowRight, Clock, FileText, CheckCheck,
@@ -12,16 +13,15 @@ import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { BorderBeam } from '../../components/ui/border-beam';
 import { Mascot } from 'page-mascot';
-import { encounterService, type EncounterItem } from '../../services/encounter/encounter.service';
+import { encounterService, formatPdfDeliveryNote, type EncounterItem } from '../../services/encounter/encounter.service';
 import { caseTimelineService, type CaseTimelineResponse } from '../../services/doctor/case-timeline.service';
 import { useAuth } from '../../context/AuthContext';
 import { drugCatalogService, type DrugCatalogItem as ApiDrugItem, type DrugCatalogDetail } from '../../services/doctor/drug-catalog.service';
 import {
   prescriptionService,
   type PrescriptionDetail,
-  type PrescriptionSafetyAlert,
 } from '../../services/prescription';
-import { postTestConsultationService } from '../../services/doctor/post-test-consultation.service';
+import { postTestConsultationService, formatFollowUpAppointment } from '../../services/doctor/post-test-consultation.service';
 import { initialDiagnosisService } from '../../services/doctor/initial-diagnosis.service';
 import type { DoctorDateFilterMode } from './DoctorEMRView';
 import { appointmentService, type AppointmentSlotResponse } from '../../services/appointment/appointment.service';
@@ -96,6 +96,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
 
   // Completion Modal with Next Patient button
   const [completionModal, setCompletionModal] = useState<{ isOpen: boolean; message: string } | null>(null);
+  const [isFinishConfirmOpen, setIsFinishConfirmOpen] = useState(false);
 
   // Sync selected patient from localStorage
   const [selectedPatientId, setSelectedPatientId] = useState<string>(() => {
@@ -115,7 +116,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
   const [isLoadingEncounters, setIsLoadingEncounters] = useState(false);
   const [timelineData, setTimelineData] = useState<CaseTimelineResponse | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'waiting' | 'in_progress' | 'awaiting_review' | 'finished'>('all');
+  const [statusFilter, setStatusFilter] = useState<QueueStatusKey>('all');
 
   // Thống kê số lượng theo nhóm trạng thái cho Hàng đợi
   const queueCounts = useMemo(() => {
@@ -132,14 +133,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
   const [currentPrescription, setCurrentPrescription] = useState<PrescriptionDetail | null>(null);
   const [isLoadingPrescription, setIsLoadingPrescription] = useState(false);
   const [isSavingPrescription, setIsSavingPrescription] = useState(false);
-  const [backendAlerts, setBackendAlerts] = useState<PrescriptionSafetyAlert[]>([]);
   const [finalDiagnosisId, setFinalDiagnosisId] = useState<string | null>(null);
-
-  // Override Alert Modal state
-  const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
-  const [selectedAlertToOverride, setSelectedAlertToOverride] = useState<PrescriptionSafetyAlert | null>(null);
-  const [overrideReasonText, setOverrideReasonText] = useState('');
-  const [isSubmittingOverride, setIsSubmittingOverride] = useState(false);
 
   // Real Drug Catalog State from Backend API
   const [dbDrugs, setDbDrugs] = useState<ApiDrugItem[]>([]);
@@ -161,6 +155,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
   const [followUpDate, setFollowUpDate] = useState<string>('');
   const [followUpNotes, setFollowUpNotes] = useState<string>('Tái khám kiểm tra hô hấp, nghe phổi và làm huyết học nếu cần.');
   const [isFollowUpSynced, setIsFollowUpSynced] = useState<boolean>(false);
+  const [followUpDisplay, setFollowUpDisplay] = useState<string>('');
   const [isSchedulingFollowup, setIsSchedulingFollowup] = useState(false);
   const [isFinishingEncounter, setIsFinishingEncounter] = useState(false);
 
@@ -215,9 +210,12 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
         const match = data.find((e) => e.encounterId === currentSaved || e.encounterCode === currentSaved);
         if (match) {
           setSelectedPatientId(match.encounterId);
-        } else if (data.length > 0 && (!currentSaved || !data.some((e) => e.encounterId === currentSaved))) {
+        } else if (data.length > 0) {
           setSelectedPatientId(data[0].encounterId);
           localStorage.setItem('doctor_selected_patient_id', data[0].encounterId);
+        } else {
+          setSelectedPatientId('');
+          localStorage.removeItem('doctor_selected_patient_id');
         }
       }
     } catch (err) {
@@ -236,8 +234,8 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
   // Đồng bộ selectedPatientId từ localStorage (khi chọn bệnh nhân ở Tab khác)
   useEffect(() => {
     const handleStorage = () => {
-      const val = localStorage.getItem('doctor_selected_patient_id');
-      if (val && val !== selectedPatientId) {
+      const val = localStorage.getItem('doctor_selected_patient_id') || '';
+      if (val !== selectedPatientId) {
         setSelectedPatientId(val);
       }
     };
@@ -260,7 +258,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
     );
   }, [apiEncounters, selectedPatientId]);
 
-  const activeEncounterId = activeEncounter?.encounterId || (selectedPatientId.includes('-') && selectedPatientId.length > 30 ? selectedPatientId : undefined);
+  const activeEncounterId = activeEncounter?.encounterId;
 
   // Lọc danh sách ca khám theo nhóm trạng thái & từ khóa tìm kiếm (Tên, mã LK, mã BN, SĐT)
   const filteredEncounters = useMemo(() => {
@@ -361,8 +359,12 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
       ? timelineData.medicalHistories.map((h) => h.conditionName).join(', ')
       : 'Chưa ghi nhận tiền sử';
 
-    const diagEvent = timelineData?.timeline?.find((t) => t.type === 'diagnosis');
-    const icd10Code = diagEvent?.data?.icd10?.icd10Code || diagEvent?.data?.icd10Code || 'R69';
+    // Ưu tiên lấy chẩn đoán chính thức (diagnosisType === 'final'), nếu chưa có mới lấy bản ghi chẩn đoán mới nhất
+    const diagEvents = (timelineData?.timeline || []).filter((t) => t.type === 'diagnosis');
+    const diagEvent =
+      [...diagEvents].reverse().find((t) => t.data?.diagnosisType === 'final') ||
+      diagEvents[diagEvents.length - 1];
+    const icd10Code = diagEvent?.data?.icd10?.icd10Code || diagEvent?.data?.icd10Code || 'I10';
     const diagnosis = diagEvent?.data?.diagnosisName || diagEvent?.data?.icd10?.descriptionVi || 'Chưa có chẩn đoán chính thức';
 
     return {
@@ -389,7 +391,6 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
     if (!activeEncounterId) {
       setCurrentPrescription(null);
       setPrescribedList([]);
-      setBackendAlerts([]);
       setIsFollowUpSynced(false);
       setFinalDiagnosisId(null);
       return;
@@ -405,7 +406,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
           if (isMounted && conclusions && conclusions.length > 0) {
             setFinalDiagnosisId(conclusions[0].diagnosisId);
           }
-        } catch {}
+        } catch { }
 
         // 2. Fetch prescriptions for this encounter
         const prescriptions = await prescriptionService.findMany({ encounterId: activeEncounterId });
@@ -418,7 +419,6 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
           if (!isMounted) return;
 
           setCurrentPrescription(detail);
-          setBackendAlerts(detail.safetyAlerts || []);
 
           if (detail.diagnosisId) {
             setFinalDiagnosisId(detail.diagnosisId);
@@ -447,13 +447,14 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
           try {
             const consult = await postTestConsultationService.getTreatmentConsultation(activeEncounterId);
             const followUpAppt = consult?.encounter?.followUpAppointment;
-            if (isMounted && followUpAppt) {
+            if (isMounted && followUpAppt && followUpAppt.status !== 'cancelled') {
               setIsFollowUpSynced(true);
-              if (followUpAppt.appointmentDate) {
-                setFollowUpDate(new Date(followUpAppt.appointmentDate).toISOString().slice(0, 10));
-              }
+              const info = formatFollowUpAppointment(followUpAppt);
+              if (info.isoDate) setFollowUpDate(info.isoDate);
+              setFollowUpDisplay(`${info.weekday}, ${info.dateText}${info.timeText ? ` • ${info.timeText}` : ''}`);
             } else if (isMounted) {
               setIsFollowUpSynced(false);
+              setFollowUpDisplay('');
             }
           } catch {
             if (isMounted) setIsFollowUpSynced(false);
@@ -462,7 +463,6 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
           // No prescription yet
           setCurrentPrescription(null);
           setPrescribedList([]);
-          setBackendAlerts([]);
           setIsFollowUpSynced(false);
         }
       } catch (err) {
@@ -572,42 +572,6 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
     setPrescribedList(prescribedList.filter((item) => item.catalogCode !== code));
   };
 
-  // Client preview warnings
-  const clientSafetyWarnings = useMemo(() => {
-    const warnings: { type: 'danger' | 'warning'; text: string }[] = [];
-
-    prescribedList.forEach((drug) => {
-      if (timelineData?.allergies && timelineData.allergies.length > 0) {
-        timelineData.allergies.forEach((al: any) => {
-          const parsed = parseAllergyText(al.allergyText);
-          const drugAllergens = parsed.drug.length > 0 ? parsed.drug : (al.allergenName ? [al.allergenName] : []);
-          drugAllergens.forEach((allergenName) => {
-            const allergen = allergenName.toLowerCase();
-            const dName = (drug.name || '').toLowerCase();
-            const dClass = (drug.class || '').toLowerCase();
-            if (allergen && (dName.includes(allergen) || dClass.includes(allergen))) {
-              warnings.push({
-                type: 'danger',
-                text: `Cảnh báo dị ứng: Bệnh nhân có tiền sử dị ứng "${allergenName}". Nguy cơ phản ứng khi dùng "${drug.name}"!`,
-              });
-            }
-          });
-        });
-      }
-    });
-
-    const drugClasses = prescribedList.map((d) => d.class);
-    const duplicates = drugClasses.filter((c, index) => drugClasses.indexOf(c) !== index);
-    duplicates.forEach((dupClass) => {
-      warnings.push({
-        type: 'warning',
-        text: `Cảnh báo trùng lặp nhóm hoạt chất [${dupClass}]. Vui lòng xem xét tối ưu đơn thuốc.`,
-      });
-    });
-
-    return warnings;
-  }, [prescribedList, timelineData]);
-
   // Save / Update Prescription to Backend API (POST /prescriptions or PATCH /prescriptions/:id/items)
   const handleSavePrescription = async (silent = false): Promise<PrescriptionDetail | null> => {
     if (!activeEncounterId) {
@@ -642,18 +606,8 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
           items: itemsPayload,
         });
       } else {
-        // Resolve diagnosis
+        // Resolve final diagnosis (Backend bắt buộc diagnosisType === 'final')
         let diagId = finalDiagnosisId;
-        if (!diagId) {
-          try {
-            const initDiags = await initialDiagnosisService.getByEncounterId(activeEncounterId);
-            if (initDiags && initDiags.length > 0) {
-              diagId = initDiags[0].diagnosisId;
-              setFinalDiagnosisId(diagId);
-            }
-          } catch {}
-        }
-
         if (!diagId) {
           try {
             const conclusions = await postTestConsultationService.getDiagnosisConclusions(activeEncounterId);
@@ -661,33 +615,28 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
               diagId = conclusions[0].diagnosisId;
               setFinalDiagnosisId(diagId);
             }
-          } catch {}
+          } catch { }
         }
 
         if (!diagId) {
           try {
-            const createdDiag = await initialDiagnosisService.create(activeEncounterId, {
-              icd10Code: currentPatient?.icd10Code || 'R69',
-              diagnosisName: currentPatient?.diagnosis || 'Chẩn đoán xác định',
+            const createdFinal = await postTestConsultationService.createDiagnosisConclusion(activeEncounterId, {
+              icd10Code: currentPatient?.icd10Code || 'I10',
+              diagnosisName:
+                currentPatient?.diagnosis && currentPatient.diagnosis !== 'Chưa có chẩn đoán chính thức'
+                  ? currentPatient.diagnosis
+                  : 'Chẩn đoán xác định chuyên khoa Tim mạch',
               isPrimary: true,
             });
-            diagId = createdDiag.diagnosisId;
+            diagId = createdFinal.diagnosisId;
             setFinalDiagnosisId(diagId);
-          } catch (initErr) {
-            try {
-              const createdFinal = await postTestConsultationService.createDiagnosisConclusion(activeEncounterId, {
-                icd10Code: currentPatient?.icd10Code || 'R69',
-                diagnosisName: currentPatient?.diagnosis || 'Chẩn đoán xác định',
-                isPrimary: true,
-              });
-              diagId = createdFinal.diagnosisId;
-              setFinalDiagnosisId(diagId);
-            } catch {}
-          }
+          } catch { }
         }
 
         if (!diagId) {
-          throw new Error('Chưa có chẩn đoán cho ca khám này. Vui lòng xác lập chẩn đoán trước khi kê đơn.');
+          throw new Error(
+            'Chưa có chẩn đoán chính thức (Final Diagnosis) cho ca khám này. Vui lòng lưu kết luận chẩn đoán ở Tab 2 trước khi kê đơn.'
+          );
         }
 
         updatedPrescription = await prescriptionService.create({
@@ -698,9 +647,6 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
       }
 
       setCurrentPrescription(updatedPrescription);
-      if (updatedPrescription.safetyAlerts) {
-        setBackendAlerts(updatedPrescription.safetyAlerts);
-      }
 
       // Refresh follow-up suggestion
       try {
@@ -708,10 +654,10 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
         if (sug?.suggestedDate) {
           setFollowUpDate(sug.suggestedDate);
         }
-      } catch {}
+      } catch { }
 
       if (!silent) {
-        showToast('success', 'Lưu đơn thuốc (bản nháp) thành công! Hệ thống đã chạy Safety Check.');
+        showToast('success', 'Lưu đơn thuốc (bản nháp) thành công!');
       }
       return updatedPrescription;
     } catch (err: any) {
@@ -724,53 +670,10 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
     }
   };
 
-  // Confirm Alert Override (PATCH /prescriptions/:id/alerts/:alertId/confirm)
-  const handleConfirmAlertOverride = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedAlertToOverride || !currentPrescription) return;
-    if (!overrideReasonText.trim()) {
-      showToast('info', 'Vui lòng nhập lý do giải trình override cảnh báo!');
-      return;
-    }
-
-    try {
-      setIsSubmittingOverride(true);
-      const updatedAlert = await prescriptionService.confirmAlert(
-        currentPrescription.prescriptionId,
-        selectedAlertToOverride.alertId,
-        { overrideReason: overrideReasonText.trim() }
-      );
-
-      setBackendAlerts((prev) =>
-        prev.map((a) => (a.alertId === updatedAlert.alertId ? updatedAlert : a))
-      );
-      setIsOverrideModalOpen(false);
-      setSelectedAlertToOverride(null);
-      setOverrideReasonText('');
-      showToast('success', 'Đã xác nhận ghi đè cảnh báo an toàn thuốc thành công!');
-    } catch (err: any) {
-      showToast('error', `Lỗi khi xác nhận override: ${err?.message || 'Thao tác thất bại'}`);
-    } finally {
-      setIsSubmittingOverride(false);
-    }
-  };
-
   // Open CA Digital Signing Modal
   const handleOpenDigitalSignModal = () => {
     if (prescribedList.length === 0) {
       showToast('info', 'Đơn thuốc chưa có thuốc, không thể ký số!');
-      return;
-    }
-
-    // Check unconfirmed blocking alerts
-    const hasUnconfirmedBlocking = backendAlerts.some(
-      (a) => a.status === 'active' && (a.severity === 'severe' || a.severity === 'contraindicated')
-    );
-    if (hasUnconfirmedBlocking) {
-      showToast(
-        'error',
-        'Đơn thuốc còn cảnh báo an toàn mức độ nặng/chống chỉ định chưa được xác nhận! Vui lòng ấn "Xác nhận Override" và nhập lý do chuyên môn trước khi ký số.'
-      );
       return;
     }
 
@@ -817,28 +720,268 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
     }
   };
 
-  // Export / Print PDF (GET /prescriptions/:id/export & PATCH /prescriptions/:id/printed)
+  // In / Xuất PDF Phiếu Kết Quả Khám Bệnh & Bệnh Án EMR (Hỗ trợ cả khi không kê đơn thuốc)
+  const openMedicalReportPrintWindow = useCallback(async () => {
+    let consultData: any = null;
+    if (activeEncounterId) {
+      try {
+        consultData = await postTestConsultationService.getTreatmentConsultation(activeEncounterId);
+      } catch {
+        // ignore
+      }
+    }
+
+    const pat = timelineData?.patient || activeEncounter?.patient;
+    const enc = timelineData?.encounter || activeEncounter;
+    const doctorName = user?.name || activeEncounter?.doctor?.fullName || 'Bác sĩ chuyên khoa Tim mạch';
+    const labEvents = (timelineData?.timeline || []).filter(
+      (e) => e.type === 'lab_result' || e.type === 'diagnostic_result'
+    );
+    const vitalEvent = (timelineData?.timeline || []).find((e) => e.type === 'vital_sign_session');
+    const examEvent = (timelineData?.timeline || []).find((e) => e.type === 'clinical_examination');
+
+    const win = window.open('', '_blank', 'width=900,height=850');
+    if (!win) {
+      showToast('error', 'Trình duyệt đang chặn cửa sổ bật lên (Pop-up). Vui lòng cho phép mở cửa sổ in.');
+      return;
+    }
+
+    const todayStr = new Date().toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+
+    const vitalsHtml =
+      vitalEvent?.data?.observations && vitalEvent.data.observations.length > 0
+        ? vitalEvent.data.observations
+          .map(
+            (obs: any) =>
+              `<span style="display:inline-block;background:#f1f5f9;border:1px solid #cbd5e1;padding:3px 8px;border-radius:6px;margin:2px 4px 2px 0;font-size:12px;"><strong>${obs.item?.itemName || obs.item?.itemCode || 'Chỉ số'
+              }:</strong> ${obs.observationValue} ${obs.item?.unit || ''}</span>`
+          )
+          .join('')
+        : 'Đã kiểm tra sinh hiệu tiêu chuẩn';
+
+    const labHtml =
+      labEvents.length > 0
+        ? `<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px;">
+            <thead>
+              <tr style="background:#f8fafc;border-bottom:1px solid #cbd5e1;text-align:left;">
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Dịch vụ Cận lâm sàng</th>
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Chỉ số / Kết quả đo</th>
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Kết luận</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${labEvents
+          .map((ev: any) => {
+            const labRes = ev.data?.result || ev.data?.labResult;
+            const vals = (labRes?.values || [])
+              .map(
+                (v: any) =>
+                  `${v.parameter?.parameterName || v.parameter?.parameterCode}: <strong>${v.valueNumeric ?? v.valueText ?? '-'
+                  }</strong> ${v.parameter?.unit || ''}`
+              )
+              .join('<br/>');
+            return `<tr>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;font-weight:bold;">${ev.data?.serviceName || ev.data?.testName || ev.summary
+              }</td>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;">${vals || 'Đã hoàn tất'}</td>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;">${labRes?.overallConclusion || labRes?.findings || 'Bình thường'
+              }</td>
+                  </tr>`;
+          })
+          .join('')}
+            </tbody>
+          </table>`
+        : '<p style="font-size:12px;color:#64748b;margin:4px 0;">Không có chỉ định cận lâm sàng hoặc đã hoàn tất kiểm tra.</p>';
+
+    const drugsHtml =
+      prescribedList.length > 0
+        ? `<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px;">
+            <thead>
+              <tr style="background:#f8fafc;border-bottom:1px solid #cbd5e1;text-align:left;">
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">STT</th>
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Tên thuốc & Hàm lượng</th>
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Đường dùng</th>
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Số lượng</th>
+                <th style="padding:6px 8px;border:1px solid #cbd5e1;">Liều dùng & Cách dùng</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${prescribedList
+          .map(
+            (d, i) => `<tr>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:center;">${i + 1}</td>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;font-weight:bold;">${d.name}</td>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;">${d.route}</td>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;">${d.quantity} ${d.unit}</td>
+                    <td style="padding:6px 8px;border:1px solid #cbd5e1;">${d.dosage} (${d.duration})${d.advice ? `<br/><em>Lưu ý: ${d.advice}</em>` : ''
+              }</td>
+                  </tr>`
+          )
+          .join('')}
+            </tbody>
+          </table>`
+        : '<p style="font-size:12px;color:#475569;margin:4px 0;">Không kê đơn thuốc (Điều trị theo hướng dẫn tư vấn & chế độ sinh hoạt).</p>';
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html lang="vi">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Phiếu Kết Quả Khám Bệnh EMR - ${currentPatient?.name || 'Bệnh nhân'}</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; margin: 0; padding: 28px; line-height: 1.5; }
+          .container { max-width: 800px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 12px; padding: 28px; }
+          .header { display: flex; justify-content: space-between; border-bottom: 2px solid #1e40af; padding-bottom: 14px; margin-bottom: 18px; }
+          .title { text-align: center; margin: 16px 0; }
+          .title h1 { font-size: 20px; color: #1e3a8a; margin: 0; text-transform: uppercase; }
+          .title p { font-size: 12px; color: #64748b; margin: 4px 0 0; }
+          .section { margin-bottom: 16px; }
+          .section-title { font-size: 13px; font-weight: 800; color: #1e40af; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 13px; }
+          .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+          .footer { display: flex; justify-content: space-between; margin-top: 28px; font-size: 13px; }
+          @media print {
+            body { padding: 0; }
+            .container { border: none; padding: 0; }
+            .no-print { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="no-print" style="text-align:right;max-width:800px;margin:0 auto 12px;">
+          <button onclick="window.print()" style="background:#1d4ed8;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:bold;cursor:pointer;">
+            🖨️ In Phiếu / Lưu PDF
+          </button>
+        </div>
+        <div class="container">
+          <div class="header">
+            <div>
+              <div style="font-weight:900;font-size:15px;color:#1e3a8a;">PHÒNG KHÁM  TIM MẠCH 4AM</div>
+              <div style="font-size:12px;color:#475569;">Hệ thống Bệnh án điện tử thông minh (EMR Cardiology Platform)</div>
+            </div>
+            <div style="text-align:right;font-size:12px;">
+              <div><strong>Mã lượt khám:</strong> ${enc?.encounterCode || currentPatient?.id || 'N/A'}</div>
+              <div><strong>Mã bệnh nhân:</strong> ${pat?.patientCode || 'N/A'}</div>
+              <div><strong>Ngày khám:</strong> ${todayStr}</div>
+            </div>
+          </div>
+
+          <div class="title">
+            <h1>PHIẾU KẾT QUẢ KHÁM BỆNH & TƯ VẤN ĐIỀU TRỊ</h1>
+            <p>Bản tổng hợp hồ sơ bệnh án điện tử (EMR Clinical Summary Report)</p>
+          </div>
+
+          <div class="section">
+            <div class="section-title">1. Thông tin hành chính bệnh nhân</div>
+            <div class="grid">
+              <div><strong>Họ và tên:</strong> ${currentPatient?.name || pat?.fullName || '---'}</div>
+              <div><strong>Giới tính / Tuổi:</strong> ${currentPatient?.gender || '---'} (${currentPatient?.age || '--'} tuổi)</div>
+              <div><strong>Số điện thoại:</strong> ${pat?.phoneNumber || '---'}</div>
+              <div><strong>Tiền sử dị ứng:</strong> ${currentPatient?.allergies || 'Chưa ghi nhận'}</div>
+              <div style="grid-column: span 2;"><strong>Tiền sử bệnh lý:</strong> ${currentPatient?.history || 'Chưa ghi nhận'}</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">2. Sinh hiệu & Khám lâm sàng Tim mạch</div>
+            <div style="margin-bottom:8px;">${vitalsHtml}</div>
+            <div class="box">
+              <div><strong>Nghe tim phổi:</strong> ${examEvent?.data?.auscultationFindings || examEvent?.data?.examinationFindings || 'Tim đều, T1 T2 rõ'}</div>
+              ${examEvent?.data?.inspectionFindings ? `<div><strong>Nhìn:</strong> ${examEvent.data.inspectionFindings}</div>` : ''}
+              ${examEvent?.data?.palpationFindings ? `<div><strong>Sờ:</strong> ${examEvent.data.palpationFindings}</div>` : ''}
+              ${examEvent?.data?.percussionFindings ? `<div><strong>Gõ:</strong> ${examEvent.data.percussionFindings}</div>` : ''}
+              ${examEvent?.data?.clinicalNotes ? `<div><strong>Ghi chú lâm sàng:</strong> ${examEvent.data.clinicalNotes}</div>` : ''}
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">3. Kết quả Cận lâm sàng (Xét nghiệm / Chẩn đoán hình ảnh / ECG)</div>
+            ${labHtml}
+          </div>
+
+          <div class="section">
+            <div class="section-title">4. Chẩn đoán xác định (ICD-10) & Phác đồ tư vấn điều trị</div>
+            <div class="box">
+              <div style="font-size:14px;color:#1e3a8a;margin-bottom:6px;">
+                <strong>Chẩn đoán chính (ICD-10):</strong> [${currentPatient?.icd10Code || 'I10'}] ${currentPatient?.diagnosis || 'Đã xác lập chẩn đoán'}
+              </div>
+              ${consultData?.conditionExplanation
+        ? `<div><strong>Giải thích tình trạng bệnh:</strong> ${consultData.conditionExplanation}</div>`
+        : ''
+      }
+              ${consultData?.treatmentPlan
+        ? `<div><strong>Hướng xử trí & Phác đồ điều trị:</strong> ${consultData.treatmentPlan}</div>`
+        : ''
+      }
+              ${consultData?.lifestyleAdvice
+        ? `<div><strong>Tư vấn lối sống & vận động:</strong> ${consultData.lifestyleAdvice}</div>`
+        : ''
+      }
+              ${consultData?.nutritionAdvice
+        ? `<div><strong>Tư vấn chế độ dinh dưỡng:</strong> ${consultData.nutritionAdvice}</div>`
+        : ''
+      }
+              ${followUpDate
+        ? `<div style="margin-top:6px;color:#047857;font-weight:bold;">📅 Lịch hẹn tái khám: ${followUpDate}</div>`
+        : ''
+      }
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">5. Chỉ định thuốc điều trị</div>
+            ${drugsHtml}
+          </div>
+
+          <div class="footer">
+            <div style="font-size:11px;color:#64748b;max-width:55%;">
+              * Phiếu kết quả này được trích xuất từ Hệ thống Bệnh án điện tử EMR.<br/>
+              * Khi đi tái khám, quý bệnh nhân vui lòng mang theo phiếu này hoặc mã lượt khám <strong>${enc?.encounterCode || currentPatient?.id || ''
+      }</strong>.
+            </div>
+            <div style="text-align:center;min-width:220px;">
+              <div><em>Ngày ${todayStr}</em></div>
+              <div style="font-weight:bold;margin-top:4px;">BÁC SĨ KHÁM & KẾT LUẬN</div>
+              <div style="margin:36px 0 8px;color:#059669;font-size:11px;font-weight:bold;">✓ Đã xác nhận hoàn tất hồ sơ EMR</div>
+              <div style="font-weight:800;color:#1e3a8a;">${doctorName}</div>
+            </div>
+          </div>
+        </div>
+        <script>
+          window.onload = function() { setTimeout(function() { window.print(); }, 250); };
+        </script>
+      </body>
+      </html>
+    `);
+    win.document.close();
+  }, [activeEncounterId, timelineData, activeEncounter, user?.name, currentPatient, prescribedList, followUpDate, showToast]);
+
+  // Export / Print PDF (GET /prescriptions/:id/export & PATCH /prescriptions/:id/printed, fallback sang Phiếu kết quả EMR)
   const handlePrintPrescription = async () => {
     if (!currentPrescription?.prescriptionId) {
-      showToast('info', 'Vui lòng lưu đơn thuốc trước khi in.');
+      await openMedicalReportPrintWindow();
       return;
     }
     try {
       const res = await prescriptionService.exportPdf(currentPrescription.prescriptionId);
-      await prescriptionService.markAsPrinted(currentPrescription.prescriptionId);
+      await prescriptionService.markAsPrinted(currentPrescription.prescriptionId).catch(() => { });
       if (res?.pdfUrl) {
         window.open(res.pdfUrl, '_blank');
       } else {
-        showToast('error', 'Không nhận được tệp PDF để in.');
+        await openMedicalReportPrintWindow();
       }
-    } catch (err: any) {
-      showToast('error', `Lỗi khi in đơn thuốc: ${err?.message || 'Thao tác thất bại'}`);
+    } catch {
+      await openMedicalReportPrintWindow();
     }
   };
 
   const handleDownloadPdf = async () => {
     if (!currentPrescription?.prescriptionId) {
-      showToast('info', 'Vui lòng lưu đơn thuốc trước khi tải.');
+      await openMedicalReportPrintWindow();
       return;
     }
     try {
@@ -846,10 +989,10 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
       if (res?.pdfUrl) {
         window.open(res.pdfUrl, '_blank');
       } else {
-        showToast('error', 'Không tìm thấy tệp PDF.');
+        await openMedicalReportPrintWindow();
       }
-    } catch (err: any) {
-      showToast('error', `Lỗi khi tải PDF đơn thuốc: ${err?.message || 'Thao tác thất bại'}`);
+    } catch {
+      await openMedicalReportPrintWindow();
     }
   };
 
@@ -890,21 +1033,43 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
     }
   };
 
-  // Finish Encounter Without Follow-up (POST /prescriptions/encounters/:encounterId/finish)
-  const handleFinishEncounter = async () => {
+  // Mở modal xác nhận kết thúc lượt khám
+  const handleFinishEncounter = () => {
     if (!activeEncounterId) return;
-    if (!window.confirm('Bạn có chắc chắn muốn kết thúc lượt khám này mà không cần đặt lịch hẹn tái khám?')) {
+    if (!isPrescriptionSigned) {
+      showToast('error', 'Vui lòng ký số đơn thuốc trước khi hoàn tất & đóng ca khám.');
       return;
     }
+    setIsFinishConfirmOpen(true);
+  };
+
+  // Xác nhận kết thúc lượt khám (POST /encounters/:encounterId/finish)
+  const handleConfirmFinishEncounter = async () => {
+    if (!activeEncounterId) return;
 
     try {
       setIsFinishingEncounter(true);
-      await prescriptionService.finishEncounter(activeEncounterId);
-      showToast('success', 'Lượt khám đã được kết thúc thành công!');
+
+      // Nếu bác sĩ đã thêm thuốc vào danh sách nhưng chưa lưu hoặc đơn thuốc đang ở trạng thái nháp, tự động lưu trước khi đóng ca
+      if (prescribedList.length > 0 && (!currentPrescription || currentPrescription.status === 'draft')) {
+        const saved = await handleSavePrescription(true);
+        if (!saved) {
+          showToast(
+            'error',
+            'Không thể lưu đơn thuốc trước khi đóng ca khám. Vui lòng kiểm tra lại chẩn đoán chính thức (Tab 2) hoặc danh sách thuốc.'
+          );
+          return;
+        }
+      }
+
+      const finishRes = await prescriptionService.finishEncounter(activeEncounterId);
+      const zaloNote = formatPdfDeliveryNote(finishRes?.pdfDelivery);
+      setIsFinishConfirmOpen(false);
+      showToast('success', `Lượt khám đã được kết thúc thành công!${zaloNote}`);
       fetchEncounters();
       setCompletionModal({
         isOpen: true,
-        message: `Đã hoàn tất ca khám cho bệnh nhân ${currentPatient?.name || ''}.`,
+        message: `Đã hoàn tất ca khám cho bệnh nhân ${currentPatient?.name || ''}.${zaloNote}`,
       });
     } catch (err: any) {
       showToast('error', `Lỗi khi kết thúc lượt khám: ${err?.message || 'Thao tác thất bại'}`);
@@ -940,27 +1105,31 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
   };
 
   const isPrescriptionSigned = currentPrescription?.status === 'signed';
+  const isEncounterFinished =
+    activeEncounter?.status === 'finished' ||
+    activeEncounter?.status === 'completed' ||
+    timelineData?.encounter?.status === 'finished';
+  const isPrescriptionLocked = isPrescriptionSigned || isEncounterFinished;
 
-  // Xác định bước hiện tại trong quy trình kê đơn 4 bước
+  // Xác định bước hiện tại trong quy trình kê đơn 3 bước (4 = đã hoàn tất toàn bộ)
   const currentStep = useMemo(() => {
-    if (isFollowUpSynced || activeEncounter?.status === 'finished') return 4;
+    if (isEncounterFinished) return 4;
     if (isPrescriptionSigned) return 3;
     if (prescribedList.length > 0) return 2;
     return 1;
-  }, [isFollowUpSynced, activeEncounter?.status, isPrescriptionSigned, prescribedList.length]);
+  }, [isEncounterFinished, isPrescriptionSigned, prescribedList.length]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Toast Notification Banner */}
       {toastMessage && (
         <div
-          className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-between gap-3 shadow-lg transition-all animate-in slide-in-from-top-3 ${
-            toastMessage.type === 'success'
-              ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-              : toastMessage.type === 'error'
+          className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-between gap-3 shadow-lg transition-all animate-in slide-in-from-top-3 ${toastMessage.type === 'success'
+            ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+            : toastMessage.type === 'error'
               ? 'bg-rose-50 border-rose-300 text-rose-900'
               : 'bg-blue-50 border-blue-300 text-blue-900'
-          }`}
+            }`}
         >
           <div className="flex items-center gap-2">
             {toastMessage.type === 'success' ? (
@@ -1006,7 +1175,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
               )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Lập đơn thuốc điện tử, tự động kiểm tra tương tác thuốc, xử lý cảnh báo dị ứng và ký số pháp lý CA.
+              Lập đơn thuốc điện tử và ký số pháp lý CA.
             </p>
           </div>
         </div>
@@ -1016,21 +1185,21 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
           <span>
             {activeEncounter || currentPatient
               ? (() => {
-                  const name = timelineData?.patient?.fullName || activeEncounter?.patient?.fullName || currentPatient?.name;
-                  const pCode = timelineData?.patient?.patientCode || activeEncounter?.patient?.patientCode;
-                  const encCode = timelineData?.encounter?.encounterCode || activeEncounter?.encounterCode;
-                  const codeDetails = [pCode, encCode].filter(Boolean).join(' • ');
-                  return `Bệnh nhân: ${name}${codeDetails ? ` (${codeDetails})` : ''}`;
-                })()
+                const name = timelineData?.patient?.fullName || activeEncounter?.patient?.fullName || currentPatient?.name;
+                const pCode = timelineData?.patient?.patientCode || activeEncounter?.patient?.patientCode;
+                const encCode = timelineData?.encounter?.encounterCode || activeEncounter?.encounterCode;
+                const codeDetails = [pCode, encCode].filter(Boolean).join(' • ');
+                return `Bệnh nhân: ${name}${codeDetails ? ` (${codeDetails})` : ''}`;
+              })()
               : 'Chưa chọn bệnh nhân'}
           </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:items-stretch">
 
         {/* Left Column: Patient selector and allergy record (4 cols) */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className="lg:col-span-4 flex flex-col gap-6">
 
           {/* Patient queue card */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
@@ -1056,67 +1225,6 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
               </div>
             </div>
 
-            {/* Segmented status filter pills */}
-            <div className="flex flex-wrap gap-1 p-1 bg-slate-100/80 rounded-xl text-[11px] font-bold">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('all')}
-                className={`flex-1 min-w-[56px] py-1 px-1.5 rounded-lg text-center transition-all cursor-pointer border-none ${
-                  statusFilter === 'all'
-                    ? 'bg-white text-blue-700 shadow-xs font-black'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                }`}
-              >
-                Tất cả ({queueCounts.all})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('waiting')}
-                className={`py-1 px-1.5 rounded-lg text-center transition-all cursor-pointer border-none ${
-                  statusFilter === 'waiting'
-                    ? 'bg-white text-blue-700 shadow-xs font-black'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                }`}
-              >
-                Chờ khám ({queueCounts.waiting})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('in_progress')}
-                className={`py-1 px-1.5 rounded-lg text-center transition-all cursor-pointer border-none ${
-                  statusFilter === 'in_progress'
-                    ? 'bg-white text-blue-700 shadow-xs font-black'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                }`}
-              >
-                Đang khám ({queueCounts.in_progress})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('awaiting_review')}
-                className={`py-1 px-1.5 rounded-lg text-center transition-all cursor-pointer border-none ${
-                  statusFilter === 'awaiting_review'
-                    ? 'bg-rose-50 text-rose-700 shadow-xs font-black ring-1 ring-rose-200'
-                    : queueCounts.awaiting_review > 0
-                    ? 'text-rose-700 font-extrabold bg-rose-50/50 hover:bg-rose-100'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                }`}
-              >
-                Có KQ CLS ({queueCounts.awaiting_review})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('finished')}
-                className={`py-1 px-1.5 rounded-lg text-center transition-all cursor-pointer border-none ${
-                  statusFilter === 'finished'
-                    ? 'bg-white text-emerald-700 shadow-xs font-black'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                }`}
-              >
-                Đã xong ({queueCounts.finished})
-              </button>
-            </div>
-
             {/* Ô tìm kiếm bệnh nhân nhanh */}
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1138,6 +1246,9 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
               )}
             </div>
 
+            {/* Bộ lọc nhanh trạng thái hàng chờ */}
+            <QueueStatusFilter value={statusFilter} onChange={setStatusFilter} counts={queueCounts} />
+
             <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1">
               {isLoadingEncounters && (
                 <div className="p-4 text-center text-xs text-slate-400">Đang tải danh sách ca khám...</div>
@@ -1158,11 +1269,10 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
                   <div
                     key={enc.encounterId}
                     onClick={() => handleSelectPatient(enc.encounterId)}
-                    className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all flex justify-between items-center ${
-                      isSelected
-                        ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300'
-                        : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'
-                    }`}
+                    className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all flex justify-between items-center ${isSelected
+                      ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300'
+                      : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'
+                      }`}
                   >
                     <div>
                       <div className="text-xs font-extrabold text-slate-800">{patName}</div>
@@ -1197,7 +1307,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
           </div>
 
           {/* Patient clinical details & allergy warning */}
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
+          <div className={`bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-4 ${isEncounterFinished ? 'flex-1' : ''}`}>
             <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">
               Thông tin lâm sàng & Dị ứng
             </h3>
@@ -1240,47 +1350,43 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
 
         </div>
 
-        {/* Right Column: Prescription editor, directory selector, safety checks, follow-up, signing (8 cols) */}
-        <div className="lg:col-span-8 space-y-6">
+        {/* Right Column: Prescription editor, directory selector, follow-up, signing (8 cols) */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
 
-          {/* Stepper Quy trình Kê đơn 4 bước */}
+          {/* Stepper Quy trình Kê đơn 3 bước */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               {[
                 { step: 1, title: 'Soạn đơn thuốc', desc: 'Chọn thuốc & liều' },
-                { step: 2, title: 'Kiểm tra an toàn', desc: 'Tương tác & Dị ứng' },
-                { step: 3, title: 'Ký số CA & In', desc: 'Xác thực pháp lý' },
-                { step: 4, title: 'Hẹn tái khám', desc: 'Hoàn tất ca khám' },
+                { step: 2, title: 'Ký số CA & In', desc: 'Xác thực pháp lý' },
+                { step: 3, title: 'Hẹn tái khám', desc: 'Hoàn tất ca khám' },
               ].map((s) => {
                 const isPassed = currentStep > s.step;
                 const isCurrent = currentStep === s.step;
                 return (
                   <div
                     key={s.step}
-                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 transition-all ${
-                      isCurrent
-                        ? 'bg-blue-50/80 border-blue-400 shadow-xs ring-1 ring-blue-300'
-                        : isPassed
+                    className={`p-2.5 rounded-xl border flex items-center gap-2.5 transition-all ${isCurrent
+                      ? 'bg-blue-50/80 border-blue-400 shadow-xs ring-1 ring-blue-300'
+                      : isPassed
                         ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900'
                         : 'bg-slate-50 border-slate-200/70 text-slate-400'
-                    }`}
+                      }`}
                   >
                     <div
-                      className={`w-6 h-6 rounded-full flex items-center justify-center font-black text-xs shrink-0 ${
-                        isCurrent
-                          ? 'bg-blue-700 text-white'
-                          : isPassed
+                      className={`w-6 h-6 rounded-full flex items-center justify-center font-black text-xs shrink-0 ${isCurrent
+                        ? 'bg-blue-700 text-white'
+                        : isPassed
                           ? 'bg-emerald-600 text-white'
                           : 'bg-slate-200 text-slate-500'
-                      }`}
+                        }`}
                     >
                       {isPassed ? <Check className="w-3.5 h-3.5" /> : s.step}
                     </div>
                     <div className="leading-tight truncate">
                       <div
-                        className={`text-xs font-black truncate ${
-                          isCurrent ? 'text-blue-900' : isPassed ? 'text-emerald-900' : 'text-slate-700'
-                        }`}
+                        className={`text-xs font-black truncate ${isCurrent ? 'text-blue-900' : isPassed ? 'text-emerald-900' : 'text-slate-700'
+                          }`}
                       >
                         {s.title}
                       </div>
@@ -1292,121 +1398,8 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
             </div>
           </div>
 
-          {/* Drug Safety Checks Alerts (Combined Backend API Alerts & Client Heuristics) */}
-          <div className="space-y-2">
-            {backendAlerts.length > 0 ? (
-              backendAlerts.map((alert) => {
-                const isBlocking = alert.severity === 'severe' || alert.severity === 'contraindicated';
-                const isConfirmed = alert.status === 'confirmed';
-
-                return (
-                  <div
-                    key={alert.alertId}
-                    className={`p-4 rounded-2xl border text-xs font-bold flex items-start justify-between gap-3 animate-in slide-in-from-top-2 duration-200 ${
-                      isConfirmed
-                        ? 'bg-slate-50 border-slate-200 text-slate-700'
-                        : isBlocking
-                        ? 'bg-rose-50 border-rose-200 text-rose-900 shadow-xs'
-                        : 'bg-amber-50 border-amber-200 text-amber-900 shadow-xs'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      {isConfirmed ? (
-                        <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                      ) : isBlocking ? (
-                        <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                      ) : (
-                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                      )}
-                      <div className="space-y-1 leading-snug">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`uppercase text-[9px] tracking-wider block font-black ${
-                              isConfirmed
-                                ? 'text-emerald-700'
-                                : isBlocking
-                                ? 'text-rose-800'
-                                : 'text-amber-800'
-                            }`}
-                          >
-                            {alert.alertType === 'drug_allergy'
-                              ? 'CẢNH BÁO DỊ ỨNG THUỐC'
-                              : alert.alertType === 'drug_interaction'
-                              ? 'TƯƠNG TÁC THUỐC'
-                              : 'CẢNH BÁO AN TOÀN DƯỢC LÂM SÀNG'}
-                          </span>
-                          <span
-                            className={`text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase ${
-                              alert.severity === 'contraindicated'
-                                ? 'bg-rose-200 text-rose-900'
-                                : alert.severity === 'severe'
-                                ? 'bg-rose-150 text-rose-850'
-                                : 'bg-amber-200 text-amber-900'
-                            }`}
-                          >
-                            {alert.severity}
-                          </span>
-                        </div>
-                        <p className="font-extrabold text-xs">{alert.message}</p>
-                        {isConfirmed && alert.overrideReason && (
-                          <div className="text-[11px] text-emerald-800 bg-emerald-50 p-2 rounded-lg font-medium mt-1">
-                            <strong>Đã xác nhận override:</strong> {alert.overrideReason}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {!isConfirmed && isBlocking && !isPrescriptionSigned && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedAlertToOverride(alert);
-                          setOverrideReasonText('');
-                          setIsOverrideModalOpen(true);
-                        }}
-                        className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[11px] rounded-xl shrink-0 cursor-pointer border-none shadow-xs transition-colors"
-                      >
-                        Xác nhận Override
-                      </button>
-                    )}
-                  </div>
-                );
-              })
-            ) : clientSafetyWarnings.length > 0 ? (
-              clientSafetyWarnings.map((w, idx) => (
-                <div
-                  key={idx}
-                  className={`p-4 rounded-2xl border text-xs font-bold flex items-start gap-2.5 animate-in slide-in-from-top-2 duration-200 ${
-                    w.type === 'danger'
-                      ? 'bg-rose-50 border-rose-200 text-rose-900 shadow-xs'
-                      : 'bg-amber-50 border-amber-200 text-amber-900 shadow-xs'
-                  }`}
-                >
-                  {w.type === 'danger' ? (
-                    <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                  ) : (
-                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  )}
-                  <div className="space-y-1 leading-snug">
-                    <span className="uppercase text-[9px] tracking-wider block font-black text-rose-800">
-                      {w.type === 'danger' ? 'HỆ THỐNG CẢNH BÁO NGUY HIỂM' : 'CẢNH BÁO LÂM SÀNG'}
-                    </span>
-                    <p className="font-extrabold">{w.text}</p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-800 flex items-center justify-between font-bold shadow-xs">
-                <div className="flex items-center gap-2">
-                  <Check className="w-5 h-5 bg-emerald-600 text-white rounded-full p-0.5 shrink-0" />
-                  <span>Kiểm tra an toàn (Safety Check): Không phát hiện tương tác hoặc chống chỉ định dị ứng.</span>
-                </div>
-                <Badge variant="normal" size="sm">Safety Passed</Badge>
-              </div>
-            )}
-          </div>
-
-          {/* Add medication from National Drug Directory Form */}
+          {/* Add medication from National Drug Directory Form (ẩn khi ca khám đã hoàn tất) */}
+          {!isEncounterFinished && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
             <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-3">
               <Search className="w-4.5 h-4.5 text-blue-700" />
@@ -1527,10 +1520,17 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
                 />
               </div>
 
-              <div className="md:col-span-2 pt-2 flex justify-end">
+              <div className="md:col-span-2 pt-2 flex items-center justify-between gap-2">
+                {isEncounterFinished ? (
+                  <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl">
+                    Ca khám này đã kết thúc (Đã xong) nên không thể thêm hoặc sửa đơn thuốc.
+                  </span>
+                ) : (
+                  <span />
+                )}
                 <button
                   type="submit"
-                  disabled={isPrescriptionSigned}
+                  disabled={isPrescriptionLocked}
                   className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-extrabold rounded-xl flex items-center gap-1.5 cursor-pointer border-none shadow-xs text-xs"
                 >
                   <Plus className="w-4 h-4" />
@@ -1540,18 +1540,30 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
 
             </form>
           </div>
+          )}
 
           {/* Current Prescription Table */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
+          <div
+            className={`bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col gap-4 ${
+              isEncounterFinished ? 'flex-1' : ''
+            }`}
+          >
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
                   <Pill className="w-4 h-4 text-indigo-700" />
-                  <span>Nội Dung Đơn Thuốc Hiện Tại (Chuẩn Hóa ICD-10)</span>
+                  <span>Nội Dung Đơn Thuốc Hiện Tại </span>
                 </h3>
                 {currentPrescription && (
                   <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                    Mã đơn: <strong className="text-blue-900">{currentPrescription.prescriptionCode}</strong> • Trạng thái: {currentPrescription.status}
+                    Mã đơn: <strong className="text-blue-900">{currentPrescription.prescriptionCode}</strong> • Trạng thái:{' '}
+                    {currentPrescription.status === 'signed'
+                      ? 'Đã ký xác nhận'
+                      : currentPrescription.status === 'dispensed'
+                        ? 'Đã cấp phát'
+                        : currentPrescription.status === 'cancelled'
+                          ? 'Đã hủy'
+                          : 'Bản nháp'}
                   </div>
                 )}
               </div>
@@ -1559,12 +1571,12 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-500">{prescribedList.length} thuốc đã kê</span>
 
-                {!isPrescriptionSigned && (
+                {!isPrescriptionLocked && (
                   <button
                     type="button"
                     onClick={() => handleSavePrescription(false)}
                     disabled={isSavingPrescription || prescribedList.length === 0}
-                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer border-none shadow-xs transition-colors"
+                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer border-none shadow-xs transition-colors disabled:opacity-50"
                   >
                     {isSavingPrescription ? (
                       <>
@@ -1618,7 +1630,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
                       <th className="py-2.5 px-3">Liều Dùng & Liều Lượng</th>
                       <th className="py-2.5 px-3 text-center">Số Lượng</th>
                       <th className="py-2.5 px-3">Thời gian</th>
-                      <th className="py-2.5 px-3 text-center">Tác vụ</th>
+                      {!isPrescriptionLocked && <th className="py-2.5 px-3 text-center">Tác vụ</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
@@ -1635,17 +1647,18 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
                         </td>
                         <td className="py-3 px-3 text-center font-black text-blue-900">{d.quantity} {d.unit}</td>
                         <td className="py-3 px-3 font-bold text-slate-600">{d.duration}</td>
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            type="button"
-                            disabled={isPrescriptionSigned}
-                            onClick={() => handleDeleteDrug(d.catalogCode)}
-                            className="p-1 text-slate-400 hover:text-rose-600 disabled:opacity-30 transition-colors cursor-pointer border-none bg-transparent"
-                            title="Xóa thuốc"
-                          >
-                            <Trash2 className="w-4.5 h-4.5" />
-                          </button>
-                        </td>
+                        {!isPrescriptionLocked && (
+                          <td className="py-3 px-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteDrug(d.catalogCode)}
+                              className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer border-none bg-transparent"
+                              title="Xóa thuốc"
+                            >
+                              <Trash2 className="w-4.5 h-4.5" />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -1653,12 +1666,39 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
               </div>
             ) : (
               <div className="p-6 text-center text-slate-400 font-medium text-xs border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                Chưa có thuốc nào được kê trong đơn. Hãy chọn thuốc từ danh mục phía trên.
+                {isEncounterFinished
+                  ? 'Ca khám đã hoàn tất và không có thuốc kê trong đơn.'
+                  : 'Chưa có thuốc nào được kê trong đơn. Hãy chọn thuốc từ danh mục phía trên.'}
+              </div>
+            )}
+
+            {isEncounterFinished && (
+              <div className="mt-auto pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2 text-emerald-700 font-bold">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    Ca khám đã hoàn tất &amp; đóng hồ sơ bệnh án
+                    {isFollowUpSynced && (followUpDisplay || followUpDate)
+                      ? ` • Tái khám: ${followUpDisplay || followUpDate}`
+                      : ''}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={openMedicalReportPrintWindow}
+                  disabled={!activeEncounterId}
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl border border-slate-200 cursor-pointer inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 shrink-0 self-start sm:self-auto"
+                >
+                  <FileText className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Phiếu Kết Quả EMR (.PDF)</span>
+                </button>
               </div>
             )}
           </div>
 
-          {/* Trạng thái Lịch Hẹn Tái Khám & Kết Thúc Lượt Khám */}
+          {!isEncounterFinished && (
+            <>
+              {/* Trạng thái Lịch Hẹn Tái Khám & Kết Thúc Lượt Khám */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
@@ -1683,7 +1723,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
                 </div>
                 <div className="text-xs">
                   <p className="font-bold text-emerald-900">
-                    Bệnh nhân đã được hẹn tái khám vào ngày {followUpDate}
+                    Bệnh nhân đã được hẹn tái khám: {followUpDisplay || followUpDate}
                   </p>
                   <p className="text-emerald-700 font-medium">
                     Lịch hẹn và khung giờ đã được hệ thống giữ chỗ thành công tại bước Tư vấn điều trị (Tab 2).
@@ -1694,22 +1734,37 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
               <span className="text-[11px] text-slate-500 font-medium">
-                * Bác sĩ cần ký số đơn thuốc (nếu có đơn) trước khi hoàn tất lượt khám.
+                * Bác sĩ cần ký xác nhận đơn thuốc trước khi hoàn tất &amp; đóng ca khám.
               </span>
 
-              <button
-                type="button"
-                onClick={handleFinishEncounter}
-                disabled={isFinishingEncounter || !activeEncounterId}
-                className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs rounded-xl border-none cursor-pointer flex items-center gap-2 shadow-xs transition-colors disabled:opacity-50"
-              >
-                {isFinishingEncounter ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <CheckCheck className="w-4 h-4" />
-                )}
-                <span>Hoàn tất & Đóng ca khám</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={openMedicalReportPrintWindow}
+                  disabled={!activeEncounterId}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl border border-slate-200 cursor-pointer flex items-center gap-1.5 shadow-2xs transition-colors disabled:opacity-50"
+                >
+                  <Printer className="w-4 h-4 text-blue-700" />
+                  <span>In / Tải Phiếu Kết Quả EMR (.PDF)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleFinishEncounter}
+                  disabled={isFinishingEncounter || !activeEncounterId || isEncounterFinished || !isPrescriptionSigned}
+                  title={!isPrescriptionSigned && !isEncounterFinished ? 'Vui lòng ký số đơn thuốc trước khi đóng ca khám' : undefined}
+                  className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs rounded-xl border-none cursor-pointer flex items-center gap-2 shadow-xs transition-colors disabled:opacity-50"
+                >
+                  {isFinishingEncounter ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCheck className="w-4 h-4" />
+                  )}
+                  <span>
+                    {activeEncounter?.status === 'finished' ? 'Ca khám đã hoàn tất' : 'Hoàn tất & Đóng ca khám'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1742,7 +1797,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
               ) : (
                 <button
                   onClick={handleOpenDigitalSignModal}
-                  disabled={prescribedList.length === 0 || isSavingPrescription}
+                  disabled={prescribedList.length === 0 || isSavingPrescription || isEncounterFinished}
                   className="px-6 py-3 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer border-none flex items-center gap-2 shrink-0 transition-all uppercase tracking-wide"
                 >
                   <FileCheck className="w-4.5 h-4.5 text-cyan-300" />
@@ -1751,73 +1806,12 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
               )}
             </div>
           </BorderBeam>
+            </>
+          )}
 
         </div>
 
       </div>
-
-      {/* OVERRIDE ALERT REASON MODAL */}
-      <Modal
-        isOpen={isOverrideModalOpen}
-        onClose={() => {
-          if (!isSubmittingOverride) setIsOverrideModalOpen(false);
-        }}
-        title="Xác Nhận Đã Biết Rủi Ro An Toàn Thuốc (Override Alert)"
-        subtitle="Giải trình chuyên môn trước khi bỏ qua cảnh báo nghiêm trọng"
-      >
-        <form onSubmit={handleConfirmAlertOverride} className="space-y-4 text-xs font-semibold">
-          {selectedAlertToOverride && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-900 space-y-1">
-              <span className="uppercase text-[9px] font-black text-rose-800 tracking-wider block">
-                Nội dung cảnh báo an toàn:
-              </span>
-              <p className="font-extrabold text-xs leading-relaxed">{selectedAlertToOverride.message}</p>
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <label className="block text-slate-700 font-bold">
-              Lý do Bác sĩ xác nhận override (*):
-            </label>
-            <textarea
-              rows={3}
-              value={overrideReasonText}
-              onChange={(e) => setOverrideReasonText(e.target.value)}
-              placeholder="vd: Đã cân nhắc lợi ích điều trị vượt trội so với nguy cơ; hướng dẫn bệnh nhân theo dõi sát và tái khám ngay nếu có dấu hiệu bất thường..."
-              required
-              className="w-full p-3 rounded-xl border border-slate-200 font-medium text-slate-800 outline-none focus:border-blue-600 bg-white"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              disabled={isSubmittingOverride}
-              onClick={() => setIsOverrideModalOpen(false)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer border-none"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmittingOverride || !overrideReasonText.trim()}
-              className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl flex items-center gap-1.5 cursor-pointer border-none shadow-xs disabled:opacity-50"
-            >
-              {isSubmittingOverride ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Đang lưu...</span>
-                </>
-              ) : (
-                <>
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Xác Nhận Ghi Đè</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </Modal>
 
       {/* Digital Signature execution CA verify Modal */}
       <Modal
@@ -1963,6 +1957,52 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* FINISH CONFIRM MODAL */}
+      <Modal
+        isOpen={isFinishConfirmOpen}
+        onClose={() => {
+          if (!isFinishingEncounter) setIsFinishConfirmOpen(false);
+        }}
+        title="Xác Nhận Kết Thúc Lượt Khám"
+        subtitle="Hoàn tất phiên khám và gửi phiếu thông tin cho bệnh nhân"
+      >
+        <div className="space-y-4 text-xs font-semibold">
+          <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl text-slate-700 space-y-1.5">
+            <p className="text-sm font-extrabold text-slate-900">
+              Bạn có chắc chắn muốn kết thúc lượt khám của bệnh nhân{' '}
+              <span className="text-blue-700">{currentPatient?.name || 'hiện tại'}</span>?
+            </p>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Sau khi xác nhận, hệ thống sẽ chuyển trạng thái lượt khám sang hoàn tất, tự động gửi phiếu thông tin lượt khám qua Zalo (nếu bệnh nhân đã liên kết) và email hướng dẫn cổng bệnh nhân (nếu chưa có tài khoản).
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsFinishConfirmOpen(false)}
+              disabled={isFinishingEncounter}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border-none disabled:opacity-50"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmFinishEncounter}
+              disabled={isFinishingEncounter}
+              className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xs rounded-xl cursor-pointer border-none flex items-center gap-2 shadow-xs disabled:opacity-50"
+            >
+              {isFinishingEncounter ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CheckCheck className="w-4 h-4" />
+              )}
+              <span>{isFinishingEncounter ? 'Đang xử lý...' : 'Xác Nhận Kết Thúc'}</span>
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* COMPLETION MODAL WITH NEXT PATIENT CALL */}

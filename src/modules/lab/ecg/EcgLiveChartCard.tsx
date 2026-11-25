@@ -22,6 +22,7 @@ import type { PlaybackClock, PlaybackSnapshot } from '../../../hooks/useEcgPlayb
 import { EcgCanvas, type EcgCanvasHandle } from './chart/EcgCanvas';
 import type { EcgGridMode } from './chart/renderer/gridLayer';
 import { Minimap } from './chart/Minimap';
+import { augmentSignalWithAnomalies } from './chart/data/augmentAnomalySignal';
 import { formatTimeMs, getAnomalyLabel } from './ecgMeta';
 
 interface EcgLiveChartCardProps {
@@ -109,7 +110,11 @@ export const EcgLiveChartCard: React.FC<EcgLiveChartCardProps> = ({
   const [criticalFlash, setCriticalFlash] = useState(false);
   const lastAlertedIdRef = useRef<string | null>(null);
 
-  const signal: EcgSignal | null = signalState.kind === 'ready' ? signalState.signal : null;
+  const rawSignal: EcgSignal | null = signalState.kind === 'ready' ? signalState.signal : null;
+  const signal = useMemo(
+    () => augmentSignalWithAnomalies(rawSignal, anomalies),
+    [rawSignal, anomalies],
+  );
   const durationMs = snapshot.durationMs || 30000;
 
   // Sự kiện bất thường mà con trỏ playback đang đi qua
@@ -372,7 +377,10 @@ export const EcgLiveChartCard: React.FC<EcgLiveChartCardProps> = ({
             >
               <AlertTriangle className="w-3.5 h-3.5" />
               <span>
-                {getAnomalyLabel(activeLiveAnomaly.anomalyType)} · {activeLiveAnomaly.score.toFixed(2)}
+                {activeLiveAnomaly.anomalyType && activeLiveAnomaly.anomalyType !== 'unclassified'
+                  ? getAnomalyLabel(activeLiveAnomaly.anomalyType)
+                  : 'Bất thường'}{' '}
+                · {activeLiveAnomaly.score.toFixed(2)}
               </span>
             </motion.button>
           )}

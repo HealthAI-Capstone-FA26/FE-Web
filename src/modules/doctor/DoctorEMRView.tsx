@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { User, Stethoscope, Sparkles, FileText, Calendar } from 'lucide-react';
+import { User, Stethoscope, FileText, Calendar, CheckCircle2 } from 'lucide-react';
 import { Mascot } from 'page-mascot';
 import {
   encounterService,
@@ -28,7 +28,7 @@ import {
   type TestOrderDetail,
   type CaseOverviewData,
 } from '../../services/doctor';
-import { invoiceService } from '../../services/payment/invoice.service';
+import { invoiceService, resolveEncounterLabPaymentState } from '../../services/payment/invoice.service';
 
 // Modular Sub-Components
 import type { PatientEMR, PatientWorkflowState } from './types';
@@ -57,7 +57,6 @@ let globalApiEncounters: EncounterItem[] = [];
 let globalPatientWorkflowStates: Record<string, PatientWorkflowState> = {};
 let globalLastSelectedPatientId: string = '';
 
-import { AiImagingAnalysisCard } from './components/AiImagingAnalysisCard';
 import { ClinicalExamForm } from './components/ClinicalExamForm';
 import { TestOrderCreationCard } from './components/TestOrderCreationCard';
 import { TestOrderHistoryList } from './components/TestOrderHistoryList';
@@ -104,8 +103,8 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
 
   const [isMedicalHistoryModalOpen, setIsMedicalHistoryModalOpen] = useState<boolean>(false);
 
-  // Tab con nội bộ: 'emr_summary' (Hồ sơ EMR & AI01) | 'clinical_orders' (Khám & Chỉ định) | 'ai_imaging' (Phân tích ảnh AI02)
-  const [activeSubTab, setActiveSubTab] = useState<'emr_summary' | 'clinical_orders' | 'ai_imaging'>('emr_summary');
+  // Tab con nội bộ: 'emr_summary' (Hồ sơ EMR & AI01) | 'clinical_orders' (Khám & Chỉ định)
+  const [activeSubTab, setActiveSubTab] = useState<'emr_summary' | 'clinical_orders'>('emr_summary');
 
   const effectiveCustomDate = useMemo(() => {
     if (customDate) return customDate;
@@ -173,6 +172,9 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
               return nextId;
             });
           } else {
+            setSelectedPatientId('');
+            globalLastSelectedPatientId = '';
+            localStorage.removeItem('doctor_selected_patient_id');
             setExistingTestOrders([]);
           }
         }
@@ -233,32 +235,8 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
           testOrderService.getTestOrdersByEncounter(enc.encounterId),
           invoiceService.findMany({ encounterId: enc.encounterId }).catch(() => []),
         ]);
-        const activeItems = orders
-          .flatMap((o) => o.items || [])
-          .filter((i) => i.status !== 'cancelled');
-
-        if (activeItems.length > 0) {
-          const allCompleted = activeItems.every((i) => (i.task?.status || i.labTask?.status) === 'completed');
-          const isPaid =
-            invoices.some((inv) => inv.status === 'paid') ||
-            activeItems.some((i) => {
-              const task = i.task || i.labTask;
-              return (
-                task?.paymentVerified === true ||
-                task?.status === 'ready' ||
-                task?.status === 'sample_collected' ||
-                task?.status === 'in_progress' ||
-                task?.status === 'completed'
-              );
-            });
-
-          let state: PatientWorkflowState = 'ordered';
-          if (allCompleted) {
-            state = 'completed';
-          } else if (isPaid) {
-            state = 'paid';
-          }
-
+        const state = resolveEncounterLabPaymentState(orders, invoices);
+        if (state) {
           setPatientWorkflowStates((prev) => {
             const next = {
               ...prev,
@@ -303,7 +281,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
         if (patCode) encounterCacheRef.current[patCode] = encounterCacheRef.current[encId];
         if (enc.encounterCode) encounterCacheRef.current[enc.encounterCode] = encounterCacheRef.current[encId];
         globalEncounterCache[encId] = encounterCacheRef.current[encId];
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     if (patId && encounterCacheRef.current[encId]?.allergies === undefined) {
@@ -316,7 +294,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
         if (patCode) encounterCacheRef.current[patCode] = encounterCacheRef.current[encId];
         if (enc.encounterCode) encounterCacheRef.current[enc.encounterCode] = encounterCacheRef.current[encId];
         globalEncounterCache[encId] = encounterCacheRef.current[encId];
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [selectedPatientId, apiEncounters]);
 
@@ -347,11 +325,11 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
     // Kiểm tra xem ca khám này đã có trong Cache chưa
     const cached = !forceRefresh
       ? (encounterCacheRef.current[id] || globalEncounterCache[id] || Object.values(globalEncounterCache).find(
-          (c) =>
-            c.encounterDetail?.encounterId === id ||
-            c.encounterDetail?.encounterCode === id ||
-            c.encounterDetail?.patient?.patientCode === id
-        ))
+        (c) =>
+          c.encounterDetail?.encounterId === id ||
+          c.encounterDetail?.encounterCode === id ||
+          c.encounterDetail?.patient?.patientCode === id
+      ))
       : undefined;
 
     if (cached) {
@@ -368,8 +346,8 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
       setClinicalNotes(cached.clinicalExam?.clinicalNotes || '');
       setPreliminaryDiag(
         cached.clinicalExam?.preliminaryDiag ||
-          extractPrimaryInitialDiagnosisText(cached.caseOverview?.initialDiagnoses) ||
-          ''
+        extractPrimaryInitialDiagnosisText(cached.caseOverview?.initialDiagnoses) ||
+        ''
       );
       setIsLoadingOverview(false);
       setIsLoadingAllergies(false);
@@ -648,23 +626,23 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
           caseOverview: newOverview || encounterCacheRef.current[targetId]?.caseOverview || null,
           clinicalExam: newExam || loadedPreliminaryDiag || prevExamCache
             ? {
-                patientPosition: newExam?.patientPosition ?? prevExamCache?.patientPosition ?? '',
-                inspectionFindings: newExam?.inspectionFindings ?? prevExamCache?.inspectionFindings ?? '',
-                palpationFindings: newExam?.palpationFindings ?? prevExamCache?.palpationFindings ?? '',
-                percussionFindings: newExam?.percussionFindings ?? prevExamCache?.percussionFindings ?? '',
-                auscultationFindings:
-                  newExam?.auscultationFindings ||
-                  newExam?.examinationFindings ||
-                  prevExamCache?.auscultationFindings ||
-                  '',
-                examinationFindings:
-                  newExam?.auscultationFindings ||
-                  newExam?.examinationFindings ||
-                  prevExamCache?.examinationFindings ||
-                  '',
-                clinicalNotes: newExam?.clinicalNotes ?? prevExamCache?.clinicalNotes ?? '',
-                preliminaryDiag: loadedPreliminaryDiag || prevExamCache?.preliminaryDiag || '',
-              }
+              patientPosition: newExam?.patientPosition ?? prevExamCache?.patientPosition ?? '',
+              inspectionFindings: newExam?.inspectionFindings ?? prevExamCache?.inspectionFindings ?? '',
+              palpationFindings: newExam?.palpationFindings ?? prevExamCache?.palpationFindings ?? '',
+              percussionFindings: newExam?.percussionFindings ?? prevExamCache?.percussionFindings ?? '',
+              auscultationFindings:
+                newExam?.auscultationFindings ||
+                newExam?.examinationFindings ||
+                prevExamCache?.auscultationFindings ||
+                '',
+              examinationFindings:
+                newExam?.auscultationFindings ||
+                newExam?.examinationFindings ||
+                prevExamCache?.examinationFindings ||
+                '',
+              clinicalNotes: newExam?.clinicalNotes ?? prevExamCache?.clinicalNotes ?? '',
+              preliminaryDiag: loadedPreliminaryDiag || prevExamCache?.preliminaryDiag || '',
+            }
             : null,
         };
         encounterCacheRef.current[targetId] = updatedCache;
@@ -738,7 +716,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
     }
   }, [verifiedEncounterDetail?.appointmentId, currentPatient?.appointmentId, currentPatient?.encounterId]);
 
-  // Bác sĩ bấm nút bắt đầu phiên khám (gọi POST /doctor-examination/encounters/:encounterId/start và PATCH /appointments/:id/start)
+  // Bác sĩ bấm nút bắt đầu phiên khám (gọi POST /doctor-examination/encounters/:encounterId/start — Backend tự đồng bộ Appointment sang in_progress)
   const handleStartConsultation = async () => {
     const encId = currentPatient?.encounterId || selectedEncounterDetail?.encounterId;
     const apptId = currentAppointment?.appointmentId || selectedEncounterDetail?.appointmentId || currentPatient?.appointmentId;
@@ -751,8 +729,9 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
     try {
       if (encId) {
         await clinicalExamService.startExamination(encId);
-      }
-      if (apptId) {
+        appointmentService.invalidateCache();
+        setCurrentAppointment((prev) => (prev ? { ...prev, status: 'in_progress' } : null));
+      } else if (apptId) {
         const updatedAppt = await appointmentService.startAppointment(apptId).catch(() => null);
         if (updatedAppt) {
           setCurrentAppointment(updatedAppt);
@@ -874,7 +853,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
   const activeSpo2 = getActiveEncounterObs('SPO2');
 
   const hasMeasuredVitals = Boolean(
-    (activeEncounterSession && (activePulse !== undefined || activeBpSys !== undefined || activeBpDia !== undefined || activeTemp !== undefined || activeSpo2 !== undefined)) ||
+    (activeEncounterSession && activeEncounterSession.observations && activeEncounterSession.observations.length > 0) ||
     (currentPatient?.hasVitals && currentPatient?.vitals)
   );
 
@@ -993,32 +972,9 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
       ]);
 
       if (Array.isArray(orders)) {
-        const activeItems = orders
-          .flatMap((o) => o.items || [])
-          .filter((i) => i.status !== 'cancelled');
+        const nextState = resolveEncounterLabPaymentState(orders, invoices);
 
-        if (activeItems.length > 0) {
-          const allCompleted = activeItems.every((i) => (i.task?.status || i.labTask?.status) === 'completed');
-          const isPaid =
-            invoices.some((inv) => inv.status === 'paid') ||
-            activeItems.some((i) => {
-              const task = i.task || i.labTask;
-              return (
-                task?.paymentVerified === true ||
-                task?.status === 'ready' ||
-                task?.status === 'sample_collected' ||
-                task?.status === 'in_progress' ||
-                task?.status === 'completed'
-              );
-            });
-
-          let nextState: PatientWorkflowState = 'ordered';
-          if (allCompleted) {
-            nextState = 'completed';
-          } else if (isPaid) {
-            nextState = 'paid';
-          }
-
+        if (nextState) {
           setPatientWorkflowStates((prev) => {
             const next: Record<string, PatientWorkflowState> = {
               ...prev,
@@ -1104,6 +1060,13 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
 
   // Trạng thái quy trình ca khám hiện tại
   const currentWorkflowState = (activeEncounterId ? patientWorkflowStates[activeEncounterId] : undefined) || 'initial';
+
+  // Đã xác nhận chỉ định CLS hoặc đã có kết quả -> ẩn form khám & tạo phiếu chỉ định
+  const hasConfirmedOrderOrResult =
+    currentWorkflowState !== 'initial' ||
+    existingTestOrders.some((order) =>
+      (order.items || []).some((item) => item.status !== 'cancelled')
+    );
 
   const handleToggleCatalogItem = (testTypeId: string) => {
     setSelectedTestTypeIds((prev) =>
@@ -1207,7 +1170,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
       });
 
       setSubmitSuccessMsg(
-        `Đã lập phiếu chỉ định ${orderResult.orderCode} thành công! Ca khám đã được chuyển sang Quầy Thu phí (Mô-đun 6).`
+        `Đã lập phiếu chỉ định ${orderResult.orderCode} thành công! Ca khám đã được chuyển sang Quầy Thu phí.`
       );
       setOrderNotes('');
 
@@ -1281,10 +1244,10 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
           />
           <div>
             <h2 className="text-xl font-bold text-slate-900">
-              Hồ Sơ EMR & Phân Tích AI
+              Hồ Sơ Bệnh Án Điện Tử
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Xem hồ sơ bệnh án EMR và khoanh vùng bất thường AI (AI02).
+              Xem hồ sơ bệnh án EMR, ghi nhận khám lâm sàng và chỉ định cận lâm sàng.
             </p>
           </div>
         </div>
@@ -1294,12 +1257,12 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
           <span>
             {currentPatient
               ? (() => {
-                  const name = verifiedEncounterDetail?.patient?.fullName || currentPatient.name;
-                  const pCode = verifiedEncounterDetail?.patient?.patientCode || currentPatient.patientCode;
-                  const encCode = verifiedEncounterDetail?.encounterCode || currentPatient.encounterCode;
-                  const codeDetails = [pCode, encCode].filter(Boolean).join(' • ');
-                  return `Bệnh nhân: ${name}${codeDetails ? ` (${codeDetails})` : ''}`;
-                })()
+                const name = verifiedEncounterDetail?.patient?.fullName || currentPatient.name;
+                const pCode = verifiedEncounterDetail?.patient?.patientCode || currentPatient.patientCode;
+                const encCode = verifiedEncounterDetail?.encounterCode || currentPatient.encounterCode;
+                const codeDetails = [pCode, encCode].filter(Boolean).join(' • ');
+                return `Bệnh nhân: ${name}${codeDetails ? ` (${codeDetails})` : ''}`;
+              })()
               : 'Chưa chọn bệnh nhân'}
           </span>
         </div>
@@ -1339,7 +1302,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                     isForCurrentPatient
                       ? currentPatient?.name
                       : displayedOnHoldTasks[0]?.orderItem?.order?.encounter?.patient?.fullName ||
-                        'Bệnh nhân'
+                      'Bệnh nhân'
                   }
                   isCurrentPatient={isForCurrentPatient}
                   onResolveTask={(task) => setDoctorResolvingTask(task)}
@@ -1371,12 +1334,12 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                   type="button"
                   onClick={() => setActiveSubTab('emr_summary')}
                   className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeSubTab === 'emr_summary'
-                      ? 'bg-white text-blue-700 shadow-xs border border-slate-200/60'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    ? 'bg-white text-blue-700 shadow-xs border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                     }`}
                 >
                   <FileText className="w-4 h-4 text-blue-600" />
-                  <span>Hồ sơ Bệnh Án Điện Tử (EMR)</span>
+                  <span>Hồ sơ bệnh nhân</span>
                 </button>
 
                 {/* Tab 2: Ghi nhận Khám lâm sàng & Chỉ định Cận lâm sàng */}
@@ -1384,8 +1347,8 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                   type="button"
                   onClick={() => setActiveSubTab('clinical_orders')}
                   className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeSubTab === 'clinical_orders'
-                      ? 'bg-white text-blue-700 shadow-xs border border-slate-200/60'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    ? 'bg-white text-blue-700 shadow-xs border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                     }`}
                 >
                   <Stethoscope className="w-4 h-4 text-blue-600" />
@@ -1393,24 +1356,6 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                   {existingTestOrders.length > 0 && (
                     <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-700 font-extrabold">
                       {existingTestOrders.length}
-                    </span>
-                  )}
-                </button>
-
-                {/* Tab 3: Mô-đun AI02 — Kết quả phân tích hình ảnh xét nghiệm */}
-                <button
-                  type="button"
-                  onClick={() => setActiveSubTab('ai_imaging')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeSubTab === 'ai_imaging'
-                      ? 'bg-white text-purple-700 shadow-xs border border-slate-200/60'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                    }`}
-                >
-                  <Sparkles className="w-4 h-4 text-purple-600" />
-                  <span>Phân tích ảnh AI (AI02)</span>
-                  {currentWorkflowState === 'completed' && (
-                    <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-extrabold animate-pulse">
-                      Đã có KQ
                     </span>
                   )}
                 </button>
@@ -1448,43 +1393,76 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
               {/* Tab 2: Ghi nhận Khám lâm sàng & Chẩn đoán sơ bộ + Chỉ định Cận lâm sàng + Phiếu đã lập */}
               {activeSubTab === 'clinical_orders' && (
                 <div className="space-y-6 animate-in fade-in duration-150">
-                  {/* Component 4: Doctor Clinical Examination & Preliminary Diagnosis */}
-                  <ClinicalExamForm
-                    encounterId={activeEncounterId}
-                    patientPosition={patientPosition}
-                    setPatientPosition={setPatientPosition}
-                    inspectionFindings={inspectionFindings}
-                    setInspectionFindings={setInspectionFindings}
-                    palpationFindings={palpationFindings}
-                    setPalpationFindings={setPalpationFindings}
-                    percussionFindings={percussionFindings}
-                    setPercussionFindings={setPercussionFindings}
-                    auscultationFindings={auscultationFindings}
-                    setAuscultationFindings={setAuscultationFindings}
-                    clinicalNotes={clinicalNotes}
-                    setClinicalNotes={setClinicalNotes}
-                    clinicalExamNote={auscultationFindings}
-                    setClinicalExamNote={setAuscultationFindings}
-                    preliminaryDiag={preliminaryDiag}
-                    setPreliminaryDiag={setPreliminaryDiag}
-                    onQuickDiagnosisSelect={handleQuickDiagnosisSelect}
-                    examWarningMsg={examWarningMsg}
-                  />
+                  {!hasConfirmedOrderOrResult ? (
+                    <>
+                      {/* Component 4: Doctor Clinical Examination & Preliminary Diagnosis */}
+                      <ClinicalExamForm
+                        encounterId={activeEncounterId}
+                        patientPosition={patientPosition}
+                        setPatientPosition={setPatientPosition}
+                        inspectionFindings={inspectionFindings}
+                        setInspectionFindings={setInspectionFindings}
+                        palpationFindings={palpationFindings}
+                        setPalpationFindings={setPalpationFindings}
+                        percussionFindings={percussionFindings}
+                        setPercussionFindings={setPercussionFindings}
+                        auscultationFindings={auscultationFindings}
+                        setAuscultationFindings={setAuscultationFindings}
+                        clinicalNotes={clinicalNotes}
+                        setClinicalNotes={setClinicalNotes}
+                        clinicalExamNote={auscultationFindings}
+                        setClinicalExamNote={setAuscultationFindings}
+                        preliminaryDiag={preliminaryDiag}
+                        setPreliminaryDiag={setPreliminaryDiag}
+                        onQuickDiagnosisSelect={handleQuickDiagnosisSelect}
+                        examWarningMsg={examWarningMsg}
+                      />
 
-                  {/* Component 5: Test Order Creation Form */}
-                  <TestOrderCreationCard
-                    services={servicesCatalog}
-                    isLoadingServices={isLoadingServices}
-                    selectedTestTypeIds={selectedTestTypeIds}
-                    onToggleCatalogItem={handleToggleCatalogItem}
-                    totalEstimatedCost={totalEstimatedCost}
-                    orderNotes={orderNotes}
-                    setOrderNotes={setOrderNotes}
-                    isSubmittingOrder={isSubmittingOrder}
-                    submitSuccessMsg={submitSuccessMsg}
-                    submitErrorMsg={submitErrorMsg}
-                    onSubmitOrder={handleConfirmDiagnosis}
-                  />
+                      {/* Component 5: Test Order Creation Form */}
+                      <TestOrderCreationCard
+                        services={servicesCatalog}
+                        isLoadingServices={isLoadingServices}
+                        selectedTestTypeIds={selectedTestTypeIds}
+                        onToggleCatalogItem={handleToggleCatalogItem}
+                        totalEstimatedCost={totalEstimatedCost}
+                        orderNotes={orderNotes}
+                        setOrderNotes={setOrderNotes}
+                        isSubmittingOrder={isSubmittingOrder}
+                        submitSuccessMsg={submitSuccessMsg}
+                        submitErrorMsg={submitErrorMsg}
+                        onSubmitOrder={handleConfirmDiagnosis}
+                      />
+                    </>
+                  ) : (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                          <CheckCircle2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-emerald-900">
+                            {currentWorkflowState === 'completed'
+                              ? 'Bệnh nhân đã có kết quả Cận lâm sàng'
+                              : 'Đã xác nhận Khám lâm sàng & Chỉ định Cận lâm sàng'}
+                          </p>
+                          <p className="text-xs text-emerald-700 mt-0.5">
+                            {currentWorkflowState === 'completed'
+                              ? 'Toàn bộ kết quả xét nghiệm đã hoàn tất. Bác sĩ có thể xem chi tiết bên dưới hoặc chuyển sang tab Chẩn đoán.'
+                              : 'Phiếu chỉ định đã được xác nhận cho ca khám này. Chi tiết các dịch vụ đã chỉ định hiển thị ở danh sách bên dưới.'}
+                          </p>
+                        </div>
+                      </div>
+                      {currentWorkflowState === 'completed' && (
+                        <button
+                          type="button"
+                          onClick={() => navigateTab('icd10-diagnosis')}
+                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shrink-0 cursor-pointer"
+                        >
+                          Xem kết quả
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {/* Component 6: Test Order History List */}
                   <div id="test-order-history-section">
@@ -1504,23 +1482,6 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                       onViewResult={() => navigateTab('icd10-diagnosis')}
                     />
                   </div>
-                </div>
-              )}
-
-
-              {/* Tab 3: Mô-đun AI02 — Kết quả phân tích hình ảnh xét nghiệm & Đề xuất AI */}
-              {activeSubTab === 'ai_imaging' && (
-                <div className="space-y-6 animate-in fade-in duration-150">
-                  {/* Component 3: AI02 Lab Image Analysis & ROI Simulation */}
-                  <AiImagingAnalysisCard
-                    currentWorkflowState={currentWorkflowState}
-                    onSimulateLabCompletion={handleSimulateLabCompletion}
-                    preliminaryDiag={preliminaryDiag}
-                    aiConfidence={currentPatient?.aiConfidence}
-                    aiProposedDiag={currentPatient?.aiProposedDiag}
-                    realImageUrl={latestLabImage?.url}
-                    realImageDescription={latestLabImage?.description}
-                  />
                 </div>
               )}
             </>

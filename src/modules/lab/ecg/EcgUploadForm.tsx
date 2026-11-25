@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileCheck2, Sparkles, Upload, X } from 'lucide-react';
+import { FileCheck2, Upload, X } from 'lucide-react';
 import type {
   EcgRecording,
   EcgRecordingType,
@@ -9,8 +9,8 @@ import type {
 } from '../../../types/ecg';
 import { STANDARD_12_LEADS } from '../../../types/ecg';
 import { ecgErrorMessage, ecgService } from '../../../services/lab/ecg.service';
-import { getMockSignal } from '../../../services/lab/ecg.mock';
 import { parseSignalInWorker } from './chart/data/parserClient';
+import { parseNpyBuffer } from './chart/data/parseNpy';
 import { EcgCanvas } from './chart/EcgCanvas';
 
 interface EcgUploadFormProps {
@@ -33,6 +33,7 @@ function inferFormat(fileName: string): EcgSignalFormat {
   const lower = fileName.toLowerCase();
   if (lower.endsWith('.csv')) return 'csv';
   if (lower.endsWith('.json')) return 'json';
+  if (lower.endsWith('.npy')) return 'npy';
   if (lower.endsWith('.edf')) return 'edf';
   if (lower.endsWith('.zip') || lower.endsWith('.hea') || lower.endsWith('.dat')) return 'wfdb';
   if (lower.endsWith('.dcm')) return 'dicom_ecg';
@@ -42,11 +43,11 @@ function inferFormat(fileName: string): EcgSignalFormat {
 
 export const EcgUploadForm: React.FC<EcgUploadFormProps> = ({ open, onClose, taskId, onUploaded }) => {
   const [file, setFile] = useState<File | null>(null);
-  const [recordingType, setRecordingType] = useState<EcgRecordingType>('resting_12_lead');
+  const [recordingType, setRecordingType] = useState<EcgRecordingType>('rhythm_strip');
   const [signalFormat, setSignalFormat] = useState<EcgSignalFormat>('json');
   const [sampleRateHz, setSampleRateHz] = useState<number>(500);
-  const [numLeads, setNumLeads] = useState<number>(12);
-  const [leadNames, setLeadNames] = useState<string>(STANDARD_12_LEADS.join(','));
+  const [numLeads, setNumLeads] = useState<number>(2);
+  const [leadNames, setLeadNames] = useState<string>('II,V5');
   const [deviceModel, setDeviceModel] = useState('Nihon Kohden ECG-2350');
   const [deviceSerial, setDeviceSerial] = useState('NK-23-08814');
   const [startedAt, setStartedAt] = useState('');
@@ -90,22 +91,22 @@ export const EcgUploadForm: React.FC<EcgUploadFormProps> = ({ open, onClose, tas
       } catch (err) {
         setPreviewError(err instanceof Error ? err.message : 'Không đọc trước được tệp tín hiệu.');
       }
+    } else if (fmt === 'npy') {
+      try {
+        const buf = await selected.arrayBuffer();
+        const sig = parseNpyBuffer(
+          buf,
+          sampleRateHz,
+          leadNames.split(',').map((s) => s.trim()).filter(Boolean),
+          800,
+        );
+        setNumLeads(sig.leadNames.length);
+        setLeadNames(sig.leadNames.join(','));
+        setPreviewSignal(sig);
+      } catch (err) {
+        setPreviewError(err instanceof Error ? err.message : 'Không đọc trước được tệp .npy.');
+      }
     }
-  };
-
-  /** Tạo tệp JSON mẫu từ bộ sinh sóng tổng hợp để KTV test nhanh ngay trên UI. */
-  const handleGenerateSampleFile = async () => {
-    const { signal } = getMockSignal();
-    const tenSecSamples = signal.sampleRateHz * 10;
-    const leadsObj: Record<string, number[]> = {};
-    signal.leadNames.forEach((name, idx) => {
-      leadsObj[name] = Array.from(signal.leads[idx].slice(0, tenSecSamples)).map((v) => Number(v.toFixed(4)));
-    });
-    const jsonText = JSON.stringify({ sampleRateHz: signal.sampleRateHz, leads: leadsObj });
-    const sampleFile = new File([jsonText], `ecg_12lead_${Date.now().toString().slice(-4)}.json`, {
-      type: 'application/json',
-    });
-    await handleSelectFile(sampleFile);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -153,7 +154,7 @@ export const EcgUploadForm: React.FC<EcgUploadFormProps> = ({ open, onClose, tas
           <div>
             <h3 className="text-base font-semibold text-slate-900">Tải lên bản ghi Điện tâm đồ (ECG)</h3>
             <p className="text-xs text-slate-500">
-              Hỗ trợ <code className="font-mono">.csv, .json, .edf, .zip (WFDB), .dcm, .scp</code> · tối đa 50MB
+              Hỗ trợ <code className="font-mono">.csv, .json, .npy, .edf, .zip (WFDB), .dcm, .scp</code> · tối đa 50MB
             </p>
           </div>
           <button
@@ -179,7 +180,7 @@ export const EcgUploadForm: React.FC<EcgUploadFormProps> = ({ open, onClose, tas
             >
               <input
                 type="file"
-                accept=".csv,.json,.edf,.zip,.dcm,.scp"
+                accept=".csv,.json,.npy,.edf,.zip,.dcm,.scp"
                 onChange={(e) => void handleSelectFile(e.target.files?.[0] ?? null)}
                 className="hidden"
               />
@@ -203,17 +204,6 @@ export const EcgUploadForm: React.FC<EcgUploadFormProps> = ({ open, onClose, tas
                 </>
               )}
             </label>
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => void handleGenerateSampleFile()}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Tạo nhanh tệp mẫu 12 đạo trình (.json) để kiểm thử</span>
-              </button>
-            </div>
           </div>
 
           {/* Preview 10s đầu Lead II trước khi upload (mục 3.8) */}
@@ -262,8 +252,8 @@ export const EcgUploadForm: React.FC<EcgUploadFormProps> = ({ open, onClose, tas
                   const val = e.target.value as EcgRecordingType;
                   setRecordingType(val);
                   if (val === 'rhythm_strip') {
-                    setNumLeads(1);
-                    setLeadNames('II');
+                    setNumLeads(2);
+                    setLeadNames('II,V5');
                   } else {
                     setNumLeads(12);
                     setLeadNames(STANDARD_12_LEADS.join(','));
@@ -288,6 +278,7 @@ export const EcgUploadForm: React.FC<EcgUploadFormProps> = ({ open, onClose, tas
               >
                 <option value="json">JSON (.json)</option>
                 <option value="csv">CSV (.csv)</option>
+                <option value="npy">NumPy (.npy)</option>
                 <option value="wfdb">WFDB (.zip gồm .hea + .dat)</option>
                 <option value="edf">EDF (.edf)</option>
                 <option value="dicom_ecg">DICOM ECG (.dcm)</option>

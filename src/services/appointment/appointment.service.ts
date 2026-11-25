@@ -39,7 +39,6 @@ export interface GuestRequestOtpPayload {
   fullName: string;
   dateOfBirth: string;
   gender: 'male' | 'female' | 'other';
-  identityNumber: string;
   departmentId?: string;
   doctorId: string;
   slotId: string;
@@ -57,7 +56,6 @@ export interface GuestVerifyOtpPayload {
 export interface SyncPatientPayload {
   appointmentId: string;
   fullName: string;
-  identityNumber: string;
   phoneNumber: string;
 }
 
@@ -65,8 +63,6 @@ export interface ConfirmMainPatientPayload {
   fullName?: string;
   dateOfBirth?: string;
   gender?: string;
-  identityNumber?: string;
-  insuranceNumber?: string;
   phoneNumber?: string;
 }
 

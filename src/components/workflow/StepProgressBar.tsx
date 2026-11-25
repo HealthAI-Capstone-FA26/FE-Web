@@ -155,7 +155,7 @@ export const StepProgressBar: React.FC<StepProgressBarProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 text-xs text-blue-700 font-bold hover:underline cursor-pointer shrink-0">
-            <span>Chi tiết mô-đun</span>
+            <span>Chi tiết quy trình</span>
             <ChevronRight className="w-4 h-4" />
           </div>
         </div>

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { patientService } from '../../services/patient/patient.service';
+import { getPatientEncounterHistory, type EncounterItem } from '../../services/encounter/encounter.service';
 import { EditPatientModal } from './EditPatientModal';
 import { Mascot } from 'page-mascot';
 
@@ -93,6 +94,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [isLoadingVisitHistory, setIsLoadingVisitHistory] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
 
   // Form states
@@ -167,6 +169,70 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
   useEffect(() => {
     loadPatients();
   }, [searchTerm]);
+
+  // Fetch encounter history when viewing a patient's detail modal
+  const selectedPatientId = selectedPatient?.patientId;
+  useEffect(() => {
+    if (!selectedPatientId) return;
+    let cancelled = false;
+    setIsLoadingVisitHistory(true);
+
+    const statusVi: Record<string, string> = {
+      arrived: 'Đã đến',
+      registered: 'Đã tiếp nhận',
+      waiting_for_doctor: 'Chờ bác sĩ',
+      in_progress: 'Đang khám',
+      awaiting_review: 'Chờ đọc kết quả',
+      finished: 'Đã hoàn tất',
+      cancelled: 'Đã huỷ',
+    };
+
+    getPatientEncounterHistory(selectedPatientId)
+      .then((encounters: EncounterItem[]) => {
+        if (cancelled) return;
+        const sorted = [...encounters].sort(
+          (a, b) => new Date(b.arrivedAt).getTime() - new Date(a.arrivedAt).getTime()
+        );
+        const mappedVisits: Visit[] = sorted.map((enc) => {
+          const d = new Date(enc.arrivedAt);
+          const dateStr = Number.isNaN(d.getTime())
+            ? enc.arrivedAt
+            : d.toLocaleString('vi-VN', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+          const statusLabel = statusVi[enc.status] || enc.status;
+          return {
+            date: `${dateStr} · ${enc.encounterCode}`,
+            reason:
+              enc.chiefComplaint?.reasonForVisit ||
+              enc.chiefComplaint?.symptoms ||
+              'Khám chuyên khoa Tim mạch',
+            diagnosis: `Trạng thái: ${statusLabel}`,
+            doctor: enc.doctor?.fullName || 'Chưa phân công',
+            specialty: enc.department?.departmentName || 'Khoa Tim mạch',
+            prescription: '',
+            notes: enc.chiefComplaint?.symptoms || undefined,
+          };
+        });
+        setSelectedPatient((prev) =>
+          prev && prev.patientId === selectedPatientId ? { ...prev, visitHistory: mappedVisits } : prev
+        );
+      })
+      .catch(() => {
+        // Giữ nguyên danh sách hiện tại nếu lỗi mạng
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingVisitHistory(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPatientId]);
 
   // Filter patients based on search input & selected tab
   const filteredPatients = useMemo(() => {
@@ -724,52 +790,68 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
 
                   {/* Vertical Timeline Container */}
                   <div className="relative pl-6 border-l-2 border-indigo-100 space-y-6 max-h-[420px] overflow-y-auto pr-2 py-2">
-                    {selectedPatient.visitHistory && selectedPatient.visitHistory.map((visit, index) => (
-                      <div key={index} className="relative group">
+                    {isLoadingVisitHistory ? (
+                      <div className="flex items-center gap-2 py-8 text-xs font-semibold text-slate-500">
+                        <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                        <span>Đang tải lịch sử khám bệnh...</span>
+                      </div>
+                    ) : !selectedPatient.visitHistory || selectedPatient.visitHistory.length === 0 ? (
+                      <div className="py-8 text-xs text-slate-400 italic">
+                        Bệnh nhân chưa có lượt khám nào được ghi nhận.
+                      </div>
+                    ) : (
+                      selectedPatient.visitHistory.map((visit, index) => (
+                        <div key={index} className="relative group">
 
-                        {/* Timeline Node Dot */}
-                        <div className="absolute -left-[31px] top-0 w-4 h-4 rounded-full bg-white border-4 border-indigo-600 flex items-center justify-center group-hover:scale-125 transition-all shadow-xs" />
+                          {/* Timeline Node Dot */}
+                          <div className="absolute -left-[31px] top-0 w-4 h-4 rounded-full bg-white border-4 border-indigo-600 flex items-center justify-center group-hover:scale-125 transition-all shadow-xs" />
 
-                        {/* Visit Card */}
-                        <div className="bg-white hover:bg-slate-50/50 border border-slate-200/80 rounded-2xl p-4 shadow-xs transition-all space-y-2">
-                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                            <span className="flex items-center gap-1.5 text-xs font-extrabold text-indigo-700">
-                              <Calendar className="w-3.5 h-3.5" />
-                              <span>{visit.date}</span>
-                            </span>
-                            <span className="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded">
-                              Lần khám {selectedPatient.visitHistory.length - index}
-                            </span>
-                          </div>
+                          {/* Visit Card */}
+                          <div className="bg-white hover:bg-slate-50/50 border border-slate-200/80 rounded-2xl p-4 shadow-xs transition-all space-y-2">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                              <span className="flex items-center gap-1.5 text-xs font-extrabold text-indigo-700">
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span>{visit.date}</span>
+                              </span>
+                              <span className="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded">
+                                Lần khám {selectedPatient.visitHistory.length - index}
+                              </span>
+                            </div>
 
-                          <div className="space-y-1 text-slate-700">
-                            <p>
-                              <strong className="text-slate-800">Lý do khám:</strong> {visit.reason}
-                            </p>
-                            <p>
-                              <strong className="text-slate-800">Chẩn đoán lâm sàng:</strong> <span className="text-[#0b3c8f] font-semibold">{visit.diagnosis}</span>
-                            </p>
-                            <p className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold">
-                              <Stethoscope className="w-3.5 h-3.5 text-slate-400" />
-                              <span>Bác sĩ phụ trách: {visit.doctor} ({visit.specialty})</span>
-                            </p>
-                          </div>
-
-                          <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 space-y-1 text-[11px]">
-                            <p>
-                              <strong className="text-slate-800 block">Đơn thuốc được kê:</strong>
-                              <span className="text-slate-600 font-mono leading-relaxed">{visit.prescription}</span>
-                            </p>
-                            {visit.notes && (
-                              <p className="text-slate-500 italic mt-1 text-[10px]">
-                                * Lời dặn: {visit.notes}
+                            <div className="space-y-1 text-slate-700">
+                              <p>
+                                <strong className="text-slate-800">Lý do khám:</strong> {visit.reason}
                               </p>
+                              <p>
+                                <strong className="text-slate-800">Tình trạng lượt khám:</strong>{' '}
+                                <span className="text-[#0b3c8f] font-semibold">{visit.diagnosis}</span>
+                              </p>
+                              <p className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold">
+                                <Stethoscope className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Bác sĩ phụ trách: {visit.doctor} ({visit.specialty})</span>
+                              </p>
+                            </div>
+
+                            {(visit.prescription || visit.notes) && (
+                              <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 space-y-1 text-[11px]">
+                                {visit.prescription && (
+                                  <p>
+                                    <strong className="text-slate-800 block">Đơn thuốc được kê:</strong>
+                                    <span className="text-slate-600 font-mono leading-relaxed">{visit.prescription}</span>
+                                  </p>
+                                )}
+                                {visit.notes && (
+                                  <p className="text-slate-500 italic mt-1 text-[10px]">
+                                    * Ghi chú tiếp nhận: {visit.notes}
+                                  </p>
+                                )}
+                              </div>
                             )}
                           </div>
-                        </div>
 
-                      </div>
-                    ))}
+                        </div>
+                      ))
+                    )}
                   </div>
 
                 </div>

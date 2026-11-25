@@ -4,9 +4,7 @@ import {
   Calendar as CalendarIcon,
   User,
   Check,
-  Activity,
   ShieldAlert,
-  Award,
   ChevronDown,
   Stethoscope,
   Building2,
@@ -50,14 +48,12 @@ export const BookingForm = () => {
     return getLocalDateString(tomorrow);
   });
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
-  const [serviceLevel, setServiceLevel] = useState<'tieu-chuan' | 'vip'>('tieu-chuan');
   const [reasonForVisit, setReasonForVisit] = useState<string>('');
 
   // Guest Patient Info State (No login required)
   const [fullName, setFullName] = useState<string>('');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [email, setEmail] = useState<string>('');
-  const [identityNumber, setIdentityNumber] = useState<string>('');
   const [dateOfBirth, setDateOfBirth] = useState<string>('');
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
   const [verifyMethod, setVerifyMethod] = useState<'email' | 'sms'>('email');
@@ -167,16 +163,10 @@ export const BookingForm = () => {
       newErrors.phoneNumber = 'Số điện thoại không hợp lệ (9-11 chữ số)';
     }
 
-    if (verifyMethod === 'email' && !email.trim()) {
-      newErrors.email = 'Vui lòng nhập email để nhận mã OTP';
-    } else if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (!email.trim()) {
+      newErrors.email = 'Vui lòng nhập địa chỉ email';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       newErrors.email = 'Địa chỉ email không đúng định dạng';
-    }
-
-    if (!identityNumber.trim()) {
-      newErrors.identityNumber = 'Vui lòng nhập số CCCD / CMND';
-    } else if (identityNumber.trim().length < 9) {
-      newErrors.identityNumber = 'Số CCCD/CMND tối thiểu 9 chữ số';
     }
 
     if (!selectedDoctorId) newErrors.selectedDoctorId = 'Vui lòng chọn bác sĩ khám';
@@ -205,8 +195,7 @@ export const BookingForm = () => {
       const res = await appointmentService.guestRequestOtp({
         fullName: fullName.trim(),
         phoneNumber: phoneNumber.trim(),
-        email: email.trim() || undefined,
-        identityNumber: identityNumber.trim(),
+        email: email.trim(),
         dateOfBirth,
         gender,
         doctorId: selectedDoctorId,
@@ -241,7 +230,7 @@ export const BookingForm = () => {
       const res = await appointmentService.guestVerifyOtp({
         phoneNumber: phoneNumber.trim(),
         otp: otp.trim(),
-        email: email.trim() || undefined,
+        email: email.trim(),
       });
 
       setSuccessBooking(res);
@@ -364,21 +353,10 @@ export const BookingForm = () => {
                       {errors.phoneNumber && <span className="text-[10px] text-yellow-300 block mt-0.5">{errors.phoneNumber}</span>}
                     </div>
 
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase text-blue-100 mb-1">Số CCCD / CMND *</label>
-                      <input
-                        type="text"
-                        placeholder="079090001234"
-                        value={identityNumber}
-                        onChange={(e) => setIdentityNumber(e.target.value)}
-                        className={`w-full bg-white text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs outline-none border ${errors.identityNumber ? 'border-yellow-400' : 'border-transparent'
-                          }`}
-                      />
-                      {errors.identityNumber && <span className="text-[10px] text-yellow-300 block mt-0.5">{errors.identityNumber}</span>}
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase text-blue-100 mb-1">Email nhận thông báo</label>
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-bold uppercase text-blue-100 mb-1">
+                        Email nhận thông báo *
+                      </label>
                       <input
                         type="email"
                         placeholder="guest@example.com"
@@ -464,32 +442,11 @@ export const BookingForm = () => {
                   </div>
                 </div>
 
-                {/* KHUNG 3: CHỌN LOẠI HÌNH & BÁC SĨ TIM MẠCH */}
+                {/* KHUNG 3: CHỌN BÁC SĨ TIM MẠCH & KHUNG GIỜ */}
                 <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-3 font-sans">
-                  {/* Chọn loại hình khám */}
-                  <div className="space-y-1">
-                    <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
-                      * 3. Chọn loại hình khám & Bác sĩ phụ trách
-                    </span>
-                    <div className="grid grid-cols-2 bg-white p-1 rounded-lg text-center font-bold">
-                      <button
-                        type="button"
-                        onClick={() => setServiceLevel('tieu-chuan')}
-                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer ${serviceLevel === 'tieu-chuan' ? 'bg-[#0b3c8f] text-white' : 'text-slate-700'
-                          }`}
-                      >
-                        <Activity className="w-3.5 h-3.5" /> Khám Tiêu Chuẩn
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setServiceLevel('vip')}
-                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer ${serviceLevel === 'vip' ? 'bg-[#0b3c8f] text-white' : 'text-slate-700'
-                          }`}
-                      >
-                        <Award className="w-3.5 h-3.5" /> Khám VIP
-                      </button>
-                    </div>
-                  </div>
+                  <span className="font-bold text-blue-100 uppercase tracking-wider block text-[11px]">
+                    * 3. Bác sĩ phụ trách & Lịch khám
+                  </span>
 
                   {/* Bác sĩ Tim mạch */}
                   <div>

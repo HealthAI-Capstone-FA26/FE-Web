@@ -578,9 +578,13 @@ export const EcgCanvas = React.forwardRef<EcgCanvasHandle, EcgCanvasProps>((prop
               {hoverInfo.anomaly && (
                 <div className="mt-1 pt-1 border-t border-white/15 text-[11px]">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-amber-300">
-                      {getAnomalyLabel(hoverInfo.anomaly.anomalyType)}
-                    </span>
+                    {hoverInfo.anomaly.anomalyType && hoverInfo.anomaly.anomalyType !== 'unclassified' ? (
+                      <span className="font-semibold text-amber-300">
+                        {getAnomalyLabel(hoverInfo.anomaly.anomalyType)}
+                      </span>
+                    ) : (
+                      <span className="font-semibold text-slate-200">Đoạn bất thường</span>
+                    )}
                     <span className="px-1.5 py-0.2 rounded bg-white/15 text-[10px] font-mono text-white">
                       {CONFUSION_META[getEventConfusionKind(hoverInfo.anomaly)].label}
                     </span>
