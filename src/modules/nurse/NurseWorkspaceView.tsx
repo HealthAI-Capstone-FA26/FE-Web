@@ -5,6 +5,11 @@ import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/W
 import { NurseQueueView, type NurseDateFilterMode } from './NurseQueueView';
 import { NurseVitalAlertsView } from './NurseVitalAlertsView';
 
+function formatIsoToDdMmYyyy(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso || 'dd/mm/yyyy';
+}
+
 export const NurseWorkspaceView: React.FC = () => {
   const location = useLocation();
 
@@ -75,12 +80,17 @@ export const NurseWorkspaceView: React.FC = () => {
         );
       })}
       {dateFilterMode === 'custom' && (
-        <input
-          type="date"
-          value={customDate}
-          onChange={(e) => setCustomDate(e.target.value)}
-          className="ml-1 px-1.5 py-0.5 text-xs rounded-lg border border-slate-300 bg-white text-slate-700 font-medium outline-none focus:border-blue-600"
-        />
+        <label className="relative ml-1 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white hover:border-blue-500 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 text-slate-800 font-mono font-bold cursor-pointer transition-all">
+          <span>{formatIsoToDdMmYyyy(customDate)}</span>
+          <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+          <input
+            type="date"
+            value={customDate}
+            onChange={(e) => setCustomDate(e.target.value)}
+            onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          />
+        </label>
       )}
     </div>
   );

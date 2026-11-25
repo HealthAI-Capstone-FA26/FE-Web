@@ -1196,10 +1196,10 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:items-stretch">
 
         {/* Left Column: Patient selector and allergy record (4 cols) */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className="lg:col-span-4 flex flex-col gap-6">
 
           {/* Patient queue card */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
@@ -1307,7 +1307,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
           </div>
 
           {/* Patient clinical details & allergy warning */}
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
+          <div className={`bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-4 ${isEncounterFinished ? 'flex-1' : ''}`}>
             <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">
               Thông tin lâm sàng & Dị ứng
             </h3>
@@ -1351,7 +1351,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
         </div>
 
         {/* Right Column: Prescription editor, directory selector, follow-up, signing (8 cols) */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="lg:col-span-8 flex flex-col gap-6">
 
           {/* Stepper Quy trình Kê đơn 3 bước */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
@@ -1398,7 +1398,8 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
             </div>
           </div>
 
-          {/* Add medication from National Drug Directory Form */}
+          {/* Add medication from National Drug Directory Form (ẩn khi ca khám đã hoàn tất) */}
+          {!isEncounterFinished && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
             <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-3">
               <Search className="w-4.5 h-4.5 text-blue-700" />
@@ -1539,14 +1540,19 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
 
             </form>
           </div>
+          )}
 
           {/* Current Prescription Table */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
+          <div
+            className={`bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col gap-4 ${
+              isEncounterFinished ? 'flex-1' : ''
+            }`}
+          >
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
                   <Pill className="w-4 h-4 text-indigo-700" />
-                  <span>Nội Dung Đơn Thuốc Hiện Tại (Chuẩn Hóa ICD-10)</span>
+                  <span>Nội Dung Đơn Thuốc Hiện Tại </span>
                 </h3>
                 {currentPrescription && (
                   <div className="text-[11px] text-slate-500 font-mono mt-0.5">
@@ -1624,7 +1630,7 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
                       <th className="py-2.5 px-3">Liều Dùng & Liều Lượng</th>
                       <th className="py-2.5 px-3 text-center">Số Lượng</th>
                       <th className="py-2.5 px-3">Thời gian</th>
-                      <th className="py-2.5 px-3 text-center">Tác vụ</th>
+                      {!isPrescriptionLocked && <th className="py-2.5 px-3 text-center">Tác vụ</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
@@ -1641,17 +1647,18 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
                         </td>
                         <td className="py-3 px-3 text-center font-black text-blue-900">{d.quantity} {d.unit}</td>
                         <td className="py-3 px-3 font-bold text-slate-600">{d.duration}</td>
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            type="button"
-                            disabled={isPrescriptionLocked}
-                            onClick={() => handleDeleteDrug(d.catalogCode)}
-                            className="p-1 text-slate-400 hover:text-rose-600 disabled:opacity-30 transition-colors cursor-pointer border-none bg-transparent"
-                            title="Xóa thuốc"
-                          >
-                            <Trash2 className="w-4.5 h-4.5" />
-                          </button>
-                        </td>
+                        {!isPrescriptionLocked && (
+                          <td className="py-3 px-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteDrug(d.catalogCode)}
+                              className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer border-none bg-transparent"
+                              title="Xóa thuốc"
+                            >
+                              <Trash2 className="w-4.5 h-4.5" />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -1659,12 +1666,39 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
               </div>
             ) : (
               <div className="p-6 text-center text-slate-400 font-medium text-xs border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                Chưa có thuốc nào được kê trong đơn. Hãy chọn thuốc từ danh mục phía trên.
+                {isEncounterFinished
+                  ? 'Ca khám đã hoàn tất và không có thuốc kê trong đơn.'
+                  : 'Chưa có thuốc nào được kê trong đơn. Hãy chọn thuốc từ danh mục phía trên.'}
+              </div>
+            )}
+
+            {isEncounterFinished && (
+              <div className="mt-auto pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2 text-emerald-700 font-bold">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    Ca khám đã hoàn tất &amp; đóng hồ sơ bệnh án
+                    {isFollowUpSynced && (followUpDisplay || followUpDate)
+                      ? ` • Tái khám: ${followUpDisplay || followUpDate}`
+                      : ''}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={openMedicalReportPrintWindow}
+                  disabled={!activeEncounterId}
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl border border-slate-200 cursor-pointer inline-flex items-center gap-1.5 transition-colors disabled:opacity-50 shrink-0 self-start sm:self-auto"
+                >
+                  <FileText className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Phiếu Kết Quả EMR (.PDF)</span>
+                </button>
               </div>
             )}
           </div>
 
-          {/* Trạng thái Lịch Hẹn Tái Khám & Kết Thúc Lượt Khám */}
+          {!isEncounterFinished && (
+            <>
+              {/* Trạng thái Lịch Hẹn Tái Khám & Kết Thúc Lượt Khám */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
@@ -1772,6 +1806,8 @@ export const DoctorPrescriptionView: React.FC<DoctorPrescriptionViewProps> = ({
               )}
             </div>
           </BorderBeam>
+            </>
+          )}
 
         </div>
 

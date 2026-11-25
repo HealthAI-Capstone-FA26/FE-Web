@@ -25,7 +25,7 @@ export const AiClinicalSummaryCard: React.FC<AiClinicalSummaryCardProps> = ({
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-cyan-400 animate-pulse" />
               <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">
-                Mô-đun AI01 — Tóm tắt bệnh án do AI tự động biên soạn
+                Tóm tắt bệnh án do AI tự động biên soạn
               </h3>
             </div>
             <div className="flex items-center gap-2">

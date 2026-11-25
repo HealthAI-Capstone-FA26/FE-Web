@@ -972,7 +972,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
                         <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide whitespace-nowrap">
-                          {eventTime} — Tiếp nhận khám (Mô-đun 3)
+                          {eventTime} — Tiếp nhận khám
                         </span>
                         <div className="space-y-0.5">
                           <p className="font-extrabold text-slate-800">
@@ -994,7 +994,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
                         <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide whitespace-nowrap">
-                          {eventTime} — Đo sinh hiệu tim mạch (Mô-đun 4)
+                          {eventTime} — Đo sinh hiệu tim mạch
                         </span>
                         <div className="space-y-1">
                           <p className="font-extrabold text-slate-800">{event.summary}</p>
@@ -1025,7 +1025,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
                         <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide whitespace-nowrap">
-                          {eventTime} — Khám lâm sàng tim mạch (Mô-đun 5)
+                          {eventTime} — Khám lâm sàng tim mạch
                         </span>
                         <div className="space-y-0.5 text-xs">
                           {event.data?.auscultationFindings && (
@@ -1066,7 +1066,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                           <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                         </span>
                         <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide whitespace-nowrap">
-                          {eventTime} — Chỉ định CLS tim mạch (Mô-đun 5)
+                          {eventTime} — Chỉ định CLS tim mạch
                         </span>
                         <p className="font-extrabold text-slate-800">
                           {items.map((i: any) => i.service?.serviceName || i.testType?.testName).filter(Boolean).join(', ') || event.summary}
@@ -1088,7 +1088,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                         </span>
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-bold text-slate-400 block text-[9px] uppercase tracking-wide whitespace-nowrap">
-                            {eventTime} — Kết quả CLS (Mô-đun 7)
+                            {eventTime} — Kết quả CLS
                           </span>
                           <button
                             type="button"
@@ -1559,7 +1559,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                   <div className="space-y-4 border-t border-slate-100 pt-5">
                     <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-tight flex items-center gap-1.5">
                       <Clipboard className="w-4 h-4 text-blue-700" />
-                      <span>2. Hồ Sơ Tư Vấn Điều Trị & Phác Đồ Tim Mạch (Mô-đun 8)</span>
+                      <span>2. Hồ Sơ Tư Vấn Điều Trị & Phác Đồ Tim Mạch</span>
                     </h4>
 
                     {/* Condition explanation */}
@@ -1816,11 +1816,13 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                   {isSubmitSuccess && (
                     <div className="text-xs text-emerald-700 font-semibold flex items-center gap-1.5 bg-emerald-50 p-3.5 rounded-xl border border-emerald-200 animate-in fade-in duration-200">
                       <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                      <span>Đã lưu kết luận chẩn đoán ICD-10 và hồ sơ tư vấn điều trị thành công! Chuyển thông tin tự động sang kê đơn thuốc (Mô-đun 9).</span>
+                      <span>Đã lưu kết luận chẩn đoán ICD-10 và hồ sơ tư vấn điều trị thành công! Chuyển thông tin tự động sang kê đơn thuốc.</span>
                     </div>
                   )}
 
-                  {/* Submit button */}
+                </fieldset>
+
+                  {/* Submit button / Finished footer (outside disabled fieldset so button stays clickable) */}
                   <div className="pt-2 flex flex-col sm:flex-row items-end sm:items-center justify-between gap-3">
                     {isEncounterFinished ? (
                       <div className="w-full text-xs text-slate-700 bg-slate-100 px-4 py-3 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
@@ -1829,7 +1831,12 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                         </span>
                         <button
                           type="button"
-                          onClick={() => navigateTab('prescription')}
+                          onClick={() => {
+                            if (activeEncounterId) {
+                              localStorage.setItem('doctor_selected_patient_id', activeEncounterId);
+                            }
+                            navigateTab('prescription');
+                          }}
                           className="px-3.5 py-1.5 bg-white text-blue-700 hover:bg-blue-50 border border-slate-300 rounded-lg font-bold text-xs cursor-pointer transition-colors shadow-2xs shrink-0"
                         >
                           Xem đơn thuốc &rarr;
@@ -1857,14 +1864,13 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                           ) : (
                             <>
                               <CheckCircle2 className="w-4 h-4" />
-                              <span>Ghi Nhận Kết Luận Chẩn Đoán &amp; Chuyển Kê Đơn (Mô-đun 9)</span>
+                              <span>Ghi Nhận Kết Luận Chẩn Đoán &amp; Chuyển Kê Đơn</span>
                             </>
                           )}
                         </button>
                       </>
                     )}
                   </div>
-                </fieldset>
               </form>
             </>
           )}
@@ -1897,7 +1903,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
         footer={
           <div className="flex items-center justify-between w-full">
             <div className="text-[11px] text-slate-500 font-medium">
-              Dữ liệu được đồng bộ trực tiếp từ phòng Xét nghiệm Lab (Mô-đun 7)
+              Dữ liệu được đồng bộ trực tiếp từ phòng Xét nghiệm Lab
             </div>
             <button
               type="button"

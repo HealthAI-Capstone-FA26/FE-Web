@@ -74,7 +74,7 @@ export const PatientConsentView: React.FC = () => {
           <p className="font-bold text-slate-900">1. Điều khoản bảo mật & lưu trữ dữ liệu y tế (EMR):</p>
           <p>Bệnh nhân đồng ý cho Phòng khám Tim mạch 4AM thu thập, mã hóa và lưu trữ dữ liệu bệnh án điện tử (bao gồm sinh hiệu, kết quả xét nghiệm, chẩn đoán, đơn thuốc) theo quy chuẩn an toàn HL7 FHIR R4 và các quy định pháp luật hiện hành của Bộ Y Tế.</p>
           
-          <p className="font-bold text-slate-900">2. Điều khoản cho phép ứng dụng Mô-đun AI hỗ trợ chẩn đoán:</p>
+          <p className="font-bold text-slate-900">2. Điều khoản cho phép ứng dụng AI hỗ trợ chẩn đoán:</p>
           <p>Bệnh nhân đồng ý cho phép các hệ thống AI (AI01 - Tóm tắt EMR tự động và AI02 - Khoanh vùng bất thường hình ảnh y tế DICOM) xử lý dữ liệu lâm sàng của mình nhằm mục đích hỗ trợ bác sĩ đưa ra quyết định thăm khám nhanh chóng và chính xác hơn.</p>
 
           <p className="font-bold text-slate-900">3. Quyền riêng tư & bảo mật thông tin:</p>
@@ -103,7 +103,7 @@ export const PatientConsentView: React.FC = () => {
               className="w-4 h-4 mt-0.5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
             />
             <span className="text-xs font-bold text-slate-800">
-              Tôi đồng ý cho phép các mô-đun AI phân tích dữ liệu lâm sàng & hình ảnh y tế hỗ trợ bác sĩ thăm khám.
+              Tôi đồng ý cho phép hệ thống AI phân tích dữ liệu lâm sàng & hình ảnh y tế hỗ trợ bác sĩ thăm khám.
             </span>
           </label>
         </div>

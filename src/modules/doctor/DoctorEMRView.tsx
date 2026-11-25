@@ -1170,7 +1170,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
       });
 
       setSubmitSuccessMsg(
-        `Đã lập phiếu chỉ định ${orderResult.orderCode} thành công! Ca khám đã được chuyển sang Quầy Thu phí (Mô-đun 6).`
+        `Đã lập phiếu chỉ định ${orderResult.orderCode} thành công! Ca khám đã được chuyển sang Quầy Thu phí.`
       );
       setOrderNotes('');
 

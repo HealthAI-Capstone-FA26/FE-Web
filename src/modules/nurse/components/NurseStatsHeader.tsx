@@ -1,7 +1,6 @@
 import React from 'react';
 import { RefreshCw, Activity, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { Mascot } from 'page-mascot';
-import { Badge } from '../../../components/common/Badge';
 
 interface NurseStatsHeaderProps {
   totalCount: number;
@@ -40,9 +39,6 @@ export const NurseStatsHeader: React.FC<NurseStatsHeaderProps> = ({
               <h2 className="text-xl font-extrabold text-slate-900">
                 Trạm Điều Dưỡng — Tiếp Nhận & Đo Sinh Hiệu
               </h2>
-              <Badge variant="warning" size="sm">
-                Mô-đun 4
-              </Badge>
             </div>
             <p className="text-xs text-slate-500 mt-1">
               Bệnh nhân sau khi được Lễ tân tiếp nhận sẽ hiển thị tại trạm đo sinh hiệu (Huyết áp, Mạch, Nhiệt độ, SpO2, Chiều cao, Cân nặng, BMI) trước khi chuyển vào khám Bác sĩ.
