@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { User, Stethoscope, FileText, Calendar, CheckCircle2 } from 'lucide-react';
+import { User, Stethoscope, FileText, Calendar, CheckCircle2, AlertTriangle, Trash2, Loader2 } from 'lucide-react';
+import { Modal } from '../../components/common/Modal';
 import { Mascot } from 'page-mascot';
 import {
   encounterService,
@@ -1061,12 +1062,23 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
   // Trạng thái quy trình ca khám hiện tại
   const currentWorkflowState = (activeEncounterId ? patientWorkflowStates[activeEncounterId] : undefined) || 'initial';
 
-  // Đã xác nhận chỉ định CLS hoặc đã có kết quả -> ẩn form khám & tạo phiếu chỉ định
+  // Đã xác nhận chỉ định CLS hoặc đã có kết quả -> ẩn form tạo phiếu chỉ định
   const hasConfirmedOrderOrResult =
     currentWorkflowState !== 'initial' ||
     existingTestOrders.some((order) =>
       (order.items || []).some((item) => item.status !== 'cancelled')
     );
+
+  const isClinicalExamIncomplete = !Boolean(
+    patientPosition.trim() ||
+    inspectionFindings.trim() ||
+    palpationFindings.trim() ||
+    percussionFindings.trim() ||
+    auscultationFindings.trim() ||
+    clinicalNotes.trim()
+  );
+
+  const [showClinicalExamAfterOrder, setShowClinicalExamAfterOrder] = useState(false);
 
   const handleToggleCatalogItem = (testTypeId: string) => {
     setSelectedTestTypeIds((prev) =>
@@ -1098,6 +1110,10 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
     }
     if (selectedTestTypeIds.length === 0) {
       setSubmitErrorMsg('Vui lòng chọn ít nhất một chỉ định cận lâm sàng trong danh mục.');
+      return;
+    }
+    if (!preliminaryDiag.trim()) {
+      setSubmitErrorMsg('Vui lòng nhập Chẩn đoán sơ bộ của Bác sĩ trước khi lập phiếu chỉ định.');
       return;
     }
 
@@ -1138,18 +1154,21 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
       }
 
       // Tạo hoặc cập nhật bản ghi Chẩn đoán sơ bộ (Mục 5 - SE02 Initial Diagnosis)
-      if (preliminaryDiag.trim()) {
-        try {
-          const diagResult = await initialDiagnosisService.upsertInitialDiagnosis(
-            activeEncounterId,
-            preliminaryDiag
-          );
-          if (diagResult?.diagnosisId) {
-            initialDiagnosisId = diagResult.diagnosisId;
-          }
-        } catch (diagErr) {
-          console.warn('Ghi nhận chẩn đoán sơ bộ SE02:', diagErr);
+      try {
+        const diagResult = await initialDiagnosisService.upsertInitialDiagnosis(
+          activeEncounterId,
+          preliminaryDiag
+        );
+        if (diagResult?.diagnosisId) {
+          initialDiagnosisId = diagResult.diagnosisId;
         }
+      } catch (diagErr: any) {
+        const diagErrMsg = diagErr?.data?.message || diagErr?.message || 'Không thể lưu chẩn đoán sơ bộ.';
+        throw new Error(`Chẩn đoán sơ bộ: ${diagErrMsg}`);
+      }
+
+      if (!initialDiagnosisId) {
+        throw new Error('Không lấy được mã chẩn đoán sơ bộ hợp lệ để lập phiếu chỉ định.');
       }
 
 
@@ -1195,23 +1214,35 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
     }
   };
 
-  // Hủy chỉ định xét nghiệm
-  const handleCancelTestOrderItem = async (orderItemId: string, testName: string) => {
-    if (!window.confirm(`Bác sĩ có chắc chắn muốn hủy chỉ định xét nghiệm "${testName}" này không?`)) {
-      return;
-    }
+  const [cancelModalItem, setCancelModalItem] = useState<{ orderItemId: string; testName: string } | null>(null);
+  const [cancelReason, setCancelReason] = useState('Thay đổi hướng chẩn đoán.');
+  const [cancelErrorMsg, setCancelErrorMsg] = useState<string | null>(null);
+
+  // Mở modal xác nhận hủy chỉ định xét nghiệm
+  const handleCancelTestOrderItem = (orderItemId: string, testName: string) => {
+    setCancelErrorMsg(null);
+    setCancelReason('Thay đổi hướng chẩn đoán.');
+    setCancelModalItem({ orderItemId, testName });
+  };
+
+  // Xác nhận gọi API hủy chỉ định xét nghiệm
+  const handleConfirmCancelOrderItem = async () => {
+    if (!cancelModalItem) return;
+    const { orderItemId } = cancelModalItem;
 
     setCancellingItemId(orderItemId);
+    setCancelErrorMsg(null);
     try {
       await testOrderService.cancelTestOrderItem(orderItemId, {
-        reason: 'Bác sĩ hủy chỉ định cận lâm sàng do thay đổi hướng chẩn đoán.',
+        reason: cancelReason.trim() || 'Bác sĩ hủy chỉ định cận lâm sàng do thay đổi hướng chẩn đoán.',
       });
+      setCancelModalItem(null);
       if (activeEncounterId) {
         await fetchEncounterTestOrders(activeEncounterId);
       }
     } catch (err: any) {
       const errMsg = err?.data?.message || err?.message || 'Không thể hủy chỉ định.';
-      alert(`Lỗi khi hủy chỉ định: ${errMsg}`);
+      setCancelErrorMsg(errMsg);
     } finally {
       setCancellingItemId(null);
     }
@@ -1434,34 +1465,73 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                       />
                     </>
                   ) : (
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                          <CheckCircle2 className="w-5 h-5" />
+                    <>
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                            <CheckCircle2 className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-emerald-900">
+                              {currentWorkflowState === 'completed'
+                                ? 'Bệnh nhân đã có kết quả Cận lâm sàng'
+                                : 'Đã xác nhận Khám lâm sàng & Chỉ định Cận lâm sàng'}
+                            </p>
+                            <p className="text-xs text-emerald-700 mt-0.5">
+                              {isClinicalExamIncomplete
+                                ? 'Bác sĩ chưa ghi nhận thông tin Khám lâm sàng thực thể. Vui lòng bổ sung ở biểu mẫu bên dưới.'
+                                : currentWorkflowState === 'completed'
+                                ? 'Toàn bộ kết quả xét nghiệm đã hoàn tất. Bác sĩ có thể xem chi tiết bên dưới hoặc chuyển sang tab Chẩn đoán.'
+                                : 'Phiếu chỉ định đã được xác nhận cho ca khám này. Chi tiết các dịch vụ đã chỉ định hiển thị ở danh sách bên dưới.'}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-bold text-emerald-900">
-                            {currentWorkflowState === 'completed'
-                              ? 'Bệnh nhân đã có kết quả Cận lâm sàng'
-                              : 'Đã xác nhận Khám lâm sàng & Chỉ định Cận lâm sàng'}
-                          </p>
-                          <p className="text-xs text-emerald-700 mt-0.5">
-                            {currentWorkflowState === 'completed'
-                              ? 'Toàn bộ kết quả xét nghiệm đã hoàn tất. Bác sĩ có thể xem chi tiết bên dưới hoặc chuyển sang tab Chẩn đoán.'
-                              : 'Phiếu chỉ định đã được xác nhận cho ca khám này. Chi tiết các dịch vụ đã chỉ định hiển thị ở danh sách bên dưới.'}
-                          </p>
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                          {!isClinicalExamIncomplete && (
+                            <button
+                              type="button"
+                              onClick={() => setShowClinicalExamAfterOrder((prev) => !prev)}
+                              className="px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-100/60 text-emerald-800 border border-emerald-300 text-xs font-bold transition-colors cursor-pointer"
+                            >
+                              {showClinicalExamAfterOrder ? 'Ẩn Khám lâm sàng' : 'Xem / Sửa Khám lâm sàng'}
+                            </button>
+                          )}
+                          {currentWorkflowState === 'completed' && (
+                            <button
+                              type="button"
+                              onClick={() => navigateTab('icd10-diagnosis')}
+                              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                            >
+                              Xem kết quả
+                            </button>
+                          )}
                         </div>
                       </div>
-                      {currentWorkflowState === 'completed' && (
-                        <button
-                          type="button"
-                          onClick={() => navigateTab('icd10-diagnosis')}
-                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shrink-0 cursor-pointer"
-                        >
-                          Xem kết quả
-                        </button>
+
+                      {(isClinicalExamIncomplete || showClinicalExamAfterOrder) && (
+                        <ClinicalExamForm
+                          encounterId={activeEncounterId}
+                          patientPosition={patientPosition}
+                          setPatientPosition={setPatientPosition}
+                          inspectionFindings={inspectionFindings}
+                          setInspectionFindings={setInspectionFindings}
+                          palpationFindings={palpationFindings}
+                          setPalpationFindings={setPalpationFindings}
+                          percussionFindings={percussionFindings}
+                          setPercussionFindings={setPercussionFindings}
+                          auscultationFindings={auscultationFindings}
+                          setAuscultationFindings={setAuscultationFindings}
+                          clinicalNotes={clinicalNotes}
+                          setClinicalNotes={setClinicalNotes}
+                          clinicalExamNote={auscultationFindings}
+                          setClinicalExamNote={setAuscultationFindings}
+                          preliminaryDiag={preliminaryDiag}
+                          setPreliminaryDiag={setPreliminaryDiag}
+                          onQuickDiagnosisSelect={handleQuickDiagnosisSelect}
+                          examWarningMsg={examWarningMsg}
+                        />
                       )}
-                    </div>
+                    </>
                   )}
 
                   {/* Component 6: Test Order History List */}
@@ -1516,6 +1586,77 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
           void refetchAllOnHoldTasks();
         }}
       />
+
+      {/* Modal xác nhận hủy chỉ định xét nghiệm */}
+      <Modal
+        isOpen={Boolean(cancelModalItem)}
+        onClose={() => !cancellingItemId && setCancelModalItem(null)}
+        title="Xác nhận Hủy Chỉ Định Cận Lâm Sàng"
+        maxWidth="lg"
+      >
+        <div className="space-y-4 text-xs text-slate-700 p-1">
+          <div className="p-3.5 rounded-xl bg-rose-50/80 border border-rose-200 flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold text-rose-900">
+                Xác nhận hủy chỉ định dịch vụ này?
+              </p>
+              <p className="text-rose-800 font-medium">
+                Dịch vụ: <strong>{cancelModalItem?.testName}</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block font-bold text-slate-700">
+              Lý do hủy chỉ định:
+            </label>
+            <input
+              type="text"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              disabled={Boolean(cancellingItemId)}
+              placeholder="Nhập lý do hủy chỉ định..."
+              className="w-full p-2.5 rounded-xl border border-slate-200 font-medium outline-none focus:border-rose-500 text-xs text-slate-800 transition-colors"
+            />
+          </div>
+
+          {cancelErrorMsg && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-semibold">
+              Lỗi khi hủy chỉ định: {cancelErrorMsg}
+            </div>
+          )}
+
+          <div className="pt-2 flex items-center justify-end gap-2.5">
+            <button
+              type="button"
+              disabled={Boolean(cancellingItemId)}
+              onClick={() => setCancelModalItem(null)}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Đóng
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(cancellingItemId)}
+              onClick={handleConfirmCancelOrderItem}
+              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl shadow-sm transition-colors cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {cancellingItemId ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Đang hủy...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Xác nhận hủy</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

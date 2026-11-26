@@ -39,10 +39,26 @@ export const TestOrderCreationCard: React.FC<TestOrderCreationCardProps> = ({
 }) => {
   const displayCatalog = services || [];
   const [detailModalItem, setDetailModalItem] = useState<TestCatalogItem | null>(null);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+
+  const selectedServices = displayCatalog.filter((item) =>
+    selectedTestTypeIds.includes(item.testTypeId)
+  );
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmittingOrder || selectedTestTypeIds.length === 0) return;
+    setIsConfirmModalOpen(true);
+  };
+
+  const handleConfirmSendOrder = () => {
+    setIsConfirmModalOpen(false);
+    onSubmitOrder({ preventDefault: () => {} } as React.FormEvent);
+  };
 
   return (
     <>
-    <form onSubmit={onSubmitOrder} className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-5">
+    <form onSubmit={handleFormSubmit} className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-5">
       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
         <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
           <FlaskConical className="w-4 h-4 text-purple-600" />
@@ -262,6 +278,85 @@ export const TestOrderCreationCard: React.FC<TestOrderCreationCardProps> = ({
         </div>
       </Modal>
     )}
+
+    {/* Modal xác nhận trước khi gửi phiếu chỉ định cận lâm sàng */}
+    <Modal
+      isOpen={isConfirmModalOpen}
+      onClose={() => !isSubmittingOrder && setIsConfirmModalOpen(false)}
+      title="Xác nhận Gửi Phiếu Chỉ Định Cận Lâm Sàng"
+      maxWidth="md"
+    >
+      <div className="space-y-4 text-xs text-slate-700 p-1">
+        <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 flex items-start gap-2.5">
+          <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+          <p className="text-blue-900 leading-relaxed font-medium">
+            Vui lòng kiểm tra kỹ danh sách dịch vụ trước khi xác nhận. Phiếu chỉ định sẽ được chuyển sang Quầy Thu phí và không thể hủy sau khi bệnh nhân đã thanh toán.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="font-bold text-slate-800">
+            Dịch vụ đã chọn ({selectedServices.length}):
+          </div>
+          <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 rounded-xl border border-slate-200 bg-slate-50/50">
+            {selectedServices.map((item, index) => (
+              <div
+                key={item.testTypeId}
+                className="px-3 py-2.5 flex items-center justify-between gap-3"
+              >
+                <div className="min-w-0">
+                  <div className="font-bold text-slate-800 truncate">
+                    {index + 1}. {item.testName}
+                  </div>
+                  {item.room && (
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      {item.room}
+                    </div>
+                  )}
+                </div>
+                <span className="font-mono font-bold text-blue-800 whitespace-nowrap shrink-0">
+                  {item.price.toLocaleString('vi-VN')} đ
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {orderNotes.trim() && (
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+            <div className="font-bold text-slate-600">Ghi chú gửi phòng thực hiện:</div>
+            <p className="text-slate-800 font-medium">{orderNotes.trim()}</p>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-100/80 border border-slate-200">
+          <span className="font-bold text-slate-700">Tổng chi phí dự tính:</span>
+          <span className="font-extrabold text-sm text-blue-900 font-mono">
+            {totalEstimatedCost.toLocaleString('vi-VN')} đ
+          </span>
+        </div>
+
+        <div className="pt-2 flex items-center justify-end gap-2.5">
+          <button
+            type="button"
+            disabled={isSubmittingOrder}
+            onClick={() => setIsConfirmModalOpen(false)}
+            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+          >
+            Kiểm tra lại
+          </button>
+          <button
+            type="button"
+            disabled={isSubmittingOrder}
+            onClick={handleConfirmSendOrder}
+            className="px-4 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold rounded-xl shadow-sm transition-colors cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>Xác nhận gửi</span>
+          </button>
+        </div>
+      </div>
+    </Modal>
     </>
   );
 };
