@@ -122,6 +122,7 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
   const [newGender, setNewGender] = useState<'male' | 'female' | 'other'>('male');
   const [newIdentityNumber, setNewIdentityNumber] = useState<string>('');
   const [newInsuranceNumber, setNewInsuranceNumber] = useState<string>('');
+  const [newEthnicity, setNewEthnicity] = useState<string>('');
   const [newAddress, setNewAddress] = useState<string>('');
 
   // State Xác Minh Danh Tính
@@ -182,6 +183,7 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
       setNewGender('male');
       setNewIdentityNumber('');
       setNewInsuranceNumber('');
+      setNewEthnicity('');
       setNewAddress('');
 
       // Tính tuổi bệnh nhân để tự động nhận diện Bệnh Nhi nhỏ tuổi (< 15 tuổi)
@@ -463,6 +465,7 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
             gender: newGender,
             identityNumber: resolvedIdentityNumber,
             insuranceNumber: resolvedInsuranceNumber || undefined,
+            ethnicity: newEthnicity.trim() || undefined,
             address: newAddress.trim() || undefined,
           };
         }
@@ -888,7 +891,17 @@ export const ReceptionIntakeModal: React.FC<ReceptionIntakeModalProps> = ({
                       className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs mt-0.5 focus:border-teal-500 focus:outline-none"
                     />
                   </div>
-                  <div className="sm:col-span-2 lg:col-span-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700">Dân tộc</label>
+                    <input
+                      type="text"
+                      value={newEthnicity}
+                      onChange={(e) => setNewEthnicity(e.target.value)}
+                      placeholder="VD: Kinh, Tày, Thái..."
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs mt-0.5 focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
                     <label className="text-[10px] font-bold text-slate-700">Địa chỉ cư trú</label>
                     <input
                       type="text"

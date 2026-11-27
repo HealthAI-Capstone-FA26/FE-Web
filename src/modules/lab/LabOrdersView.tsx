@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useWorkspaceRefresh } from '../../components/common/WorkspaceContainer';
 import { 
   FlaskConical, CheckCircle2, Sparkles, Upload, 
   Lock, FileText, Loader2,
@@ -42,6 +43,216 @@ export interface ThresholdAlertSummary {
   totalParameters: number;
   abnormalCount: number;
   items: ThresholdAlertSummaryItem[];
+}
+
+export type RiskLevelKey = 'normal' | 'low' | 'medium' | 'high' | 'critical';
+
+export interface ApplicableThresholdBand {
+  labThresholdId?: string;
+  riskLevel: RiskLevelKey;
+  rangeMin?: number;
+  rangeMax?: number;
+  gender?: string | null;
+  ageMin?: number | null;
+  ageMax?: number | null;
+}
+
+const RISK_LEVEL_META: Record<
+  RiskLevelKey,
+  { label: string; shortLabel: string; badgeCls: string; pillCls: string }
+> = {
+  normal: {
+    label: 'Bình thường (Normal)',
+    shortLabel: 'Bình thường',
+    badgeCls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    pillCls: 'bg-emerald-50/90 text-emerald-800 border-emerald-200',
+  },
+  low: {
+    label: 'Thấp / Dưới ngưỡng (Low)',
+    shortLabel: 'Thấp',
+    badgeCls: 'bg-amber-50 text-amber-800 border-amber-300',
+    pillCls: 'bg-amber-50/80 text-amber-800 border-amber-200',
+  },
+  medium: {
+    label: 'Trung bình / Cận cao (Medium)',
+    shortLabel: 'Trung bình',
+    badgeCls: 'bg-orange-50 text-orange-800 border-orange-300',
+    pillCls: 'bg-orange-50/80 text-orange-800 border-orange-200',
+  },
+  high: {
+    label: 'Vượt ngưỡng cao (High)',
+    shortLabel: 'Cao',
+    badgeCls: 'bg-rose-50 text-rose-700 border-rose-300',
+    pillCls: 'bg-rose-50/80 text-rose-700 border-rose-200',
+  },
+  critical: {
+    label: 'Báo động đỏ / Nguy kịch (Critical)',
+    shortLabel: 'Nguy kịch',
+    badgeCls: 'bg-rose-100 text-rose-900 border-rose-400 font-extrabold',
+    pillCls: 'bg-rose-100/90 text-rose-900 border-rose-300',
+  },
+};
+
+function calculatePatientAge(dateOfBirth?: string | null, atDate?: Date): number | null {
+  if (!dateOfBirth) return null;
+  const dob = new Date(dateOfBirth);
+  if (Number.isNaN(dob.getTime())) return null;
+  const at = atDate ?? new Date();
+  let age = at.getFullYear() - dob.getFullYear();
+  const m = at.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && at.getDate() < dob.getDate())) {
+    age--;
+  }
+  return Math.max(0, age);
+}
+
+function normalizePatientGender(gender?: string | null): 'male' | 'female' | null {
+  if (!gender) return null;
+  const g = gender.toLowerCase().trim();
+  if (g === 'male' || g === 'nam' || g === 'm') return 'male';
+  if (g === 'female' || g === 'nữ' || g === 'nu' || g === 'f') return 'female';
+  return null;
+}
+
+/**
+ * Lọc các ngưỡng tham chiếu áp dụng đúng theo Tuổi + Giới tính của bệnh nhân
+ * (đồng bộ 100% với ResultThresholdResolver ở Backend — tuyệt đối không fallback sang độ tuổi khác).
+ */
+function resolveApplicableThresholdBands(
+  rawThresholds: any[] | undefined | null,
+  patient?: { dateOfBirth?: string | null; gender?: string | null } | null,
+): ApplicableThresholdBand[] {
+  if (!Array.isArray(rawThresholds) || rawThresholds.length === 0) return [];
+  const age = calculatePatientAge(patient?.dateOfBirth);
+  const gender = normalizePatientGender(patient?.gender);
+
+  const active = rawThresholds.filter((t) => t && t.isActive !== false);
+  const poolByAge = active.filter((t) => {
+    if (age === null) return true;
+    const minOk = t.ageMin === null || t.ageMin === undefined || Number(t.ageMin) <= age;
+    const maxOk = t.ageMax === null || t.ageMax === undefined || Number(t.ageMax) >= age;
+    return minOk && maxOk;
+  });
+
+  // Nếu không có ngưỡng nào khớp độ tuổi của bệnh nhân -> trả về rỗng (giống Backend ResultThresholdResolver)
+  if (poolByAge.length === 0) return [];
+
+  // Ưu tiên dòng khớp đúng giới tính > dòng không phân biệt giới tính (gender == null)
+  const exactGenderRows = gender
+    ? poolByAge.filter((t) => normalizePatientGender(t.gender) === gender)
+    : [];
+  const neutralGenderRows = poolByAge.filter((t) => !t.gender);
+  const genderPool =
+    exactGenderRows.length > 0
+      ? exactGenderRows
+      : neutralGenderRows;
+
+  if (genderPool.length === 0) return [];
+
+  // Nếu có nhiều nhóm tuổi lồng nhau cùng chứa tuổi bệnh nhân, ưu tiên nhóm tuổi hẹp nhất (cụ thể nhất)
+  let specificPool = genderPool;
+  if (age !== null && genderPool.length > 1) {
+    const spans = genderPool.map((t) => {
+      const min = t.ageMin !== null && t.ageMin !== undefined ? Number(t.ageMin) : 0;
+      const max = t.ageMax !== null && t.ageMax !== undefined ? Number(t.ageMax) : 200;
+      return max - min;
+    });
+    const minSpan = Math.min(...spans);
+    specificPool = genderPool.filter((t) => {
+      const min = t.ageMin !== null && t.ageMin !== undefined ? Number(t.ageMin) : 0;
+      const max = t.ageMax !== null && t.ageMax !== undefined ? Number(t.ageMax) : 200;
+      return max - min === minSpan;
+    });
+  }
+
+  const seen = new Set<string>();
+  const bands: ApplicableThresholdBand[] = [];
+  for (const t of specificPool) {
+    const riskLevel = (t.riskLevel || 'normal') as RiskLevelKey;
+    const rangeMin =
+      t.rangeMin !== null && t.rangeMin !== undefined && t.rangeMin !== '' ? Number(t.rangeMin) : undefined;
+    const rangeMax =
+      t.rangeMax !== null && t.rangeMax !== undefined && t.rangeMax !== '' ? Number(t.rangeMax) : undefined;
+    const key = `${riskLevel}:${rangeMin ?? 'null'}:${rangeMax ?? 'null'}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    bands.push({
+      labThresholdId: t.labThresholdId || t.thresholdId,
+      riskLevel,
+      rangeMin,
+      rangeMax,
+      gender: t.gender,
+      ageMin: t.ageMin,
+      ageMax: t.ageMax,
+    });
+  }
+
+  // Sắp xếp các dải tăng dần theo cận dưới (rangeMin)
+  bands.sort((a, b) => {
+    const aMin = a.rangeMin ?? -Infinity;
+    const bMin = b.rangeMin ?? -Infinity;
+    if (aMin !== bMin) return aMin - bMin;
+    const aMax = a.rangeMax ?? Infinity;
+    const bMax = b.rangeMax ?? Infinity;
+    return aMax - bMax;
+  });
+
+  return bands;
+}
+
+function formatBandRange(band?: { rangeMin?: number; rangeMax?: number } | null): string {
+  if (!band) return 'Chưa có thông tin';
+  const { rangeMin: min, rangeMax: max } = band;
+  if (min !== undefined && max !== undefined) return `${min} – ${max}`;
+  if (min !== undefined) return `≥ ${min}`;
+  if (max !== undefined) return `≤ ${max}`;
+  return 'Chưa có thông tin';
+}
+
+function evaluateNumericAgainstBands(
+  value: number | undefined,
+  bands: ApplicableThresholdBand[],
+): {
+  matchedBand: ApplicableThresholdBand | null;
+  normalBand: ApplicableThresholdBand | null;
+  isAbnormal: boolean;
+  riskLevel: RiskLevelKey;
+} {
+  const normalBand = bands.find((b) => b.riskLevel === 'normal') ?? bands[0] ?? null;
+  if (value === undefined || Number.isNaN(value)) {
+    return { matchedBand: null, normalBand, isAbnormal: false, riskLevel: 'normal' };
+  }
+
+  const matchedBand =
+    bands.find((b) => {
+      const min = b.rangeMin ?? -Infinity;
+      const max = b.rangeMax ?? Infinity;
+      return value >= min && value <= max;
+    }) ?? null;
+
+  if (matchedBand) {
+    const isAbnormal = matchedBand.riskLevel !== 'normal';
+    return {
+      matchedBand,
+      normalBand,
+      isAbnormal,
+      riskLevel: matchedBand.riskLevel,
+    };
+  }
+
+  // Fallback nếu giá trị nằm ngoài khoảng normalBand nhưng không khớp dải nào khác
+  if (normalBand) {
+    const min = normalBand.rangeMin;
+    const max = normalBand.rangeMax;
+    if (min !== undefined && value < min) {
+      return { matchedBand: null, normalBand, isAbnormal: true, riskLevel: 'low' };
+    }
+    if (max !== undefined && value > max) {
+      return { matchedBand: null, normalBand, isAbnormal: true, riskLevel: 'high' };
+    }
+  }
+
+  return { matchedBand: null, normalBand, isAbnormal: false, riskLevel: 'normal' };
 }
 
 export const LabOrdersView: React.FC = () => {
@@ -104,13 +315,11 @@ export const LabOrdersView: React.FC = () => {
   const [alertSummary, setAlertSummary] = useState<ThresholdAlertSummary | null>(null);
   const [isAlertSummaryModalOpen, setIsAlertSummaryModalOpen] = useState<boolean>(false);
 
-  // AI analysis states
-  const [isAIScanning, setIsAIScanning] = useState<boolean>(false);
-  const [isAIAnalyzed, setIsAIAnalyzed] = useState<boolean>(false);
-
   // Modal Error states (Hiển thị trực tiếp bên trong Modal)
   const [modalError, setModalError] = useState<string | null>(null);
   const [editModalError, setEditModalError] = useState<string | null>(null);
+  const [inputModalTab, setInputModalTab] = useState<'entry' | 'thresholds'>('entry');
+  const [viewModalTab, setViewModalTab] = useState<'result' | 'thresholds'>('result');
 
   // Toast notification
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
@@ -177,6 +386,8 @@ export const LabOrdersView: React.FC = () => {
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  useWorkspaceRefresh(() => fetchTasks());
 
   const formatLocalDate = (d: Date | string | undefined | null): string => {
     if (!d) return '';
@@ -346,8 +557,7 @@ export const LabOrdersView: React.FC = () => {
     setOverallConclusion(existingResult?.overallConclusion || existingResult?.findings || '');
     setSelectedFile(null);
     setAttachedFileName('');
-    setIsAIAnalyzed(false);
-    setIsAIScanning(false);
+    setInputModalTab('entry');
     setIsInputModalOpen(true);
   };
 
@@ -386,6 +596,7 @@ export const LabOrdersView: React.FC = () => {
     setIsEditingInViewModal(startInEditMode);
     setEditSelectedFile(null);
     setEditAttachedFileName('');
+    setViewModalTab('result');
     setIsViewResultModalOpen(true);
     try {
       const result = await labResultService.getLabResultByTaskId(task.labTaskId);
@@ -514,16 +725,6 @@ export const LabOrdersView: React.FC = () => {
     }
   };
 
-  // AI Scanning giả lập
-  const handleRunAI = () => {
-    setIsAIScanning(true);
-    setTimeout(() => {
-      setIsAIScanning(false);
-      setIsAIAnalyzed(true);
-      showToast('Đã hoàn tất quét AI tự động đối soát chỉ số & phát hiện tổn thương', 'info');
-    }, 1800);
-  };
-
   // Lưu và xác nhận kết quả xét nghiệm lần đầu (khi ca đang in_progress)
   const handleSubmitResult = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -634,12 +835,11 @@ export const LabOrdersView: React.FC = () => {
         alertData = await labResultService.detectAlerts(result.labResultId).catch(() => null);
       }
 
-      // Tổng hợp dữ liệu đối soát ngưỡng cho từng chỉ số
+      // Tổng hợp dữ liệu đối soát ngưỡng cho từng chỉ số (lọc đúng theo Tuổi + Giới tính bệnh nhân)
+      const currentPatient = selectedTask.orderItem?.order?.encounter?.patient;
       const summaryItems: ThresholdAlertSummaryItem[] = parameters.map((param) => {
         const val = paramValues[param.parameterId];
-        const threshold = param.labParameterThresholds?.find((t) => t.riskLevel === 'normal') || param.labParameterThresholds?.[0];
-        const min = threshold?.rangeMin !== undefined && threshold?.rangeMin !== null ? Number(threshold.rangeMin) : undefined;
-        const max = threshold?.rangeMax !== undefined && threshold?.rangeMax !== null ? Number(threshold.rangeMax) : undefined;
+        const bands = resolveApplicableThresholdBands(param.labParameterThresholds, currentPatient);
         const dataType = param.dataType || 'numeric';
         const numVal = val?.valueNumeric;
         const textVal = val?.valueText || (dataType === 'positive_negative' ? 'Âm tính (-)' : '');
@@ -654,25 +854,20 @@ export const LabOrdersView: React.FC = () => {
           textVal.includes('+')
         );
 
+        const evalRes = evaluateNumericAgainstBands(numVal, bands);
+        const min = evalRes.normalBand?.rangeMin;
+        const max = evalRes.normalBand?.rangeMax;
+
         const matchedServerAlert = alertData?.results?.find((r: any) => r.parameterId === param.parameterId);
         const isServerAbnormal = matchedServerAlert?.isAbnormal === true;
-        const serverRisk = matchedServerAlert?.riskLevel;
+        const serverRisk = matchedServerAlert?.riskLevel as RiskLevelKey | undefined;
 
-        const isClientOutOfRange = isNumeric
-          ? (numVal !== undefined && ((min !== undefined && numVal < min) || (max !== undefined && numVal > max)))
-          : isPositive;
-
+        const isClientOutOfRange = isNumeric ? evalRes.isAbnormal : isPositive;
         const isAbnormal = isServerAbnormal || isClientOutOfRange;
-        let deviationText = 'Bình thường';
-        if (isNumeric) {
-          if (numVal !== undefined && max !== undefined && numVal > max) {
-            deviationText = 'Vượt ngưỡng cao (Tăng)';
-          } else if (numVal !== undefined && min !== undefined && numVal < min) {
-            deviationText = 'Dưới ngưỡng chuẩn (Giảm)';
-          } else if (isAbnormal) {
-            deviationText = 'Bất thường';
-          }
-        } else if (isPositiveNegative) {
+        const finalRisk: RiskLevelKey = serverRisk || (isNumeric ? evalRes.riskLevel : isPositive ? 'high' : 'normal');
+
+        let deviationText = RISK_LEVEL_META[finalRisk]?.label || 'Bình thường';
+        if (isPositiveNegative) {
           deviationText = isPositive ? 'Dương tính (Bất thường)' : 'Âm tính (Bình thường)';
         }
 
@@ -686,7 +881,7 @@ export const LabOrdersView: React.FC = () => {
           rangeMax: max,
           isAbnormal,
           deviationText,
-          riskLevel: serverRisk || (isAbnormal ? 'high' : 'normal'),
+          riskLevel: finalRisk,
         };
       });
 
@@ -1380,9 +1575,9 @@ export const LabOrdersView: React.FC = () => {
             </>
           }
         >
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-xs text-slate-800">
-            {/* Left: Input parameters */}
-            <div className="lg:col-span-7 space-y-4">
+          <div className="space-y-4 text-xs text-slate-800">
+            {/* Input parameters */}
+            <div className="space-y-4">
               {/* Cảnh báo lỗi trực tiếp trên Modal */}
               {modalError && (
                 <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-2.5 text-xs text-rose-800 shadow-sm animate-in fade-in">
@@ -1401,135 +1596,118 @@ export const LabOrdersView: React.FC = () => {
                 </div>
               )}
 
-              <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl flex items-center justify-between text-[11px] font-semibold text-blue-950">
-                <span>Phòng xét nghiệm: <strong className="text-blue-700">{currentRoomInfo?.labRoomName}</strong></span>
+              <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold text-blue-950">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span>Phòng xét nghiệm: <strong className="text-blue-700">{currentRoomInfo?.labRoomName}</strong></span>
+                  {(() => {
+                    const p = selectedTask.orderItem?.order?.encounter?.patient;
+                    const age = calculatePatientAge(p?.dateOfBirth);
+                    const g = normalizePatientGender(p?.gender);
+                    const gLabel = g === 'male' ? 'Nam' : g === 'female' ? 'Nữ' : 'Chung';
+                    return (
+                      <span className="px-2 py-0.5 rounded-md bg-white border border-blue-200 text-blue-800 font-bold">
+                        Hệ quy chiếu ngưỡng: {gLabel}{age !== null ? ` • ${age} tuổi` : ''}
+                      </span>
+                    );
+                  })()}
+                </div>
                 <span className="text-emerald-700 font-bold">✓ Đã xác nhận thanh toán</span>
               </div>
 
-              {/* Form các tham số đo đạc kỹ thuật */}
-              <div className="space-y-3">
-                <label className="block font-extrabold text-slate-800 text-xs">
-                  Danh mục chỉ số đo đạc kỹ thuật (*):
-                </label>
+              {/* Thanh chuyển Tab trong Modal 1: Nhập chỉ số vs Bảng ngưỡng phân độ */}
+              {selectedTask.orderItem?.testType?.labResultParameters &&
+                selectedTask.orderItem.testType.labResultParameters.length > 0 && (
+                  <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-200/80 rounded-xl w-fit">
+                    <button
+                      type="button"
+                      onClick={() => setInputModalTab('entry')}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border-none ${
+                        inputModalTab === 'entry'
+                          ? 'bg-white text-blue-700 shadow-xs'
+                          : 'bg-transparent text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      1. Nhập chỉ số & Đánh giá tức thời
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInputModalTab('thresholds')}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border-none ${
+                        inputModalTab === 'thresholds'
+                          ? 'bg-white text-blue-700 shadow-xs'
+                          : 'bg-transparent text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      2. Bảng ngưỡng phân độ theo Tuổi & Giới tính
+                    </button>
+                  </div>
+                )}
 
-                {selectedTask.orderItem?.testType?.labResultParameters &&
-                selectedTask.orderItem.testType.labResultParameters.length > 0 ? (
+              {inputModalTab === 'thresholds' &&
+              selectedTask.orderItem?.testType?.labResultParameters &&
+              selectedTask.orderItem.testType.labResultParameters.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 flex items-center justify-between">
+                    <span>
+                      Bảng tra cứu toàn bộ các dải ngưỡng theo từng mức độ nguy cơ (Thấp / Bình thường / Trung bình / Cao / Nguy kịch) áp dụng riêng cho độ tuổi và giới tính của bệnh nhân này.
+                    </span>
+                  </div>
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                         <tr>
-                          <th className="p-2.5">Chỉ số</th>
-                          <th className="p-2.5 w-40">Giá trị đo</th>
-                          <th className="p-2.5">Đơn vị</th>
-                          <th className="p-2.5">Khoảng chuẩn</th>
+                          <th className="p-2.5 w-64">Chỉ số xét nghiệm</th>
+                          <th className="p-2.5 w-20">Đơn vị</th>
+                          <th className="p-2.5 w-32">Khoảng chuẩn</th>
+                          <th className="p-2.5">Phân độ các ngưỡng theo mức độ nguy cơ</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-medium">
                         {selectedTask.orderItem.testType.labResultParameters.map((param) => {
-                          const val = paramValues[param.parameterId];
-                          const threshold = param.labParameterThresholds?.find((t) => t.riskLevel === 'normal') || param.labParameterThresholds?.[0];
-                          const min = threshold?.rangeMin !== undefined && threshold?.rangeMin !== null ? Number(threshold.rangeMin) : undefined;
-                          const max = threshold?.rangeMax !== undefined && threshold?.rangeMax !== null ? Number(threshold.rangeMax) : undefined;
-                          const dataType = param.dataType || 'numeric';
-                          
-                          const numVal = val?.valueNumeric;
-                          const textVal = val?.valueText ?? (dataType === 'positive_negative' ? 'Âm tính (-)' : '');
-
-                          const isPositiveNegative = dataType === 'positive_negative';
-                          const isText = dataType === 'text';
-                          const isNumeric = !isPositiveNegative && !isText;
-
-                          const isPositive = isPositiveNegative && (
-                            textVal.toLowerCase().includes('dương tính') ||
-                            textVal.toLowerCase().includes('positive') ||
-                            textVal.includes('+')
-                          );
-
-                          const isOutOfRange = isNumeric
-                            ? (numVal !== undefined && ((min !== undefined && numVal < min) || (max !== undefined && numVal > max)))
-                            : isPositive;
+                          const patient = selectedTask.orderItem?.order?.encounter?.patient;
+                          const bands = resolveApplicableThresholdBands(param.labParameterThresholds, patient);
+                          const numVal = paramValues[param.parameterId]?.valueNumeric;
+                          const evalRes = evaluateNumericAgainstBands(numVal, bands);
+                          const isPositiveNegative = param.dataType === 'positive_negative';
 
                           return (
-                            <tr key={param.parameterId} className={isOutOfRange ? 'bg-rose-50/50' : ''}>
+                            <tr key={param.parameterId}>
                               <td className="p-2.5">
                                 <div className="font-bold text-slate-900">{param.parameterName || param.parameterCode}</div>
-                                <div className="text-[10px] text-slate-400 font-mono">
-                                  {param.parameterCode} {isPositiveNegative ? '• (Âm/Dương)' : isText ? '• (Chữ)' : ''}
-                                </div>
+                                <div className="text-[10px] text-slate-400 font-mono">{param.parameterCode}</div>
+                              </td>
+                              <td className="p-2.5 text-slate-500 font-mono text-[11px]">{param.unit || '-'}</td>
+                              <td className="p-2.5 text-slate-700 font-mono font-semibold text-[11px]">
+                                {isPositiveNegative ? 'Âm tính (-)' : formatBandRange(evalRes.normalBand)}
                               </td>
                               <td className="p-2.5">
                                 {isPositiveNegative ? (
-                                  <select
-                                    value={textVal}
-                                    onChange={(e) => {
-                                      setModalError(null);
-                                      setParamValues((prev) => ({
-                                        ...prev,
-                                        [param.parameterId]: { ...prev[param.parameterId], valueText: e.target.value },
-                                      }));
-                                    }}
-                                    className={`w-full px-2.5 py-1 text-xs font-bold rounded-lg border outline-none focus:border-blue-600 bg-white cursor-pointer ${
-                                      isPositive ? 'border-rose-400 bg-rose-50 text-rose-700 font-extrabold' : 'border-slate-300 text-slate-900'
-                                    }`}
-                                  >
-                                    <option value="Âm tính (-)">Âm tính (-)</option>
-                                    <option value="Vết (Trace)">Vết (Trace)</option>
-                                    <option value="Dương tính 1+ (+)">Dương tính 1+ (+)</option>
-                                    <option value="Dương tính 2+ (++)">Dương tính 2+ (++)</option>
-                                    <option value="Dương tính 3+ (+++)">Dương tính 3+ (+++)</option>
-                                    <option value="Dương tính 4+ (++++)">Dương tính 4+ (++++)</option>
-                                  </select>
-                                ) : isText ? (
-                                  <input
-                                    type="text"
-                                    value={textVal}
-                                    onChange={(e) => {
-                                      setModalError(null);
-                                      setParamValues((prev) => ({
-                                        ...prev,
-                                        [param.parameterId]: { ...prev[param.parameterId], valueText: e.target.value },
-                                      }));
-                                    }}
-                                    placeholder="Nhập kết quả..."
-                                    className="w-full px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-900 outline-none focus:border-blue-600"
-                                  />
+                                  <span className="text-[11px] text-emerald-700 font-semibold">Âm tính (-): Bình thường • Dương tính (+): Bất thường</span>
+                                ) : bands.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {bands.map((b, idx) => {
+                                      const meta = RISK_LEVEL_META[b.riskLevel] || RISK_LEVEL_META.normal;
+                                      const isMatched =
+                                        numVal !== undefined &&
+                                        evalRes.matchedBand &&
+                                        evalRes.matchedBand.riskLevel === b.riskLevel &&
+                                        evalRes.matchedBand.rangeMin === b.rangeMin &&
+                                        evalRes.matchedBand.rangeMax === b.rangeMax;
+                                      return (
+                                        <span
+                                          key={`${b.riskLevel}-${idx}`}
+                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-mono ${
+                                            meta.pillCls
+                                          } ${isMatched ? 'ring-2 ring-slate-900/70 font-extrabold' : ''}`}
+                                        >
+                                          <span className="font-sans font-bold">{meta.shortLabel}:</span>
+                                          <span>{formatBandRange(b)}</span>
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
                                 ) : (
-                                  <input
-                                    type="number"
-                                    step="any"
-                                    value={val?.valueNumeric !== undefined ? val.valueNumeric : ''}
-                                    onChange={(e) => {
-                                      setModalError(null);
-                                      const v = e.target.value === '' ? undefined : Number(e.target.value);
-                                      setParamValues((prev) => ({
-                                        ...prev,
-                                        [param.parameterId]: { ...prev[param.parameterId], valueNumeric: v },
-                                      }));
-                                    }}
-                                    placeholder="Nhập số..."
-                                    className={`w-full px-2.5 py-1 text-xs font-bold rounded-lg border outline-none focus:border-blue-600 ${
-                                      isOutOfRange ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white text-slate-900'
-                                    }`}
-                                  />
-                                )}
-                              </td>
-                              <td className="p-2.5 text-slate-500 font-mono text-[11px]">{param.unit || '-'}</td>
-                              <td className="p-2.5 text-slate-600 text-[11px] font-mono">
-                                {isPositiveNegative ? (
-                                  <span className="font-semibold text-emerald-700">Âm tính (-)</span>
-                                ) : min !== undefined && max !== undefined ? (
-                                  <span>{min} – {max}</span>
-                                ) : min !== undefined ? (
-                                  <span>&ge; {min}</span>
-                                ) : max !== undefined ? (
-                                  <span>&le; {max}</span>
-                                ) : (
-                                  <span>Bình thường</span>
-                                )}
-                                {isOutOfRange && (
-                                  <span className="ml-1 text-rose-600 font-bold text-[10px] block">
-                                    {isPositive ? '⚠️ Dương tính (Vượt ngưỡng)!' : '⚠️ Vượt ngưỡng!'}
-                                  </span>
+                                  <span className="text-slate-400 italic text-[11px]">Chưa có thông tin</span>
                                 )}
                               </td>
                             </tr>
@@ -1538,108 +1716,223 @@ export const LabOrdersView: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
-                ) : (
-                  <p className="text-[11px] text-slate-400 italic">
-                    Xét nghiệm này không có danh mục chỉ số cố định. Hãy ghi kết luận mô tả vào ô bên dưới.
-                  </p>
-                )}
-              </div>
+                </div>
+              ) : (
+                <>
+                  {/* Form các tham số đo đạc kỹ thuật (Gọn: Chỉ số, Giá trị đo, Đơn vị, Khoảng chuẩn, Đánh giá tức thời) */}
+                  <div className="space-y-3">
+                    <label className="block font-extrabold text-slate-800 text-xs">
+                      Danh mục chỉ số đo đạc kỹ thuật (*):
+                    </label>
 
-              {/* Ô kết luận tổng quát */}
-              <div className="space-y-1.5">
-                <label className="block font-extrabold text-slate-800 text-xs">
-                  Kết luận tổng quát / Nhận xét của KTV:
-                </label>
-                <textarea
-                  rows={3}
-                  value={overallConclusion}
-                  onChange={(e) => setOverallConclusion(e.target.value)}
-                  placeholder="Ghi chú kết luận hoặc nhận xét chuyên môn của kỹ thuật viên..."
-                  className="w-full p-3 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:border-blue-600 bg-white"
-                />
-              </div>
+                    {selectedTask.orderItem?.testType?.labResultParameters &&
+                    selectedTask.orderItem.testType.labResultParameters.length > 0 ? (
+                      <div className="border border-slate-200 rounded-xl overflow-hidden">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                            <tr>
+                              <th className="p-2.5">Chỉ số</th>
+                              <th className="p-2.5 w-36">Giá trị đo</th>
+                              <th className="p-2.5 w-20">Đơn vị</th>
+                              <th className="p-2.5 w-36">Khoảng chuẩn</th>
+                              <th className="p-2.5 w-48">Đánh giá tức thời</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-medium">
+                            {selectedTask.orderItem.testType.labResultParameters.map((param) => {
+                              const val = paramValues[param.parameterId];
+                              const patient = selectedTask.orderItem?.order?.encounter?.patient;
+                              const bands = resolveApplicableThresholdBands(param.labParameterThresholds, patient);
+                              const dataType = param.dataType || 'numeric';
+                              
+                              const numVal = val?.valueNumeric;
+                              const textVal = val?.valueText ?? (dataType === 'positive_negative' ? 'Âm tính (-)' : '');
 
-              {/* Tải tệp hình ảnh đính kèm */}
-              <div className="space-y-2">
-                <label className="block font-extrabold text-slate-800 text-xs">
-                  {selectedTask.orderItem?.testType?.category === 'imaging'
-                    ? 'Ảnh chụp phim X-quang / Siêu âm / DICOM:'
-                    : 'Tệp đính kèm / Phiếu in kết quả máy (Tùy chọn):'}
-                </label>
-                <label className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-4 text-center cursor-pointer transition-all bg-slate-50 flex flex-col items-center justify-center gap-1 block">
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setSelectedFile(e.target.files[0]);
-                        setAttachedFileName(e.target.files[0].name);
-                      }
-                    }}
-                  />
-                  <Upload className="w-5 h-5 text-slate-400" />
-                  <span className="font-bold text-slate-700 text-xs">
-                    {attachedFileName ? attachedFileName : 'Nhấp để chọn tệp tin tải lên'}
-                  </span>
-                  <span className="text-[10px] text-slate-400">PNG, JPG, PDF tối đa 20MB</span>
-                </label>
-              </div>
-            </div>
+                              const isPositiveNegative = dataType === 'positive_negative';
+                              const isText = dataType === 'text';
+                              const isNumeric = !isPositiveNegative && !isText;
 
-            {/* Right: AI Scanner & Visualizer */}
-            <div className="lg:col-span-5 space-y-4">
-              <button
-                type="button"
-                onClick={handleRunAI}
-                disabled={isAIScanning}
-                className="w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border-none cursor-pointer bg-gradient-to-r from-purple-900 to-indigo-900 text-white shadow-sm hover:shadow-md"
-              >
-                {isAIScanning ? (
-                  <>
-                    <Loader2 className="w-4 h-4 text-amber-300 animate-spin" />
-                    <span>AI đang phân tích dữ liệu...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 text-amber-300" />
-                    <span>Kích hoạt AI đối soát kết quả</span>
-                  </>
-                )}
-              </button>
+                              const isPositive = isPositiveNegative && (
+                                textVal.toLowerCase().includes('dương tính') ||
+                                textVal.toLowerCase().includes('positive') ||
+                                textVal.includes('+')
+                              );
 
-              <div className="bg-slate-950 text-white border border-slate-900 rounded-2xl p-4 min-h-[220px] flex flex-col justify-center relative overflow-hidden text-center">
-                <span className="text-[9px] font-bold text-slate-500 absolute top-2 left-3 uppercase font-mono">
-                  AI Medical Assistant
-                </span>
+                              const evalRes = evaluateNumericAgainstBands(numVal, bands);
+                              const isOutOfRange = isNumeric ? evalRes.isAbnormal : isPositive;
+                              const currentRisk: RiskLevelKey = isNumeric
+                                ? evalRes.riskLevel
+                                : isPositive
+                                ? 'high'
+                                : 'normal';
 
-                {isAIScanning ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
-                    <span className="text-xs text-indigo-200 font-bold">Đang phân tích các chỉ số...</span>
+                              return (
+                                <tr key={param.parameterId} className={isOutOfRange ? 'bg-rose-50/40' : ''}>
+                                  <td className="p-2.5">
+                                    <div className="font-bold text-slate-900">{param.parameterName || param.parameterCode}</div>
+                                    <div className="text-[10px] text-slate-400 font-mono">
+                                      {param.parameterCode} {isPositiveNegative ? '• (Âm/Dương)' : isText ? '• (Chữ)' : ''}
+                                    </div>
+                                  </td>
+                                  <td className="p-2.5">
+                                    {isPositiveNegative ? (
+                                      <select
+                                        value={textVal}
+                                        onChange={(e) => {
+                                          setModalError(null);
+                                          setParamValues((prev) => ({
+                                            ...prev,
+                                            [param.parameterId]: { ...prev[param.parameterId], valueText: e.target.value },
+                                          }));
+                                        }}
+                                        className={`w-full px-2.5 py-1 text-xs font-bold rounded-lg border outline-none focus:border-blue-600 bg-white cursor-pointer ${
+                                          isPositive ? 'border-rose-400 bg-rose-50 text-rose-700 font-extrabold' : 'border-slate-300 text-slate-900'
+                                        }`}
+                                      >
+                                        <option value="Âm tính (-)">Âm tính (-)</option>
+                                        <option value="Vết (Trace)">Vết (Trace)</option>
+                                        <option value="Dương tính 1+ (+)">Dương tính 1+ (+)</option>
+                                        <option value="Dương tính 2+ (++)">Dương tính 2+ (++)</option>
+                                        <option value="Dương tính 3+ (+++)">Dương tính 3+ (+++)</option>
+                                        <option value="Dương tính 4+ (++++)">Dương tính 4+ (++++)</option>
+                                      </select>
+                                    ) : isText ? (
+                                      <input
+                                        type="text"
+                                        value={textVal}
+                                        onChange={(e) => {
+                                          setModalError(null);
+                                          setParamValues((prev) => ({
+                                            ...prev,
+                                            [param.parameterId]: { ...prev[param.parameterId], valueText: e.target.value },
+                                          }));
+                                        }}
+                                        placeholder="Nhập kết quả..."
+                                        className="w-full px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-900 outline-none focus:border-blue-600"
+                                      />
+                                    ) : (
+                                      <input
+                                        type="number"
+                                        step="any"
+                                        value={val?.valueNumeric !== undefined ? val.valueNumeric : ''}
+                                        onChange={(e) => {
+                                          setModalError(null);
+                                          const v = e.target.value === '' ? undefined : Number(e.target.value);
+                                          setParamValues((prev) => ({
+                                            ...prev,
+                                            [param.parameterId]: { ...prev[param.parameterId], valueNumeric: v },
+                                          }));
+                                        }}
+                                        placeholder="Nhập số..."
+                                        className={`w-full px-2.5 py-1 text-xs font-bold rounded-lg border outline-none focus:border-blue-600 ${
+                                          isOutOfRange ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-300 bg-white text-slate-900'
+                                        }`}
+                                      />
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 text-slate-500 font-mono text-[11px]">{param.unit || '-'}</td>
+                                  <td className="p-2.5 text-slate-700 font-mono font-semibold text-[11px]">
+                                    {isPositiveNegative ? (
+                                      <span className="text-emerald-700">Âm tính (-)</span>
+                                    ) : evalRes.normalBand ? (
+                                      <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">
+                                        {formatBandRange(evalRes.normalBand)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400 italic font-sans font-normal">Chưa có thông tin</span>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5">
+                                    {isNumeric ? (
+                                      bands.length === 0 ? (
+                                        <span className="text-[11px] text-slate-400 italic">Chưa có thông tin</span>
+                                      ) : numVal === undefined ? (
+                                        <span className="text-[11px] text-slate-400 italic">Chưa nhập số</span>
+                                      ) : (
+                                        <span
+                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                            RISK_LEVEL_META[currentRisk]?.badgeCls || RISK_LEVEL_META.normal.badgeCls
+                                          }`}
+                                        >
+                                          {currentRisk === 'normal' ? (
+                                            <CheckCircle2 className="w-3 h-3 shrink-0" />
+                                          ) : currentRisk === 'critical' ? (
+                                            <ShieldAlert className="w-3 h-3 shrink-0" />
+                                          ) : (
+                                            <AlertTriangle className="w-3 h-3 shrink-0" />
+                                          )}
+                                          <span>{RISK_LEVEL_META[currentRisk]?.label || 'Bình thường'}</span>
+                                        </span>
+                                      )
+                                    ) : isPositiveNegative ? (
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                          isPositive
+                                            ? RISK_LEVEL_META.high.badgeCls
+                                            : RISK_LEVEL_META.normal.badgeCls
+                                        }`}
+                                      >
+                                        <span>{isPositive ? '⚠️ Dương tính (Vượt ngưỡng)' : '✓ Âm tính (Bình thường)'}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400">Định tính</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 italic">
+                        Xét nghiệm này không có danh mục chỉ số cố định. Hãy ghi kết luận mô tả vào ô bên dưới.
+                      </p>
+                    )}
                   </div>
-                ) : isAIAnalyzed ? (
-                  <div className="space-y-3 text-left font-mono text-[11px] p-2">
-                    <span className="text-[10px] bg-emerald-950 border border-emerald-800 text-emerald-300 font-bold px-2 py-0.5 rounded-full inline-block">
-                      ✓ Đã hoàn tất đối soát AI
-                    </span>
-                    <p className="text-slate-300">
-                      • Tự động đối soát các ngưỡng sinh học chuẩn theo độ tuổi & giới tính của bệnh nhân.
-                    </p>
-                    <p className="text-slate-300">
-                      • Sẵn sàng đồng bộ kết quả vào hồ sơ EMR để bác sĩ thăm khám tiếp tục chẩn đoán.
-                    </p>
+
+                  {/* Ô kết luận tổng quát */}
+                  <div className="space-y-1.5">
+                    <label className="block font-extrabold text-slate-800 text-xs">
+                      Kết luận tổng quát / Nhận xét của KTV:
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={overallConclusion}
+                      onChange={(e) => setOverallConclusion(e.target.value)}
+                      placeholder="Ghi chú kết luận hoặc nhận xét chuyên môn của kỹ thuật viên..."
+                      className="w-full p-3 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:border-blue-600 bg-white"
+                    />
                   </div>
-                ) : (
-                  <div className="text-slate-400 space-y-1.5 p-4">
-                    <FlaskConical className="w-8 h-8 mx-auto text-slate-500" />
-                    <div className="font-bold text-xs">Chưa chạy phân tích AI</div>
-                    <p className="text-[10px] text-slate-500">
-                      Nhập các thông số kỹ thuật và bấm nút kích hoạt để AI hỗ trợ phát hiện các giá trị bất thường.
-                    </p>
+
+                  {/* Tải tệp hình ảnh đính kèm */}
+                  <div className="space-y-2">
+                    <label className="block font-extrabold text-slate-800 text-xs">
+                      {selectedTask.orderItem?.testType?.category === 'imaging'
+                        ? 'Ảnh chụp phim X-quang / Siêu âm / DICOM:'
+                        : 'Tệp đính kèm / Phiếu in kết quả máy (Tùy chọn):'}
+                    </label>
+                    <label className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-4 text-center cursor-pointer transition-all bg-slate-50 flex flex-col items-center justify-center gap-1 block">
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setSelectedFile(e.target.files[0]);
+                            setAttachedFileName(e.target.files[0].name);
+                          }
+                        }}
+                      />
+                      <Upload className="w-5 h-5 text-slate-400" />
+                      <span className="font-bold text-slate-700 text-xs">
+                        {attachedFileName ? attachedFileName : 'Nhấp để chọn tệp tin tải lên'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">PNG, JPG, PDF tối đa 20MB</span>
+                    </label>
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           </div>
         </Modal>
@@ -1664,7 +1957,7 @@ export const LabOrdersView: React.FC = () => {
               }) • Chế độ đính chính / bổ sung EMR`
             : 'Hồ sơ kết quả chính thức đã lưu trên hệ thống'
         }
-        maxWidth={isEditingInViewModal ? '4xl' : '2xl'}
+        maxWidth="4xl"
         footer={
           isEditingInViewModal ? (
             <div className="flex items-center justify-end gap-2 w-full">
@@ -1733,14 +2026,27 @@ export const LabOrdersView: React.FC = () => {
         ) : viewingResult ? (
           <div className="space-y-4 text-xs">
             {/* Thanh thông tin trạng thái & thời gian */}
-            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-              <div>
-                <span className="text-slate-400 text-[10px] block">Trạng thái kết quả</span>
-                <span className={`font-bold uppercase ${
-                  viewingResult.resultStatus === 'corrected' ? 'text-indigo-700' : 'text-emerald-700'
-                }`}>
-                  {viewingResult.resultStatus === 'corrected' ? 'CORRECTED (Đã bổ sung)' : viewingResult.resultStatus}
-                </span>
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-4">
+                <div>
+                  <span className="text-slate-400 text-[10px] block">Trạng thái kết quả</span>
+                  <span className={`font-bold uppercase ${
+                    viewingResult.resultStatus === 'corrected' ? 'text-indigo-700' : 'text-emerald-700'
+                  }`}>
+                    {viewingResult.resultStatus === 'corrected' ? 'CORRECTED (Đã bổ sung)' : viewingResult.resultStatus}
+                  </span>
+                </div>
+                {(() => {
+                  const p = selectedTask?.orderItem?.order?.encounter?.patient;
+                  const age = calculatePatientAge(p?.dateOfBirth);
+                  const g = normalizePatientGender(p?.gender);
+                  const gLabel = g === 'male' ? 'Nam' : g === 'female' ? 'Nữ' : 'Chung';
+                  return (
+                    <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-bold">
+                      Hệ quy chiếu ngưỡng: {gLabel}{age !== null ? ` • ${age} tuổi` : ''}
+                    </span>
+                  );
+                })()}
               </div>
               <div className="text-right">
                 <span className="text-slate-400 text-[10px] block">Thời gian cập nhật</span>
@@ -1750,8 +2056,136 @@ export const LabOrdersView: React.FC = () => {
               </div>
             </div>
 
-            {/* CHẾ ĐỘ 1: ĐANG CHỈNH SỬA / BỔ SUNG TRỰC TIẾP TRONG MODAL NÀY */}
-            {isEditingInViewModal ? (
+            {/* Thanh chuyển Tab trong Modal 2: Kết quả/Chỉnh sửa vs Bảng ngưỡng phân độ */}
+            {((selectedTask?.orderItem?.testType?.labResultParameters &&
+              selectedTask.orderItem.testType.labResultParameters.length > 0) ||
+              (viewingResult.values && viewingResult.values.length > 0)) && (
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-200/80 rounded-xl w-fit">
+                <button
+                  type="button"
+                  onClick={() => setViewModalTab('result')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border-none ${
+                    viewModalTab === 'result'
+                      ? 'bg-white text-indigo-700 shadow-xs'
+                      : 'bg-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {isEditingInViewModal ? '1. Chỉnh sửa chỉ số & Đánh giá tức thời' : '1. Kết quả đo & Đánh giá'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewModalTab('thresholds')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border-none ${
+                    viewModalTab === 'thresholds'
+                      ? 'bg-white text-indigo-700 shadow-xs'
+                      : 'bg-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  2. Bảng ngưỡng phân độ theo Tuổi & Giới tính
+                </button>
+              </div>
+            )}
+
+            {viewModalTab === 'thresholds' ? (
+              <div className="space-y-3">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600">
+                  Bảng tra cứu các dải ngưỡng theo từng mức độ nguy cơ (Thấp / Bình thường / Trung bình / Cao / Nguy kịch) áp dụng riêng cho độ tuổi và giới tính của bệnh nhân này. Dải ngưỡng có viền đậm là mức độ tương ứng với giá trị đo hiện tại.
+                </div>
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-2.5 w-60">Chỉ số xét nghiệm</th>
+                        <th className="p-2.5 w-24">Giá trị hiện tại</th>
+                        <th className="p-2.5 w-20">Đơn vị</th>
+                        <th className="p-2.5 w-28">Khoảng chuẩn</th>
+                        <th className="p-2.5">Phân độ các ngưỡng theo mức độ nguy cơ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {(selectedTask?.orderItem?.testType?.labResultParameters &&
+                      selectedTask.orderItem.testType.labResultParameters.length > 0
+                        ? selectedTask.orderItem.testType.labResultParameters
+                        : (viewingResult.values || []).map((v) => ({
+                            parameterId: v.parameterId,
+                            parameterCode: v.parameter?.parameterCode || '',
+                            parameterName: v.parameter?.parameterName || v.parameter?.parameterCode || 'Chỉ số',
+                            unit: v.parameter?.unit,
+                            dataType: (v.parameter?.dataType as any) || 'numeric',
+                            labParameterThresholds: v.parameter?.labParameterThresholds || [],
+                          }))
+                      ).map((param) => {
+                        const patient = selectedTask?.orderItem?.order?.encounter?.patient;
+                        const savedVal = viewingResult.values?.find((v) => v.parameterId === param.parameterId);
+                        const rawThresholds =
+                          param.labParameterThresholds && param.labParameterThresholds.length > 0
+                            ? param.labParameterThresholds
+                            : savedVal?.parameter?.labParameterThresholds || [];
+                        const bands = resolveApplicableThresholdBands(rawThresholds, patient);
+
+                        const numVal = isEditingInViewModal
+                          ? editParamValues[param.parameterId]?.valueNumeric
+                          : savedVal?.valueNumeric !== null && savedVal?.valueNumeric !== undefined
+                          ? Number(savedVal.valueNumeric)
+                          : undefined;
+                        const evalRes = evaluateNumericAgainstBands(numVal, bands);
+                        const isPositiveNegative = param.dataType === 'positive_negative';
+
+                        return (
+                          <tr key={param.parameterId}>
+                            <td className="p-2.5">
+                              <div className="font-bold text-slate-900">{param.parameterName || param.parameterCode}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">{param.parameterCode}</div>
+                            </td>
+                            <td className="p-2.5 font-mono font-bold">
+                              <span className={evalRes.isAbnormal ? 'text-rose-700 font-extrabold' : 'text-blue-900'}>
+                                {numVal !== undefined ? numVal : savedVal?.valueText || '-'}
+                              </span>
+                            </td>
+                            <td className="p-2.5 text-slate-500 font-mono text-[11px]">{param.unit || '-'}</td>
+                            <td className="p-2.5 text-slate-700 font-mono font-semibold text-[11px]">
+                              {isPositiveNegative ? 'Âm tính (-)' : formatBandRange(evalRes.normalBand)}
+                            </td>
+                            <td className="p-2.5">
+                              {isPositiveNegative ? (
+                                <span className="text-[11px] text-emerald-700 font-semibold">
+                                  Âm tính (-): Bình thường • Dương tính (+): Bất thường
+                                </span>
+                              ) : bands.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {bands.map((b, idx) => {
+                                    const meta = RISK_LEVEL_META[b.riskLevel] || RISK_LEVEL_META.normal;
+                                    const isMatched =
+                                      numVal !== undefined &&
+                                      evalRes.matchedBand &&
+                                      evalRes.matchedBand.riskLevel === b.riskLevel &&
+                                      evalRes.matchedBand.rangeMin === b.rangeMin &&
+                                      evalRes.matchedBand.rangeMax === b.rangeMax;
+                                    return (
+                                      <span
+                                        key={`${b.riskLevel}-${idx}`}
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-mono ${
+                                          meta.pillCls
+                                        } ${isMatched ? 'ring-2 ring-slate-900/70 font-extrabold' : ''}`}
+                                      >
+                                        <span className="font-sans font-bold">{meta.shortLabel}:</span>
+                                        <span>{formatBandRange(b)}</span>
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 italic text-[11px]">Chưa có thông tin</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : isEditingInViewModal ? (
               <div className="space-y-4">
                 {/* Cảnh báo lỗi cập nhật trực tiếp trên Modal */}
                 {editModalError && (
@@ -1791,17 +2225,17 @@ export const LabOrdersView: React.FC = () => {
                         <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                           <tr>
                             <th className="p-2.5">Chỉ số</th>
-                            <th className="p-2.5 w-40">Giá trị đo</th>
-                            <th className="p-2.5">Đơn vị</th>
-                            <th className="p-2.5">Khoảng chuẩn</th>
+                            <th className="p-2.5 w-36">Giá trị đo</th>
+                            <th className="p-2.5 w-20">Đơn vị</th>
+                            <th className="p-2.5 w-36">Khoảng chuẩn</th>
+                            <th className="p-2.5 w-48">Đánh giá tức thời</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium">
                           {selectedTask.orderItem.testType.labResultParameters.map((param) => {
                             const val = editParamValues[param.parameterId];
-                            const threshold = param.labParameterThresholds?.find((t) => t.riskLevel === 'normal') || param.labParameterThresholds?.[0];
-                            const min = threshold?.rangeMin !== undefined && threshold?.rangeMin !== null ? Number(threshold.rangeMin) : undefined;
-                            const max = threshold?.rangeMax !== undefined && threshold?.rangeMax !== null ? Number(threshold.rangeMax) : undefined;
+                            const patient = selectedTask.orderItem?.order?.encounter?.patient;
+                            const bands = resolveApplicableThresholdBands(param.labParameterThresholds, patient);
                             const dataType = param.dataType || 'numeric';
 
                             const numVal = val?.valueNumeric;
@@ -1817,12 +2251,16 @@ export const LabOrdersView: React.FC = () => {
                               textVal.includes('+')
                             );
 
-                            const isOutOfRange = isNumeric
-                              ? (numVal !== undefined && ((min !== undefined && numVal < min) || (max !== undefined && numVal > max)))
-                              : isPositive;
+                            const evalRes = evaluateNumericAgainstBands(numVal, bands);
+                            const isOutOfRange = isNumeric ? evalRes.isAbnormal : isPositive;
+                            const currentRisk: RiskLevelKey = isNumeric
+                              ? evalRes.riskLevel
+                              : isPositive
+                              ? 'high'
+                              : 'normal';
 
                             return (
-                              <tr key={param.parameterId} className={isOutOfRange ? 'bg-rose-50/50' : ''}>
+                              <tr key={param.parameterId} className={isOutOfRange ? 'bg-rose-50/40' : ''}>
                                 <td className="p-2.5">
                                   <div className="font-bold text-slate-900">{param.parameterName || param.parameterCode}</div>
                                   <div className="text-[10px] text-slate-400 font-mono">
@@ -1886,22 +2324,51 @@ export const LabOrdersView: React.FC = () => {
                                   )}
                                 </td>
                                 <td className="p-2.5 text-slate-500 font-mono text-[11px]">{param.unit || '-'}</td>
-                                <td className="p-2.5 text-slate-600 text-[11px] font-mono">
+                                <td className="p-2.5 text-slate-700 font-mono font-semibold text-[11px]">
                                   {isPositiveNegative ? (
-                                    <span className="font-semibold text-emerald-700">Âm tính (-)</span>
-                                  ) : min !== undefined && max !== undefined ? (
-                                    <span>{min} – {max}</span>
-                                  ) : min !== undefined ? (
-                                    <span>&ge; {min}</span>
-                                  ) : max !== undefined ? (
-                                    <span>&le; {max}</span>
-                                  ) : (
-                                    <span>Bình thường</span>
-                                  )}
-                                  {isOutOfRange && (
-                                    <span className="ml-1 text-rose-600 font-bold text-[10px] block">
-                                      {isPositive ? '⚠️ Dương tính (Vượt ngưỡng)!' : '⚠️ Vượt ngưỡng!'}
+                                    <span className="text-emerald-700">Âm tính (-)</span>
+                                  ) : evalRes.normalBand ? (
+                                    <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">
+                                      {formatBandRange(evalRes.normalBand)}
                                     </span>
+                                  ) : (
+                                    <span className="text-slate-400 italic font-sans font-normal">Chưa có thông tin</span>
+                                  )}
+                                </td>
+                                <td className="p-2.5">
+                                  {isNumeric ? (
+                                    bands.length === 0 ? (
+                                      <span className="text-[11px] text-slate-400 italic">Chưa có thông tin</span>
+                                    ) : numVal === undefined ? (
+                                      <span className="text-[11px] text-slate-400 italic">Chưa nhập số</span>
+                                    ) : (
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                          RISK_LEVEL_META[currentRisk]?.badgeCls || RISK_LEVEL_META.normal.badgeCls
+                                        }`}
+                                      >
+                                        {currentRisk === 'normal' ? (
+                                          <CheckCircle2 className="w-3 h-3 shrink-0" />
+                                        ) : currentRisk === 'critical' ? (
+                                          <ShieldAlert className="w-3 h-3 shrink-0" />
+                                        ) : (
+                                          <AlertTriangle className="w-3 h-3 shrink-0" />
+                                        )}
+                                        <span>{RISK_LEVEL_META[currentRisk]?.label || 'Bình thường'}</span>
+                                      </span>
+                                    )
+                                  ) : isPositiveNegative ? (
+                                    <span
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                        isPositive
+                                          ? RISK_LEVEL_META.high.badgeCls
+                                          : RISK_LEVEL_META.normal.badgeCls
+                                      }`}
+                                    >
+                                      <span>{isPositive ? '⚠️ Dương tính (Vượt ngưỡng)' : '✓ Âm tính (Bình thường)'}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400">Định tính</span>
                                   )}
                                 </td>
                               </tr>
@@ -2070,89 +2537,87 @@ export const LabOrdersView: React.FC = () => {
                       <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                         <tr>
                           <th className="p-2.5">Chỉ số xét nghiệm</th>
-                          <th className="p-2.5">Giá trị đo</th>
-                          <th className="p-2.5">Đơn vị</th>
-                          <th className="p-2.5">Khoảng tham chiếu chuẩn</th>
-                          <th className="p-2.5">Đánh giá / Trạng thái</th>
+                          <th className="p-2.5 w-24">Giá trị đo</th>
+                          <th className="p-2.5 w-20">Đơn vị</th>
+                          <th className="p-2.5 w-36">Khoảng tham chiếu chuẩn</th>
+                          <th className="p-2.5 w-48">Đánh giá / Trạng thái</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-medium">
                         {viewingResult.values.map((v) => {
                           const alertItem = v.labResultAlerts?.[0];
-                          const thresholds = v.parameter?.labParameterThresholds || [];
-                          const defaultThreshold = thresholds.find((t) => t.riskLevel === 'normal') || thresholds[0];
-
-                          const min = defaultThreshold?.rangeMin !== undefined && defaultThreshold?.rangeMin !== null 
-                            ? Number(defaultThreshold.rangeMin) 
-                            : alertItem?.expectedMin !== undefined && alertItem?.expectedMin !== null 
-                            ? Number(alertItem.expectedMin) 
-                            : undefined;
-
-                          const max = defaultThreshold?.rangeMax !== undefined && defaultThreshold?.rangeMax !== null 
-                            ? Number(defaultThreshold.rangeMax) 
-                            : alertItem?.expectedMax !== undefined && alertItem?.expectedMax !== null 
-                            ? Number(alertItem.expectedMax) 
-                            : undefined;
-
-                          const numVal = v.valueNumeric !== null && v.valueNumeric !== undefined ? Number(v.valueNumeric) : undefined;
-                          const isOutOfRange = numVal !== undefined && (
-                            (min !== undefined && numVal < min) ||
-                            (max !== undefined && numVal > max)
+                          const patient = selectedTask?.orderItem?.order?.encounter?.patient;
+                          const taskParam = selectedTask?.orderItem?.testType?.labResultParameters?.find(
+                            (p) => p.parameterId === v.parameterId || p.parameterCode === v.parameter?.parameterCode
                           );
-                          const isAbnormal = v.isAbnormal || isOutOfRange || Boolean(alertItem);
-                          const riskLevel = alertItem?.riskLevel || (isAbnormal ? 'high' : 'normal');
+                          const rawThresholds =
+                            v.parameter?.labParameterThresholds && v.parameter.labParameterThresholds.length > 0
+                              ? v.parameter.labParameterThresholds
+                              : taskParam?.labParameterThresholds || [];
+
+                          const bands = resolveApplicableThresholdBands(rawThresholds, patient);
+                          const numVal = v.valueNumeric !== null && v.valueNumeric !== undefined ? Number(v.valueNumeric) : undefined;
+                          const evalRes = evaluateNumericAgainstBands(numVal, bands);
+
+                          const min = evalRes.normalBand?.rangeMin !== undefined
+                            ? evalRes.normalBand.rangeMin
+                            : alertItem?.expectedMin !== undefined && alertItem?.expectedMin !== null
+                            ? Number(alertItem.expectedMin)
+                            : undefined;
+
+                          const max = evalRes.normalBand?.rangeMax !== undefined
+                            ? evalRes.normalBand.rangeMax
+                            : alertItem?.expectedMax !== undefined && alertItem?.expectedMax !== null
+                            ? Number(alertItem.expectedMax)
+                            : undefined;
+
+                          const isAbnormal = v.isAbnormal || evalRes.isAbnormal || Boolean(alertItem);
+                          const riskLevel: RiskLevelKey =
+                            (alertItem?.riskLevel as RiskLevelKey) ||
+                            (evalRes.isAbnormal ? evalRes.riskLevel : isAbnormal ? 'high' : 'normal');
 
                           return (
                             <tr key={v.resultValueId} className={isAbnormal ? 'bg-rose-50/40' : ''}>
                               <td className="p-2.5">
-                                <div className="font-bold text-slate-900">{v.parameter?.parameterName || v.parameter?.parameterCode || 'Chỉ số'}</div>
-                                <div className="text-[10px] text-slate-400 font-mono">{v.parameter?.parameterCode}</div>
+                                <div className="font-bold text-slate-900">{v.parameter?.parameterName || taskParam?.parameterName || v.parameter?.parameterCode || 'Chỉ số'}</div>
+                                <div className="text-[10px] text-slate-400 font-mono">{v.parameter?.parameterCode || taskParam?.parameterCode}</div>
                               </td>
                               <td className="p-2.5 font-mono font-bold text-slate-900">
                                 <span className={isAbnormal ? 'text-rose-700 font-extrabold' : 'text-blue-900'}>
                                   {v.valueNumeric !== null && v.valueNumeric !== undefined ? v.valueNumeric : v.valueText || '-'}
                                 </span>
                               </td>
-                              <td className="p-2.5 text-slate-500 font-mono text-[11px]">{v.parameter?.unit || '-'}</td>
+                              <td className="p-2.5 text-slate-500 font-mono text-[11px]">{v.parameter?.unit || taskParam?.unit || '-'}</td>
                               <td className="p-2.5 text-slate-600 text-[11px] font-mono">
-                                {min !== undefined && max !== undefined ? (
+                                {min !== undefined || max !== undefined ? (
                                   <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-semibold">
-                                    {min} – {max}
-                                  </span>
-                                ) : min !== undefined ? (
-                                  <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-semibold">
-                                    &ge; {min}
-                                  </span>
-                                ) : max !== undefined ? (
-                                  <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-semibold">
-                                    &le; {max}
+                                    {formatBandRange({ rangeMin: min, rangeMax: max })}
                                   </span>
                                 ) : (
-                                  <span className="text-slate-400 italic">Bình thường</span>
+                                  <span className="text-slate-400 italic font-sans">Chưa có thông tin</span>
                                 )}
                               </td>
                               <td className="p-2.5">
-                                {isAbnormal ? (
-                                  riskLevel === 'critical' ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
-                                      <ShieldAlert className="w-3 h-3 text-rose-600" />
-                                      <span>Báo động đỏ (Critical)</span>
-                                    </span>
-                                  ) : riskLevel === 'high' ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                                      <AlertTriangle className="w-3 h-3 text-rose-600" />
-                                      <span>{numVal !== undefined && max !== undefined && numVal > max ? 'Vượt ngưỡng cao' : 'Vượt ngưỡng'}</span>
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                                      <AlertCircle className="w-3 h-3 text-amber-600" />
-                                      <span>{numVal !== undefined && min !== undefined && numVal < min ? 'Dưới ngưỡng chuẩn' : 'Cảnh báo lệch ngưỡng'}</span>
-                                    </span>
-                                  )
+                                {bands.length === 0 && !isAbnormal ? (
+                                  <span className="text-[11px] text-slate-400 italic">Chưa có thông tin</span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                    <span>Bình thường</span>
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                      RISK_LEVEL_META[riskLevel]?.badgeCls || RISK_LEVEL_META.normal.badgeCls
+                                    }`}
+                                  >
+                                    {riskLevel === 'normal' && !isAbnormal ? (
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                    ) : riskLevel === 'critical' ? (
+                                      <ShieldAlert className="w-3 h-3 text-rose-600 shrink-0" />
+                                    ) : (
+                                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                                    )}
+                                    <span>
+                                      {isAbnormal
+                                        ? RISK_LEVEL_META[riskLevel === 'normal' ? 'high' : riskLevel]?.label
+                                        : RISK_LEVEL_META.normal.label}
+                                    </span>
                                   </span>
                                 )}
                               </td>

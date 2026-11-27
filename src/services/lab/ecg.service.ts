@@ -65,7 +65,7 @@ const VERDICTS: readonly EcgReviewVerdict[] = ['pending', 'true_positive', 'fals
 const ANALYSIS_STATUSES: readonly EcgAnalysisStatus[] = ['queued', 'running', 'completed', 'failed', 'skipped'];
 const OVERALL: readonly EcgOverallResult[] = ['normal', 'abnormal', 'inconclusive', 'poor_signal'];
 const REC_TYPES: readonly EcgRecordingType[] = ['resting_12_lead', 'continuous_monitoring', 'holter', 'rhythm_strip'];
-const FORMATS: readonly EcgSignalFormat[] = ['wfdb', 'edf', 'csv', 'json', 'dicom_ecg', 'scp_ecg'];
+const FORMATS: readonly EcgSignalFormat[] = ['wfdb', 'edf', 'csv', 'json', 'npy', 'dicom_ecg', 'scp_ecg'];
 const REC_STATUSES: readonly EcgRecordingStatus[] = ['uploaded', 'analyzing', 'completed', 'failed', 'cancelled'];
 
 function leadsFrom(v: unknown): string[] {
@@ -159,12 +159,16 @@ export function mapEcgRecordingDto(raw: unknown): EcgRecordingDetail {
   const latest = latestRaw ? mapEcgAnalysisDto(latestRaw) : analyses[0] ?? null;
   const numLeads = num(d.numLeads) ?? 12;
   const leadNames = leadsFrom(d.leadNames);
+  const fileName = str(d.originalFileName, d.fileName);
+  const inferredFormat = fileName?.toLowerCase().endsWith('.npy')
+    ? 'npy'
+    : oneOf(d.signalFormat, FORMATS, 'csv');
   return {
     id: str(d.recordingId, d.ecgRecordingId, d.id) ?? '',
     taskId: str(d.taskId, d.labTaskId, task.taskId) ?? '',
     encounterId: str(d.encounterId, encounter.encounterId),
     recordingType: oneOf(d.recordingType, REC_TYPES, 'rhythm_strip'),
-    signalFormat: oneOf(d.signalFormat, FORMATS, 'csv'),
+    signalFormat: inferredFormat,
     sampleRateHz: num(d.sampleRateHz) ?? 500,
     numLeads,
     leadNames: leadNames.length ? leadNames : STANDARD_12_LEADS.slice(0, numLeads),
@@ -174,7 +178,7 @@ export function mapEcgRecordingDto(raw: unknown): EcgRecordingDetail {
     deviceModel: str(d.deviceModel),
     deviceSerial: str(d.deviceSerial),
     status: oneOf(d.status, REC_STATUSES, latest?.status === 'completed' ? 'completed' : 'uploaded'),
-    fileName: str(d.originalFileName, d.fileName),
+    fileName,
     createdAt: str(d.createdAt) ?? new Date().toISOString(),
     patientName: str(patient.fullName, d.patientName),
     encounterCode: str(encounter.encounterCode, d.encounterCode),

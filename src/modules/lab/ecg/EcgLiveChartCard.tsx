@@ -23,12 +23,14 @@ import { EcgCanvas, type EcgCanvasHandle } from './chart/EcgCanvas';
 import type { EcgGridMode } from './chart/renderer/gridLayer';
 import { Minimap } from './chart/Minimap';
 import { augmentSignalWithAnomalies } from './chart/data/augmentAnomalySignal';
+import { OVERLAY_LEAD_COLORS, OVERLAY_MONITOR_COLORS } from './chart/renderer/sweep';
 import { formatTimeMs, getAnomalyLabel } from './ecgMeta';
 
 interface EcgLiveChartCardProps {
   signalState: SignalState;
   recordingType: EcgRecordingType;
   selectedLeads: string[];
+  overlayLeads?: boolean;
   anomalies: EcgAnomalyEvent[];
   rPeaksMs: number[];
   clock: PlaybackClock;
@@ -74,6 +76,7 @@ export const EcgLiveChartCard: React.FC<EcgLiveChartCardProps> = ({
   signalState,
   recordingType,
   selectedLeads,
+  overlayLeads = false,
   anomalies,
   rPeaksMs,
   clock,
@@ -171,8 +174,9 @@ export const EcgLiveChartCard: React.FC<EcgLiveChartCardProps> = ({
   const effectiveStartMs = liveStyle === 'sweep' ? Math.floor(snapshot.positionMs / windowMs) * windowMs : viewStartMs;
   const effectiveEndMs = liveStyle === 'sweep' ? effectiveStartMs + windowMs : viewEndMs;
 
-  const isMultiLead = selectedLeads.length > 1;
-  const canvasHeight = isMultiLead ? Math.min(720, selectedLeads.length * 90) : 220;
+  const isStackedMultiLead = selectedLeads.length > 1 && !overlayLeads;
+  const canvasHeight = isStackedMultiLead ? Math.min(720, selectedLeads.length * 90) : 220;
+  const leadPalette = gridMode === 'monitor' ? OVERLAY_MONITOR_COLORS : OVERLAY_LEAD_COLORS;
 
   return (
     <section
@@ -185,8 +189,27 @@ export const EcgLiveChartCard: React.FC<EcgLiveChartCardProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2.5">
           <h3 className="text-[14px] font-semibold text-slate-900">
-            Live Telemetry (API 2) · {selectedLeads.length === 1 ? `Lead ${selectedLeads[0]}` : `${selectedLeads.length} đạo trình`}
+            Live Telemetry ·{' '}
+            {selectedLeads.length === 1
+              ? `Lead ${selectedLeads[0]}`
+              : overlayLeads
+                ? `Lead ${selectedLeads.join(' + ')}`
+                : `${selectedLeads.length} đạo trình`}
           </h3>
+
+          {overlayLeads && selectedLeads.length > 1 && (
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-slate-100/90 border border-slate-200/80 text-[11px] font-semibold">
+              {selectedLeads.map((l, idx) => (
+                <span key={l} className="inline-flex items-center gap-1 text-slate-700">
+                  <span
+                    className="w-2.5 h-0.5 rounded-full inline-block"
+                    style={{ backgroundColor: leadPalette[idx % leadPalette.length] }}
+                  />
+                  <span>Lead {l}</span>
+                </span>
+              ))}
+            </div>
+          )}
 
           {snapshot.playing ? (
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
@@ -450,6 +473,7 @@ export const EcgLiveChartCard: React.FC<EcgLiveChartCardProps> = ({
             gridMode={gridMode}
             gainMmPerMv={gainMmPerMv}
             leadNames={selectedLeads}
+            overlayLeads={overlayLeads}
             showCalibrationPulse
             viewStartMs={effectiveStartMs}
             viewEndMs={effectiveEndMs}

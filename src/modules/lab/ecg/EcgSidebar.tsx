@@ -14,8 +14,10 @@ interface EcgSidebarProps {
   availableLeads: string[];
   selectedLeads: string[];
   multiLead: boolean;
+  overlayLeads?: boolean;
   onToggleMultiLead: () => void;
   onToggleLead: (lead: string) => void;
+  onSelectOverlayLeads?: (leads: string[]) => void;
   onSelectAll12Leads: () => void;
   anomalies: EcgAnomalyEvent[];
   canUpload: boolean;
@@ -39,8 +41,10 @@ export const EcgSidebar: React.FC<EcgSidebarProps> = ({
   availableLeads,
   selectedLeads,
   multiLead,
+  overlayLeads = false,
   onToggleMultiLead,
   onToggleLead,
+  onSelectOverlayLeads,
   onSelectAll12Leads,
   anomalies,
   canUpload,
@@ -215,7 +219,7 @@ export const EcgSidebar: React.FC<EcgSidebarProps> = ({
 
         <div className="grid grid-cols-3 gap-1.5">
           {leadsToRender.map((lead) => {
-            const active = selectedLeads.includes(lead);
+            const active = !overlayLeads && selectedLeads.includes(lead);
             const hasAnomaly = affectedSet.has(lead);
             return (
               <button
@@ -240,6 +244,21 @@ export const EcgSidebar: React.FC<EcgSidebarProps> = ({
               </button>
             );
           })}
+
+          {leadsToRender.length >= 2 && onSelectOverlayLeads && (
+            <button
+              type="button"
+              onClick={() => onSelectOverlayLeads(leadsToRender.slice(0, 2))}
+              className={`relative py-1.5 px-1.5 rounded-lg text-[11px] font-semibold transition cursor-pointer border truncate ${
+                overlayLeads
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                  : 'bg-white text-slate-700 border-slate-200/90 hover:bg-slate-50'
+              }`}
+              title={`Vẽ chồng 2 đạo trình (${leadsToRender[0]} + ${leadsToRender[1]}) chung 1 hệ quy chiếu`}
+            >
+              <span>{`${leadsToRender[0]} + ${leadsToRender[1]}`}</span>
+            </button>
+          )}
         </div>
 
         {leadsToRender.length >= 6 && (

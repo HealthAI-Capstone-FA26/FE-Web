@@ -3,6 +3,15 @@ import { minMaxDecimate } from '../math/minMaxDecimate';
 import type { EcgThemeTokens } from '../../ecgMeta';
 import type { EcgGridMode } from './gridLayer';
 
+export const OVERLAY_LEAD_COLORS = ['#DC2626', '#2563EB', '#7C3AED', '#0D9488', '#D97706', '#DB2777'] as const;
+export const OVERLAY_MONITOR_COLORS = ['#22C55E', '#38BDF8', '#A78BFA', '#F43F5E', '#FACC15', '#2DD4BF'] as const;
+
+export function getOverlayLeadColor(index: number, mode: EcgGridMode, defaultColor: string, isOverlay: boolean): string {
+  if (!isOverlay) return defaultColor;
+  const palette = mode === 'monitor' ? OVERLAY_MONITOR_COLORS : OVERLAY_LEAD_COLORS;
+  return palette[index % palette.length];
+}
+
 export interface SweepRenderConfig {
   width: number;
   height: number;
@@ -11,6 +20,7 @@ export interface SweepRenderConfig {
   gainMmPerMv: 5 | 10 | 20;
   yDomain?: [number, number];
   leadIndices: number[];
+  overlayLeads?: boolean;
   mode: EcgGridMode;
   tokens: EcgThemeTokens;
   reducedMotion: boolean;
@@ -155,12 +165,13 @@ export class SweepState {
     windowSamples: number,
     cfg: SweepRenderConfig,
   ): void {
-    const { width, height, gainMmPerMv, yDomain = [-1.5, 1.5], leadIndices, mode, tokens, reducedMotion } = cfg;
+    const { width, height, gainMmPerMv, yDomain = [-1.5, 1.5], leadIndices, overlayLeads = false, mode, tokens, reducedMotion } = cfg;
     const clampedFrom = Math.max(fromAbs, buffer.start);
     const clampedTo = Math.min(toAbs, buffer.end);
     if (clampedTo - clampedFrom < 2) return;
 
-    const numRows = Math.max(1, leadIndices.length);
+    const isOverlay = overlayLeads && leadIndices.length > 1;
+    const numRows = isOverlay ? 1 : Math.max(1, leadIndices.length);
     const rowHeight = height / numRows;
     const spanPx = Math.max(2, ((clampedTo - clampedFrom) / windowSamples) * width);
 
@@ -168,7 +179,6 @@ export class SweepState {
       mode === 'monitor' ? tokens.waveMonitor : mode === 'paper' ? tokens.wavePaper : tokens.wave;
 
     ctx.save();
-    ctx.strokeStyle = strokeColor;
     ctx.lineWidth = mode === 'monitor' ? 1.6 : 1.35;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
@@ -177,8 +187,10 @@ export class SweepState {
       ctx.shadowBlur = 6;
     }
 
-    for (let r = 0; r < numRows; r++) {
-      const leadIdx = leadIndices[r] ?? 0;
+    for (let k = 0; k < leadIndices.length; k++) {
+      const leadIdx = leadIndices[k] ?? 0;
+      const r = isOverlay ? 0 : k;
+      ctx.strokeStyle = getOverlayLeadColor(k, mode, strokeColor, isOverlay);
       const n = minMaxDecimate((idx) => buffer.get(leadIdx, idx), clampedFrom, clampedTo, spanPx, this.scratch);
       if (n < 2) continue;
       ctx.beginPath();
@@ -208,11 +220,12 @@ export class SweepState {
     cursorX: number,
     cfg: SweepRenderConfig,
   ): void {
-    const { width, height, gainMmPerMv, yDomain = [-1.5, 1.5], leadIndices, mode, tokens, reducedMotion } = cfg;
+    const { width, height, gainMmPerMv, yDomain = [-1.5, 1.5], leadIndices, overlayLeads = false, mode, tokens, reducedMotion } = cfg;
     overlayCtx.clearRect(0, 0, width, height);
     if (currentAbsSample <= buffer.start) return;
 
-    const numRows = Math.max(1, leadIndices.length);
+    const isOverlay = overlayLeads && leadIndices.length > 1;
+    const numRows = isOverlay ? 1 : Math.max(1, leadIndices.length);
     const rowHeight = height / numRows;
     const dotColor = mode === 'monitor' ? tokens.waveMonitor : mode === 'paper' ? tokens.wavePaper : '#DC2626';
 
@@ -224,18 +237,20 @@ export class SweepState {
     overlayCtx.lineTo(cursorX, height);
     overlayCtx.stroke();
 
-    for (let r = 0; r < numRows; r++) {
-      const leadIdx = leadIndices[r] ?? 0;
+    for (let k = 0; k < leadIndices.length; k++) {
+      const leadIdx = leadIndices[k] ?? 0;
+      const r = isOverlay ? 0 : k;
       const mv = buffer.get(leadIdx, currentAbsSample - 1);
       if (!Number.isFinite(mv)) continue;
       const y = mapValueToRowY(mv, r, rowHeight, yDomain, gainMmPerMv);
+      const color = getOverlayLeadColor(k, mode, dotColor, isOverlay);
       if (!reducedMotion) {
         overlayCtx.fillStyle = mode === 'monitor' ? 'rgba(34,197,94,0.28)' : 'rgba(220,38,38,0.22)';
         overlayCtx.beginPath();
         overlayCtx.arc(cursorX, y, 6.5, 0, Math.PI * 2);
         overlayCtx.fill();
       }
-      overlayCtx.fillStyle = dotColor;
+      overlayCtx.fillStyle = color;
       overlayCtx.beginPath();
       overlayCtx.arc(cursorX, y, 3, 0, Math.PI * 2);
       overlayCtx.fill();

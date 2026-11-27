@@ -2,7 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { Edit3, X, Loader2, Save, AlertCircle, CreditCard, ShieldCheck, Phone, Mail, MapPin } from 'lucide-react';
 import { DobInput } from '../../../components/common/DobInput';
 import { patientService, type PatientGender } from '../../../services/patient/patient.service';
-import type { ProfileItem } from './CreatePatientProfileModal';
+
+export interface ProfileItem {
+  id: string;
+  patientCode?: string;
+  relationship: string;
+  fullName: string;
+  dob: string;
+  gender: 'Nam' | 'Nữ' | 'Khác';
+  identityCard: string;
+  insuranceCard?: string;
+  phone: string;
+  email: string;
+  address: string;
+  ethnicity?: string;
+  isBackendRecord?: boolean;
+}
 
 interface EditPatientProfileModalProps {
   isOpen: boolean;
@@ -36,6 +51,7 @@ export const EditPatientProfileModal: React.FC<EditPatientProfileModalProps> = (
     phone: '',
     email: '',
     address: '',
+    ethnicity: '',
     isBackendRecord: false,
   });
 
@@ -79,6 +95,7 @@ export const EditPatientProfileModal: React.FC<EditPatientProfileModalProps> = (
         insuranceNumber: formData.insuranceCard?.trim() || undefined,
         email: formData.email.trim() || undefined,
         address: formData.address.trim() || undefined,
+        ethnicity: formData.ethnicity?.trim() || undefined,
         relationship: formData.relationship,
       };
 
@@ -189,6 +206,17 @@ export const EditPatientProfileModal: React.FC<EditPatientProfileModalProps> = (
                 <option value="Nữ">Nữ</option>
                 <option value="Khác">Khác</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-slate-700 font-bold mb-1">Dân tộc</label>
+              <input
+                type="text"
+                placeholder="VD: Kinh, Tày, Thái..."
+                value={formData.ethnicity || ''}
+                onChange={(e) => handleFormChange('ethnicity', e.target.value)}
+                className="w-full bg-slate-50 text-slate-900 p-2.5 rounded-xl border border-slate-200 outline-none focus:bg-white focus:border-blue-700 transition-all font-semibold"
+              />
             </div>
 
             <div>
