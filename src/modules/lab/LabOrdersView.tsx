@@ -105,10 +105,6 @@ export const LabOrdersView: React.FC = () => {
   const [alertSummary, setAlertSummary] = useState<ThresholdAlertSummary | null>(null);
   const [isAlertSummaryModalOpen, setIsAlertSummaryModalOpen] = useState<boolean>(false);
 
-  // AI analysis states
-  const [isAIScanning, setIsAIScanning] = useState<boolean>(false);
-  const [isAIAnalyzed, setIsAIAnalyzed] = useState<boolean>(false);
-
   // Modal Error states (Hiển thị trực tiếp bên trong Modal)
   const [modalError, setModalError] = useState<string | null>(null);
   const [editModalError, setEditModalError] = useState<string | null>(null);
@@ -349,8 +345,6 @@ export const LabOrdersView: React.FC = () => {
     setOverallConclusion(existingResult?.overallConclusion || existingResult?.findings || '');
     setSelectedFile(null);
     setAttachedFileName('');
-    setIsAIAnalyzed(false);
-    setIsAIScanning(false);
     setIsInputModalOpen(true);
   };
 
@@ -515,16 +509,6 @@ export const LabOrdersView: React.FC = () => {
     } finally {
       setIsSavingEdit(false);
     }
-  };
-
-  // AI Scanning giả lập
-  const handleRunAI = () => {
-    setIsAIScanning(true);
-    setTimeout(() => {
-      setIsAIScanning(false);
-      setIsAIAnalyzed(true);
-      showToast('Đã hoàn tất quét AI tự động đối soát chỉ số & phát hiện tổn thương', 'info');
-    }, 1800);
   };
 
   // Lưu và xác nhận kết quả xét nghiệm lần đầu (khi ca đang in_progress)
@@ -1352,7 +1336,7 @@ export const LabOrdersView: React.FC = () => {
               ? ` — ${selectedTask.orderItem.order.encounter.department.departmentName}`
               : ''
           }`}
-          maxWidth="4xl"
+          maxWidth="2xl"
           footer={
             <>
               <button
@@ -1383,9 +1367,9 @@ export const LabOrdersView: React.FC = () => {
             </>
           }
         >
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-xs text-slate-800">
-            {/* Left: Input parameters */}
-            <div className="lg:col-span-7 space-y-4">
+          <div className="space-y-4 text-xs text-slate-800">
+            {/* Input parameters */}
+            <div className="space-y-4">
               {/* Cảnh báo lỗi trực tiếp trên Modal */}
               {modalError && (
                 <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-2.5 text-xs text-rose-800 shadow-sm animate-in fade-in">
@@ -1587,61 +1571,6 @@ export const LabOrdersView: React.FC = () => {
                   </span>
                   <span className="text-[10px] text-slate-400">PNG, JPG, PDF tối đa 20MB</span>
                 </label>
-              </div>
-            </div>
-
-            {/* Right: AI Scanner & Visualizer */}
-            <div className="lg:col-span-5 space-y-4">
-              <button
-                type="button"
-                onClick={handleRunAI}
-                disabled={isAIScanning}
-                className="w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border-none cursor-pointer bg-gradient-to-r from-purple-900 to-indigo-900 text-white shadow-sm hover:shadow-md"
-              >
-                {isAIScanning ? (
-                  <>
-                    <Loader2 className="w-4 h-4 text-amber-300 animate-spin" />
-                    <span>AI đang phân tích dữ liệu...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 text-amber-300" />
-                    <span>Kích hoạt AI đối soát kết quả</span>
-                  </>
-                )}
-              </button>
-
-              <div className="bg-slate-950 text-white border border-slate-900 rounded-2xl p-4 min-h-[220px] flex flex-col justify-center relative overflow-hidden text-center">
-                <span className="text-[9px] font-bold text-slate-500 absolute top-2 left-3 uppercase font-mono">
-                  AI Medical Assistant
-                </span>
-
-                {isAIScanning ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
-                    <span className="text-xs text-indigo-200 font-bold">Đang phân tích các chỉ số...</span>
-                  </div>
-                ) : isAIAnalyzed ? (
-                  <div className="space-y-3 text-left font-mono text-[11px] p-2">
-                    <span className="text-[10px] bg-emerald-950 border border-emerald-800 text-emerald-300 font-bold px-2 py-0.5 rounded-full inline-block">
-                      ✓ Đã hoàn tất đối soát AI
-                    </span>
-                    <p className="text-slate-300">
-                      • Tự động đối soát các ngưỡng sinh học chuẩn theo độ tuổi & giới tính của bệnh nhân.
-                    </p>
-                    <p className="text-slate-300">
-                      • Sẵn sàng đồng bộ kết quả vào hồ sơ EMR để bác sĩ thăm khám tiếp tục chẩn đoán.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-slate-400 space-y-1.5 p-4">
-                    <FlaskConical className="w-8 h-8 mx-auto text-slate-500" />
-                    <div className="font-bold text-xs">Chưa chạy phân tích AI</div>
-                    <p className="text-[10px] text-slate-500">
-                      Nhập các thông số kỹ thuật và bấm nút kích hoạt để AI hỗ trợ phát hiện các giá trị bất thường.
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           </div>

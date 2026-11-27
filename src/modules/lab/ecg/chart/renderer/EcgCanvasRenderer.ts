@@ -4,7 +4,7 @@ import { minMaxDecimate } from '../math/minMaxDecimate';
 import { formatTimeMs, readEcgThemeTokens, type EcgThemeTokens } from '../../ecgMeta';
 import { drawAnomalyBands } from './bandLayer';
 import { drawGridLayer, type EcgGridMode } from './gridLayer';
-import { mapValueToRowY, SweepState } from './sweep';
+import { getOverlayLeadColor, mapValueToRowY, SweepState } from './sweep';
 
 export type EcgRenderStyle = 'static' | 'sweep' | 'scroll' | 'timeline';
 
@@ -32,6 +32,7 @@ export interface EcgRendererOptions {
   gainMmPerMv: 5 | 10 | 20;
   leadIndices: number[];
   leadLabels: string[];
+  overlayLeads?: boolean;
   showCalibrationPulse: boolean;
   showZeroBaseline?: boolean;
   maxSampleLimit?: number | null;
@@ -168,6 +169,7 @@ export class EcgCanvasRenderer {
       prev.gridMode !== next.gridMode ||
       prev.gainMmPerMv !== next.gainMmPerMv ||
       prev.leadIndices.length !== next.leadIndices.length ||
+      prev.overlayLeads !== next.overlayLeads ||
       prev.leadLabels.join(',') !== next.leadLabels.join(',') ||
       prev.showCalibrationPulse !== next.showCalibrationPulse ||
       (next.gridMode === 'paper' && prev.viewEndMs - prev.viewStartMs !== next.viewEndMs - next.viewStartMs);
@@ -176,6 +178,7 @@ export class EcgCanvasRenderer {
       prev.style !== next.style ||
       prev.gridMode !== next.gridMode ||
       prev.gainMmPerMv !== next.gainMmPerMv ||
+      prev.overlayLeads !== next.overlayLeads ||
       prev.leadIndices.join(',') !== next.leadIndices.join(',')
     ) {
       this.sweep.reset();
@@ -190,6 +193,7 @@ export class EcgCanvasRenderer {
 
   drawGrid(): void {
     if (this.width <= 0 || this.height <= 0) return;
+    const isOverlay = Boolean(this.opts.overlayLeads && this.opts.leadIndices.length > 1);
     drawGridLayer(this.gridCtx, {
       width: this.width,
       height: this.height,
@@ -197,8 +201,8 @@ export class EcgCanvasRenderer {
       tokens: this.tokens,
       gainMmPerMv: this.opts.gainMmPerMv,
       windowDurationMs: Math.max(200, this.opts.viewEndMs - this.opts.viewStartMs),
-      numRows: Math.max(1, this.opts.leadIndices.length),
-      leadLabels: this.opts.leadLabels,
+      numRows: isOverlay ? 1 : Math.max(1, this.opts.leadIndices.length),
+      leadLabels: isOverlay ? [this.opts.leadLabels.join(' + ')] : this.opts.leadLabels,
       showCalibrationPulse: this.opts.showCalibrationPulse,
     });
   }
@@ -284,7 +288,8 @@ export class EcgCanvasRenderer {
         : totalSamples;
     const startSample = Math.max(0, Math.floor((viewStartMs / 1000) * fs));
     const endSample = Math.min(cappedTotal, Math.ceil((viewEndMs / 1000) * fs));
-    const numRows = Math.max(1, leadIndices.length);
+    const isOverlay = Boolean(this.opts.overlayLeads && leadIndices.length > 1);
+    const numRows = isOverlay ? 1 : Math.max(1, leadIndices.length);
     const rowHeight = height / numRows;
     const spanMs = Math.max(1, viewEndMs - viewStartMs);
 
@@ -311,19 +316,20 @@ export class EcgCanvasRenderer {
           : this.tokens.wave;
 
     this.waveCtx.save();
-    this.waveCtx.strokeStyle = strokeColor;
     this.waveCtx.lineWidth = 1.25;
     this.waveCtx.lineJoin = 'round';
     this.waveCtx.lineCap = 'round';
 
     let totalPoints = 0;
-    for (let r = 0; r < numRows; r++) {
-      const leadIdx = leadIndices[r] ?? 0;
+    for (let k = 0; k < leadIndices.length; k++) {
+      const leadIdx = leadIndices[k] ?? 0;
+      const r = isOverlay ? 0 : k;
+      this.waveCtx.strokeStyle = getOverlayLeadColor(k, gridMode, strokeColor, isOverlay);
       const leadArr = this.signal.leads[leadIdx] ?? this.signal.leads[0];
       if (!leadArr || endSample <= startSample) continue;
       const spanPx = Math.max(2, (((endSample - startSample) / fs) * 1000 / spanMs) * width);
       const n = minMaxDecimate((i) => leadArr[i] ?? 0, startSample, endSample, spanPx, this.scratch);
-      totalPoints += n;
+      if (k === 0) totalPoints += n;
       if (n < 2) continue;
 
       this.waveCtx.beginPath();
@@ -366,6 +372,7 @@ export class EcgCanvasRenderer {
           gainMmPerMv: this.opts.gainMmPerMv,
           yDomain: this.yDomain,
           leadIndices: this.opts.leadIndices,
+          overlayLeads: this.opts.overlayLeads,
           mode: this.opts.gridMode,
           tokens: this.tokens,
           reducedMotion: this.opts.reducedMotion,
@@ -412,7 +419,8 @@ export class EcgCanvasRenderer {
     const startSample = Math.max(0, Math.floor((startMs / 1000) * fs));
     const endSample = Math.min(totalSamples, Math.min(currentAbsSample, Math.ceil((endMs / 1000) * fs)));
     const spanMs = Math.max(1, endMs - startMs);
-    const numRows = Math.max(1, leadIndices.length);
+    const isOverlay = Boolean(this.opts.overlayLeads && leadIndices.length > 1);
+    const numRows = isOverlay ? 1 : Math.max(1, leadIndices.length);
     const rowHeight = height / numRows;
 
     const strokeColor =
@@ -423,7 +431,6 @@ export class EcgCanvasRenderer {
           : this.tokens.wave;
 
     this.waveCtx.save();
-    this.waveCtx.strokeStyle = strokeColor;
     this.waveCtx.lineWidth = gridMode === 'monitor' ? 1.6 : 1.35;
     this.waveCtx.lineJoin = 'round';
     if (gridMode === 'monitor' && !this.opts.reducedMotion) {
@@ -432,13 +439,15 @@ export class EcgCanvasRenderer {
     }
 
     let pts = 0;
-    for (let r = 0; r < numRows; r++) {
-      const leadIdx = leadIndices[r] ?? 0;
+    for (let k = 0; k < leadIndices.length; k++) {
+      const leadIdx = leadIndices[k] ?? 0;
+      const r = isOverlay ? 0 : k;
+      this.waveCtx.strokeStyle = getOverlayLeadColor(k, gridMode, strokeColor, isOverlay);
       const leadArr = this.signal.leads[leadIdx] ?? this.signal.leads[0];
       if (!leadArr || endSample <= startSample) continue;
       const spanPx = Math.max(2, (((endSample - startSample) / fs) * 1000 / spanMs) * width);
       const n = minMaxDecimate((i) => leadArr[i] ?? 0, startSample, endSample, spanPx, this.scratch);
-      pts += n;
+      if (k === 0) pts += n;
       if (n < 2) continue;
       this.waveCtx.beginPath();
       for (let i = 0; i < n; i++) {
@@ -469,11 +478,13 @@ export class EcgCanvasRenderer {
       this.overlayCtx.lineTo(cursorX, height);
       this.overlayCtx.stroke();
 
-      for (let r = 0; r < numRows; r++) {
-        const leadIdx = leadIndices[r] ?? 0;
+      const defaultDot = gridMode === 'monitor' ? this.tokens.waveMonitor : '#DC2626';
+      for (let k = 0; k < leadIndices.length; k++) {
+        const leadIdx = leadIndices[k] ?? 0;
+        const r = isOverlay ? 0 : k;
         const mv = this.signal.leads[leadIdx]?.[Math.max(0, endSample - 1)] ?? 0;
         const y = mapValueToRowY(mv, r, rowHeight, this.yDomain, gainMmPerMv);
-        this.overlayCtx.fillStyle = gridMode === 'monitor' ? this.tokens.waveMonitor : '#DC2626';
+        this.overlayCtx.fillStyle = getOverlayLeadColor(k, gridMode, defaultDot, isOverlay);
         this.overlayCtx.beginPath();
         this.overlayCtx.arc(cursorX, y, 3.2, 0, Math.PI * 2);
         this.overlayCtx.fill();
@@ -503,7 +514,8 @@ export class EcgCanvasRenderer {
     const startSample = Math.max(buffer.start, Math.floor((startMs / 1000) * fs));
     const endSample = Math.min(buffer.end, currentAbsSample);
     const spanMs = Math.max(1, endMs - startMs);
-    const numRows = Math.max(1, leadIndices.length);
+    const isOverlay = Boolean(this.opts.overlayLeads && leadIndices.length > 1);
+    const numRows = isOverlay ? 1 : Math.max(1, leadIndices.length);
     const rowHeight = height / numRows;
 
     const strokeColor =
@@ -514,7 +526,6 @@ export class EcgCanvasRenderer {
           : this.tokens.wave;
 
     this.waveCtx.save();
-    this.waveCtx.strokeStyle = strokeColor;
     this.waveCtx.lineWidth = gridMode === 'monitor' ? 1.6 : 1.35;
     this.waveCtx.lineJoin = 'round';
     if (gridMode === 'monitor' && !this.opts.reducedMotion) {
@@ -523,10 +534,12 @@ export class EcgCanvasRenderer {
     }
 
     let pts = 0;
-    for (let r = 0; r < numRows; r++) {
-      const leadIdx = leadIndices[r] ?? 0;
+    for (let k = 0; k < leadIndices.length; k++) {
+      const leadIdx = leadIndices[k] ?? 0;
+      const r = isOverlay ? 0 : k;
+      this.waveCtx.strokeStyle = getOverlayLeadColor(k, gridMode, strokeColor, isOverlay);
       const n = minMaxDecimate((i) => buffer.get(leadIdx, i), startSample, endSample, width, this.scratch);
-      pts += n;
+      if (k === 0) pts += n;
       if (n < 2) continue;
       this.waveCtx.beginPath();
       for (let i = 0; i < n; i++) {

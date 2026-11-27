@@ -56,7 +56,7 @@ export const BookingForm = () => {
   const [email, setEmail] = useState<string>('');
   const [dateOfBirth, setDateOfBirth] = useState<string>('');
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
-  const [verifyMethod, setVerifyMethod] = useState<'email' | 'sms'>('email');
+  const verifyMethod = 'email' as const;
 
   // OTP Step State
   const [step, setStep] = useState<'form' | 'otp' | 'success'>('form');
@@ -393,29 +393,6 @@ export const BookingForm = () => {
                       </select>
                     </div>
                   </div>
-
-                  {/* Kênh nhận mã OTP */}
-                  <div className="pt-1">
-                    <span className="block text-[10px] font-bold uppercase text-blue-100 mb-1">Kênh nhận mã OTP xác nhận *</span>
-                    <div className="grid grid-cols-2 bg-white p-1 rounded-lg text-center font-bold">
-                      <button
-                        type="button"
-                        onClick={() => setVerifyMethod('email')}
-                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer transition-colors ${verifyMethod === 'email' ? 'bg-[#0b3c8f] text-white shadow-xs' : 'text-slate-700'
-                          }`}
-                      >
-                        <Mail className="w-3.5 h-3.5" /> Email
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setVerifyMethod('sms')}
-                        className={`py-1.5 rounded text-xs flex items-center justify-center gap-1 cursor-pointer transition-colors ${verifyMethod === 'sms' ? 'bg-[#0b3c8f] text-white shadow-xs' : 'text-slate-700'
-                          }`}
-                      >
-                        <Phone className="w-3.5 h-3.5" /> SMS / SĐT
-                      </button>
-                    </div>
-                  </div>
                 </div>
 
                 {/* KHUNG 2: VẤN ĐỀ SỨC KHỎE CẦN KHÁM */}
@@ -677,9 +654,7 @@ export const BookingForm = () => {
                   <div className="flex justify-between pt-0.5">
                     <span className="opacity-75">Kênh xác thực:</span>
                     <span className="font-bold text-white">
-                      {verifyMethod === 'sms'
-                        ? `SMS (${phoneNumber})`
-                        : `Email (${email || '---'})`}
+                      {`Email (${email || '---'})`}
                     </span>
                   </div>
                 </div>

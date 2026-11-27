@@ -67,6 +67,11 @@ interface CurrentPatientInfo {
     notes?: string;
     isPrimary?: boolean;
   };
+  initialDiagnosis?: {
+    code: string;
+    name: string;
+    notes?: string;
+  };
   defaultAdvice: {
     explanation: string;
     plan: string;
@@ -490,6 +495,15 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
       }
       : undefined;
 
+    const initialDiagEvent = [...diagEvents].reverse().find((t) => t.data?.diagnosisType === 'initial');
+    const initialDiagnosis = initialDiagEvent?.data?.icd10Code || initialDiagEvent?.data?.icd10?.icd10Code
+      ? {
+        code: initialDiagEvent.data.icd10Code || initialDiagEvent.data.icd10.icd10Code,
+        name: initialDiagEvent.data.diagnosisName || initialDiagEvent.data.icd10?.descriptionVi || initialDiagEvent.data.icd10?.descriptionEn || '',
+        notes: initialDiagEvent.data.notes || initialDiagEvent.data.clinicalNotes || '',
+      }
+      : undefined;
+
     const defaultAdvice = {
       explanation: consultEvent?.data?.conditionExplanation || '',
       plan: consultEvent?.data?.treatmentPlan || '',
@@ -512,6 +526,7 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
       symptoms,
       clinicalExam,
       existingDiagnosis,
+      initialDiagnosis,
       defaultAdvice,
     };
   }, [activeEncounter, timelineData, activeEncounterId]);
@@ -1443,6 +1458,42 @@ export const DoctorDiagnosisView: React.FC<DoctorDiagnosisViewProps> = ({
                         <span>Chẩn đoán chính (Primary)</span>
                       </label>
                     </div>
+
+                    {/* Chẩn đoán sơ bộ ban đầu (tham chiếu đối chiếu) */}
+                    {currentPatient?.initialDiagnosis && (
+                      <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                        <div className="space-y-0.5 text-xs">
+                          <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider block">
+                            Chẩn đoán sơ bộ ban đầu
+                          </span>
+                          <div className="font-bold text-slate-800 flex items-center gap-2 flex-wrap">
+                            <span className="font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-extrabold">
+                              {currentPatient.initialDiagnosis.code}
+                            </span>
+                            <span>{currentPatient.initialDiagnosis.name}</span>
+                          </div>
+                          {currentPatient.initialDiagnosis.notes && (
+                            <p className="text-[11px] text-slate-600">
+                              Ghi chú sơ bộ: {currentPatient.initialDiagnosis.notes}
+                            </p>
+                          )}
+                        </div>
+                        {!isEncounterFinished && selectedIcd.code !== currentPatient.initialDiagnosis.code && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleSelectIcd({
+                                code: currentPatient.initialDiagnosis!.code,
+                                name: currentPatient.initialDiagnosis!.name,
+                              })
+                            }
+                            className="px-3 py-1.5 rounded-xl bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-bold transition-colors cursor-pointer shrink-0 self-start sm:self-center"
+                          >
+                            Áp dụng mã này
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     {/* Quick Pick Chips for Cardiology ICD-10 */}
                     <div className="space-y-2">

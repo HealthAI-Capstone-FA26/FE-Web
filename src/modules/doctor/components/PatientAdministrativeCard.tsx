@@ -277,6 +277,10 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
     switch (status) {
       case 'finished': return 'Đã hoàn thành';
       case 'in_progress': return 'Đang khám';
+      case 'waiting_for_doctor': return 'Chờ bác sĩ';
+      case 'awaiting_diagnostics': return 'Chờ cận lâm sàng';
+      case 'diagnostics_in_progress': return 'Đang làm cận lâm sàng';
+      case 'awaiting_review': return 'Chờ kết luận';
       case 'registered': return 'Đã tiếp nhận';
       case 'arrived': return 'Mới tới';
       case 'cancelled': return 'Đã hủy';
