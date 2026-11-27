@@ -15,6 +15,8 @@ export interface PatientItem {
   ssn: string;
   bhyt: string;
   dob: string;
+  ethnicity?: string;
+  address?: string;
   recentAction: string;
   doctor: string;
   specialty: string;
@@ -42,6 +44,7 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
     phone: '',
     email: '',
     address: '',
+    ethnicity: '',
   });
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -57,7 +60,8 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
         insuranceCard: patient.bhyt !== 'Chưa cập nhật' ? patient.bhyt : '',
         phone: patient.phone !== 'Chưa cập nhật' ? patient.phone : '',
         email: patient.email !== 'Chưa cập nhật' ? patient.email : '',
-        address: '',
+        address: patient.address && patient.address !== 'Chưa cập nhật' ? patient.address : '',
+        ethnicity: patient.ethnicity && patient.ethnicity !== 'Chưa cập nhật' ? patient.ethnicity : '',
       });
       setFormError(null);
     }
@@ -84,6 +88,7 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
       insuranceNumber: formData.insuranceCard.trim() || undefined,
       email: formData.email.trim() || undefined,
       address: formData.address.trim() || undefined,
+      ethnicity: formData.ethnicity.trim() || undefined,
     };
 
     try {
@@ -102,6 +107,8 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
         ssn: formData.identityCard.trim() || 'Chưa cập nhật',
         bhyt: formData.insuranceCard.trim() || 'Chưa cập nhật',
         email: formData.email.trim() || 'Chưa cập nhật',
+        ethnicity: formData.ethnicity.trim() || 'Chưa cập nhật',
+        address: formData.address.trim() || 'Chưa cập nhật',
       });
       onClose();
     } catch (err: any) {
@@ -203,12 +210,25 @@ export const EditPatientModal: React.FC<EditPatientModalProps> = ({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="block text-slate-700 font-bold">Ngày sinh (*)</label>
-            <DobInput
-              value={formData.dob}
-              onChange={(val) => setFormData({ ...formData, dob: val })}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="block text-slate-700 font-bold">Ngày sinh (*)</label>
+              <DobInput
+                value={formData.dob}
+                onChange={(val) => setFormData({ ...formData, dob: val })}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-slate-700 font-bold">Dân tộc</label>
+              <input
+                type="text"
+                placeholder="VD: Kinh, Tày, Thái..."
+                value={formData.ethnicity}
+                onChange={(e) => setFormData({ ...formData, ethnicity: e.target.value })}
+                className="w-full bg-slate-50 text-slate-900 p-2.5 rounded-xl border border-slate-200 outline-none focus:bg-white focus:border-blue-700 transition-all font-semibold"
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5">

@@ -409,6 +409,12 @@ export const ReceptionAppointmentDetailModal: React.FC<ReceptionAppointmentDetai
                       : appointment.patient?.gender || '---'}
                   </span>
                 </div>
+                <div>
+                  <span className="text-slate-400 font-medium block">Dân tộc:</span>
+                  <span className="font-semibold text-slate-800">
+                    {appointment.patient?.ethnicity || 'Chưa cập nhật'}
+                  </span>
+                </div>
                 {appointment.patient?.insuranceNumber && (
                   <div>
                     <span className="text-slate-400 font-medium block">Mã thẻ BHYT:</span>

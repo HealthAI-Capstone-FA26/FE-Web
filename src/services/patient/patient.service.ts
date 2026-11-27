@@ -122,10 +122,12 @@ export const patientService = {
 
   // Cập nhật hồ sơ bệnh nhân (PATCH /patients/:id)
   async updatePatient(id: string, data: Partial<CreatePatientData>): Promise<PatientResponse> {
-    return apiFetch<PatientResponse>(`/patients/${id}`, {
+    const res = await apiFetch<PatientResponse>(`/patients/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+    cachedPatients = null;
+    return res;
   },
 
   // Gợi ý hồ sơ bệnh nhân khớp với thông tin user (GET /patients/match-suggestion)

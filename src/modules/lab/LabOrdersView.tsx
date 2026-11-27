@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useWorkspaceRefresh } from '../../components/common/WorkspaceContainer';
 import { 
   FlaskConical, CheckCircle2, Sparkles, Upload, 
   Lock, FileText, Loader2,
@@ -177,6 +178,8 @@ export const LabOrdersView: React.FC = () => {
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  useWorkspaceRefresh(() => fetchTasks());
 
   const formatLocalDate = (d: Date | string | undefined | null): string => {
     if (!d) return '';

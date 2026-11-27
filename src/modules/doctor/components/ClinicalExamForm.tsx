@@ -15,7 +15,6 @@ import {
   FileText,
   UserCheck,
 } from 'lucide-react';
-import { Badge } from '../../../components/common/Badge';
 import {
   clinicalExamService,
   initialDiagnosisService,
@@ -189,13 +188,10 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
             <span>Ghi nhận Khám lâm sàng & Chẩn đoán sơ bộ (Bác sĩ Tim Mạch)</span>
           </h3>
           <p className="text-[11px] text-slate-500 font-medium">
-            Phiếu thăm khám lâm sàng chuẩn SE02: Tư thế → Nhìn → Sờ → Gõ → Nghe → Nhận định
+            Phiếu thăm khám lâm sàng: Tư thế → Nhìn → Sờ → Gõ → Nghe → Nhận định
           </p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <Badge variant="info" size="sm">
-            API: clinical-examination
-          </Badge>
           <button
             type="button"
             onClick={handleSaveOnlyClinicalExam}
@@ -232,9 +228,8 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
             <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-            <span>Tư thế người bệnh khi khám (patient_position):</span>
+            <span>Tư thế người bệnh khi khám:</span>
           </label>
-          <span className="text-[10px] text-slate-400 font-normal">Tùy chọn</span>
         </div>
         <input
           type="text"
@@ -272,9 +267,6 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
           <h4 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
             <span>Bốn bước thăm khám thực thể tim mạch:</span>
           </h4>
-          <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-            clinical_examinations
-          </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -283,7 +275,7 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                <span>1. Khám Nhìn (inspection_findings):</span>
+                <span>1. Khám Nhìn:</span>
               </label>
               <span className="text-[10px] text-slate-400">Lồng ngực, da, mỏm tim</span>
             </div>
@@ -319,7 +311,7 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Hand className="w-3.5 h-3.5 text-amber-600" />
-                <span>2. Khám Sờ (palpation_findings):</span>
+                <span>2. Khám Sờ:</span>
               </label>
               <span className="text-[10px] text-slate-400">Mỏm tim, rung miêu, Hartzer</span>
             </div>
@@ -354,7 +346,7 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Activity className="w-3.5 h-3.5 text-indigo-600" />
-                <span>3. Khám Gõ (percussion_findings):</span>
+                <span>3. Khám Gõ:</span>
               </label>
               <span className="text-[10px] text-slate-400">Diện đục của tim</span>
             </div>
@@ -388,7 +380,7 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
                 <Volume2 className="w-3.5 h-3.5 text-blue-700" />
-                <span>4. Khám Nghe (auscultation_findings) (*):</span>
+                <span>4. Khám Nghe (*):</span>
               </label>
               <span className="text-[10px] text-blue-700 font-semibold">Trọng yếu</span>
             </div>
@@ -425,9 +417,8 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5 text-slate-600" />
-            <span>Tóm tắt diễn tiến & Nhận định lâm sàng (clinical_notes):</span>
+            <span>Tóm tắt diễn tiến & Nhận định lâm sàng:</span>
           </label>
-          <span className="text-[10px] text-slate-400">Hội chứng & đánh giá</span>
         </div>
         <textarea
           rows={2}
@@ -459,7 +450,7 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
       {/* ── MỤC 4: CHẨN ĐOÁN SƠ BỘ CỦA BÁC SĨ ── */}
       <div className="space-y-2 text-xs">
         <label className="block font-bold text-slate-700">
-          Chẩn đoán sơ bộ của Bác sĩ (*) (SE02 Initial Diagnosis):
+          Chẩn đoán sơ bộ của Bác sĩ (*):
         </label>
         <input
           type="text"

@@ -3,7 +3,7 @@ import {
   User, ShieldAlert, Heart, Thermometer, Activity,
   AlertTriangle, Loader2, PlayCircle, CheckCircle2, RefreshCw,
   History, ChevronDown, ChevronUp, Calendar, Stethoscope,
-  ArrowRight
+  ArrowRight, X, BadgeCheck
 } from 'lucide-react';
 import type { PatientEMR } from '../types';
 import type { CaseOverviewData } from '../../../services/doctor';
@@ -71,6 +71,8 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
   displayTemp,
   hasMeasuredVitals,
 }) => {
+
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const activeFilteredAllergies = activeAllergies.filter((a) => a.status === 'active');
   const hasDrugAllergy = activeFilteredAllergies.some((a) => {
@@ -148,6 +150,10 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
   const isSpo2Abnormal = Boolean(spo2Obs?.isAbnormal || (spo2Value !== undefined && Number(spo2Value) < 95));
   const isRespAbnormal = Boolean(respObs?.isAbnormal);
   const isBmiAbnormal = Boolean(bmiObs?.isAbnormal);
+  const vitalCardClass = (abnormal: boolean) =>
+    `p-2.5 rounded-xl border shadow-2xs space-y-0.5 ${
+      abnormal ? 'border-red-400 bg-red-50' : 'border-slate-200/70 bg-white'
+    }`;
 
   const vitalMeasuredRaw = vitalSession?.measuredAt || vitalSession?.createdAt;
   const vitalMeasuredTimeText = (() => {
@@ -290,6 +296,14 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
               <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
                 Thông tin cá nhân
               </span>
+              <button
+                type="button"
+                onClick={() => setIsProfileModalOpen(true)}
+                className="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 text-[10px] font-bold transition-colors cursor-pointer"
+                title="Xem đầy đủ hồ sơ cá nhân bệnh nhân"
+              >
+                Chi tiết hồ sơ
+              </button>
               {onRefreshEncounter && (
                 <button
                   type="button"
@@ -568,11 +582,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
             <div className="space-y-2 pt-0.5">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {/* 1. Huyết áp */}
-                <div
-                  className={`bg-white p-2.5 rounded-xl border shadow-2xs space-y-0.5 ${
-                    isBpAbnormal ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200/70'
-                  }`}
-                >
+                <div className={vitalCardClass(isBpAbnormal)}>
                   <div className="flex items-center gap-1 text-emerald-600">
                     <Activity className="w-3 h-3 shrink-0" />
                     <span className="text-[10px] font-bold text-slate-500">Huyết áp</span>
@@ -584,11 +594,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
                 </div>
 
                 {/* 2. Mạch / Nhịp tim */}
-                <div
-                  className={`bg-white p-2.5 rounded-xl border shadow-2xs space-y-0.5 ${
-                    isHrAbnormal ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200/70'
-                  }`}
-                >
+                <div className={vitalCardClass(isHrAbnormal)}>
                   <div className="flex items-center gap-1 text-rose-500">
                     <Heart className="w-3 h-3 shrink-0" />
                     <span className="text-[10px] font-bold text-slate-500">Mạch / Nhịp tim</span>
@@ -600,11 +606,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
                 </div>
 
                 {/* 3. Thân nhiệt */}
-                <div
-                  className={`bg-white p-2.5 rounded-xl border shadow-2xs space-y-0.5 ${
-                    isTempAbnormal ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200/70'
-                  }`}
-                >
+                <div className={vitalCardClass(isTempAbnormal)}>
                   <div className="flex items-center gap-1 text-amber-500">
                     <Thermometer className="w-3 h-3 shrink-0" />
                     <span className="text-[10px] font-bold text-slate-500">Thân nhiệt</span>
@@ -616,11 +618,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
                 </div>
 
                 {/* 4. SpO2 */}
-                <div
-                  className={`bg-white p-2.5 rounded-xl border shadow-2xs space-y-0.5 ${
-                    isSpo2Abnormal ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200/70'
-                  }`}
-                >
+                <div className={vitalCardClass(isSpo2Abnormal)}>
                   <div className="flex items-center gap-1 text-blue-600">
                     <Activity className="w-3 h-3 shrink-0" />
                     <span className="text-[10px] font-bold text-slate-500">SpO2 (Oxy máu)</span>
@@ -632,11 +630,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
                 </div>
 
                 {/* 5. Nhịp thở */}
-                <div
-                  className={`bg-white p-2.5 rounded-xl border shadow-2xs space-y-0.5 ${
-                    isRespAbnormal ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200/70'
-                  }`}
-                >
+                <div className={vitalCardClass(isRespAbnormal)}>
                   <span className="text-[10px] font-bold text-slate-500 block">Nhịp thở</span>
                   <div className={`text-xs font-mono font-extrabold ${isRespAbnormal ? 'text-rose-700' : 'text-slate-800'}`}>
                     {respValue ?? '---'}{' '}
@@ -663,11 +657,7 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
                 </div>
 
                 {/* 8. Chỉ số BMI */}
-                <div
-                  className={`bg-white p-2.5 rounded-xl border shadow-2xs space-y-0.5 ${
-                    isBmiAbnormal ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200/70'
-                  }`}
-                >
+                <div className={vitalCardClass(isBmiAbnormal)}>
                   <span className="text-[10px] font-bold text-slate-500 block">Chỉ số BMI</span>
                   <div className={`text-xs font-mono font-extrabold ${isBmiAbnormal ? 'text-rose-700' : 'text-slate-800'}`}>
                     {bmiValue ?? '---'}
@@ -785,6 +775,111 @@ export const PatientAdministrativeCard: React.FC<PatientAdministrativeCardProps>
           </div>
         )}
       </div>
+
+      {/* Modal chi tiết hồ sơ cá nhân bệnh nhân */}
+      {isProfileModalOpen && (() => {
+        const patientDetail = safeEncounterDetail?.patient;
+        const overviewPatient = safeOverview?.patient;
+        const genderCode = overviewPatient?.gender || patientDetail?.gender;
+        const genderText =
+          genderCode === 'female' ? 'Nữ' : genderCode === 'male' ? 'Nam' : genderCode === 'other' ? 'Khác' : currentPatient?.gender || '---';
+
+        const profileRows: Array<{ label: string; value: string; mono?: boolean }> = [
+          { label: 'Mã bệnh nhân', value: patientDetail?.patientCode || '---', mono: true },
+          { label: 'Mã lượt khám', value: safeEncounterDetail?.encounterCode || currentPatient?.id || '---', mono: true },
+          { label: 'Họ và tên', value: overviewPatient?.fullName || patientDetail?.fullName || currentPatient?.name || '---' },
+          { label: 'Giới tính / Tuổi', value: `${genderText} (${currentPatient?.age ?? '--'} tuổi)` },
+          { label: 'Ngày sinh', value: formatDateDdMmYyyy(overviewPatient?.dateOfBirth || patientDetail?.dateOfBirth || currentPatient?.dob), mono: true },
+          { label: 'Nhóm máu', value: overviewPatient?.bloodType || patientDetail?.bloodType || currentPatient?.bloodType || 'Chưa cập nhật' },
+          { label: 'Số điện thoại', value: patientDetail?.phoneNumber || '---', mono: true },
+          { label: 'Email', value: patientDetail?.email || 'Chưa cập nhật' },
+          { label: 'CCCD / CMND', value: patientDetail?.identityNumber || 'Chưa cập nhật', mono: true },
+          { label: 'Số thẻ BHYT', value: patientDetail?.insuranceNumber || 'Chưa cập nhật', mono: true },
+          { label: 'Dân tộc', value: patientDetail?.ethnicity || 'Chưa cập nhật' },
+          {
+            label: 'Trạng thái hồ sơ',
+            value: patientDetail?.status === 'main' ? 'Hồ sơ chính thức' : patientDetail?.status === 'draft' ? 'Hồ sơ tạm (Draft)' : '---',
+          },
+        ];
+
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-[1px] flex items-center justify-center p-4 animate-in fade-in duration-150"
+            onClick={() => setIsProfileModalOpen(false)}
+          >
+            <div
+              className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                      <span>Hồ sơ cá nhân bệnh nhân</span>
+                      {patientDetail?.identityVerified && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                          <BadgeCheck className="w-3 h-3" /> Đã xác minh danh tính
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Thông tin hành chính được đồng bộ từ hệ thống tiếp đón
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsProfileModalOpen(false)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                  aria-label="Đóng"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {profileRows.map((item) => (
+                    <div
+                      key={item.label}
+                      className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 space-y-0.5"
+                    >
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        {item.label}
+                      </span>
+                      <div className={`text-xs font-bold text-slate-800 break-words ${item.mono ? 'font-mono' : ''}`}>
+                        {item.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 space-y-0.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Địa chỉ liên hệ
+                  </span>
+                  <div className="text-xs font-bold text-slate-800 break-words">
+                    {patientDetail?.address || 'Chưa cập nhật'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsProfileModalOpen(false)}
+                  className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

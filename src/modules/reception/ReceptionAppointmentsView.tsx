@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useWorkspaceRefresh } from '../../components/common/WorkspaceContainer';
 import {
   Calendar,
   Search,
@@ -129,6 +130,11 @@ export const ReceptionAppointmentsView: React.FC = () => {
   useEffect(() => {
     fetchAppointments(true);
   }, [fetchAppointments]);
+
+  useWorkspaceRefresh(() => {
+    appointmentService.invalidateCache();
+    fetchAppointments(true);
+  });
 
   // Tự động làm mới khi người dùng chuyển lại tab (window focus)
   useEffect(() => {
@@ -407,21 +413,6 @@ export const ReceptionAppointmentsView: React.FC = () => {
               Theo dõi danh sách bệnh nhân đặt khám online & tại quầy, xác nhận lịch hẹn và check-in phát số thứ tự khám tự động.
             </p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              appointmentService.invalidateCache();
-              fetchAppointments(true);
-            }}
-            disabled={isLoading}
-            className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all flex items-center gap-1.5 border-none cursor-pointer disabled:opacity-50"
-            title="Tải lại dữ liệu mới nhất"
-          >
-            <RotateCcw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
-            <span>Làm mới</span>
-          </button>
         </div>
       </div>
 

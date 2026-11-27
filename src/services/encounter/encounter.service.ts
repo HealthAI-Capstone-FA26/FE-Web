@@ -10,6 +10,12 @@ export interface EncounterPatient {
   identityNumber?: string;
   insuranceNumber?: string;
   bloodType?: string;
+  email?: string;
+  address?: string;
+  ethnicity?: string;
+  identityVerified?: boolean;
+  identityVerifiedAt?: string;
+  status?: string;
 }
 
 export interface EncounterDepartment {

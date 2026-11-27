@@ -1,6 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { RotateCw, type LucideIcon } from 'lucide-react';
+
+/** Hook lắng nghe sự kiện "Làm mới" từ nút trên thanh WorkspaceContainer. */
+export function useWorkspaceRefresh(onRefresh: () => void): void {
+  const ref = useRef(onRefresh);
+  ref.current = onRefresh;
+
+  useEffect(() => {
+    const handler = () => ref.current();
+    window.addEventListener('workspace-refresh', handler);
+    return () => window.removeEventListener('workspace-refresh', handler);
+  }, []);
+}
 
 export interface WorkspaceTab {
   id: string;

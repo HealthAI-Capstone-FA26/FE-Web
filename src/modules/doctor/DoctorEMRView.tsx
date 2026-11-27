@@ -1467,7 +1467,7 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                   ) : (
                     <>
                       <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                             <CheckCircle2 className="w-5 h-5" />
                           </div>
@@ -1477,13 +1477,13 @@ export const DoctorEMRView: React.FC<DoctorEMRViewProps> = ({
                                 ? 'Bệnh nhân đã có kết quả Cận lâm sàng'
                                 : 'Đã xác nhận Khám lâm sàng & Chỉ định Cận lâm sàng'}
                             </p>
-                            <p className="text-xs text-emerald-700 mt-0.5">
-                              {isClinicalExamIncomplete
-                                ? 'Bác sĩ chưa ghi nhận thông tin Khám lâm sàng thực thể. Vui lòng bổ sung ở biểu mẫu bên dưới.'
-                                : currentWorkflowState === 'completed'
-                                ? 'Toàn bộ kết quả xét nghiệm đã hoàn tất. Bác sĩ có thể xem chi tiết bên dưới hoặc chuyển sang tab Chẩn đoán.'
-                                : 'Phiếu chỉ định đã được xác nhận cho ca khám này. Chi tiết các dịch vụ đã chỉ định hiển thị ở danh sách bên dưới.'}
-                            </p>
+                            {(isClinicalExamIncomplete || currentWorkflowState !== 'completed') && (
+                              <p className="text-xs text-emerald-700 mt-0.5">
+                                {isClinicalExamIncomplete
+                                  ? 'Bác sĩ chưa ghi nhận thông tin Khám lâm sàng thực thể. Vui lòng bổ sung ở biểu mẫu bên dưới.'
+                                  : 'Phiếu chỉ định đã được xác nhận cho ca khám này. Chi tiết các dịch vụ đã chỉ định hiển thị ở danh sách bên dưới.'}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0 flex-wrap">
