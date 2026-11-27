@@ -684,8 +684,10 @@ const ReceptionQueueCallingBoard: React.FC = () => {
       if (apptId) {
         // Tạo Encounter chính thức sau khi examination fee của Appointment đã thanh toán
         const createdEnc = await encounterService.createFromPaidAppointment(apptId);
-        // Hoàn tất thủ tục tiếp đón & chuyển sang phòng Điều dưỡng triage
-        await completeEncounterRegistration(createdEnc, intakeToApply);
+        // Chỉ gọi complete-registration nếu encounter đang ở trạng thái arrived
+        if (!createdEnc?.status || createdEnc.status === 'arrived') {
+          await completeEncounterRegistration(createdEnc, intakeToApply);
+        }
         try {
           localStorage.removeItem(`pending_intake_${apptId}`);
         } catch { }

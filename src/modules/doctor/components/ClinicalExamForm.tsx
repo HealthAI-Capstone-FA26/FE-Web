@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Stethoscope,
   Sparkles,
@@ -14,12 +14,15 @@ import {
   Activity,
   FileText,
   UserCheck,
+  Search,
+  ArrowRight,
 } from 'lucide-react';
 import {
   clinicalExamService,
   initialDiagnosisService,
   extractPrimaryInitialDiagnosisText,
 } from '../../../services/doctor';
+import { icd10Service } from '../../../services/icd10/icd10.service';
 
 export interface DynamicAiDiagnosis {
   id: string;
@@ -80,6 +83,43 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
   const [isSavingExam, setIsSavingExam] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
   const [saveErrorMsg, setSaveErrorMsg] = useState<string | null>(null);
+  const [icd10Search, setIcd10Search] = useState('');
+  const [icd10Results, setIcd10Results] = useState<Array<{ code: string; name: string }>>([]);
+  const [isSearchingIcd, setIsSearchingIcd] = useState(false);
+
+  useEffect(() => {
+    const keyword = icd10Search.trim();
+    if (!keyword) {
+      setIcd10Results([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearchingIcd(true);
+        const apiResults = await icd10Service.searchIcd10({ search: keyword, limit: 20 });
+        setIcd10Results(
+          (apiResults || []).map((r) => ({
+            code: r.icd10Code,
+            name: r.icd10NameVi || r.icd10Name,
+          }))
+        );
+      } catch (err) {
+        console.warn('Lỗi tra cứu ICD-10 (Chẩn đoán sơ bộ):', err);
+        setIcd10Results([]);
+      } finally {
+        setIsSearchingIcd(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [icd10Search]);
+
+  const handleSelectInitialIcd = (item: { code: string; name: string }) => {
+    onQuickDiagnosisSelect(item.name, item.code);
+    setIcd10Search('');
+    setIcd10Results([]);
+  };
 
   // Đồng bộ giá trị khám nghe (auscultationFindings ưu tiên, fallback clinicalExamNote)
   const currentAuscultation = auscultationFindings || clinicalExamNote || '';
@@ -448,15 +488,58 @@ export const ClinicalExamForm: React.FC<ClinicalExamFormProps> = ({
       </div>
 
       {/* ── MỤC 4: CHẨN ĐOÁN SƠ BỘ CỦA BÁC SĨ ── */}
-      <div className="space-y-2 text-xs">
+      <div className="space-y-2.5 text-xs">
         <label className="block font-bold text-slate-700">
           Chẩn đoán sơ bộ của Bác sĩ (*):
         </label>
+
+        {/* Tra cứu mã bệnh ICD-10 */}
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Tra cứu mã hoặc tên bệnh ICD-10 (Ví dụ: I10, I50.9, Đau ngực, Viêm phế quản)..."
+            value={icd10Search}
+            onChange={(e) => setIcd10Search(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 outline-none focus:border-blue-600 focus:bg-white bg-slate-50/60 transition-all placeholder:text-slate-400"
+          />
+        </div>
+
+        {icd10Search.trim() && (
+          <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-48 overflow-y-auto shadow-lg text-xs font-bold divide-y divide-slate-100 animate-in fade-in duration-100">
+            {isSearchingIcd ? (
+              <div className="p-3.5 text-center text-slate-400 font-medium">
+                Đang tra cứu danh mục ICD-10...
+              </div>
+            ) : icd10Results.length > 0 ? (
+              icd10Results.map((item) => (
+                <div
+                  key={item.code}
+                  onClick={() => handleSelectInitialIcd(item)}
+                  className="p-3 hover:bg-blue-50 cursor-pointer flex justify-between items-center text-slate-700"
+                >
+                  <div>
+                    <span className="font-mono bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded mr-2">
+                      {item.code}
+                    </span>
+                    <span>{item.name}</span>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                </div>
+              ))
+            ) : (
+              <div className="p-3.5 text-center text-slate-400 font-medium">
+                Không tìm thấy mã bệnh khớp từ khóa "{icd10Search}".
+              </div>
+            )}
+          </div>
+        )}
+
         <input
           type="text"
           value={preliminaryDiag}
           onChange={(e) => setPreliminaryDiag(e.target.value)}
-          placeholder="Nhập chẩn đoán sơ bộ (Ví dụ: Viêm phế quản cấp / Theo dõi cơn đau thắt ngực ổn định)"
+          placeholder="Nhập hoặc chọn từ danh mục ICD-10 (Ví dụ: [I10] Tăng huyết áp vô căn)"
           required
           className="w-full p-3 rounded-xl border border-slate-200 font-extrabold outline-none focus:border-blue-600 text-xs md:text-sm text-slate-800 transition-colors"
         />
