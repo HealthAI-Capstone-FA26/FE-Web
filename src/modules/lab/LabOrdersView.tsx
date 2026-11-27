@@ -1668,6 +1668,7 @@ export const LabOrdersView: React.FC = () => {
                           const bands = resolveApplicableThresholdBands(param.labParameterThresholds, patient);
                           const numVal = paramValues[param.parameterId]?.valueNumeric;
                           const evalRes = evaluateNumericAgainstBands(numVal, bands);
+                          const riskBands = bands.filter((b) => b.riskLevel !== 'normal');
                           const isPositiveNegative = param.dataType === 'positive_negative';
 
                           return (
@@ -1682,10 +1683,10 @@ export const LabOrdersView: React.FC = () => {
                               </td>
                               <td className="p-2.5">
                                 {isPositiveNegative ? (
-                                  <span className="text-[11px] text-emerald-700 font-semibold">Âm tính (-): Bình thường • Dương tính (+): Bất thường</span>
-                                ) : bands.length > 0 ? (
+                                  <span className="text-[11px] text-rose-700 font-semibold">Dương tính (+): Bất thường</span>
+                                ) : riskBands.length > 0 ? (
                                   <div className="flex flex-wrap gap-1.5">
-                                    {bands.map((b, idx) => {
+                                    {riskBands.map((b, idx) => {
                                       const meta = RISK_LEVEL_META[b.riskLevel] || RISK_LEVEL_META.normal;
                                       const isMatched =
                                         numVal !== undefined &&
@@ -2129,6 +2130,7 @@ export const LabOrdersView: React.FC = () => {
                           ? Number(savedVal.valueNumeric)
                           : undefined;
                         const evalRes = evaluateNumericAgainstBands(numVal, bands);
+                        const riskBands = bands.filter((b) => b.riskLevel !== 'normal');
                         const isPositiveNegative = param.dataType === 'positive_negative';
 
                         return (
@@ -2148,12 +2150,12 @@ export const LabOrdersView: React.FC = () => {
                             </td>
                             <td className="p-2.5">
                               {isPositiveNegative ? (
-                                <span className="text-[11px] text-emerald-700 font-semibold">
-                                  Âm tính (-): Bình thường • Dương tính (+): Bất thường
+                                <span className="text-[11px] text-rose-700 font-semibold">
+                                  Dương tính (+): Bất thường
                                 </span>
-                              ) : bands.length > 0 ? (
+                              ) : riskBands.length > 0 ? (
                                 <div className="flex flex-wrap gap-1.5">
-                                  {bands.map((b, idx) => {
+                                  {riskBands.map((b, idx) => {
                                     const meta = RISK_LEVEL_META[b.riskLevel] || RISK_LEVEL_META.normal;
                                     const isMatched =
                                       numVal !== undefined &&
