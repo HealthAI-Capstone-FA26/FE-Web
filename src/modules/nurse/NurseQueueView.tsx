@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useWorkspaceRefresh } from '../../components/common/WorkspaceContainer';
 import {
   CheckCircle2,
   AlertCircle,
@@ -120,6 +121,8 @@ export const NurseQueueView: React.FC<NurseQueueViewProps> = ({
       if (!silent) setIsLoading(false);
     }
   }, [dateParams]);
+
+  useWorkspaceRefresh(() => fetchData());
 
   useEffect(() => {
     fetchData();

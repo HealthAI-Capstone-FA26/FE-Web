@@ -2,11 +2,12 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Users, CheckCircle2, UserPlus, Search, Eye,
   X, ShieldAlert, FileText,
-  Calendar, Stethoscope, Clock, Loader2, Edit3, RefreshCw, Mail, Phone, Shield, AlertCircle,
+  Calendar, Stethoscope, Clock, Loader2, Edit3, Mail, Phone, Shield, AlertCircle,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { patientService } from '../../services/patient/patient.service';
+import { useWorkspaceRefresh } from '../../components/common/WorkspaceContainer';
 import { getPatientEncounterHistory, type EncounterItem } from '../../services/encounter/encounter.service';
 import { EditPatientModal } from './EditPatientModal';
 import { Mascot } from 'page-mascot';
@@ -41,6 +42,8 @@ interface Patient {
   cccd: string;
   bhyt: string;
   dob: string;
+  ethnicity?: string;
+  address?: string;
   recentAction: string;
   doctor: string;
   specialty: string;
@@ -70,6 +73,8 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
           cccd: p.identityNumber || '---',
           bhyt: p.insuranceNumber || '---',
           dob: p.dateOfBirth ? p.dateOfBirth.slice(0, 10) : '---',
+          ethnicity: p.ethnicity || 'Chưa cập nhật',
+          address: p.address || 'Chưa cập nhật',
           recentAction: 'Khám sức khỏe',
           doctor: 'Chuyên khoa',
           specialty: 'Khám tổng quát',
@@ -106,6 +111,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
   const [formBhyt, setFormBhyt] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formAddress, setFormAddress] = useState('');
+  const [formEthnicity, setFormEthnicity] = useState('');
 
 
   // Validation errors
@@ -119,13 +125,13 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
 
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const loadPatients = async (isSilent: boolean = false) => {
+  const loadPatients = async (isSilent: boolean = false, forceRefresh: boolean = false) => {
     if (!isSilent) {
       setIsLoading(true);
     }
     setFetchError(null);
     try {
-      const data = await patientService.getAllPatients(searchTerm || undefined);
+      const data = await patientService.getAllPatients(searchTerm || undefined, forceRefresh);
       if (Array.isArray(data)) {
         const mapped: Patient[] = data.map((p: any) => {
           const birthYear = p.dateOfBirth ? new Date(p.dateOfBirth).getFullYear() : 1995;
@@ -142,6 +148,8 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
             ssn: p.identityNumber || 'Chưa cập nhật',
             bhyt: p.insuranceNumber || 'Chưa cập nhật',
             dob: p.dateOfBirth ? String(p.dateOfBirth).split('T')[0] : '1995-01-01',
+            ethnicity: p.ethnicity || 'Chưa cập nhật',
+            address: p.address || 'Chưa cập nhật',
             recentAction: 'Hồ sơ tiếp nhận',
             doctor: 'Chưa chỉ định',
             specialty: 'Khoa Tiếp Nhận',
@@ -169,6 +177,8 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
   useEffect(() => {
     loadPatients();
   }, [searchTerm]);
+
+  useWorkspaceRefresh(() => loadPatients(false, true));
 
   // Fetch encounter history when viewing a patient's detail modal
   const selectedPatientId = selectedPatient?.patientId;
@@ -315,6 +325,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
         insuranceNumber: formBhyt.trim() || undefined,
         email: formEmail.trim() || undefined,
         address: formAddress.trim() || undefined,
+        ethnicity: formEthnicity.trim() || undefined,
       };
 
       const res = await patientService.createPatient(payload);
@@ -335,6 +346,8 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
         ssn: formCccd.trim(),
         bhyt: formBhyt.trim() || 'Không có',
         dob: formDob,
+        ethnicity: formEthnicity.trim() || 'Chưa cập nhật',
+        address: formAddress.trim() || 'Chưa cập nhật',
         recentAction: 'Hồ sơ tiếp nhận',
         doctor: 'Chưa chỉ định',
         specialty: 'Khoa Tiếp Nhận',
@@ -354,6 +367,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
       setFormBhyt('');
       setFormEmail('');
       setFormAddress('');
+      setFormEthnicity('');
       setValidationError('');
 
       // Silent sync with backend
@@ -393,15 +407,6 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
           >
             <UserPlus className="w-4 h-4" />
             <span>Thêm Bệnh Nhân Mới</span>
-          </button>
-
-          <button
-            onClick={() => loadPatients()}
-            disabled={isLoading}
-            className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all flex items-center gap-1.5 border-none cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
-            <span>Làm mới</span>
           </button>
         </div>
       </div>
@@ -486,7 +491,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
             <AlertCircle className="w-8 h-8" />
             <span className="text-xs font-bold">{fetchError}</span>
             <button
-              onClick={() => loadPatients()}
+              onClick={() => loadPatients(false, true)}
               className="mt-2 px-4 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-xl cursor-pointer border-none"
             >
               Thử lại
@@ -766,6 +771,14 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
                         <span className="text-slate-400 block font-medium">Mã thẻ BHYT</span>
                         <span className="font-semibold text-slate-800 font-mono">{selectedPatient.bhyt}</span>
                       </div>
+                      <div>
+                        <span className="text-slate-400 block font-medium">Dân tộc</span>
+                        <span className="font-semibold text-slate-800">{selectedPatient.ethnicity || 'Chưa cập nhật'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block font-medium">Địa chỉ</span>
+                        <span className="font-semibold text-slate-800">{selectedPatient.address || 'Chưa cập nhật'}</span>
+                      </div>
                     </div>
                   </div>
 
@@ -1033,6 +1046,20 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
                     </div>
                   </div>
 
+                  {/* Dân tộc (Optional) */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Dân tộc
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="VD: Kinh, Tày, Thái... (Tùy chọn)"
+                      value={formEthnicity}
+                      onChange={(e) => setFormEthnicity(e.target.value)}
+                      className="w-full bg-white text-slate-800 font-semibold py-2 px-3.5 rounded-xl border border-slate-200 text-xs md:text-sm outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                    />
+                  </div>
+
                   {/* Địa chỉ thường trú (Optional) */}
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -1124,7 +1151,7 @@ export const ReceptionPatientsView: React.FC<ReceptionPatientsViewProps> = () =>
             );
           }
           // Silent background sync with backend
-          loadPatients(true);
+          loadPatients(true, true);
         }}
       />
 

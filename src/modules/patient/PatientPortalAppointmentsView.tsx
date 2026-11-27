@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useWorkspaceRefresh } from '../../components/common/WorkspaceContainer';
 import {
   Calendar,
   Clock,
@@ -60,6 +61,8 @@ export const PatientPortalAppointmentsView: React.FC = () => {
   useEffect(() => {
     fetchAppointments(true);
   }, []);
+
+  useWorkspaceRefresh(() => fetchAppointments(true));
 
   const handleBookingSuccess = () => {
     fetchAppointments();

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   User,
   Users,
-  Plus,
   CheckCircle2,
   Loader2,
   AlertCircle,
@@ -17,9 +16,9 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { patientService, type MatchSuggestionResult } from '../../services/patient/patient.service';
 import { getAvatarUrl } from '../../services/api';
-import { CreatePatientProfileModal, type ProfileItem } from './components/CreatePatientProfileModal';
-import { EditPatientProfileModal } from './components/EditPatientProfileModal';
+import { EditPatientProfileModal, type ProfileItem } from './components/EditPatientProfileModal';
 import { LinkPatientProfileModal } from './components/LinkPatientProfileModal';
+import { useWorkspaceRefresh } from '../../components/common/WorkspaceContainer';
 
 const mapRelationshipToFE = (rel?: string): string => {
   if (!rel) return 'Bản thân';
@@ -60,7 +59,6 @@ export const PatientProfilesView: React.FC = () => {
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Modals state
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState<boolean>(false);
   const [editingProfile, setEditingProfile] = useState<ProfileItem | null>(null);
 
@@ -92,6 +90,7 @@ export const PatientProfilesView: React.FC = () => {
           phone: p.phoneNumber || '',
           email: p.email || '',
           address: p.address || '',
+          ethnicity: p.ethnicity || '',
           isBackendRecord: true,
         }));
         setProfiles(mapped);
@@ -120,6 +119,8 @@ export const PatientProfilesView: React.FC = () => {
   useEffect(() => {
     loadPatients({ silent: false });
   }, []);
+
+  useWorkspaceRefresh(() => loadPatients({ silent: false }));
 
   const activeProfile = profiles[0] || null;
   const hasSelfProfile = profiles.length > 0;
@@ -153,25 +154,14 @@ export const PatientProfilesView: React.FC = () => {
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
           {!hasSelfProfile ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setIsLinkModalOpen(true)}
-                className="w-full sm:w-auto justify-center px-3.5 py-2.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer border border-slate-200/80 active:scale-95"
-              >
-                <Link2 className="w-4 h-4 text-blue-600" />
-                <span>Tra Cứu & Liên Kết Hồ Sơ Cũ</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsCreateModalOpen(true)}
-                className="w-full sm:w-auto justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 shrink-0 cursor-pointer border-none"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Khai Báo Hồ Sơ Bản Thân</span>
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => setIsLinkModalOpen(true)}
+              className="w-full sm:w-auto justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 shrink-0 cursor-pointer border-none"
+            >
+              <Link2 className="w-4 h-4" />
+              <span>Tra Cứu & Liên Kết Hồ Sơ</span>
+            </button>
           ) : (
             <button
               type="button"
@@ -265,25 +255,17 @@ export const PatientProfilesView: React.FC = () => {
               Bạn chưa có hồ sơ bệnh nhân liên kết
             </h3>
             <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
-              Vui lòng liên kết hồ sơ đã từng khám tại Phòng Khám Tim Mạch hoặc khai báo hồ sơ bệnh nhân để đặt lịch khám và tra cứu lịch sử y tế.
+              Vui lòng tra cứu và liên kết hồ sơ bệnh nhân đã đăng ký tại Phòng Khám Tim Mạch để đặt lịch khám và tra cứu lịch sử y tế.
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <button
               type="button"
               onClick={() => setIsLinkModalOpen(true)}
-              className="px-4 py-2.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center gap-2 cursor-pointer border border-slate-200/80 active:scale-95"
-            >
-              <Link2 className="w-4 h-4 text-blue-600" />
-              <span>Tra Cứu & Liên Kết Hồ Sơ Cũ</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsCreateModalOpen(true)}
               className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer border-none"
             >
-              <Plus className="w-4 h-4" />
-              <span>Khai Báo Hồ Sơ Bản Thân</span>
+              <Link2 className="w-4 h-4" />
+              <span>Tra Cứu & Liên Kết Hồ Sơ</span>
             </button>
           </div>
         </div>
@@ -361,6 +343,11 @@ export const PatientProfilesView: React.FC = () => {
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Giới tính</span>
                 <p className="text-xs sm:text-sm font-bold text-slate-900">{activeProfile.gender}</p>
               </div>
+
+              <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-100 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Dân tộc</span>
+                <p className="text-xs sm:text-sm font-bold text-slate-900">{activeProfile.ethnicity || 'Chưa cập nhật'}</p>
+              </div>
             </div>
           </div>
 
@@ -410,15 +397,6 @@ export const PatientProfilesView: React.FC = () => {
       )}
 
       {/* SEPARATE MODAL COMPONENTS */}
-      <CreatePatientProfileModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        userPhone={user?.phone}
-        userEmail={user?.email}
-        hasSelfProfile={hasSelfProfile}
-        onSuccess={handleSuccess}
-      />
-
       <LinkPatientProfileModal
         isOpen={isLinkModalOpen}
         onClose={() => setIsLinkModalOpen(false)}

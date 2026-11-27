@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useWorkspaceRefresh } from '../../components/common/WorkspaceContainer';
 import {
   CreditCard, RefreshCw, XCircle, AlertCircle,
   Loader2, Plus, Eye, CheckCircle2, Clock,
@@ -53,6 +54,8 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
   useEffect(() => {
     setSelectedType('all');
   }, [filterStatus]);
+
+  useWorkspaceRefresh(() => fetchInvoices());
 
   // ── State: các ca khám có chỉ định CLS chờ thu phí ────────────────────────
   const [pendingLabEncounters, setPendingLabEncounters] = useState<EncounterItem[]>([]);
@@ -230,6 +233,8 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
       setIsLoadingList(false);
     }
   }, [filterStatus]);
+
+  useWorkspaceRefresh(() => fetchInvoices());
 
   const handleQuickGenerateInvoice = async (encounterId: string) => {
     setIsQuickGeneratingId(encounterId);
@@ -478,15 +483,6 @@ export const ReceptionBillingView: React.FC<ReceptionBillingViewProps> = ({
               <span>Lập hóa đơn mới</span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={fetchInvoices}
-            disabled={isLoadingList}
-            className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingList ? 'animate-spin' : ''}`} />
-            <span>Làm mới</span>
-          </button>
         </div>
       </div>
 

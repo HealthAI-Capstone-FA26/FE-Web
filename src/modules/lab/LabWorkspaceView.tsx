@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlaskConical, FileText, Activity } from 'lucide-react';
+import { FlaskConical, Activity } from 'lucide-react';
 import { WorkspaceContainer, type WorkspaceTab } from '../../components/common/WorkspaceContainer';
 import { LabOrdersView } from './LabOrdersView';
 import { EcgWorkspacePage } from './ecg/EcgWorkspacePage';
@@ -18,12 +18,6 @@ export const LabWorkspaceView: React.FC = () => {
       icon: Activity,
       badge: 'Live',
       component: <EcgWorkspacePage defaultMode="anomaly" />
-    },
-    {
-      id: 'dicom-ai',
-      label: 'Upload ảnh DICOM & Phân tích AI',
-      icon: FileText,
-      component: <LabOrdersView />
     }
   ];
 

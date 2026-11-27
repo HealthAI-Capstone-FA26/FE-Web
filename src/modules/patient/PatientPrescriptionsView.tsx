@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useWorkspaceRefresh } from '../../components/common/WorkspaceContainer';
 import {
   Pill, Calendar, FileText, Download, Printer, Clock,
   Stethoscope, CheckCircle2, AlertCircle, RefreshCw,
@@ -60,6 +61,8 @@ export const PatientPrescriptionsView: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useWorkspaceRefresh(() => fetchData());
 
   const handleDownloadPdf = async (prescriptionId: string) => {
     try {

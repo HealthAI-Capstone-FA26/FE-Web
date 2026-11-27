@@ -30,6 +30,7 @@ export interface EcgCanvasProps {
   gridMode?: EcgGridMode;
   gainMmPerMv?: 5 | 10 | 20;
   leadNames: string[];
+  overlayLeads?: boolean;
   showCalibrationPulse?: boolean;
   showZeroBaseline?: boolean;
   maxSampleLimit?: number | null;
@@ -65,6 +66,7 @@ export const EcgCanvas = React.forwardRef<EcgCanvasHandle, EcgCanvasProps>((prop
     gridMode = 'standard',
     gainMmPerMv = 10,
     leadNames,
+    overlayLeads = false,
     showCalibrationPulse = true,
     showZeroBaseline = false,
     maxSampleLimit = null,
@@ -146,6 +148,7 @@ export const EcgCanvas = React.forwardRef<EcgCanvasHandle, EcgCanvasProps>((prop
         gainMmPerMv,
         leadIndices,
         leadLabels: leadNames,
+        overlayLeads,
         showCalibrationPulse,
         showZeroBaseline,
         maxSampleLimit,
@@ -210,6 +213,7 @@ export const EcgCanvas = React.forwardRef<EcgCanvasHandle, EcgCanvasProps>((prop
       gainMmPerMv,
       leadIndices,
       leadLabels: leadNames,
+      overlayLeads,
       showCalibrationPulse,
       showZeroBaseline,
       maxSampleLimit,
@@ -236,6 +240,7 @@ export const EcgCanvas = React.forwardRef<EcgCanvasHandle, EcgCanvasProps>((prop
     gainMmPerMv,
     leadIndices,
     leadNames,
+    overlayLeads,
     showCalibrationPulse,
     showZeroBaseline,
     maxSampleLimit,

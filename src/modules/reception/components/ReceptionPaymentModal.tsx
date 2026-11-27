@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   CreditCard, QrCode, CheckCircle2,
   Banknote, XCircle, AlertCircle,
@@ -54,10 +54,22 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
 
   // QR PayOS
   const [bankTransferResult, setBankTransferResult] = useState<BankTransferResult | null>(null);
+  const hasNotifiedSuccessRef = useRef(false);
+  const onPaymentSuccessRef = useRef(onPaymentSuccess);
+  onPaymentSuccessRef.current = onPaymentSuccess;
+
+  const notifyPaymentSuccessOnce = () => {
+    if (hasNotifiedSuccessRef.current) return;
+    hasNotifiedSuccessRef.current = true;
+    setActionError(null);
+    setPaymentStep('success');
+    onPaymentSuccessRef.current();
+  };
 
   // Reset state khi mở modal với invoice mới
   useEffect(() => {
     if (isOpen && invoice) {
+      hasNotifiedSuccessRef.current = invoice.status === 'paid';
       if (invoice.status === 'paid') {
         setPaymentStep('success');
       } else {
@@ -68,19 +80,23 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
         setActionError(null);
       }
     }
-  }, [isOpen, invoice]);
+  }, [isOpen, invoice?.invoiceId]);
 
   // Polling trạng thái thanh toán QR PayOS (mỗi 5 giây)
   useEffect(() => {
     if (paymentStep !== 'qr_waiting' || !bankTransferResult || !invoice) return;
 
+    let cancelled = false;
     const intervalId = setInterval(async () => {
+      if (hasNotifiedSuccessRef.current) {
+        clearInterval(intervalId);
+        return;
+      }
       try {
         const payment = await paymentTransactionService.getById(bankTransferResult.paymentId);
-        if (payment.status === 'success') {
+        if (!cancelled && payment.status === 'success') {
           clearInterval(intervalId);
-          setPaymentStep('success');
-          onPaymentSuccess();
+          notifyPaymentSuccessOnce();
         }
       } catch (err) {
         console.warn('Lỗi kiểm tra trạng thái thanh toán:', err);
@@ -88,9 +104,10 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
     }, 5000);
 
     return () => {
+      cancelled = true;
       clearInterval(intervalId);
     };
-  }, [paymentStep, bankTransferResult, invoice, onPaymentSuccess]);
+  }, [paymentStep, bankTransferResult?.paymentId, invoice?.invoiceId]);
 
   // Bước 1: Tạo giao dịch tiền mặt
   const handleCreateCashPayment = async () => {
@@ -118,8 +135,7 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
     setActionError(null);
     try {
       await paymentTransactionService.confirmCash(cashPayment.paymentId);
-      setPaymentStep('success');
-      onPaymentSuccess();
+      notifyPaymentSuccessOnce();
     } catch (err: any) {
       setActionError(err?.message || 'Không thể xác nhận thanh toán.');
     } finally {
@@ -156,8 +172,7 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
     try {
       const payment = await paymentTransactionService.getById(bankTransferResult.paymentId);
       if (payment.status === 'success') {
-        setPaymentStep('success');
-        onPaymentSuccess();
+        notifyPaymentSuccessOnce();
       } else {
         setActionError('Chưa nhận được xác nhận thanh toán từ PayOS. Vui lòng thử lại sau khi người bệnh đã chuyển khoản thành công.');
       }
@@ -250,7 +265,10 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
         <div className="flex gap-2 w-full justify-end">
           <button
             type="button"
-            onClick={() => setPaymentStep('select_method')}
+            onClick={() => {
+              setActionError(null);
+              setPaymentStep('select_method');
+            }}
             disabled={isProcessing}
             className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border-none transition-colors"
           >
@@ -278,7 +296,10 @@ export const ReceptionPaymentModal: React.FC<ReceptionPaymentModalProps> = ({
         <div className="flex w-full justify-between items-center gap-2">
           <button
             type="button"
-            onClick={() => setPaymentStep('select_method')}
+            onClick={() => {
+              setActionError(null);
+              setPaymentStep('select_method');
+            }}
             className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer border-none transition-colors"
           >
             Đổi sang tiền mặt

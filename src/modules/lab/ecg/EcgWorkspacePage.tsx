@@ -107,6 +107,7 @@ export const EcgWorkspacePage: React.FC<EcgWorkspacePageProps> = ({
   // Đạo trình đang chọn (mặc định Lead II theo mục 3.2)
   const [selectedLeads, setSelectedLeads] = useState<string[]>(['II']);
   const [multiLead, setMultiLead] = useState(false);
+  const [overlayLeads, setOverlayLeads] = useState(false);
 
   // Sự kiện đang chọn + bộ lọc + đối chiếu 2 lần phân tích
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -395,6 +396,11 @@ export const EcgWorkspacePage: React.FC<EcgWorkspacePageProps> = ({
   };
 
   const handleToggleLead = (lead: string) => {
+    if (overlayLeads) {
+      setOverlayLeads(false);
+      setSelectedLeads([lead]);
+      return;
+    }
     if (!multiLead) {
       setSelectedLeads([lead]);
       return;
@@ -669,14 +675,22 @@ export const EcgWorkspacePage: React.FC<EcgWorkspacePageProps> = ({
             availableLeads={detail?.leadNames ?? STANDARD_12_LEADS}
             selectedLeads={selectedLeads}
             multiLead={multiLead}
+            overlayLeads={overlayLeads}
             onToggleMultiLead={() => {
+              setOverlayLeads(false);
               setMultiLead((m) => {
                 if (m) setSelectedLeads((cur) => [cur[0] ?? 'II']);
                 return !m;
               });
             }}
             onToggleLead={handleToggleLead}
+            onSelectOverlayLeads={(leads) => {
+              setMultiLead(false);
+              setOverlayLeads(true);
+              setSelectedLeads(leads);
+            }}
             onSelectAll12Leads={() => {
+              setOverlayLeads(false);
               setMultiLead(true);
               setSelectedLeads(detail?.leadNames ?? STANDARD_12_LEADS);
             }}
@@ -727,9 +741,20 @@ export const EcgWorkspacePage: React.FC<EcgWorkspacePageProps> = ({
                   availableLeads={detail?.leadNames ?? STANDARD_12_LEADS}
                   selectedLeads={selectedLeads}
                   multiLead={multiLead}
-                  onToggleMultiLead={() => setMultiLead((m) => !m)}
+                  overlayLeads={overlayLeads}
+                  onToggleMultiLead={() => {
+                    setOverlayLeads(false);
+                    setMultiLead((m) => !m);
+                  }}
                   onToggleLead={handleToggleLead}
+                  onSelectOverlayLeads={(leads) => {
+                    setMultiLead(false);
+                    setOverlayLeads(true);
+                    setSelectedLeads(leads);
+                    setDrawerOpen(false);
+                  }}
                   onSelectAll12Leads={() => {
+                    setOverlayLeads(false);
                     setMultiLead(true);
                     setSelectedLeads(detail?.leadNames ?? STANDARD_12_LEADS);
                     setDrawerOpen(false);
@@ -791,6 +816,8 @@ export const EcgWorkspacePage: React.FC<EcgWorkspacePageProps> = ({
                     analysis={currentAnalysis}
                     comparisonAnalysis={comparisonAnalysis}
                     leadName={selectedLeads[0] ?? 'II'}
+                    leadNames={selectedLeads}
+                    overlayLeads={overlayLeads}
                     durationMs={durationMs}
                     viewStartMs={viewRange.startMs}
                     viewEndMs={viewRange.endMs}
@@ -827,6 +854,7 @@ export const EcgWorkspacePage: React.FC<EcgWorkspacePageProps> = ({
                 signalState={signalState}
                 recordingType={detail?.recordingType ?? 'resting_12_lead'}
                 selectedLeads={selectedLeads}
+                overlayLeads={overlayLeads}
                 anomalies={allAnomalies}
                 rPeaksMs={allRPeaksMs}
                 clock={clock}

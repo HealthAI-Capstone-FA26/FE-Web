@@ -114,6 +114,7 @@ export function normalizeLabResult(r: any): LabResultDetail {
       ...v,
       resultValueId: v.resultValueId || v.valueId,
       labResultId: resultId,
+      labResultAlerts: v.alerts || v.labResultAlerts || [],
       parameter: v.parameter
         ? {
             ...v.parameter,

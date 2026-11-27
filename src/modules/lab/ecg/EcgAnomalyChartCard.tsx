@@ -6,6 +6,7 @@ import { EcgCanvas, type EcgCanvasHandle } from './chart/EcgCanvas';
 import { AnomalyScoreSubChart } from './chart/AnomalyScoreSubChart';
 import { Minimap } from './chart/Minimap';
 import { augmentSignalWithAnomalies } from './chart/data/augmentAnomalySignal';
+import { OVERLAY_LEAD_COLORS } from './chart/renderer/sweep';
 import { formatTimeMs, getAnomalyLabel, SEVERITY_LABEL_VI } from './ecgMeta';
 
 interface EcgAnomalyChartCardProps {
@@ -13,6 +14,8 @@ interface EcgAnomalyChartCardProps {
   analysis: EcgAnalysis | null;
   comparisonAnalysis?: EcgAnalysis | null;
   leadName: string;
+  leadNames?: string[];
+  overlayLeads?: boolean;
   durationMs: number;
   viewStartMs: number;
   viewEndMs: number;
@@ -36,6 +39,8 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
   analysis,
   comparisonAnalysis,
   leadName,
+  leadNames,
+  overlayLeads = false,
   durationMs,
   viewStartMs,
   viewEndMs,
@@ -62,6 +67,8 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
 
   const anomalies = analysis?.anomalies ?? [];
   const status = analysis?.status;
+  const activeLeads = leadNames && leadNames.length > 0 ? leadNames : [leadName];
+  const leadTitle = activeLeads.join(' + ');
 
   // Hiệu ứng stagger fade-in dải màu khi trạng thái completed mới xuất hiện (mục 5)
   useEffect(() => {
@@ -83,12 +90,12 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
     const dataUrl = canvasRef.current?.exportPng({
       patientName,
       encounterCode,
-      title: `Anomaly Detection (API 3) · Lead ${leadName}`,
+      title: `Anomaly Detection · Lead ${leadTitle}`,
     });
     if (!dataUrl) return;
     const a = document.createElement('a');
     a.href = dataUrl;
-    a.download = `ecg-anomaly-${encounterCode}-${leadName}.png`;
+    a.download = `ecg-anomaly-${encounterCode}-${activeLeads.join('-')}.png`;
     a.click();
   };
 
@@ -118,8 +125,22 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2.5">
           <h3 className="text-[14px] font-semibold text-slate-900">
-            Anomaly Detection (API 3) · Lead {leadName}
+            Anomaly Detection · Lead {leadTitle}
           </h3>
+
+          {overlayLeads && activeLeads.length > 1 && (
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-slate-100/90 border border-slate-200/80 text-[11px] font-semibold">
+              {activeLeads.map((l, idx) => (
+                <span key={l} className="inline-flex items-center gap-1 text-slate-700">
+                  <span
+                    className="w-2.5 h-0.5 rounded-full inline-block"
+                    style={{ backgroundColor: OVERLAY_LEAD_COLORS[idx % OVERLAY_LEAD_COLORS.length] }}
+                  />
+                  <span>Lead {l}</span>
+                </span>
+              ))}
+            </div>
+          )}
 
           {status === 'queued' && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
@@ -347,7 +368,8 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
             styleMode="static"
             gridMode="standard"
             gainMmPerMv={10}
-            leadNames={[leadName]}
+            leadNames={activeLeads}
+            overlayLeads={overlayLeads}
             showCalibrationPulse={false}
             showZeroBaseline
             maxSampleLimit={evaluatedSampleLimit}
@@ -367,7 +389,7 @@ export const EcgAnomalyChartCard: React.FC<EcgAnomalyChartCardProps> = ({
             onToggleXAxisMode={() => setXAxisMode((m) => (m === 'time' ? 'sample' : 'time'))}
             onPointsChange={setPts}
             revealProgress={revealProgress}
-            ariaLabel={`Biểu đồ phát hiện bất thường AI đạo trình ${leadName}, ${Math.round(durationMs / 1000)} giây, ${anomalies.length} sự kiện bất thường`}
+            ariaLabel={`Biểu đồ phát hiện bất thường AI đạo trình ${leadTitle}, ${Math.round(durationMs / 1000)} giây, ${anomalies.length} sự kiện bất thường`}
           />
 
           {/* Đồ thị con (Sub-chart) tách riêng hiển thị Anomaly Score s(t) ∈ [0, 1] và Ngưỡng τ */}
